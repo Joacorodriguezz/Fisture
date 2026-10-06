@@ -21,6 +21,7 @@ interface Env {
   APPLE_PRIVATE_KEY: string;
   RAPIDAPI_KEY: string;
   PUBLIC_APP_URL: string;
+  ADMIN_SECRET?: string;
 }
 
 declare namespace App {
