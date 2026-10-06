@@ -1,0 +1,26 @@
+name = "fisture"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "./dist"
+
+# Base de datos D1
+[[d1_databases]]
+binding = "DB"
+database_name = "fisture-db"
+database_id = "YOUR_D1_DATABASE_ID"
+
+# Cache KV para sesiones
+[[kv_namespaces]]
+binding = "KV"
+id = "YOUR_KV_NAMESPACE_ID"
+
+# Storage R2 para assets (opcional)
+# [[r2_buckets]]
+# binding = "R2"
+# bucket_name = "fisture-assets"
+
+# Cron job diario para sync de partidos
+[triggers]
+crons = ["0 9 * * *"]  # 9:00 UTC = 6:00 Argentina
+
+[vars]
+ENVIRONMENT = "development"

@@ -1,0 +1,15 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@components/*": ["src/components/*"],
+      "@lib/*": ["src/lib/*"],
+      "@layouts/*": ["src/layouts/*"]
+    },
+    "types": ["@cloudflare/workers-types/2023-07-01", "astro/client"]
+  },
+  "include": ["src", "drizzle"],
+  "exclude": ["node_modules", "dist"]
+}
