@@ -30,11 +30,12 @@ export const leagues = sqliteTable("leagues", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  apiId: integer("api_id").notNull().unique(),
+  externalId: text("external_id").notNull().unique(),
   name: text("name").notNull(),
   country: text("country").notNull(),
   logo: text("logo"),
   season: integer("season").notNull(),
+  source: text("source").notNull().default("football-data"), // 'football-data' | 'promiedos'
   isActive: integer("is_active", { mode: "boolean" }).default(true),
 });
 
@@ -44,7 +45,7 @@ export const teams = sqliteTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
-    apiId: integer("api_id").notNull().unique(),
+    externalId: text("external_id").notNull().unique(),
     name: text("name").notNull(),
     shortName: text("short_name"),
     logo: text("logo"),
@@ -52,6 +53,10 @@ export const teams = sqliteTable(
       .notNull()
       .references(() => leagues.id),
     country: text("country"),
+    source: text("source").notNull().default("football-data"),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).default(
+      sql`(strftime('%s', 'now'))`
+    ),
   },
   (table) => [index("idx_teams_name").on(table.name)]
 );
@@ -93,7 +98,7 @@ export const matches = sqliteTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
-    apiId: integer("api_id").notNull().unique(),
+    externalId: text("external_id").notNull().unique(),
     homeTeamId: text("home_team_id")
       .notNull()
       .references(() => teams.id),
@@ -109,6 +114,7 @@ export const matches = sqliteTable(
     homeScore: integer("home_score"),
     awayScore: integer("away_score"),
     round: text("round"),
+    source: text("source").notNull().default("football-data"),
     updatedAt: integer("updated_at", { mode: "timestamp" }).default(
       sql`(strftime('%s', 'now'))`
     ),

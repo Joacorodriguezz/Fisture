@@ -1,0 +1,43 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const user = Astro.locals.user;
+
+if (user) {
+  return Astro.redirect("/equipos");
+}
+---
+
+<Layout title="FISTURE - Tus partidos en tu calendario" showNavbar={false}>
+  <main class="min-h-screen">
+    <section class="py-20 px-4 text-center bg-gradient-to-b from-primary-600 to-primary-800 text-white">
+      <h1 class="text-5xl font-bold mb-4">FISTURE</h1>
+      <p class="text-xl mb-8 opacity-90 max-w-xl mx-auto">
+        Sincroniza los partidos de tus equipos favoritos con tu calendario personal
+      </p>
+      <a href="/login" class="btn btn-white btn-lg">
+        Comenzar gratis
+      </a>
+    </section>
+
+    <section class="py-16 px-4 max-w-6xl mx-auto">
+      <div class="grid md:grid-cols-3 gap-8 text-center">
+        <div>
+          <div class="text-4xl mb-4">⚽</div>
+          <h3 class="font-bold mb-2">Elegí tus equipos</h3>
+          <p class="text-gray-600">Soportamos las principales ligas del mundo</p>
+        </div>
+        <div>
+          <div class="text-4xl mb-4">📅</div>
+          <h3 class="font-bold mb-2">Sync automático</h3>
+          <p class="text-gray-600">Los partidos aparecen en tu calendario</p>
+        </div>
+        <div>
+          <div class="text-4xl mb-4">🔔</div>
+          <h3 class="font-bold mb-2">Recordatorios</h3>
+          <p class="text-gray-600">Te avisamos antes de cada partido</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</Layout>

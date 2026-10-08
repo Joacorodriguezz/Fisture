@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { syncAllLeagues } from "../../../lib/football-api/sync";
+import { syncAllLeagues, syncSingleLeague } from "../../../lib/data-providers/sync";
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
@@ -16,21 +16,34 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   try {
-    console.log(`[ADMIN SYNC] Starting manual sync at ${new Date().toISOString()}`);
+    // Opcional: sincronizar solo una liga específica
+    const body = await request.json().catch(() => ({}));
+    const leagueId = body.leagueId as string | undefined;
 
-    const results = await syncAllLeagues(env);
+    console.log(`[ADMIN SYNC] Starting sync at ${new Date().toISOString()}`);
+
+    let results;
+    if (leagueId) {
+      console.log(`[ADMIN SYNC] Syncing single league: ${leagueId}`);
+      const result = await syncSingleLeague(env, leagueId);
+      results = [result];
+    } else {
+      results = await syncAllLeagues(env);
+    }
 
     // Log resultados
     for (const result of results) {
-      console.log(`[ADMIN SYNC] ${result.league}:`, {
-        teams: `${result.teamsCreated} created`,
+      console.log(`[ADMIN SYNC] ${result.league} (${result.source}):`, {
+        teams: `${result.teamsCreated} created, ${result.teamsUpdated} updated`,
         matches: `${result.matchesCreated} created, ${result.matchesUpdated} updated`,
         errors: result.errors.length,
       });
     }
 
-    // Invalidar cache de partidos en KV
-    await env.KV.delete("cache:matches:all");
+    // Invalidar cache de partidos en KV si existe
+    if (env.KV) {
+      await env.KV.delete("cache:matches:all");
+    }
 
     console.log(`[ADMIN SYNC] Sync completed at ${new Date().toISOString()}`);
 

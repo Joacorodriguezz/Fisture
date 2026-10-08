@@ -4,14 +4,14 @@ pages_build_output_dir = "./dist"
 
 # Base de datos D1
 [[d1_databases]]
-binding = "DB"
+binding = "fisture_db"
 database_name = "fisture-db"
-database_id = "YOUR_D1_DATABASE_ID"
+database_id = "a2c8ced1-b931-43f7-9773-8702f7dce031"
 
 # Cache KV para sesiones
 [[kv_namespaces]]
 binding = "KV"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "8a9fc92ed9774806833736d1bec711bb"
 
 # Storage R2 para assets (opcional)
 # [[r2_buckets]]

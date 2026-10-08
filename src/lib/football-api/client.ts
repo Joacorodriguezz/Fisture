@@ -1,6 +1,6 @@
 import type { ApiFixture, ApiTeam, ApiLeague, ApiResponse } from "./types";
 
-const API_HOST = "api-football-v1.p.rapidapi.com";
+const API_BASE_URL = "https://v3.football.api-sports.io";
 
 export interface FootballApiConfig {
   apiKey: string;
@@ -17,7 +17,7 @@ export function createFootballApiClient(config: FootballApiConfig) {
     endpoint: string,
     params: Record<string, string | number> = {}
   ): Promise<T> {
-    const url = new URL(`https://${API_HOST}/v3${endpoint}`);
+    const url = new URL(`${API_BASE_URL}${endpoint}`);
 
     Object.entries(params).forEach(([key, value]) => {
       url.searchParams.append(key, String(value));
@@ -25,8 +25,7 @@ export function createFootballApiClient(config: FootballApiConfig) {
 
     const response = await fetch(url.toString(), {
       headers: {
-        "X-RapidAPI-Key": config.apiKey,
-        "X-RapidAPI-Host": API_HOST,
+        "x-apisports-key": config.apiKey,
       },
     });
 

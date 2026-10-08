@@ -10,12 +10,9 @@ export const SUPPORTED_LEAGUES = [
 export type SupportedLeague = (typeof SUPPORTED_LEAGUES)[number];
 
 export function getCurrentSeason(): number {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const year = now.getFullYear();
-
-  // La temporada europea empieza en agosto
-  return month >= 8 ? year : year - 1;
+  // API-Football free plan: temporadas 2022-2024
+  // TODO: Cambiar a lógica dinámica con plan pago
+  return 2024;
 }
 
 export function getLeagueByApiId(apiId: number): SupportedLeague | undefined {

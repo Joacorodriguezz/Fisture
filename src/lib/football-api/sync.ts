@@ -13,7 +13,7 @@ export interface SyncResult {
 }
 
 export async function syncAllLeagues(env: Env): Promise<SyncResult[]> {
-  const api = createFootballApiClient({ apiKey: env.RAPIDAPI_KEY });
+  const api = createFootballApiClient({ apiKey: env.API_FOOTBALL_KEY });
   const db = createDb(env.DB);
   const season = getCurrentSeason();
   const results: SyncResult[] = [];
