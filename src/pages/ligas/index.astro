@@ -6,7 +6,7 @@ import Boton from "../../components/tribuna/Boton.astro";
 import Escudo from "../../components/tribuna/Escudo.astro";
 import { createDb } from "../../lib/db";
 import { asc, desc, eq } from "drizzle-orm";
-import { leagues, teams, userTeams } from "../../../drizzle/schema";
+import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -15,10 +15,12 @@ if (!user) {
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
-const allLeagues = await db.select().from(leagues).orderBy(asc(leagues.name));
+const allLeagues = await db.select().from(leagues).where(eq(leagues.isActive, true)).orderBy(asc(leagues.name));
+// Un equipo aparece en todas las competencias que juega (su liga y las copas)
 const allTeams = await db
-  .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo, leagueId: teams.leagueId })
-  .from(teams)
+  .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo, leagueId: leagueTeams.leagueId })
+  .from(leagueTeams)
+  .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
   .orderBy(asc(teams.name));
 
 const misEquipos = await db

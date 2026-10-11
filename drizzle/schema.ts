@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, primaryKey } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ============================================
@@ -59,6 +59,27 @@ export const teams = sqliteTable(
     ),
   },
   (table) => [index("idx_teams_name").on(table.name)]
+);
+
+// ============================================
+// PARTICIPACIÓN: qué equipos juegan cada competencia
+// (un equipo juega su liga y, además, copas internacionales)
+// ============================================
+
+export const leagueTeams = sqliteTable(
+  "league_teams",
+  {
+    leagueId: text("league_id")
+      .notNull()
+      .references(() => leagues.id, { onDelete: "cascade" }),
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.leagueId, table.teamId] }),
+    teamIdx: index("idx_league_teams_team").on(table.teamId),
+  })
 );
 
 // ============================================

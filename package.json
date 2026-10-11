@@ -13,7 +13,8 @@
     "db:migrate:prod": "wrangler d1 migrations apply fisture-db --remote",
     "db:studio": "drizzle-kit studio",
     "cf:dev": "wrangler pages dev ./dist",
-    "cf:deploy": "wrangler pages deploy ./dist"
+    "cf:deploy": "wrangler pages deploy ./dist",
+    "sync:check": "node scripts/sync-check.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^12.0.0",

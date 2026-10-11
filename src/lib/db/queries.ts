@@ -39,8 +39,28 @@ export async function getTeamUpcomingMatches(db: Database, teamId: string, limit
   return getMatchesForTeams(db, [teamId], limit);
 }
 
-async function getMatchesForTeams(db: Database, teamIds: string[], limit: number) {
-  const rows = await db
+// D1 admite máximo 100 parámetros por consulta. Cada equipo se usa como local y como visitante,
+// así que se consultan de a 30 equipos y se combinan los resultados.
+const EQUIPOS_POR_CONSULTA = 30;
+
+export async function getMatchesForTeams(db: Database, teamIds: string[], limit: number) {
+  const ahora = new Date();
+  const porPartido = new Map<string, Awaited<ReturnType<typeof consultarPartidos>>[number]>();
+
+  for (let i = 0; i < teamIds.length; i += EQUIPOS_POR_CONSULTA) {
+    const lote = teamIds.slice(i, i + EQUIPOS_POR_CONSULTA);
+    for (const fila of await consultarPartidos(db, lote, ahora, limit)) {
+      porPartido.set(fila.match.id, fila);
+    }
+  }
+
+  return [...porPartido.values()]
+    .sort((a, b) => a.match.dateTime.getTime() - b.match.dateTime.getTime())
+    .slice(0, limit);
+}
+
+function consultarPartidos(db: Database, teamIds: string[], desde: Date, limit: number) {
+  return db
     .select({
       match: matches,
       homeTeam: teams,
@@ -53,17 +73,12 @@ async function getMatchesForTeams(db: Database, teamIds: string[], limit: number
     .innerJoin(leagues, eq(matches.leagueId, leagues.id))
     .where(
       and(
-        gte(matches.dateTime, new Date()),
-        or(
-          inArray(matches.homeTeamId, teamIds),
-          inArray(matches.awayTeamId, teamIds)
-        )
+        gte(matches.dateTime, desde),
+        or(inArray(matches.homeTeamId, teamIds), inArray(matches.awayTeamId, teamIds))
       )
     )
     .orderBy(asc(matches.dateTime))
     .limit(limit);
-
-  return rows;
 }
 
 // Detalle de un partido (con equipos y liga)

@@ -1,8 +1,6 @@
 import type { APIRoute } from "astro";
 import { createDb } from "../../../lib/db";
-import { getUpcomingMatches } from "../../../lib/db/queries";
-import { calendarSyncs } from "../../../../drizzle/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { getUpcomingMatches, getSyncStates } from "../../../lib/db/queries";
 
 export const GET: APIRoute = async ({ url, locals }) => {
   const user = locals.user;
@@ -28,21 +26,9 @@ export const GET: APIRoute = async ({ url, locals }) => {
 
   // Obtener estado de sync para cada partido
   const matchIds = matchesData.map((m) => m.match.id);
-  let syncMap = new Map<string, string>();
-
-  if (matchIds.length > 0) {
-    const syncs = await db
-      .select()
-      .from(calendarSyncs)
-      .where(
-        and(
-          eq(calendarSyncs.userId, user.id),
-          inArray(calendarSyncs.matchId, matchIds)
-        )
-      );
-
-    syncMap = new Map(syncs.map((s) => [s.matchId, s.status || "pending"]));
-  }
+  // getSyncStates parte los IDs en lotes (D1 admite máximo 100 parámetros por consulta)
+  const estados = await getSyncStates(db, user.id, matchIds);
+  const syncMap = new Map([...estados].map(([id, s]) => [id, s.status]));
 
   const response = matchesData.map((m) => ({
     id: m.match.id,

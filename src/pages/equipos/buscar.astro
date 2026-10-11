@@ -6,7 +6,7 @@ import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
 import FiltroEquipos from "../../components/islands/FiltroEquipos";
 import { createDb } from "../../lib/db";
 import { asc, eq } from "drizzle-orm";
-import { leagues, teams, userTeams } from "../../../drizzle/schema";
+import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -15,7 +15,7 @@ if (!user) {
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
-const todasLasLigas = await db.select().from(leagues).orderBy(asc(leagues.name));
+const todasLasLigas = await db.select().from(leagues).where(eq(leagues.isActive, true)).orderBy(asc(leagues.name));
 const ligaPorId = new Map(todasLasLigas.map((l) => [l.id, l.name]));
 
 const todosLosEquipos = await db
@@ -23,21 +23,33 @@ const todosLosEquipos = await db
   .from(teams)
   .orderBy(asc(teams.name));
 
+// Competencias que juega cada equipo (solo las activas)
+const ligasActivas = new Set(todasLasLigas.map((l) => l.id));
+const participacion = new Map<string, string[]>();
+for (const p of await db.select().from(leagueTeams)) {
+  if (!ligasActivas.has(p.leagueId)) continue;
+  const lista = participacion.get(p.teamId) ?? [];
+  lista.push(p.leagueId);
+  participacion.set(p.teamId, lista);
+}
+
 const seguidos = new Set(
   (await db.select({ teamId: userTeams.teamId }).from(userTeams).where(eq(userTeams.userId, user.id))).map(
     (r) => r.teamId
   )
 );
 
-const items = todosLosEquipos.map((t) => ({
-  id: t.id,
-  nombre: t.name,
-  logo: t.logo,
-  sigla: t.shortName,
-  ligaId: t.leagueId,
-  liga: ligaPorId.get(t.leagueId) ?? "",
-  siguiendo: seguidos.has(t.id),
-}));
+const items = todosLosEquipos
+  .filter((t) => participacion.has(t.id))
+  .map((t) => ({
+    id: t.id,
+    nombre: t.name,
+    logo: t.logo,
+    sigla: t.shortName,
+    ligaIds: participacion.get(t.id)!,
+    liga: ligaPorId.get(t.leagueId) ?? "",
+    siguiendo: seguidos.has(t.id),
+  }));
 ---
 
 <Layout title="Buscar equipos - FISTURE" pagina={4}>

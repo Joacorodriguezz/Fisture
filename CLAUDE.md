@@ -19,6 +19,7 @@ npm run build        # Build para producción
 npm run db:generate  # Generar migraciones Drizzle
 npm run db:migrate:local  # Aplicar migraciones localmente
 npm run db:migrate:prod   # Aplicar migraciones en producción
+npm run sync:check        # Verificar el sync de competencias (ESPN) contra una D1 efímera
 ```
 
 ## Estructura

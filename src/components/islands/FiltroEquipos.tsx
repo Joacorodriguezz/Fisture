@@ -6,7 +6,9 @@ export interface EquipoItem {
   nombre: string;
   logo: string | null;
   sigla: string | null;
-  ligaId: string;
+  // Competencias que juega el equipo (su liga y las copas)
+  ligaIds: string[];
+  // Nombre de su liga de origen
   liga: string;
   siguiendo: boolean;
 }
@@ -64,7 +66,7 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
   const filtrados = useMemo(() => {
     const q = normalizar(consulta);
     return equipos.filter(
-      (e) => (!liga || e.ligaId === liga) && (!q || normalizar(e.nombre).includes(q))
+      (e) => (!liga || e.ligaIds.includes(liga)) && (!q || normalizar(e.nombre).includes(q))
     );
   }, [equipos, consulta, liga]);
 

@@ -6,7 +6,7 @@ import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
 import FiltroEquipos from "../../components/islands/FiltroEquipos";
 import { createDb } from "../../lib/db";
 import { asc, eq } from "drizzle-orm";
-import { leagues, teams, userTeams } from "../../../drizzle/schema";
+import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -25,10 +25,12 @@ if (!liga) {
   return Astro.redirect("/ligas");
 }
 
+// Participantes de la competencia (incluye equipos de otras ligas en las copas)
 const equiposLiga = await db
-  .select()
-  .from(teams)
-  .where(eq(teams.leagueId, id))
+  .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo })
+  .from(leagueTeams)
+  .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
+  .where(eq(leagueTeams.leagueId, id))
   .orderBy(asc(teams.name));
 
 const seguidos = new Set(
@@ -42,7 +44,7 @@ const items = equiposLiga.map((t) => ({
   nombre: t.name,
   logo: t.logo,
   sigla: t.shortName,
-  ligaId: liga.id,
+  ligaIds: [liga.id],
   liga: liga.name,
   siguiendo: seguidos.has(t.id),
 }));
