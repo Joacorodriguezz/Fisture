@@ -1,0 +1,38 @@
+---
+// Cabecera.astro: franja roja superior con el nombre, la fecha y la navegación de secciones
+export interface Seccion {
+  label: string;
+  href: string;
+  actual: boolean;
+}
+
+interface Props {
+  volanta?: string;
+  nombre?: string;
+  numero?: string;
+  fecha?: string;
+  secciones?: Seccion[];
+}
+
+const { volanta, nombre = "Fisture", numero, fecha, secciones = [] } = Astro.props;
+---
+
+<header class="tb-cabecera">
+  {volanta && <div class="tb-cabecera__volanta">{volanta}</div>}
+  <div class="tb-cabecera__cuerpo">
+    <h1 class="tb-cabecera__nombre">{nombre}</h1>
+    {(numero || fecha) && (
+      <div class="tb-cabecera__datos">
+        {numero && <div>{numero}</div>}
+        {fecha && <div>{fecha}</div>}
+      </div>
+    )}
+  </div>
+  {secciones.length > 0 && (
+    <nav class="tb-cabecera__nav" aria-label="Secciones">
+      {secciones.map((s) => (
+        <a href={s.href} aria-current={s.actual ? "page" : undefined}>{s.label}</a>
+      ))}
+    </nav>
+  )}
+</header>

@@ -2,56 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer components {
-  .btn {
-    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition;
+/* Estructura de página (Layout). Ver tribuna90.css para tokens y componentes. */
+.tb-main {
+  flex: 1;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 32px 56px;
+}
+
+.tb-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: var(--font-texto);
+}
+
+a {
+  color: var(--rojo);
+}
+
+a:hover {
+  color: var(--rojo-profundo);
+}
+
+.tb-opcion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 14px 20px;
+  background: var(--papel);
+  color: var(--tinta);
+  border: 2px solid var(--tinta);
+  text-decoration: none;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+
+.tb-opcion:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--sombra-registro);
+  color: var(--tinta);
+}
+
+.tb-footer {
+  background: var(--barra-tinta);
+  color: var(--crema-sobre-oscuro);
+  min-height: 56px;
+  padding: 16px 32px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 24px;
+  font: 600 13px/16px var(--font-rotulo);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .tb-main {
+    padding: 24px 16px 40px;
   }
 
-  .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700;
-  }
-
-  .btn-secondary {
-    @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
-  }
-
-  .btn-white {
-    @apply bg-white text-primary-600 hover:bg-gray-100;
-  }
-
-  .btn-success {
-    @apply bg-green-600 text-white;
-  }
-
-  .btn-sm {
-    @apply px-3 py-1.5 text-sm;
-  }
-
-  .btn-lg {
-    @apply px-6 py-3 text-lg;
-  }
-
-  .btn:disabled {
-    @apply opacity-50 cursor-not-allowed;
-  }
-
-  .input {
-    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition;
-  }
-
-  .card {
-    @apply bg-white rounded-lg shadow p-4;
-  }
-
-  .badge {
-    @apply inline-flex items-center px-2 py-1 text-xs font-medium rounded;
-  }
-
-  .badge-success {
-    @apply bg-green-100 text-green-700;
-  }
-
-  .badge-info {
-    @apply bg-blue-100 text-blue-700;
+  .tb-footer {
+    padding: 16px;
   }
 }

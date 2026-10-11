@@ -1,43 +1,70 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import Volanta from "../components/tribuna/Volanta.astro";
+import Titular from "../components/tribuna/Titular.astro";
+import Bajada from "../components/tribuna/Bajada.astro";
+import Boton from "../components/tribuna/Boton.astro";
+import Sello from "../components/tribuna/Sello.astro";
 
-const user = Astro.locals.user;
-
-if (user) {
-  return Astro.redirect("/equipos");
+if (Astro.locals.user) {
+  return Astro.redirect("/ligas");
 }
+
+const pasos = [
+  {
+    numero: "01",
+    titulo: "Sync automático",
+    texto: "Los partidos aparecen en tu Google Calendar o Outlook. Si cambia el horario, el evento se actualiza solo.",
+  },
+  {
+    numero: "02",
+    titulo: "Múltiples ligas",
+    texto: "Liga Profesional, Premier League, La Liga, Serie A, Bundesliga y Ligue 1.",
+  },
+  {
+    numero: "03",
+    titulo: "Recordatorios",
+    texto: "Notificaciones 1 hora y 15 minutos antes de cada partido.",
+  },
+];
 ---
 
 <Layout title="FISTURE - Tus partidos en tu calendario" showNavbar={false}>
-  <main class="min-h-screen">
-    <section class="py-20 px-4 text-center bg-gradient-to-b from-primary-600 to-primary-800 text-white">
-      <h1 class="text-5xl font-bold mb-4">FISTURE</h1>
-      <p class="text-xl mb-8 opacity-90 max-w-xl mx-auto">
-        Sincroniza los partidos de tus equipos favoritos con tu calendario personal
-      </p>
-      <a href="/login" class="btn btn-white btn-lg">
-        Comenzar gratis
-      </a>
-    </section>
-
-    <section class="py-16 px-4 max-w-6xl mx-auto">
-      <div class="grid md:grid-cols-3 gap-8 text-center">
-        <div>
-          <div class="text-4xl mb-4">⚽</div>
-          <h3 class="font-bold mb-2">Elegí tus equipos</h3>
-          <p class="text-gray-600">Soportamos las principales ligas del mundo</p>
-        </div>
-        <div>
-          <div class="text-4xl mb-4">📅</div>
-          <h3 class="font-bold mb-2">Sync automático</h3>
-          <p class="text-gray-600">Los partidos aparecen en tu calendario</p>
-        </div>
-        <div>
-          <div class="text-4xl mb-4">🔔</div>
-          <h3 class="font-bold mb-2">Recordatorios</h3>
-          <p class="text-gray-600">Te avisamos antes de cada partido</p>
+  <div style="display:flex;flex-direction:column;gap:48px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:32px;align-items:start">
+      <div style="display:flex;flex-direction:column;align-items:flex-start;gap:20px">
+        <Volanta tono="rojo">Fixture sync</Volanta>
+        <Titular nivel="tapa">TODOS TUS PARTIDOS EN TU CALENDARIO</Titular>
+        <Bajada>Elegís tus equipos una vez y Fisture carga cada partido en Google Calendar o Outlook, con aviso una hora y quince minutos antes.</Bajada>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:8px">
+          <Boton variante="primario" href="/login">Empezá gratis →</Boton>
+          <span style="font:600 14px/18px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">
+            Sin tarjeta · Sync diario a las 6 hs
+          </span>
         </div>
       </div>
-    </section>
-  </main>
+      <div style="position:relative;padding:0 20px 20px 0">
+        <span class="tb-foto" style="aspect-ratio:4 / 3"></span>
+        <div style="font:600 12px/16px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave);margin-top:8px">
+          Foto de hinchada en la tribuna
+        </div>
+        <div style="position:absolute;right:0;bottom:24px">
+          <Sello arriba="Siempre" centro="GRATIS" abajo="2 calendarios" />
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:28px">
+      <Volanta tono="tinta">Así funciona</Volanta>
+      <div style="width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px">
+        {pasos.map((p) => (
+          <div style="border-top:4px solid var(--rojo);padding-top:16px;display:flex;flex-direction:column;gap:8px">
+            <div style="font:400 40px/1 var(--font-titular);color:var(--rojo)">{p.numero}</div>
+            <div style="font:400 26px/1.05 var(--font-titular);text-transform:uppercase">{p.titulo}</div>
+            <p style="margin:0;font:400 15px/22px var(--font-texto);color:var(--tinta-suave)">{p.texto}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
 </Layout>

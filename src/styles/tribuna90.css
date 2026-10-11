@@ -1,0 +1,349 @@
+﻿/* Sistema visual Tribuna 90 (exportado desde Claude Design, archivo Fisture v3).
+   Tokens de color y tipografía, tema nocturna y componentes tb-*. */
+/* Tribuna 90 — color. Tema papel (default) y nocturna. */
+:root{
+  --papel: #f1e9dc;
+  --papel-2: #e6d9c4;
+  --tinta: #1a1412;
+  --tinta-suave: #5a4e44;
+  --linea: #8f7d68;
+  --rojo: #b91309;
+  --on-rojo: #ffffff;
+  --rojo-profundo: #8e1811;
+  --amarillo: #f2d43b;
+  --on-amarillo: #1a1412;
+  --crema-sobre-oscuro: #f1e9dc;
+  --barra-tinta: #1a1412;
+  --celeste: #0a7385;
+  --on-celeste: #ffffff;
+  --celeste-claro: #cfe6e2;
+  --azul: #1f2e7a;
+  --on-azul: #ffffff;
+  --crema: #efe2b0;
+  --link: var(--rojo);
+  /* semánticos */
+  --surface-page: var(--papel);
+  --surface-panel: var(--papel-2);
+  --surface-datos: var(--celeste-claro);
+  --surface-opinion: var(--crema);
+  --text-body: var(--tinta);
+  --text-meta: var(--tinta-suave);
+  --text-accent: var(--rojo);
+  --border-divider: var(--linea);
+  --border-strong: var(--tinta);
+  --brand: var(--rojo);
+  --brand-pressed: var(--rojo-profundo);
+}
+[data-theme="nocturna"]{
+  --papel: #15100e;
+  --papel-2: #221a16;
+  --tinta: #f3ebdf;
+  --tinta-suave: #b8aa99;
+  --linea: #7a6a5e;
+  --rojo: #ff5a44;
+  --on-rojo: #15100e;
+  --rojo-profundo: #a31b12;
+  --amarillo: #e8c832;
+  --on-amarillo: #1a1412;
+  --crema-sobre-oscuro: #f3ebdf;
+  --barra-tinta: #2e2420;
+  --celeste: #4fc3d6;
+  --on-celeste: #15100e;
+  --celeste-claro: #17302e;
+  --azul: #93a6f2;
+  --on-azul: #15100e;
+  --crema: #2c2518;
+}
+
+:root{
+  --font-titular: Anton, "Impact", "Arial Narrow Bold", sans-serif;
+  --font-rotulo: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-texto: "PT Serif", Georgia, "Times New Roman", serif;
+  --type-tapa-size: 96px;
+  --type-tapa-lh: 0.88;
+  --type-tapa-weight: 400;
+  --type-tapa-tracking: -0.005em;
+  --type-tapa: 400 96px/0.88 var(--font-titular);
+  --type-titular-1-size: 64px;
+  --type-titular-1-lh: 0.92;
+  --type-titular-1-weight: 400;
+  --type-titular-1: 400 64px/0.92 var(--font-titular);
+  --type-titular-2-size: 40px;
+  --type-titular-2-lh: 1;
+  --type-titular-2-weight: 400;
+  --type-titular-2: 400 40px/1 var(--font-titular);
+  --type-titular-3-size: 26px;
+  --type-titular-3-lh: 1.05;
+  --type-titular-3-weight: 400;
+  --type-titular-3: 400 26px/1.05 var(--font-titular);
+  --type-cifra-size: 44px;
+  --type-cifra-lh: 1;
+  --type-cifra-weight: 400;
+  --type-cifra: 400 44px/1 var(--font-titular);
+  --type-volanta-size: 15px;
+  --type-volanta-lh: 18px;
+  --type-volanta-weight: 700;
+  --type-volanta-tracking: 0.06em;
+  --type-volanta: 700 15px/18px var(--font-rotulo);
+  --type-boton-size: 17px;
+  --type-boton-lh: 20px;
+  --type-boton-weight: 700;
+  --type-boton-tracking: 0.04em;
+  --type-boton: 700 17px/20px var(--font-rotulo);
+  --type-dato-size: 14px;
+  --type-dato-lh: 18px;
+  --type-dato-weight: 600;
+  --type-dato-tracking: 0.02em;
+  --type-dato: 600 14px/18px var(--font-rotulo);
+  --type-cabezal-size: 30px;
+  --type-cabezal-lh: 34px;
+  --type-cabezal-weight: 700;
+  --type-cabezal-tracking: 0.01em;
+  --type-cabezal: italic 700 30px/34px var(--font-rotulo);
+  --type-copete-size: 19px;
+  --type-copete-lh: 23px;
+  --type-copete-weight: 700;
+  --type-copete: 700 19px/23px var(--font-rotulo);
+  --type-antetitulo-size: 18px;
+  --type-antetitulo-lh: 22px;
+  --type-antetitulo-weight: 700;
+  --type-antetitulo: italic 700 18px/22px var(--font-rotulo);
+  --type-bajada-size: 20px;
+  --type-bajada-lh: 28px;
+  --type-bajada-weight: 400;
+  --type-bajada: italic 400 20px/28px var(--font-texto);
+  --type-cuerpo-size: 17px;
+  --type-cuerpo-lh: 27px;
+  --type-cuerpo-weight: 400;
+  --type-cuerpo: 400 17px/27px var(--font-texto);
+  --type-epigrafe-size: 14px;
+  --type-epigrafe-lh: 19px;
+  --type-epigrafe-weight: 400;
+  --type-epigrafe: 400 14px/19px var(--font-texto);
+  /* mobile */
+  --type-tapa-size-mobile: 56px;
+  --type-titular-1-size-mobile: 40px;
+  --type-titular-2-size-mobile: 30px;
+  /* semánticos */
+  --text-headline: var(--font-titular);
+  --text-ui: var(--font-rotulo);
+  --text-reading: var(--font-texto);
+}
+
+:root{
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --radius-0: 0;
+  --radius-sm: 2px;
+  --radius-full: 9999px;
+  --grid-columns: 12; /* @kind other */
+  --content-max: 1200px;
+  --measure: 68ch;
+  --margin-page: var(--space-8);
+  --margin-page-mobile: var(--space-4);
+  --gutter: var(--space-6);
+}
+
+:root{
+  --sombra-registro: 4px 4px 0 #1a1412;
+  --sombra-registro-roja: 3px 3px 0 #8e1811;
+  --focus-ring: 0 0 0 2px #f1e9dc, 0 0 0 5px #1a1412;
+  --hover-lift: translate(-2px, -2px); /* @kind other */
+  --duration-press: .08s; /* @kind other */
+  --foto-filtro: contrast(1.05) saturate(.9); /* @kind other */
+}
+[data-theme="nocturna"]{
+  --sombra-registro: 4px 4px 0 #f3ebdf;
+  --sombra-registro-roja: 3px 3px 0 #a31b12;
+  --focus-ring: 0 0 0 2px #15100e, 0 0 0 5px #f3ebdf;
+}
+
+/* Estilos de componentes Tribuna 90 (prefijo tb-). Copiados de componentes/bundle.css. */
+body { margin: 0; background: var(--papel); color: var(--tinta); font-family: var(--font-texto); -webkit-font-smoothing: antialiased; }
+.tb-pad { padding: var(--space-4); }
+.tb-stack { display: flex; flex-direction: column; gap: var(--space-4); }
+.tb-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+/* Foto de muestra: semitono de imprenta */
+.tb-foto { background-color: var(--tinta-suave); background-image: radial-gradient(var(--tinta) 28%, transparent 30%); background-size: 6px 6px; display: block; width: 100%; }
+/* Cabecera */
+.tb-cabecera { background: var(--rojo); color: var(--on-rojo); }
+.tb-cabecera__volanta { background: var(--rojo-profundo); color: var(--crema-sobre-oscuro); font: 700 15px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; text-align: center; padding: var(--space-2) var(--space-4); }
+.tb-cabecera__cuerpo { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) var(--space-8) var(--space-4); }
+.tb-cabecera__nombre { margin: 0; font: 400 72px/0.9 var(--font-titular); text-transform: uppercase; transform: skewX(-8deg); transform-origin: left bottom; text-shadow: var(--sombra-registro-roja, 3px 3px 0 #8e1811); letter-spacing: -.01em; }
+.tb-cabecera__datos { font: 600 14px/18px var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; text-align: right; }
+.tb-cabecera__nav { display: flex; gap: var(--space-6); padding: var(--space-2) var(--space-8); border-top: 1px solid var(--on-rojo); font: 700 15px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; }
+.tb-cabecera__nav a { color: var(--on-rojo); text-decoration: none; }
+.tb-cabecera__nav a:hover, .tb-cabecera__nav a[aria-current] { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
+/* Volanta */
+.tb-volanta { display: inline-block; font: 700 15px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; padding: var(--space-1) var(--space-3); }
+.tb-volanta--rojo { background: var(--rojo); color: var(--on-rojo); }
+.tb-volanta--tinta { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
+.tb-volanta--texto { padding: 0; color: var(--rojo); }
+/* Titular */
+.tb-titular { margin: 0; font-family: var(--font-titular); font-weight: 400; text-transform: uppercase; color: var(--tinta); }
+.tb-titular--tapa { font-size: 96px; line-height: .88; }
+.tb-titular--1 { font-size: 64px; line-height: .92; }
+.tb-titular--2 { font-size: 40px; line-height: 1; }
+.tb-titular--3 { font-size: 26px; line-height: 1.05; }
+.tb-titular--rojo { color: var(--rojo); }
+.tb-titular--sobre-foto { color: var(--amarillo); -webkit-text-stroke: 2px var(--on-amarillo); paint-order: stroke fill; text-shadow: 4px 4px 0 var(--on-amarillo); }
+@media (max-width: 640px) { .tb-titular--tapa { font-size: 56px; } .tb-titular--1 { font-size: 40px; } .tb-titular--2 { font-size: 30px; } }
+/* Bajada */
+.tb-bajada { margin: 0; padding: var(--space-2) 0; border-top: 3px solid var(--rojo); border-bottom: 1px solid var(--rojo); font: italic 400 20px/28px var(--font-texto); color: var(--tinta); }
+/* Intertítulo */
+.tb-intertitulo { margin: var(--space-6) 0 var(--space-3); padding: var(--space-2) 0; border-top: 2px solid var(--tinta); border-bottom: 2px solid var(--tinta); font: italic 700 19px/24px var(--font-rotulo); color: var(--tinta); text-align: center; }
+/* Cuerpo */
+.tb-cuerpo { font: 400 17px/27px var(--font-texto); color: var(--tinta); text-align: justify; hyphens: auto; column-gap: var(--space-6); column-rule: 1px solid var(--linea); }
+.tb-cuerpo p { margin: 0 0 var(--space-3); text-indent: 1.2em; }
+.tb-cuerpo p:first-child { text-indent: 0; }
+.tb-cuerpo--capitular p:first-child::first-letter { float: left; font: 400 76px/62px var(--font-titular); color: var(--rojo); padding: 6px var(--space-2) 0 0; text-transform: uppercase; }
+.tb-cuerpo strong { font-weight: 700; }
+.tb-cuerpo a { color: var(--link); text-decoration-thickness: 1px; }
+/* Epígrafe */
+.tb-epigrafe { margin: var(--space-2) 0 0; font: 400 14px/19px var(--font-texto); color: var(--tinta); }
+.tb-epigrafe b { font-family: var(--font-rotulo); font-weight: 700; font-size: 15px; letter-spacing: .02em; text-transform: uppercase; }
+.tb-epigrafe--invertido { margin: 0; background: var(--barra-tinta); color: var(--crema-sobre-oscuro); padding: var(--space-2) var(--space-3); }
+.tb-epigrafe__credito { display: block; margin-top: var(--space-1); font: 600 12px/16px var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; color: var(--tinta-suave); }
+.tb-epigrafe--invertido .tb-epigrafe__credito { color: var(--crema-sobre-oscuro); }
+/* Barra de sección */
+.tb-barra { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); font: 700 17px/20px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; }
+.tb-barra--rojo { background: var(--rojo); color: var(--on-rojo); }
+.tb-barra--tinta { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
+.tb-barra__extra { font-weight: 600; font-size: 14px; letter-spacing: .03em; }
+/* Recuadro amarillo */
+.tb-recuadro { background: var(--amarillo); color: var(--on-amarillo); border: 2px solid var(--on-amarillo); }
+.tb-recuadro--sombra { box-shadow: var(--sombra-registro); }
+.tb-recuadro__titulo { margin: 0; background: var(--on-amarillo); color: var(--amarillo); padding: var(--space-2) var(--space-4); font: 400 22px/1.05 var(--font-titular); text-transform: uppercase; }
+.tb-recuadro__cuerpo { padding: var(--space-3) var(--space-4) var(--space-4); font: 400 15px/22px var(--font-texto); }
+.tb-recuadro__cuerpo b { font-family: var(--font-rotulo); font-size: 16px; text-transform: uppercase; letter-spacing: .02em; }
+/* Sello */
+.tb-sello { width: 132px; height: 132px; padding: var(--space-3); border-radius: var(--radius-full); background: var(--rojo); color: var(--on-rojo); border: 3px solid var(--on-rojo); outline: 3px solid var(--rojo); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; transform: rotate(-10deg); box-sizing: border-box; }
+.tb-sello__arriba, .tb-sello__abajo { font: 700 12px/14px var(--font-rotulo); letter-spacing: .1em; text-transform: uppercase; }
+.tb-sello__centro { font: 400 28px/1 var(--font-titular); text-transform: uppercase; margin: 2px 0; max-width: 100%; overflow-wrap: anywhere; }
+/* Sumario de tapa */
+.tb-sumario { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.tb-sumario li { display: grid; grid-template-columns: 14px 1fr; gap: var(--space-2); align-items: start; font: 400 24px/1 var(--font-titular); text-transform: uppercase; color: var(--tinta); }
+.tb-sumario li::before { content: ""; width: 14px; height: 14px; background: var(--rojo); margin-top: 4px; }
+.tb-sumario small { display: block; margin-top: 4px; font: 600 14px/18px var(--font-rotulo); letter-spacing: .02em; text-transform: none; color: var(--tinta-suave); }
+/* Tabla de resultados */
+.tb-tabla { width: 100%; border-collapse: collapse; font: 600 15px/20px var(--font-rotulo); color: var(--tinta); }
+.tb-tabla caption { caption-side: top; text-align: left; background: var(--rojo); color: var(--on-rojo); padding: var(--space-2) var(--space-3); font: 700 17px/20px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; }
+.tb-tabla td { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--linea); }
+.tb-tabla tr:nth-child(even) td { background: var(--papel-2); }
+.tb-tabla .tb-gol { font: 400 22px/1 var(--font-titular); text-align: center; width: 40px; }
+.tb-tabla .tb-ganador { font-weight: 700; text-transform: uppercase; }
+.tb-tabla .tb-nota { font-weight: 500; font-size: 13px; color: var(--tinta-suave); text-align: right; }
+/* Botón */
+.tb-boton { font: 700 17px/20px var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; border-radius: var(--radius-0); padding: var(--space-3) var(--space-6); cursor: pointer; border: 2px solid var(--tinta); background: var(--papel); color: var(--tinta); transition: transform .08s, box-shadow .08s; }
+.tb-boton:hover { box-shadow: var(--sombra-registro); transform: translate(-2px, -2px); }
+.tb-boton:active { box-shadow: none; transform: none; }
+.tb-boton:focus-visible { outline: 2px solid transparent; box-shadow: var(--focus-ring); }
+.tb-boton--primario { background: var(--rojo); border-color: var(--rojo); color: var(--on-rojo); }
+.tb-boton--primario:active { background: var(--rojo-profundo); border-color: var(--rojo-profundo); color: var(--crema-sobre-oscuro); }
+.tb-boton--tinta { background: var(--barra-tinta); border-color: var(--tinta); color: var(--crema-sobre-oscuro); }
+.tb-boton[disabled] { opacity: .5; cursor: not-allowed; box-shadow: none; transform: none; }
+/* NotaCard */
+.tb-nota-card { display: flex; flex-direction: column; background: var(--papel); color: var(--tinta); border-top: 4px solid var(--rojo); text-decoration: none; max-width: 360px; transition: box-shadow .08s, transform .08s; }
+.tb-nota-card:hover { box-shadow: var(--sombra-registro); transform: translate(-2px, -2px); }
+.tb-nota-card:focus-visible { outline: 2px solid transparent; box-shadow: var(--focus-ring); }
+.tb-nota-card .tb-foto { aspect-ratio: 4 / 3; }
+.tb-nota-card__cuerpo { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) 0 var(--space-4); }
+.tb-nota-card__titulo { margin: 0; font: 400 26px/1.05 var(--font-titular); text-transform: uppercase; }
+.tb-nota-card__bajada { margin: 0; font: 400 15px/22px var(--font-texto); color: var(--tinta-suave); }
+.tb-nota-card__meta { font: 600 13px/16px var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; color: var(--tinta-suave); }
+/* ===== Ampliación 1990-91 ===== */
+/* Titular: variantes cita y contorno */
+.tb-titular--cita::before { content: "\201C"; }
+.tb-titular--cita::after { content: "\201D"; }
+.tb-titular--contorno { color: var(--papel); -webkit-text-stroke: 2px var(--tinta); paint-order: stroke fill; text-shadow: 5px 5px 0 var(--tinta); letter-spacing: .01em; }
+/* Recuadro: tonos crema y celeste */
+.tb-recuadro--crema, .tb-recuadro--celeste { color: var(--tinta); border: 1px solid var(--tinta); }
+.tb-recuadro--crema { background: var(--crema); }
+.tb-recuadro--celeste { background: var(--celeste-claro); }
+.tb-recuadro--crema .tb-recuadro__titulo, .tb-recuadro--celeste .tb-recuadro__titulo { background: none; color: var(--rojo); text-align: center; font-size: 22px; padding: var(--space-3) var(--space-4) var(--space-2); margin: 0 var(--space-4); border-bottom: 2px solid var(--tinta); }
+/* Esquinero */
+.tb-esquinero-marco { position: relative; overflow: hidden; }
+.tb-esquinero { position: absolute; top: 40px; left: -62px; width: 250px; transform: rotate(-45deg); text-align: center; padding: var(--space-1) 0 var(--space-2); text-transform: uppercase; z-index: 2; pointer-events: none; }
+.tb-esquinero--rojo { background: var(--rojo); color: var(--on-rojo); }
+.tb-esquinero--tinta { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
+.tb-esquinero__grande { display: block; font: 400 28px/1 var(--font-titular); }
+.tb-esquinero__chico { display: block; font: 700 12px/14px var(--font-rotulo); letter-spacing: .08em; }
+/* Rótulo de sección apilado */
+.tb-rotulo { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px; transform: rotate(var(--tb-rotulo-giro, 0deg)); transform-origin: left center; }
+.tb-rotulo__palabra { display: inline-block; font: 400 34px/1 var(--font-titular); text-transform: uppercase; padding: 4px var(--space-2) 6px; border: 2px solid var(--tinta); }
+.tb-rotulo__palabra:nth-child(odd) { background: var(--rojo); color: var(--on-rojo); }
+.tb-rotulo__palabra:nth-child(even) { background: var(--papel); color: var(--tinta); }
+.tb-rotulo__palabra--chica { font-size: 20px; padding: 2px var(--space-2) 3px; }
+.tb-rotulo--celeste .tb-rotulo__palabra:nth-child(odd) { background: var(--celeste); color: var(--on-celeste); }
+/* Cabezal de sección fija */
+.tb-cabezal { margin: 0; }
+.tb-cabezal__barra { background: var(--azul); color: var(--on-azul); text-align: center; font: italic 700 30px/34px var(--font-rotulo); padding: var(--space-2) var(--space-4) 10px; text-transform: lowercase; }
+.tb-cabezal__franja { height: 10px; background: linear-gradient(var(--rojo) 0 4px, var(--papel) 4px 6px, var(--rojo) 6px 10px); }
+.tb-cabezal__firma { margin-top: var(--space-2); text-align: center; font: 600 14px/18px var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; color: var(--tinta-suave); }
+/* Titular mixto */
+.tb-titular-mixto { margin: 0; font-family: var(--font-titular); font-weight: 400; text-transform: uppercase; color: var(--tinta); line-height: .95; }
+.tb-titular-mixto__arriba { display: block; font-size: 30px; }
+.tb-titular-mixto__clave { color: var(--rojo); }
+.tb-titular-mixto__abajo { display: block; font-size: 44px; }
+/* Antetítulo */
+.tb-antetitulo { margin: 0 0 var(--space-2); font: italic 700 18px/22px var(--font-rotulo); color: var(--rojo); }
+/* Copete */
+.tb-copete { margin: 0; max-width: 180px; font: 700 19px/23px var(--font-rotulo); color: var(--rojo); text-align: right; }
+.tb-copete--izq { text-align: left; }
+/* Duelo estadístico */
+.tb-duelo-grilla { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.tb-duelo { display: inline-flex; flex-direction: column; min-width: 128px; background: var(--papel); border: 2px solid var(--tinta); box-shadow: var(--sombra-registro); }
+.tb-duelo__titulo { background: var(--rojo); color: var(--on-rojo); text-align: center; font: 700 15px/18px var(--font-rotulo); letter-spacing: .04em; padding: var(--space-1) var(--space-2); }
+.tb-duelo__equipos { display: grid; grid-template-columns: 1fr 1fr; }
+.tb-duelo__lado { display: flex; flex-direction: column; align-items: center; padding: var(--space-1) var(--space-2) var(--space-2); }
+.tb-duelo__lado + .tb-duelo__lado { border-left: 1px solid var(--tinta); }
+.tb-duelo__equipo { font: 700 12px/14px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-suave); }
+.tb-duelo__cifra { font: 400 36px/1 var(--font-titular); color: var(--tinta); }
+.tb-duelo__lado--gana .tb-duelo__cifra { color: var(--rojo); }
+/* Ficha de partido */
+.tb-ficha { max-width: 260px; background: var(--papel); border: 1px solid var(--tinta); font: 400 14px/18px var(--font-rotulo); color: var(--tinta); }
+.tb-ficha__score { background: var(--celeste); color: var(--on-celeste); }
+.tb-ficha__fila { display: flex; justify-content: space-between; align-items: baseline; padding: var(--space-1) var(--space-3); font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: .02em; }
+.tb-ficha__fila + .tb-ficha__fila { border-top: 1px solid var(--on-celeste); }
+.tb-ficha__goles { font: 400 24px/1 var(--font-titular); }
+.tb-ficha__cuerpo { padding: var(--space-2) var(--space-3) var(--space-3); }
+.tb-ficha__equipo { margin: var(--space-2) 0 0; font-weight: 700; text-transform: uppercase; font-size: 14px; }
+.tb-ficha__jugadores { margin: 2px 0 0; color: var(--tinta); }
+.tb-puntaje { font-weight: 700; color: var(--rojo); }
+.tb-ficha__veredicto { margin: var(--space-2) 0 0; padding-top: var(--space-2); border-top: 1px solid var(--linea); font-family: var(--font-texto); font-size: 14px; line-height: 19px; }
+.tb-ficha__veredicto b { font-family: var(--font-rotulo); font-size: 15px; }
+.tb-ficha__juez { margin-top: var(--space-2); font-weight: 600; font-size: 13px; color: var(--tinta-suave); text-transform: uppercase; letter-spacing: .04em; }
+/* Tabla de posiciones */
+.tb-posiciones { width: 100%; border-collapse: collapse; font: 600 15px/20px var(--font-rotulo); color: var(--tinta); font-variant-numeric: tabular-nums; }
+.tb-posiciones caption { caption-side: top; background: var(--celeste); color: var(--on-celeste); text-align: center; padding: var(--space-2); font: 400 22px/1 var(--font-titular); text-transform: uppercase; }
+.tb-posiciones th { font-weight: 700; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-suave); padding: var(--space-1) var(--space-2); border-bottom: 2px solid var(--tinta); text-align: center; }
+.tb-posiciones th:first-child, .tb-posiciones td:first-child { text-align: left; }
+.tb-posiciones td { padding: 6px var(--space-2); border-bottom: 1px solid var(--linea); text-align: center; }
+.tb-posiciones td:first-child { font-weight: 700; text-transform: uppercase; }
+.tb-posiciones .tb-pts { font: 400 18px/1 var(--font-titular); }
+.tb-posiciones tr.tb-destacado td { background: var(--celeste-claro); }
+/* Encuesta */
+.tb-encuesta__pregunta { display: flex; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-4); font: 700 22px/26px var(--font-texto); color: var(--tinta); }
+.tb-encuesta__numero { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: var(--rojo); color: var(--on-rojo); font: 400 22px/1 var(--font-titular); flex: none; }
+.tb-encuesta__grilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-4) var(--space-6); }
+.tb-opinion__cabeza { display: grid; grid-template-columns: 64px 1fr; gap: var(--space-2); align-items: end; margin-bottom: var(--space-2); }
+.tb-opinion__foto { width: 64px; height: 80px; object-fit: cover; filter: grayscale(1) contrast(1.1); display: block; }
+.tb-opinion__nombre { font: 700 13px/15px var(--font-rotulo); text-transform: uppercase; letter-spacing: .03em; }
+.tb-opinion__rol { font: 500 12px/14px var(--font-rotulo); color: var(--tinta-suave); }
+.tb-opinion__texto { margin: 0; font: 400 14px/19px var(--font-texto); }
+/* Firma de columnista */
+.tb-firma { display: inline-flex; align-items: flex-end; gap: var(--space-2); }
+.tb-firma__foto { width: 56px; height: 64px; object-fit: cover; filter: grayscale(1) contrast(1.1); display: block; }
+.tb-firma__por { display: block; font: 700 14px/16px var(--font-rotulo); color: var(--tinta); }
+.tb-firma__nombre { display: block; font: 400 24px/1 var(--font-titular); text-transform: uppercase; color: var(--tinta); }
+/* Folio */
+.tb-folio { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4); border-top: 1px solid var(--tinta); padding-top: var(--space-1); font: 700 13px/16px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; color: var(--tinta); }
+.tb-folio__pagina { font: 400 18px/1 var(--font-titular); }
+
+

@@ -1,8 +1,12 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import Volanta from "../../components/tribuna/Volanta.astro";
+import Titular from "../../components/tribuna/Titular.astro";
+import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
+import FiltroEquipos from "../../components/islands/FiltroEquipos";
 import { createDb } from "../../lib/db";
-import { teams, leagues, userTeams } from "../../../drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
+import { leagues, teams, userTeams } from "../../../drizzle/schema";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -11,133 +15,63 @@ if (!user) {
 
 const { id } = Astro.params;
 if (!id) {
-  return Astro.redirect("/equipos");
+  return Astro.redirect("/ligas");
 }
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
-// Obtener liga
-const league = await db.query.leagues.findFirst({
-  where: eq(leagues.id, id),
-});
-
-if (!league) {
-  return Astro.redirect("/equipos");
+const liga = await db.query.leagues.findFirst({ where: eq(leagues.id, id) });
+if (!liga) {
+  return Astro.redirect("/ligas");
 }
 
-// Obtener equipos de la liga
-const leagueTeams = await db
+const equiposLiga = await db
   .select()
   .from(teams)
   .where(eq(teams.leagueId, id))
-  .orderBy(teams.name);
+  .orderBy(asc(teams.name));
 
-// Obtener equipos que el usuario ya sigue
-const followedTeams = await db
-  .select({ teamId: userTeams.teamId })
-  .from(userTeams)
-  .where(eq(userTeams.userId, user.id));
+const seguidos = new Set(
+  (await db.select({ teamId: userTeams.teamId }).from(userTeams).where(eq(userTeams.userId, user.id))).map(
+    (r) => r.teamId
+  )
+);
 
-const followedSet = new Set(followedTeams.map((t) => t.teamId));
+const items = equiposLiga.map((t) => ({
+  id: t.id,
+  nombre: t.name,
+  logo: t.logo,
+  sigla: t.shortName,
+  ligaId: liga.id,
+  liga: liga.name,
+  siguiendo: seguidos.has(t.id),
+}));
+
+const cantidadSeguidos = items.filter((i) => i.siguiendo).length;
 ---
 
-<Layout title={`${league.name} - FISTURE`}>
-  <div class="max-w-4xl mx-auto px-4 py-8">
-    <div class="flex items-center gap-4 mb-8">
-      <a href="/equipos" class="text-gray-500 hover:text-gray-700">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-      </a>
-      <div>
-        <h1 class="text-3xl font-bold">{league.name}</h1>
-        <p class="text-gray-500">{league.country} - Temporada {league.season}</p>
+<Layout title={`${liga.name} - FISTURE`} pagina={3}>
+  <div style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <a href="/ligas" style="align-self:flex-start;font:700 14px/18px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta);text-decoration:none">← Ligas</a>
+      <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+        <Volanta tono="rojo">Paso 2 de 3 · {liga.country}</Volanta>
+        <Titular nivel="1">{liga.name}</Titular>
       </div>
     </div>
 
-    <div class="mb-4 text-sm text-gray-600">
-      {leagueTeams.length} equipos
-    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <BarraSeccion tono="tinta" extra={`${items.length} equipos${cantidadSeguidos ? ` · seguís ${cantidadSeguidos}` : ""}`}>
+        Elegí un equipo
+      </BarraSeccion>
 
-    {leagueTeams.length === 0 ? (
-      <div class="text-center py-12 bg-white rounded-lg shadow">
-        <div class="text-5xl mb-4">⚽</div>
-        <p class="text-gray-600">No hay equipos cargados para esta liga</p>
-        <p class="text-gray-500 text-sm mt-2">
-          Los equipos se cargan automáticamente al sincronizar con la API
-        </p>
-      </div>
-    ) : (
-      <div class="grid gap-4 md:grid-cols-2">
-        {leagueTeams.map((team) => {
-          const isFollowing = followedSet.has(team.id);
-          return (
-            <div class="card flex items-center gap-4">
-              <a href={`/equipos/${team.id}`} class="flex items-center gap-4 flex-1">
-                <img
-                  src={team.logo || "/placeholder-team.svg"}
-                  alt={team.name}
-                  class="w-12 h-12 object-contain"
-                />
-                <div class="flex-1">
-                  <p class="font-medium">{team.name}</p>
-                  {team.shortName && (
-                    <p class="text-sm text-gray-400">{team.shortName}</p>
-                  )}
-                </div>
-              </a>
-              {isFollowing ? (
-                <span class="text-green-600 text-sm flex items-center gap-1">
-                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                  </svg>
-                  Siguiendo
-                </span>
-              ) : (
-                <button
-                  class="btn btn-primary btn-sm follow-btn"
-                  data-team-id={team.id}
-                >
-                  + Seguir
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    )}
+      {items.length === 0 ? (
+        <div style="background:var(--papel-2);padding:40px 32px;font:400 17px/27px var(--font-texto);text-align:center">
+          No hay equipos cargados para esta liga. Se cargan automáticamente al sincronizar con la API.
+        </div>
+      ) : (
+        <FiltroEquipos client:load equipos={items} modo="navegar" placeholder="Filtrá por nombre" />
+      )}
+    </div>
   </div>
-
-  <script>
-    document.querySelectorAll('.follow-btn').forEach((btn) => {
-      btn.addEventListener('click', async (e) => {
-        const button = e.currentTarget as HTMLButtonElement;
-        const teamId = button.dataset.teamId;
-
-        button.disabled = true;
-        button.textContent = 'Agregando...';
-
-        const res = await fetch('/api/equipos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ teamId }),
-        });
-
-        if (res.ok) {
-          button.outerHTML = `
-            <span class="text-green-600 text-sm flex items-center gap-1">
-              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-              </svg>
-              Siguiendo
-            </span>
-          `;
-        } else {
-          button.disabled = false;
-          button.textContent = '+ Seguir';
-          alert('Error al seguir el equipo');
-        }
-      });
-    });
-  </script>
 </Layout>

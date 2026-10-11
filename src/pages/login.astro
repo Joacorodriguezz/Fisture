@@ -1,54 +1,56 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import Volanta from "../components/tribuna/Volanta.astro";
+import Titular from "../components/tribuna/Titular.astro";
+import Bajada from "../components/tribuna/Bajada.astro";
+
+if (Astro.locals.user) {
+  return Astro.redirect("/ligas");
+}
 
 const error = Astro.url.searchParams.get("error");
+
+const opciones = [
+  {
+    href: "/api/auth/login/google",
+    label: "Google",
+    detalle: "Crea los eventos en tu Google Calendar automáticamente",
+  },
+  {
+    href: "/api/auth/login/microsoft",
+    label: "Microsoft",
+    detalle: "Crea los eventos en Outlook automáticamente",
+  },
+];
 ---
 
 <Layout title="Iniciar Sesión - FISTURE" showNavbar={false}>
-  <div class="min-h-screen flex items-center justify-center px-4">
-    <div class="max-w-md w-full space-y-8">
-      <div class="text-center">
-        <a href="/" class="text-3xl font-bold text-primary-600">FISTURE</a>
-        <p class="mt-2 text-gray-600">Iniciá sesión para continuar</p>
+  <div style="max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:20px;padding:24px 0">
+    <a href="/" style="align-self:flex-start;font:700 14px/18px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta);text-decoration:none">← Volver</a>
+    <Volanta tono="tinta">Iniciá sesión</Volanta>
+    <Titular nivel="1">ENTRÁ A LA CANCHA</Titular>
+    <Bajada>Usá la cuenta del calendario donde querés ver los partidos.</Bajada>
+
+    {error && (
+      <div style="background:var(--rojo);color:var(--on-rojo);padding:12px 16px;font:600 15px/20px var(--font-rotulo);letter-spacing:.02em">
+        No pudimos iniciar sesión. Probá de nuevo.
       </div>
+    )}
 
-      {error && (
-        <div class="bg-red-50 text-red-600 p-4 rounded-lg text-center">
-          Error al iniciar sesión. Intentá nuevamente.
-        </div>
-      )}
-
-      <div class="space-y-4">
-        <a
-          href="/api/auth/login/google"
-          class="flex items-center justify-center gap-3 w-full py-3 px-4 border rounded-lg hover:bg-gray-50 transition"
-        >
-          <svg class="w-5 h-5" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-          </svg>
-          Continuar con Google
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
+      {opciones.map((o) => (
+        <a href={o.href} class="tb-opcion">
+          <span style="display:flex;flex-direction:column;gap:2px">
+            <span style="font:700 17px/20px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase">Continuar con {o.label}</span>
+            <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">{o.detalle}</span>
+          </span>
+          <span style="font:700 20px/1 var(--font-rotulo)">→</span>
         </a>
-
-        <a
-          href="/api/auth/login/microsoft"
-          class="flex items-center justify-center gap-3 w-full py-3 px-4 border rounded-lg hover:bg-gray-50 transition"
-        >
-          <svg class="w-5 h-5" viewBox="0 0 24 24">
-            <path fill="#F25022" d="M1 1h10v10H1z"/>
-            <path fill="#00A4EF" d="M1 13h10v10H1z"/>
-            <path fill="#7FBA00" d="M13 1h10v10H13z"/>
-            <path fill="#FFB900" d="M13 13h10v10H13z"/>
-          </svg>
-          Continuar con Microsoft
-        </a>
-      </div>
-
-      <p class="text-center text-sm text-gray-500">
-        Al continuar, aceptás nuestros términos de servicio.
-      </p>
+      ))}
     </div>
+
+    <p style="margin:0;font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
+      Al continuar, aceptás los términos de servicio. Pedimos permiso solo para crear y editar los eventos de Fisture.
+    </p>
   </div>
 </Layout>

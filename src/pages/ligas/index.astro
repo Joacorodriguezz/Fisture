@@ -1,0 +1,101 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Volanta from "../../components/tribuna/Volanta.astro";
+import Titular from "../../components/tribuna/Titular.astro";
+import Boton from "../../components/tribuna/Boton.astro";
+import Escudo from "../../components/tribuna/Escudo.astro";
+import { createDb } from "../../lib/db";
+import { asc, desc, eq } from "drizzle-orm";
+import { leagues, teams, userTeams } from "../../../drizzle/schema";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+const db = createDb(Astro.locals.runtime.env.DB);
+
+const allLeagues = await db.select().from(leagues).orderBy(asc(leagues.name));
+const allTeams = await db
+  .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo, leagueId: teams.leagueId })
+  .from(teams)
+  .orderBy(asc(teams.name));
+
+const misEquipos = await db
+  .select({ team: teams, league: leagues })
+  .from(userTeams)
+  .innerJoin(teams, eq(userTeams.teamId, teams.id))
+  .innerJoin(leagues, eq(teams.leagueId, leagues.id))
+  .where(eq(userTeams.userId, user.id))
+  .orderBy(desc(userTeams.createdAt));
+
+const seguidos = new Set(misEquipos.map((e) => e.team.id));
+
+// Para cada liga: cantidad de equipos, cuántos sigue y una muestra de escudos (primero los seguidos)
+const tarjetas = allLeagues.map((liga) => {
+  const equipos = allTeams.filter((t) => t.leagueId === liga.id);
+  const siguiendo = equipos.filter((t) => seguidos.has(t.id)).length;
+  const muestra = [
+    ...equipos.filter((t) => seguidos.has(t.id)),
+    ...equipos.filter((t) => !seguidos.has(t.id)),
+  ].slice(0, 8);
+  return { liga, total: equipos.length, siguiendo, muestra };
+});
+---
+
+<Layout title="Ligas - FISTURE" pagina={2}>
+  <div style="display:flex;flex-direction:column;gap:40px">
+    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px">
+      <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+        <Volanta tono="tinta">Paso 1 de 3</Volanta>
+        <Titular nivel="1">ELEGÍ TU LIGA</Titular>
+      </div>
+      <Boton variante="primario" href="/equipos/buscar">Buscar equipo →</Boton>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">Tus equipos</span>
+      {misEquipos.length > 0 ? (
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          {misEquipos.map(({ team }) => (
+            <a
+              href={`/equipos/${team.id}`}
+              style="display:flex;align-items:center;gap:10px;padding:5px 14px 5px 5px;background:var(--papel);color:var(--tinta);border:2px solid var(--tinta);text-decoration:none"
+            >
+              <Escudo src={team.logo} nombre={team.name} sigla={team.shortName} size={34} pad={3} />
+              <span style="font:700 15px/18px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase">{team.name}</span>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p style="margin:0;font:400 17px/27px var(--font-texto);color:var(--tinta-suave)">
+          Todavía no seguís ningún equipo. Elegí una liga para empezar.
+        </p>
+      )}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:24px">
+      {tarjetas.map(({ liga, total, siguiendo, muestra }) => (
+        <a
+          href={`/ligas/${liga.id}`}
+          style="cursor:pointer;border-top:4px solid var(--rojo);background:var(--papel-2);padding:20px;display:flex;flex-direction:column;gap:14px;color:var(--tinta);text-decoration:none"
+        >
+          <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">{liga.country}</span>
+          <span style="font:400 40px/1 var(--font-titular);text-transform:uppercase">{liga.name}</span>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            {muestra.map((t) => (
+              <Escudo src={t.logo} nombre={t.name} sigla={t.shortName} size={34} pad={3} />
+            ))}
+          </div>
+          <div style="border-top:1px solid var(--linea);padding-top:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;font:700 14px/18px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase">
+            <span>{total} equipos</span>
+            <span style={`color:${siguiendo ? "var(--rojo)" : "var(--tinta-suave)"}`}>
+              {siguiendo ? `Seguís ${siguiendo}` : "Sin equipos"}
+            </span>
+            <span style="font-size:20px">→</span>
+          </div>
+        </a>
+      ))}
+    </div>
+  </div>
+</Layout>

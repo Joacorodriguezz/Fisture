@@ -1,0 +1,17 @@
+---
+// Recuadro.astro: caja de dato destacado con título
+interface Props {
+  titulo?: string;
+  tono?: "amarillo" | "celeste" | "crema";
+}
+
+const { titulo, tono = "amarillo" } = Astro.props;
+const className = ["tb-recuadro", tono !== "amarillo" && `tb-recuadro--${tono}`, tono === "amarillo" && "tb-recuadro--sombra"]
+  .filter(Boolean)
+  .join(" ");
+---
+
+<aside class={className}>
+  {titulo && <h3 class="tb-recuadro__titulo">{titulo}</h3>}
+  <div class="tb-recuadro__cuerpo"><slot /></div>
+</aside>

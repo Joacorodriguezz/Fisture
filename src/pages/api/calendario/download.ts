@@ -3,6 +3,7 @@ import { createDb } from "../../../lib/db";
 import { matches, teams, leagues, userTeams } from "../../../../drizzle/schema";
 import { eq, and, gte, or, inArray } from "drizzle-orm";
 import { generateICS, type CalendarEvent } from "../../../lib/calendar/ics";
+import { getPreferences, reminderMinutes } from "../../../lib/db/preferences";
 
 export const GET: APIRoute = async ({ url, locals }) => {
   const user = locals.user;
@@ -154,7 +155,8 @@ export const GET: APIRoute = async ({ url, locals }) => {
     return new Response("No events to download", { status: 404 });
   }
 
-  const icsContent = generateICS(events);
+  const prefs = await getPreferences(db, user.id);
+  const icsContent = generateICS(events, { reminderMinutes: reminderMinutes(prefs) });
   const filename = matchId
     ? `partido-${matchId}.ics`
     : teamId

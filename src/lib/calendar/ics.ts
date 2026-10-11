@@ -24,7 +24,12 @@ function escapeICSText(text: string): string {
     .replace(/\n/g, "\\n");
 }
 
-export function generateICS(events: CalendarEvent[]): string {
+export interface ICSOptions {
+  // Minutos de aviso antes de cada evento (ej: [60, 15])
+  reminderMinutes?: number[];
+}
+
+export function generateICS(events: CalendarEvent[], options: ICSOptions = {}): string {
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -46,6 +51,14 @@ export function generateICS(events: CalendarEvent[]): string {
     }
     if (event.location) {
       lines.push(`LOCATION:${escapeICSText(event.location)}`);
+    }
+
+    for (const minutes of options.reminderMinutes ?? []) {
+      lines.push("BEGIN:VALARM");
+      lines.push("ACTION:DISPLAY");
+      lines.push(`DESCRIPTION:${escapeICSText(event.title)}`);
+      lines.push(`TRIGGER:-PT${minutes}M`);
+      lines.push("END:VALARM");
     }
 
     lines.push("END:VEVENT");

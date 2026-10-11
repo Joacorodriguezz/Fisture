@@ -17,6 +17,8 @@ export interface MicrosoftCalendarEvent {
   location?: {
     displayName: string;
   };
+  isReminderOn: boolean;
+  reminderMinutesBeforeStart: number;
 }
 
 export interface MicrosoftCalendarResponse {
@@ -91,7 +93,8 @@ export function formatMatchForMicrosoft(
   awayTeam: string,
   league: string,
   dateTime: Date,
-  venue?: string | null
+  venue: string | null | undefined,
+  reminderMinutes: number[]
 ): MicrosoftCalendarEvent {
   const endTime = new Date(dateTime);
   endTime.setHours(endTime.getHours() + 2);
@@ -99,7 +102,12 @@ export function formatMatchForMicrosoft(
   // Microsoft Graph API requires specific datetime format without Z
   const formatDateTime = (d: Date) => d.toISOString().slice(0, -1);
 
+  // Graph solo admite un aviso por evento: usamos el más anticipado
+  const reminder = reminderMinutes.length ? Math.max(...reminderMinutes) : 0;
+
   return {
+    isReminderOn: reminder > 0,
+    reminderMinutesBeforeStart: reminder,
     subject: `${homeTeam} vs ${awayTeam}`,
     body: {
       contentType: "text",

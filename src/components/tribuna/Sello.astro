@@ -1,0 +1,16 @@
+---
+// Sello.astro: círculo rojo con tres líneas de texto
+interface Props {
+  arriba?: string;
+  centro: string;
+  abajo?: string;
+}
+
+const { arriba, centro, abajo } = Astro.props;
+---
+
+<div class="tb-sello" role="img" aria-label={[arriba, centro, abajo].filter(Boolean).join(" ")}>
+  {arriba && <span class="tb-sello__arriba">{arriba}</span>}
+  <span class="tb-sello__centro">{centro}</span>
+  {abajo && <span class="tb-sello__abajo">{abajo}</span>}
+</div>

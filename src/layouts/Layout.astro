@@ -1,26 +1,70 @@
 ---
-import Navbar from "../components/Navbar.astro";
+import Cabecera from "../components/tribuna/Cabecera.astro";
+import Folio from "../components/tribuna/Folio.astro";
+import { createDb } from "../lib/db";
+import { getPreferences } from "../lib/db/preferences";
+import { fechaLarga, primerNombre } from "../lib/format";
 import "../styles/global.css";
+import "../styles/tribuna90.css";
 
 interface Props {
   title: string;
+  volanta?: string;
+  // Muestra la navegación de secciones (solo para usuarios logueados)
   showNavbar?: boolean;
+  pagina?: number;
 }
 
-const { title, showNavbar = true } = Astro.props;
+const { title, volanta = "Tus partidos en tu calendario", showNavbar = true, pagina = 1 } = Astro.props;
+
 const user = Astro.locals.user;
+const prefs = user
+  ? await getPreferences(createDb(Astro.locals.runtime.env.DB), user.id)
+  : { theme: "papel" as const };
+
+const ruta = Astro.url.pathname;
+const enSeccion = (...prefijos: string[]) =>
+  prefijos.some((p) => ruta === p || ruta.startsWith(p + "/"));
+
+const secciones =
+  user && showNavbar
+    ? [
+        { label: "Ligas", href: "/ligas", actual: enSeccion("/ligas", "/equipos") },
+        { label: "Partidos", href: "/partidos", actual: enSeccion("/partidos") },
+        { label: "Calendario", href: "/calendario", actual: enSeccion("/calendario") },
+        { label: "Configuración", href: "/configuracion", actual: enSeccion("/configuracion") },
+      ]
+    : [];
+
+const numero = user ? `Hola, ${primerNombre(user.name, user.email)}` : "Fixture sync";
+const fecha = fechaLarga(new Date());
 ---
 
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme={prefs.theme}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+      rel="stylesheet"
+    />
   </head>
-  <body class="min-h-screen bg-gray-50">
-    {showNavbar && user && <Navbar user={user} />}
-    <slot />
+  <body class="tb-app">
+    <Cabecera volanta={volanta} numero={numero} fecha={fecha} secciones={secciones} />
+    <main class="tb-main">
+      <slot />
+      <div style="margin-top:56px">
+        <Folio pagina={pagina} fecha={fecha} />
+      </div>
+    </main>
+    <footer class="tb-footer">
+      <span style="font:400 20px/1 var(--font-titular);transform:skewX(-8deg)">FISTURE</span>
+      <span>Datos: football-data.org · Promiedos · Sync diario 6 hs</span>
+    </footer>
   </body>
 </html>

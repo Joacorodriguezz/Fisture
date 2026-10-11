@@ -1,0 +1,18 @@
+---
+// Esquinero.astro: cinta diagonal sobre una imagen
+interface Props {
+  grande: string;
+  chico?: string;
+  tono?: "rojo" | "tinta";
+}
+
+const { grande, chico, tono = "rojo" } = Astro.props;
+---
+
+<div class="tb-esquinero-marco">
+  <div class:list={["tb-esquinero", `tb-esquinero--${tono}`]} aria-label={[grande, chico].filter(Boolean).join(" ")}>
+    <span class="tb-esquinero__grande">{grande}</span>
+    {chico && <span class="tb-esquinero__chico">{chico}</span>}
+  </div>
+  <slot />
+</div>

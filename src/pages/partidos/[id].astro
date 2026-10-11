@@ -1,0 +1,96 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Volanta from "../../components/tribuna/Volanta.astro";
+import Titular from "../../components/tribuna/Titular.astro";
+import Escudo from "../../components/tribuna/Escudo.astro";
+import Esquinero from "../../components/tribuna/Esquinero.astro";
+import Recuadro from "../../components/tribuna/Recuadro.astro";
+import SincronizarPartido from "../../components/islands/SincronizarPartido";
+import { createDb } from "../../lib/db";
+import { getMatchDetail, getSyncStates } from "../../lib/db/queries";
+import { getPreferences } from "../../lib/db/preferences";
+import { fechaCorta, fechaLarga, hora, horaFin, providerLabel } from "../../lib/format";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+const { id } = Astro.params;
+const db = createDb(Astro.locals.runtime.env.DB);
+
+const detalle = id ? await getMatchDetail(db, id) : null;
+if (!detalle) {
+  return Astro.redirect("/partidos");
+}
+
+const { match, homeTeam, awayTeam, league } = detalle;
+const estado = (await getSyncStates(db, user.id, [match.id])).get(match.id);
+const prefs = await getPreferences(db, user.id);
+
+const avisos = [prefs.reminder60 && "1 hora", prefs.reminder15 && "15 minutos"].filter(Boolean);
+const avisosTxt = avisos.length ? `${avisos.join(" y ")} antes` : "Sin avisos";
+
+const venue = match.venue ?? "Sede a confirmar";
+const fin = horaFin(match.dateTime);
+---
+
+<Layout title={`${homeTeam.name} vs ${awayTeam.name} - FISTURE`} pagina={6}>
+  <div style="display:flex;flex-direction:column;gap:28px">
+    <a href="/partidos" style="align-self:flex-start;font:700 14px/18px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta);text-decoration:none">← Partidos</a>
+
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:16px">
+      <Volanta tono="rojo">{league.name}{match.round ? ` · ${match.round}` : ""}</Volanta>
+      <div style="display:flex;align-items:center;gap:20px">
+        <Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={112} pad={14} />
+        <span style="font:400 40px/1 var(--font-titular);color:var(--rojo)">VS</span>
+        <Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={112} pad={14} />
+      </div>
+      <Titular nivel="tapa">{homeTeam.name} vs {awayTeam.name}</Titular>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:32px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <Esquinero grande={match.round ?? "Partido"} chico={`${fechaCorta(match.dateTime)} · ${hora(match.dateTime)} hs`} tono="rojo">
+          <span class="tb-foto" style="aspect-ratio:4 / 3"></span>
+        </Esquinero>
+        <div style="font:600 12px/16px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">
+          Estadio · {venue}
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:24px">
+        <Recuadro titulo="Ficha del partido">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div><b>Día:</b> {fechaLarga(match.dateTime)}</div>
+            <div><b>Hora:</b> {hora(match.dateTime)} a {fin} hs (Buenos Aires)</div>
+            <div><b>Estadio:</b> {venue}</div>
+            <div><b>Torneo:</b> {league.name}{match.round ? ` · ${match.round}` : ""}</div>
+            <div><b>Avisos:</b> {avisosTxt}</div>
+          </div>
+        </Recuadro>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font:700 12px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-suave)">
+            En tu {providerLabel(user.provider)}
+          </span>
+          <div style="border:2px solid var(--tinta);padding:12px 16px;display:flex;flex-direction:column;gap:4px">
+            <span style="font:700 17px/20px var(--font-rotulo);text-transform:uppercase">{homeTeam.name} vs {awayTeam.name}</span>
+            <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
+              {fechaCorta(match.dateTime)} · {hora(match.dateTime)} a {fin} · {venue} · {avisosTxt}
+            </span>
+          </div>
+        </div>
+
+        <SincronizarPartido
+          client:load
+          grande
+          permitirQuitar
+          matchId={match.id}
+          status={estado?.status ?? null}
+          errorMessage={estado?.errorMessage ?? null}
+        />
+      </div>
+    </div>
+  </div>
+</Layout>

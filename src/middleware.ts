@@ -13,22 +13,18 @@ function isPublicPath(pathname: string): boolean {
 export const onRequest = defineMiddleware(
   async ({ locals, cookies, url, redirect }, next) => {
     const env = locals.runtime.env;
+    const isPublic = isPublicPath(url.pathname);
 
-    // Rutas públicas
-    if (isPublicPath(url.pathname)) {
-      return next();
-    }
-
-    // Verificar session
+    // Verificar session (también en rutas públicas, para saber si hay usuario logueado)
     const sessionId = cookies.get("session")?.value;
     if (!sessionId) {
-      return redirect("/login");
+      return isPublic ? next() : redirect("/login");
     }
 
     const userId = await getSession(env.KV, sessionId);
     if (!userId) {
       cookies.delete("session", { path: "/" });
-      return redirect("/login");
+      return isPublic ? next() : redirect("/login");
     }
 
     // Obtener usuario
@@ -39,7 +35,7 @@ export const onRequest = defineMiddleware(
 
     if (!user) {
       cookies.delete("session", { path: "/" });
-      return redirect("/login");
+      return isPublic ? next() : redirect("/login");
     }
 
     // Agregar usuario a locals
