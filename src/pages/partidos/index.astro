@@ -11,7 +11,6 @@ import { getUpcomingMatches, getSyncStates } from "../../lib/db/queries";
 import { asc, eq } from "drizzle-orm";
 import { teams, userTeams } from "../../../drizzle/schema";
 import { fechaLarga, hora } from "../../lib/format";
-import { chipStyleCss } from "../../lib/chip-style";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -54,9 +53,9 @@ const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, items })
     </div>
 
     <div style="display:flex;flex-wrap:wrap;gap:8px">
-      <a href="/partidos" style={chipStyleCss(equipo === null)}>Todos</a>
+      <a href="/partidos" aria-current={equipo === null ? "true" : undefined} className={equipo === null ? "tb-chip tb-chip--activo" : "tb-chip"}>Todos</a>
       {seguidos.map((t) => (
-        <a href={`/partidos?equipo=${t.id}`} style={chipStyleCss(equipo === t.id)}>{t.name}</a>
+        <a href={`/partidos?equipo=${t.id}`} aria-current={equipo === t.id ? "true" : undefined} className={equipo === t.id ? "tb-chip tb-chip--activo" : "tb-chip"}>{t.name}</a>
       ))}
     </div>
 

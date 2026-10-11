@@ -347,3 +347,25 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 .tb-folio__pagina { font: 400 18px/1 var(--font-titular); }
 
 
+
+/* Chips y segmentos (filtros y opciones). Activo = tinta, inactivo = papel. */
+.tb-chip { display: inline-block; cursor: pointer; border: 2px solid var(--tinta); border-radius: var(--radius-sm); padding: 6px 12px; font: 700 13px/16px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; text-decoration: none; background: var(--papel); color: var(--tinta); }
+.tb-chip:hover { color: var(--tinta); }
+.tb-chip--activo { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
+.tb-segmento { cursor: pointer; border: 2px solid var(--tinta); border-radius: var(--radius-sm); margin-left: -2px; padding: 8px 14px; font: 700 14px/16px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; background: var(--papel); color: var(--tinta); }
+.tb-segmento:disabled { cursor: progress; opacity: .6; }
+.tb-chip:focus-visible, .tb-segmento:focus-visible, .tb-buscador:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* Buscador */
+.tb-buscador { width: 100%; padding: 14px 16px; background: var(--papel); color: var(--tinta); border: 2px solid var(--tinta); border-radius: var(--radius-sm); font: 600 20px/24px var(--font-rotulo); }
+/* Mensajes de error inline */
+.tb-error { color: var(--rojo); font: 600 13px/16px var(--font-rotulo); }
+/* Enlace de volver (arriba de cada pantalla) */
+.tb-volver { align-self: flex-start; font: 700 14px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; color: var(--tinta); text-decoration: none; }
+.tb-volver:hover { color: var(--rojo); }
+/* Encabezado: en pantallas chicas la navegación se parte en filas y el nombre baja de tamaño */
+@media (max-width: 640px) {
+  .tb-cabecera__cuerpo { padding: var(--space-3) var(--space-4); flex-wrap: wrap; align-items: flex-end; }
+  .tb-cabecera__nombre { font-size: 52px; }
+  .tb-cabecera__datos { text-align: left; }
+  .tb-cabecera__nav { flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding: var(--space-2) var(--space-4); }
+}

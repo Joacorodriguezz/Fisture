@@ -118,9 +118,7 @@ export default function SincronizarPartido({
           {vista.motivo}
         </span>
       )}
-      {error && estado !== "failed" && (
-        <span style={{ color: "var(--rojo)", font: "600 13px/16px var(--font-rotulo)" }}>{error}</span>
-      )}
+      {error && estado !== "failed" && <span className="tb-error">{error}</span>}
     </div>
   );
 }

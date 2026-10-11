@@ -30,7 +30,7 @@ const preferencias = [
     campo: "reminder60",
     valor: prefs.reminder60,
     opciones: siNo,
-    recargar: false,
+    aplicarTema: false,
   },
   {
     label: "Aviso 15 minutos antes",
@@ -38,7 +38,7 @@ const preferencias = [
     campo: "reminder15",
     valor: prefs.reminder15,
     opciones: siNo,
-    recargar: false,
+    aplicarTema: false,
   },
   {
     label: "Edición",
@@ -49,7 +49,7 @@ const preferencias = [
       { label: "Papel", value: "papel" },
       { label: "Nocturna", value: "nocturna" },
     ],
-    recargar: true,
+    aplicarTema: true,
   },
 ];
 ---
@@ -92,7 +92,7 @@ const preferencias = [
             valor={p.valor}
             endpoint="/api/preferencias"
             campo={p.campo}
-            recargar={p.recargar}
+            aplicarTema={p.aplicarTema}
           />
         </div>
       ))}

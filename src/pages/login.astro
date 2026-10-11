@@ -8,7 +8,16 @@ if (Astro.locals.user) {
   return Astro.redirect("/ligas");
 }
 
-const error = Astro.url.searchParams.get("error");
+// Mensajes según el código que devuelve el callback de OAuth (/api/auth/callback/[provider])
+const mensajesError: Record<string, string> = {
+  access_denied: "Cancelaste el permiso. Si fue sin querer, volvé a intentar y aceptalo.",
+  invalid_state: "La sesión de inicio expiró. Volvé a intentar.",
+  missing_params: "Falta información del proveedor. Volvé a intentar.",
+  unsupported_provider: "Ese proveedor no está disponible por ahora.",
+  oauth_failed: "No pudimos conectar con tu cuenta. Probá de nuevo en un momento.",
+};
+const codigoError = Astro.url.searchParams.get("error");
+const error = codigoError ? mensajesError[codigoError] ?? "No pudimos iniciar sesión. Probá de nuevo." : null;
 
 const opciones = [
   {
@@ -26,14 +35,14 @@ const opciones = [
 
 <Layout title="Iniciar Sesión - FISTURE" showNavbar={false}>
   <div style="max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:20px;padding:24px 0">
-    <a href="/" style="align-self:flex-start;font:700 14px/18px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta);text-decoration:none">← Volver</a>
+    <a href="/" class="tb-volver">← Volver</a>
     <Volanta tono="tinta">Iniciá sesión</Volanta>
     <Titular nivel="1">ENTRÁ A LA CANCHA</Titular>
     <Bajada>Usá la cuenta del calendario donde querés ver los partidos.</Bajada>
 
     {error && (
       <div style="background:var(--rojo);color:var(--on-rojo);padding:12px 16px;font:600 15px/20px var(--font-rotulo);letter-spacing:.02em">
-        No pudimos iniciar sesión. Probá de nuevo.
+        {error}
       </div>
     )}
 

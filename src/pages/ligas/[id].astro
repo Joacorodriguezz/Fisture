@@ -53,9 +53,9 @@ const cantidadSeguidos = items.filter((i) => i.siguiendo).length;
 <Layout title={`${liga.name} - FISTURE`} pagina={3}>
   <div style="display:flex;flex-direction:column;gap:28px">
     <div style="display:flex;flex-direction:column;gap:16px">
-      <a href="/ligas" style="align-self:flex-start;font:700 14px/18px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta);text-decoration:none">← Ligas</a>
+      <a href="/ligas" class="tb-volver">← Ligas</a>
       <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
-        <Volanta tono="rojo">Paso 2 de 3 · {liga.country}</Volanta>
+        <Volanta tono="rojo">{liga.country}</Volanta>
         <Titular nivel="1">{liga.name}</Titular>
       </div>
     </div>

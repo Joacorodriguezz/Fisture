@@ -8,8 +8,11 @@ interface Props {
   autoSync: boolean;
 }
 
-// Acciones de seguimiento de la ficha de equipo: seguir, dejar de seguir y auto-sync
-export default function SeguimientoEquipo({ teamId, nombre, siguiendo, autoSync }: Props) {
+// Acciones de seguimiento de la ficha de equipo: seguir, dejar de seguir y auto-sync.
+// El estado vive en la island: no hace falta recargar la página.
+export default function SeguimientoEquipo({ teamId, nombre, siguiendo: siguiendoInicial, autoSync }: Props) {
+  const [siguiendo, setSiguiendo] = useState(siguiendoInicial);
+  const [confirmando, setConfirmando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,23 +26,25 @@ export default function SeguimientoEquipo({ teamId, nombre, siguiendo, autoSync 
         body: JSON.stringify({ teamId }),
       });
       if (!res.ok && res.status !== 409) throw new Error("follow failed");
-      location.reload();
+      setSiguiendo(true);
     } catch {
-      setError("No se pudo seguir el equipo");
+      setError("No se pudo seguir el equipo. Probá de nuevo.");
+    } finally {
       setOcupado(false);
     }
   }
 
   async function dejarDeSeguir() {
-    if (!confirm(`¿Dejar de seguir a ${nombre}?`)) return;
     setOcupado(true);
     setError(null);
     try {
       const res = await fetch(`/api/equipos/${teamId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("unfollow failed");
-      location.reload();
+      setSiguiendo(false);
+      setConfirmando(false);
     } catch {
-      setError("No se pudo dejar de seguir");
+      setError("No se pudo dejar de seguir. Probá de nuevo.");
+    } finally {
       setOcupado(false);
     }
   }
@@ -48,9 +53,9 @@ export default function SeguimientoEquipo({ teamId, nombre, siguiendo, autoSync 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" }}>
         <button type="button" className="tb-boton tb-boton--primario" disabled={ocupado} onClick={seguir}>
-          Seguir equipo
+          {ocupado ? "Siguiendo…" : "Seguir equipo"}
         </button>
-        {error && <span style={{ color: "var(--rojo)", font: "600 13px/16px var(--font-rotulo)" }}>{error}</span>}
+        {error && <span className="tb-error">{error}</span>}
       </div>
     );
   }
@@ -72,10 +77,23 @@ export default function SeguimientoEquipo({ teamId, nombre, siguiendo, autoSync 
           campo="autoSync"
         />
       </div>
-      <button type="button" className="tb-boton" disabled={ocupado} onClick={dejarDeSeguir}>
-        Dejar de seguir
-      </button>
-      {error && <span style={{ color: "var(--rojo)", font: "600 13px/16px var(--font-rotulo)" }}>{error}</span>}
+
+      {confirmando ? (
+        <div role="alertdialog" aria-label={`Confirmar: dejar de seguir a ${nombre}`} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+          <span style={{ font: "700 14px/18px var(--font-rotulo)", textTransform: "uppercase" }}>¿Dejar de seguir a {nombre}?</span>
+          <button type="button" className="tb-boton tb-boton--primario" disabled={ocupado} onClick={dejarDeSeguir}>
+            Sí, dejar de seguir
+          </button>
+          <button type="button" className="tb-boton" disabled={ocupado} onClick={() => setConfirmando(false)}>
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <button type="button" className="tb-boton" disabled={ocupado} onClick={() => setConfirmando(true)}>
+          Dejar de seguir
+        </button>
+      )}
+      {error && <span className="tb-error">{error}</span>}
     </div>
   );
 }

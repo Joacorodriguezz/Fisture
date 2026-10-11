@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { segmentoStyle } from "./estilos";
 
 interface Opcion {
   label: string;
@@ -13,11 +12,11 @@ interface Props {
   endpoint: string;
   campo: string;
   ariaLabel: string;
-  // Recarga la página al guardar (ej: cambio de tema)
-  recargar?: boolean;
+  // Aplica el tema en la página al instante (sin recargar)
+  aplicarTema?: boolean;
 }
 
-export default function Segmentado({ opciones, valor, endpoint, campo, ariaLabel, recargar = false }: Props) {
+export default function Segmentado({ opciones, valor, endpoint, campo, ariaLabel, aplicarTema = false }: Props) {
   const [actual, setActual] = useState(valor);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +28,7 @@ export default function Segmentado({ opciones, valor, endpoint, campo, ariaLabel
     setActual(nuevo);
     setGuardando(true);
     setError(null);
+    if (aplicarTema && typeof nuevo === "string") document.documentElement.dataset.theme = nuevo;
 
     try {
       const res = await fetch(endpoint, {
@@ -37,9 +37,9 @@ export default function Segmentado({ opciones, valor, endpoint, campo, ariaLabel
         body: JSON.stringify({ [campo]: nuevo }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      if (recargar) location.reload();
     } catch {
       setActual(anterior);
+      if (aplicarTema && typeof anterior === "string") document.documentElement.dataset.theme = anterior;
       setError("No se pudo guardar. Probá de nuevo.");
     } finally {
       setGuardando(false);
@@ -58,14 +58,14 @@ export default function Segmentado({ opciones, valor, endpoint, campo, ariaLabel
               aria-pressed={activo}
               disabled={guardando}
               onClick={() => elegir(o.value)}
-              style={{ ...segmentoStyle(activo), opacity: guardando ? 0.6 : 1 }}
+              className={activo ? "tb-segmento tb-chip--activo" : "tb-segmento"}
             >
               {o.label}
             </button>
           );
         })}
       </div>
-      {error && <span style={{ color: "var(--rojo)", font: "600 13px/16px var(--font-rotulo)" }}>{error}</span>}
+      {error && <span className="tb-error">{error}</span>}
     </div>
   );
 }

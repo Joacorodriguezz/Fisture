@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { chipStyle, normalizar } from "./estilos";
+import { normalizar } from "./estilos";
 
 export interface EquipoItem {
   id: string;
@@ -93,11 +93,11 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {ligas && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <button type="button" onClick={() => setLiga("")} style={chipStyle(liga === "")}>
+          <button type="button" aria-pressed={liga === ""} onClick={() => setLiga("")} className={liga === "" ? "tb-chip tb-chip--activo" : "tb-chip"}>
             Todas
           </button>
           {ligas.map((l) => (
-            <button key={l.id} type="button" onClick={() => setLiga(l.id)} style={chipStyle(liga === l.id)}>
+            <button key={l.id} type="button" aria-pressed={liga === l.id} onClick={() => setLiga(l.id)} className={liga === l.id ? "tb-chip tb-chip--activo" : "tb-chip"}>
               {l.nombre}
             </button>
           ))}
@@ -110,16 +110,7 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
         onChange={(e) => setConsulta(e.target.value)}
         placeholder={placeholder}
         aria-label="Buscar equipos"
-        style={{
-          width: "100%",
-          padding: "14px 16px",
-          background: "var(--papel)",
-          color: "var(--tinta)",
-          border: "2px solid var(--tinta)",
-          borderRadius: 2,
-          font: "600 20px/24px var(--font-rotulo)",
-          outline: "none",
-        }}
+        className="tb-buscador"
       />
 
       {sufijoLiga && (
@@ -164,7 +155,7 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
                     color: siguiendo ? "var(--rojo)" : "var(--tinta-suave)",
                   }}
                 >
-                  {siguiendo ? "■ Siguiendo" : "Ver partidos"}
+                  {siguiendo ? "✓ Siguiendo" : "Ver equipo"}
                 </span>
               </a>
             );
@@ -188,8 +179,7 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
                 </div>
                 {siguiendo ? (
                   <span style={{ display: "flex", alignItems: "center", gap: 8, font: "700 14px/18px var(--font-rotulo)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--rojo)" }}>
-                    <span style={{ width: 12, height: 12, background: "var(--rojo)" }} />
-                    Siguiendo
+                    ✓ Siguiendo
                   </span>
                 ) : (
                   <button

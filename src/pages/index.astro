@@ -31,8 +31,8 @@ const pasos = [
 
 <Layout title="FISTURE - Tus partidos en tu calendario" showNavbar={false}>
   <div style="display:flex;flex-direction:column;gap:48px">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:32px;align-items:start">
-      <div style="display:flex;flex-direction:column;align-items:flex-start;gap:20px">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:32px">
+      <div style="display:flex;flex-direction:column;align-items:flex-start;gap:20px;max-width:720px">
         <Volanta tono="rojo">Fixture sync</Volanta>
         <Titular nivel="tapa">TODOS TUS PARTIDOS EN TU CALENDARIO</Titular>
         <Bajada>Elegís tus equipos una vez y Fisture carga cada partido en Google Calendar o Outlook, con aviso una hora y quince minutos antes.</Bajada>
@@ -43,15 +43,7 @@ const pasos = [
           </span>
         </div>
       </div>
-      <div style="position:relative;padding:0 20px 20px 0">
-        <span class="tb-foto" style="aspect-ratio:4 / 3"></span>
-        <div style="font:600 12px/16px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave);margin-top:8px">
-          Foto de hinchada en la tribuna
-        </div>
-        <div style="position:absolute;right:0;bottom:24px">
-          <Sello arriba="Siempre" centro="GRATIS" abajo="2 calendarios" />
-        </div>
-      </div>
+      <Sello arriba="Siempre" centro="GRATIS" abajo="2 calendarios" />
     </div>
 
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:28px">

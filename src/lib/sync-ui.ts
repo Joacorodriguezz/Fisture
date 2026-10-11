@@ -1,10 +1,11 @@
 // Estados de sincronización de un partido, con los textos y variantes del diseño.
 // Se usa en Astro (SSR) y en las islands de React.
+// Vocabulario único: Agregar · Actualizar · Reintentar. Cada estado también se distingue por ícono, no solo por color.
 
 export type SyncStatus = "none" | "syncing" | "synced" | "needs_update" | "failed";
 
 export interface SyncView {
-  label: string; // texto corto del botón
+  label: string; // texto corto del botón (listas)
   labelLargo: string; // texto del botón en la ficha del partido
   variante: "secundario" | "tinta" | "primario";
   estado: string; // línea de estado debajo del partido
@@ -32,21 +33,22 @@ export function syncView(status: SyncStatus, errorMessage?: string | null): Sync
         disabled: true,
       };
     case "synced":
+      // Informativo: ya está en el calendario. Quitarlo es una acción aparte (ficha del partido).
       return {
         label: "En calendario",
         labelLargo: "En tu calendario",
         variante: "tinta",
-        estado: "■ En tu calendario",
+        estado: "✓ En tu calendario",
         estadoColor: "var(--celeste)",
         motivo: "",
-        disabled: false,
+        disabled: true,
       };
     case "needs_update":
       return {
         label: "Actualizar",
         labelLargo: "Actualizar evento",
         variante: "primario",
-        estado: "Cambió el horario",
+        estado: "↻ Cambió el horario",
         estadoColor: "var(--rojo)",
         motivo: "El partido cambió de fecha u hora. Tu evento todavía tiene el horario viejo.",
         disabled: false,
@@ -56,7 +58,7 @@ export function syncView(status: SyncStatus, errorMessage?: string | null): Sync
         label: "Reintentar",
         labelLargo: "Reintentar",
         variante: "primario",
-        estado: "Falló la sincronización",
+        estado: "▲ Falló la sincronización",
         estadoColor: "var(--rojo)",
         motivo: errorMessage || "No pudimos escribir el evento en tu calendario.",
         disabled: false,
