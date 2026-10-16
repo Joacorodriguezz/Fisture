@@ -87,3 +87,13 @@ export async function getLatestRuns(db: Database, limit = 20): Promise<ParsedSyn
     error: r.error,
   }));
 }
+
+export async function getLastSuccessAt(db: Database): Promise<number | null> {
+  const [row] = await db
+    .select({ finishedAt: syncRuns.finishedAt })
+    .from(syncRuns)
+    .where(eq(syncRuns.status, "success"))
+    .orderBy(desc(syncRuns.startedAt))
+    .limit(1);
+  return row?.finishedAt ?? null;
+}
