@@ -47,3 +47,20 @@ drizzle/
 - Archivos `.tsx` en `components/islands/` para interactividad (React)
 - APIs en `pages/api/` se despliegan como Workers
 - Usar `client:visible` para islands que requieren JS
+
+## Flujo de ramas
+
+```
+main         → producción (lo deployado en Cloudflare Pages)
+development  → integración / staging (rama por defecto del repo)
+feat/* fix/* chore/* docs/* ci/*  → trabajo diario, salen de development
+```
+
+- **Nunca** se pushea directo a `main` ni a `development`: ambas están protegidas por rulesets (PR + check `build` obligatorio, sin force-push ni borrado, sin bypass).
+- **Features y fixes**: rama desde `development` → PR a `development` → **Squash and merge** (un commit por feature).
+- **Release**: PR `development` → `main` con **Create a merge commit** (único método permitido en `main`; evita que ambas ramas diverjan). Al mergear se deploya a producción.
+- **Hotfix urgente**: `fix/*` desde `main` → PR a `main`, y después PR de `main` → `development` para no perder el arreglo.
+- Preview deployments: cada PR y `development` generan un preview en Cloudflare Pages.
+- CI (`.github/workflows/ci.yml`): job `build` (`npm ci` + `npm run build`) en cada PR y push a `main`. Debe pasar para poder mergear.
+- Nombres de rama: `tipo/descripcion-corta` en minúsculas y con guiones. Commits en formato Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `ci:`).
+- Al crear PRs, apuntar a `development` salvo que sea un release o hotfix.
