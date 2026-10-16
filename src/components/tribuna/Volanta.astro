@@ -1,0 +1,11 @@
+---
+// Volanta.astro: etiqueta chica sobre un título
+interface Props {
+  tono?: "rojo" | "tinta" | "texto";
+  class?: string;
+}
+
+const { tono = "rojo", class: className } = Astro.props;
+---
+
+<span class:list={["tb-volanta", `tb-volanta--${tono}`, className]}><slot /></span>

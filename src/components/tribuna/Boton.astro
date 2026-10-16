@@ -1,0 +1,21 @@
+---
+// Boton.astro: botón de la identidad (borde grueso, sombra al pasar el mouse)
+interface Props {
+  variante?: "primario" | "tinta" | "secundario";
+  href?: string;
+  disabled?: boolean;
+  type?: "button" | "submit";
+  class?: string;
+}
+
+const { variante = "secundario", href, disabled = false, type = "button", class: className } = Astro.props;
+const classes = ["tb-boton", variante !== "secundario" && `tb-boton--${variante}`, className]
+  .filter(Boolean)
+  .join(" ");
+---
+
+{href ? (
+  <a href={href} class={classes} aria-disabled={disabled || undefined}><slot /></a>
+) : (
+  <button type={type} class={classes} disabled={disabled}><slot /></button>
+)}

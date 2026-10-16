@@ -1,4 +1,7 @@
-import { syncAllLeagues } from "../src/lib/football-api/sync";
+// Mismo servicio que usa /api/admin/sync (football-data.org + Promiedos)
+import { syncAllLeagues } from "../src/lib/data-providers/sync";
+import { createDb } from "../src/lib/db";
+import { runCalendarAutoSync } from "../src/lib/calendar/sync-service";
 
 interface ScheduledEvent {
   cron: string;
@@ -37,6 +40,9 @@ export default {
         totalMatches += result.matchesCreated + result.matchesUpdated;
         totalErrors += result.errors.length;
       }
+
+      // Llevar los calendarios de los usuarios al día con el fixture nuevo
+      await runCalendarAutoSync(env, createDb(env.DB));
 
       // Invalidar cache de partidos en KV
       await env.KV.delete("cache:matches:all");

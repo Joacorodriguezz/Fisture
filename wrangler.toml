@@ -4,9 +4,10 @@ pages_build_output_dir = "./dist"
 
 # Base de datos D1
 [[d1_databases]]
-binding = "fisture_db"
+binding = "DB"
 database_name = "fisture-db"
 database_id = "a2c8ced1-b931-43f7-9773-8702f7dce031"
+migrations_dir = "drizzle/migrations"
 
 # Cache KV para sesiones
 [[kv_namespaces]]

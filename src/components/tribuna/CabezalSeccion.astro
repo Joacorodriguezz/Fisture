@@ -1,0 +1,14 @@
+---
+// CabezalSeccion.astro: cabezal grande de sección, con franja y firma
+interface Props {
+  firma?: string;
+}
+
+const { firma } = Astro.props;
+---
+
+<header class="tb-cabezal">
+  <h2 class="tb-cabezal__barra"><slot /></h2>
+  <div class="tb-cabezal__franja" aria-hidden="true"></div>
+  {firma && <div class="tb-cabezal__firma">{firma}</div>}
+</header>

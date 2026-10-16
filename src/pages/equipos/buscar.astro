@@ -1,97 +1,79 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import Volanta from "../../components/tribuna/Volanta.astro";
+import Titular from "../../components/tribuna/Titular.astro";
+import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
+import FiltroEquipos from "../../components/islands/FiltroEquipos";
+import { createDb } from "../../lib/db";
+import { asc, eq } from "drizzle-orm";
+import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 
 const user = Astro.locals.user;
 if (!user) {
   return Astro.redirect("/login");
 }
+
+const db = createDb(Astro.locals.runtime.env.DB);
+
+const todasLasLigas = await db.select().from(leagues).where(eq(leagues.isActive, true)).orderBy(asc(leagues.name));
+const ligaPorId = new Map(todasLasLigas.map((l) => [l.id, l.name]));
+
+const todosLosEquipos = await db
+  .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo, leagueId: teams.leagueId })
+  .from(teams)
+  .orderBy(asc(teams.name));
+
+// Competencias que juega cada equipo (solo las activas)
+const ligasActivas = new Set(todasLasLigas.map((l) => l.id));
+const participacion = new Map<string, string[]>();
+for (const p of await db.select().from(leagueTeams)) {
+  if (!ligasActivas.has(p.leagueId)) continue;
+  const lista = participacion.get(p.teamId) ?? [];
+  lista.push(p.leagueId);
+  participacion.set(p.teamId, lista);
+}
+
+const seguidos = new Set(
+  (await db.select({ teamId: userTeams.teamId }).from(userTeams).where(eq(userTeams.userId, user.id))).map(
+    (r) => r.teamId
+  )
+);
+
+const items = todosLosEquipos
+  .filter((t) => participacion.has(t.id))
+  .map((t) => ({
+    id: t.id,
+    nombre: t.name,
+    logo: t.logo,
+    sigla: t.shortName,
+    ligaIds: participacion.get(t.id)!,
+    liga: ligaPorId.get(t.leagueId) ?? "",
+    siguiendo: seguidos.has(t.id),
+  }));
 ---
 
-<Layout title="Buscar Equipos - FISTURE">
-  <div class="max-w-2xl mx-auto px-4 py-8">
-    <div class="flex items-center gap-4 mb-8">
-      <a href="/equipos" class="text-gray-500 hover:text-gray-700">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-      </a>
-      <h1 class="text-3xl font-bold">Buscar Equipos</h1>
+<Layout title="Buscar equipos - FISTURE" pagina={4}>
+  <div style="max-width:760px;display:flex;flex-direction:column;gap:24px">
+    <a href="/ligas" class="tb-volver">← Ligas</a>
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+      <Volanta tono="tinta">Todos los equipos</Volanta>
+      <Titular nivel="1">BUSCAR EQUIPOS</Titular>
     </div>
 
-    <input
-      type="text"
-      id="search-input"
-      placeholder="Buscar equipo por nombre..."
-      class="input text-lg mb-4"
-      autofocus
-    />
+    <BarraSeccion tono="tinta" extra={`${items.length} equipos`}>Equipos disponibles</BarraSeccion>
 
-    <div id="results" class="space-y-2"></div>
-
-    <div class="mt-8 p-4 bg-gray-100 rounded-lg">
-      <h3 class="font-medium mb-2">Ligas disponibles:</h3>
-      <div class="flex flex-wrap gap-2">
-        <span class="badge badge-info">Liga Argentina</span>
-        <span class="badge badge-info">Premier League</span>
-        <span class="badge badge-info">La Liga</span>
-        <span class="badge badge-info">Serie A</span>
-        <span class="badge badge-info">Bundesliga</span>
-        <span class="badge badge-info">Ligue 1</span>
-      </div>
-    </div>
+    {items.length === 0 ? (
+      <p style="margin:0;font:400 17px/27px var(--font-texto);color:var(--tinta-suave)">
+        Todavía no hay equipos cargados. Se cargan al sincronizar las ligas.
+      </p>
+    ) : (
+      <FiltroEquipos
+        client:load
+        equipos={items}
+        ligas={todasLasLigas.map((l) => ({ id: l.id, nombre: l.name }))}
+        modo="seguir"
+        placeholder="River, Liverpool, Inter…"
+      />
+    )}
   </div>
-
-  <script>
-    const input = document.getElementById('search-input') as HTMLInputElement;
-    const results = document.getElementById('results')!;
-    let timeout: ReturnType<typeof setTimeout>;
-
-    input.addEventListener('input', () => {
-      clearTimeout(timeout);
-      const query = input.value.trim();
-
-      if (query.length < 2) {
-        results.innerHTML = '<p class="text-gray-400 text-center text-sm">Escribí al menos 2 caracteres</p>';
-        return;
-      }
-
-      timeout = setTimeout(async () => {
-        results.innerHTML = '<p class="text-gray-500 text-center">Buscando...</p>';
-
-        const res = await fetch(`/api/equipos/buscar?q=${encodeURIComponent(query)}`);
-        const teams = await res.json();
-
-        if (teams.length === 0) {
-          results.innerHTML = `<p class="text-gray-500 text-center">No se encontraron equipos para "${query}"</p>`;
-          return;
-        }
-
-        results.innerHTML = teams.map((team: any) => `
-          <div class="flex items-center gap-4 p-3 bg-white rounded-lg border">
-            <img src="${team.logo || '/placeholder-team.svg'}" alt="${team.name}" class="w-12 h-12 object-contain" />
-            <div class="flex-1">
-              <p class="font-medium">${team.name}</p>
-              <p class="text-sm text-gray-500">${team.league.name}</p>
-            </div>
-            ${team.isFollowing
-              ? '<span class="text-green-600 text-sm">Siguiendo ✓</span>'
-              : `<button onclick="addTeam('${team.id}')" class="btn btn-primary btn-sm">Agregar</button>`
-            }
-          </div>
-        `).join('');
-      }, 300);
-    });
-
-    (window as any).addTeam = async (teamId: string) => {
-      const res = await fetch('/api/equipos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId }),
-      });
-
-      if (res.ok) {
-        input.dispatchEvent(new Event('input'));
-      }
-    };
-  </script>
 </Layout>

@@ -1,0 +1,159 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Volanta from "../components/tribuna/Volanta.astro";
+import Titular from "../components/tribuna/Titular.astro";
+import Bajada from "../components/tribuna/Bajada.astro";
+import Boton from "../components/tribuna/Boton.astro";
+import BarraSeccion from "../components/tribuna/BarraSeccion.astro";
+import Recuadro from "../components/tribuna/Recuadro.astro";
+import SincronizarTodo from "../components/islands/SincronizarTodo";
+import SincronizarPartido from "../components/islands/SincronizarPartido";
+import { createDb } from "../lib/db";
+import { getUpcomingMatches, getSyncStates } from "../lib/db/queries";
+import { markOutdatedEvents } from "../lib/calendar/sync-service";
+import { calendarSyncs } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
+import { toSyncStatus } from "../lib/sync-ui";
+import { fechaCorta, fechaHora, hora, providerLabel } from "../lib/format";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+const db = createDb(Astro.locals.runtime.env.DB);
+
+// Eventos cuyo partido cambió de horario quedan marcados antes de mostrar el estado
+await markOutdatedEvents(db, user.id);
+
+const proximos = await getUpcomingMatches(db, user.id, 200);
+const estados = await getSyncStates(db, user.id, proximos.map((m) => m.match.id));
+
+const filasCalendario = await db
+  .select({ lastSyncedAt: calendarSyncs.lastSyncedAt })
+  .from(calendarSyncs)
+  .where(eq(calendarSyncs.userId, user.id));
+const ultima = filasCalendario
+  .map((r) => r.lastSyncedAt)
+  .filter((d): d is Date => d instanceof Date)
+  .sort((a, b) => b.getTime() - a.getTime())[0];
+
+let enCalendario = 0;
+let pendientes = 0;
+let aActualizar = 0;
+let conError = 0;
+const revisar: typeof proximos = [];
+const accionables: string[] = [];
+
+for (const m of proximos) {
+  const registro = estados.get(m.match.id);
+  const estado = toSyncStatus(registro?.status);
+
+  if (estado === "synced") enCalendario++;
+  if (estado === "none") {
+    pendientes++;
+    accionables.push(m.match.id);
+  }
+  if (estado === "needs_update" || estado === "failed") {
+    if (estado === "needs_update") aActualizar++;
+    else conError++;
+    revisar.push(m);
+    accionables.push(m.match.id);
+  }
+}
+
+// Cada partido es una llamada a la API de calendario: el lote manual tiene tope
+const LOTE_MANUAL = 25;
+const lote = accionables.slice(0, LOTE_MANUAL);
+
+const stats = [
+  { n: enCalendario, label: "En calendario", detalle: "Eventos creados y al día", color: "var(--celeste)" },
+  { n: pendientes, label: "Pendientes", detalle: "Se agregan en la próxima sync", color: "var(--tinta)" },
+  { n: aActualizar, label: "A actualizar", detalle: "Cambió fecha, hora o estadio", color: "var(--rojo)" },
+  { n: conError, label: "Con error", detalle: "No se pudo escribir el evento", color: "var(--rojo)" },
+];
+
+const ultimaTxt = ultima ? fechaHora(ultima) : "todavía no";
+const proveedor = providerLabel(user.provider);
+const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
+---
+
+<Layout title="Calendario - FISTURE" pagina={7}>
+  <div style="display:flex;flex-direction:column;gap:32px">
+    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px">
+      <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+        <Volanta tono="tinta">{proveedor}</Volanta>
+        <Titular nivel="1">TODO EN HORARIO</Titular>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+        {proximos.length > 0 && <Boton href="/api/calendario/download?all=true">Descargar .ics</Boton>}
+        <SincronizarTodo client:load matchIds={lote} etiqueta={lote.length > 0 ? `Sincronizar ahora (${lote.length})` : "Sincronizar ahora"} etiquetaCargando="Sincronizando…" />
+      </div>
+    </div>
+
+    <Bajada>Conectado como {user.email} · {proveedor}. Última sincronización: {ultimaTxt}.</Bajada>
+
+    {proximos.length === 0 && (
+      <div class="tb-vacio">
+        <span>Todavía no tenés partidos para sincronizar. Seguí un equipo y sus partidos aparecen acá.</span>
+        <Boton href="/ligas" variante="primario">Elegir equipos</Boton>
+      </div>
+    )}
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:0;background:var(--celeste-claro);border:2px solid var(--celeste)">
+      {stats.map((s) => (
+        <div style="padding:20px 16px;border-right:1px solid var(--linea);display:flex;flex-direction:column;gap:6px">
+          <span style={`font:400 64px/.92 var(--font-titular);color:${s.color}`}>{s.n}</span>
+          <span style="font:700 14px/18px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase">{s.label}</span>
+          <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">{s.detalle}</span>
+        </div>
+      ))}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:24px;align-items:start">
+      <div style="display:flex;flex-direction:column">
+        <BarraSeccion tono="rojo" extra={`${revisar.length} ${revisar.length === 1 ? "partido" : "partidos"}`}>
+          Para revisar
+        </BarraSeccion>
+
+        {revisar.map((m) => {
+          const estado = estadoRevision(m.match.id);
+          const registro = estados.get(m.match.id);
+          return (
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:14px 12px;border-bottom:1px solid var(--linea)">
+              <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px">
+                <span style="font:700 12px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-suave)">
+                  {m.league.name} · {fechaCorta(m.match.dateTime)} {hora(m.match.dateTime)}
+                </span>
+                <a href={`/partidos/${m.match.id}`} style="font:700 17px/20px var(--font-rotulo);text-transform:uppercase;color:var(--tinta);text-decoration:none">
+                  {m.homeTeam.name} vs {m.awayTeam.name}
+                </a>
+              </div>
+              <SincronizarPartido
+                client:load
+                matchId={m.match.id}
+                status={estado}
+                errorMessage={registro?.errorMessage ?? null}
+              />
+            </div>
+          );
+        })}
+
+        {revisar.length === 0 && (
+          <p style="margin:0;padding:20px 12px;font:400 17px/27px var(--font-texto)">
+            Nada para revisar. Todos tus partidos están al día.
+          </p>
+        )}
+      </div>
+
+      <Recuadro tono="celeste" titulo="Cómo funciona la sync">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div><b>Todos los días a las 6 hs</b> traemos el fixture actualizado de football-data.org y Promiedos.</div>
+          <div><b>Si cambia un horario</b> actualizamos el evento en tu calendario, si el equipo tiene auto-sync activado.</div>
+          <div><b>Si borraste un evento</b> desde tu calendario, volvé a agregarlo con Reintentar o Sincronizar ahora.</div>
+          <div><b>Otro calendario</b>: descargá el .ics y importalo.</div>
+        </div>
+      </Recuadro>
+    </div>
+  </div>
+</Layout>

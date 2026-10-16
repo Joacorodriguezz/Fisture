@@ -20,10 +20,14 @@ interface Env {
   APPLE_KEY_ID: string;
   APPLE_PRIVATE_KEY: string;
   API_FOOTBALL_KEY: string;
+  FOOTBALL_DATA_API_KEY?: string;
   PUBLIC_APP_URL: string;
   ADMIN_SECRET?: string;
 }
 
 declare namespace App {
-  interface Locals extends Runtime {}
+  interface Locals extends Runtime {
+    // Usuario de la sesión (lo carga el middleware si hay sesión válida)
+    user?: import("../drizzle/schema").User;
+  }
 }
