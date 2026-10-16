@@ -13,10 +13,10 @@ jobs:
     steps:
       - name: Disparar sync en producción
         env:
-          APP_URL: ${{ secrets.APP_URL }}
+          APP_URL: ${{ secrets.PUBLIC_APP_URL }}
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
         run: |
           curl --fail-with-body --silent --show-error \
             --max-time 120 --retry 2 --retry-delay 10 \
-            -X POST "$APP_URL/api/admin/sync" \
+            -X POST "${APP_URL%/}/api/admin/sync" \
             -H "Authorization: Bearer $ADMIN_SECRET"

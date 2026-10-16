@@ -158,6 +158,16 @@ wrangler secret put ADMIN_SECRET
 
 Detalle del diseño: `docs/10-observabilidad-tdd.md`.
 
+### 6.2 Deploy automático (proyecto de subida directa)
+
+El proyecto `fisture` de Pages **no tiene Git conectado**, así que mergear a `main` no deploya solo. Lo hace `.github/workflows/deploy.yml` en cada push a `main` (o a mano desde Actions): tests, build, migraciones de D1 (`wrangler d1 migrations apply --remote`) y `wrangler pages deploy dist`. Secrets de GitHub requeridos:
+
+- `CLOUDFLARE_API_TOKEN`: token con permisos *Cloudflare Pages: Edit* y *D1: Edit* (dashboard → My Profile → API Tokens → Create Token).
+- `CLOUDFLARE_ACCOUNT_ID`
+- `PUBLIC_APP_URL` y `ADMIN_SECRET` (los usa el workflow del cron de sync).
+
+`ENVIRONMENT` y `PUBLIC_APP_URL` salen de `wrangler.toml` (`[vars]`). Los secrets de la app (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ADMIN_SECRET`, `FOOTBALL_DATA_API_KEY`, etc.) se cargan con `npx wrangler pages secret put <NOMBRE> --project-name fisture`.
+
 ### 7. Configurar Dominio (Opcional)
 
 1. Pages → tu proyecto → Custom domains
