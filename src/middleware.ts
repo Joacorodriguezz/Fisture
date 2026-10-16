@@ -4,7 +4,7 @@ import { createDb } from "./lib/db";
 import { users } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
-const PUBLIC_PATHS = ["/", "/login", "/api/auth", "/api/admin"];
+const PUBLIC_PATHS = ["/", "/login", "/api/auth", "/api/admin", "/favicon.svg"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(path + "/"));

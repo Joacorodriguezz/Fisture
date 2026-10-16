@@ -55,7 +55,7 @@ const fecha = fechaLarga(new Date());
     />
   </head>
   <body class="tb-app">
-    <Cabecera volanta={volanta} numero={numero} fecha={fecha} secciones={secciones} />
+    <Cabecera volanta={volanta} numero={numero} numeroHref={user ? "/configuracion" : undefined} fecha={fecha} secciones={secciones} />
     <main class="tb-main">
       <slot />
       <div style="margin-top:56px">

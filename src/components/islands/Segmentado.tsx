@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface Opcion {
   label: string;
@@ -20,6 +20,14 @@ export default function Segmentado({ opciones, valor, endpoint, campo, ariaLabel
   const [actual, setActual] = useState(valor);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [guardado, setGuardado] = useState(false);
+
+  // El aviso "Guardado" desaparece solo
+  useEffect(() => {
+    if (!guardado) return;
+    const t = setTimeout(() => setGuardado(false), 2000);
+    return () => clearTimeout(t);
+  }, [guardado]);
 
   async function elegir(nuevo: boolean | string) {
     if (nuevo === actual || guardando) return;
@@ -28,6 +36,7 @@ export default function Segmentado({ opciones, valor, endpoint, campo, ariaLabel
     setActual(nuevo);
     setGuardando(true);
     setError(null);
+    setGuardado(false);
     if (aplicarTema && typeof nuevo === "string") document.documentElement.dataset.theme = nuevo;
 
     try {
@@ -37,6 +46,7 @@ export default function Segmentado({ opciones, valor, endpoint, campo, ariaLabel
         body: JSON.stringify({ [campo]: nuevo }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setGuardado(true);
     } catch {
       setActual(anterior);
       if (aplicarTema && typeof anterior === "string") document.documentElement.dataset.theme = anterior;
@@ -65,7 +75,11 @@ export default function Segmentado({ opciones, valor, endpoint, campo, ariaLabel
           );
         })}
       </div>
-      {error && <span className="tb-error">{error}</span>}
+      <span aria-live="polite">
+        {guardando && <span className="tb-meta">Guardando…</span>}
+        {guardado && <span className="tb-ok">✓ Guardado</span>}
+        {error && <span className="tb-error">{error}</span>}
+      </span>
     </div>
   );
 }

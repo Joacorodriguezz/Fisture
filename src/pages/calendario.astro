@@ -87,11 +87,18 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
         {proximos.length > 0 && <Boton href="/api/calendario/download?all=true">Descargar .ics</Boton>}
-        <SincronizarTodo client:load matchIds={lote} etiqueta="Sincronizar ahora" etiquetaCargando="Sincronizando…" />
+        <SincronizarTodo client:load matchIds={lote} etiqueta={lote.length > 0 ? `Sincronizar ahora (${lote.length})` : "Sincronizar ahora"} etiquetaCargando="Sincronizando…" />
       </div>
     </div>
 
     <Bajada>Conectado como {user.email} · {proveedor}. Última sincronización: {ultimaTxt}.</Bajada>
+
+    {proximos.length === 0 && (
+      <div class="tb-vacio">
+        <span>Todavía no tenés partidos para sincronizar. Seguí un equipo y sus partidos aparecen acá.</span>
+        <Boton href="/ligas" variante="primario">Elegir equipos</Boton>
+      </div>
+    )}
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:0;background:var(--celeste-claro);border:2px solid var(--celeste)">
       {stats.map((s) => (

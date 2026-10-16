@@ -115,11 +115,24 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
         className="tb-buscador"
       />
 
-      {sufijoLiga && (
-        <span style={{ font: "700 13px/16px var(--font-rotulo)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--tinta-suave)" }}>
-          Mostrando: {sufijoLiga}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }} aria-live="polite">
+        <span className="tb-meta">
+          {filtrados.length} {filtrados.length === 1 ? "equipo" : "equipos"}
+          {sufijoLiga ? ` · ${sufijoLiga}` : ""}
         </span>
-      )}
+        {(consulta || liga) && (
+          <button
+            type="button"
+            className="tb-link-boton"
+            onClick={() => {
+              setConsulta("");
+              setLiga("");
+            }}
+          >
+            Limpiar filtros
+          </button>
+        )}
+      </div>
 
       {error && <p style={{ margin: 0, color: "var(--rojo)", font: "600 15px/20px var(--font-rotulo)" }}>{error}</p>}
 

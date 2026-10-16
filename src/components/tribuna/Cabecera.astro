@@ -10,20 +10,21 @@ interface Props {
   volanta?: string;
   nombre?: string;
   numero?: string;
+  numeroHref?: string;
   fecha?: string;
   secciones?: Seccion[];
 }
 
-const { volanta, nombre = "Fisture", numero, fecha, secciones = [] } = Astro.props;
+const { volanta, nombre = "Fisture", numero, numeroHref, fecha, secciones = [] } = Astro.props;
 ---
 
 <header class="tb-cabecera">
   {volanta && <div class="tb-cabecera__volanta">{volanta}</div>}
   <div class="tb-cabecera__cuerpo">
-    <p class="tb-cabecera__nombre">{nombre}</p>
+    <p class="tb-cabecera__nombre"><a class="tb-cabecera__enlace" href="/" aria-label="Fisture, ir al inicio">{nombre}</a></p>
     {(numero || fecha) && (
       <div class="tb-cabecera__datos">
-        {numero && <div>{numero}</div>}
+        {numero && <div>{numeroHref ? <a class="tb-cabecera__enlace" href={numeroHref} title="Ir a tu configuración">{numero}</a> : numero}</div>}
         {fecha && <div>{fecha}</div>}
       </div>
     )}

@@ -40,7 +40,13 @@ for (const m of partidos) {
   if (!dias.has(dia)) dias.set(dia, []);
   dias.get(dia)!.push(m);
 }
-const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, items }));
+
+// "Hoy" y "Mañana" delante de la fecha para ubicarse rápido
+const ahora = Date.now();
+const hoyTxt = fechaLarga(new Date(ahora));
+const mananaTxt = fechaLarga(new Date(ahora + 24 * 60 * 60 * 1000));
+const prefijo = (dia: string) => (dia === hoyTxt ? "Hoy · " : dia === mananaTxt ? "Mañana · " : "");
+const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, etiqueta: `${prefijo(dia)}${dia}`, items }));
 ---
 
 <Layout title="Próximos Partidos - FISTURE" pagina={5}>
@@ -60,16 +66,24 @@ const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, items })
     </div>
 
     {grupos.length === 0 ? (
-      <div style="background:var(--papel-2);padding:40px 32px;font:400 17px/27px var(--font-texto);text-align:center">
-        No hay partidos próximos.{" "}
-        <a href="/ligas" style="font-weight:700">Seguí un equipo</a> para armar tu fixture.
+      <div class="tb-vacio">
+        <span>
+          {equipo
+            ? "Este equipo no tiene partidos próximos."
+            : seguidos.length === 0
+              ? "Todavía no seguís ningún equipo."
+              : "No hay partidos próximos para tus equipos."}
+        </span>
+        <a href={equipo ? "/partidos" : "/ligas"} class="tb-boton tb-boton--primario" style="text-decoration:none">
+          {equipo ? "Ver todos los partidos" : "Elegir equipos"}
+        </a>
       </div>
     ) : (
       <div style="display:flex;flex-direction:column;gap:28px">
         {grupos.map((g) => (
           <div style="display:flex;flex-direction:column">
             <BarraSeccion tono="rojo" extra={g.items.length === 1 ? "1 partido" : `${g.items.length} partidos`}>
-              {g.dia}
+              {g.etiqueta}
             </BarraSeccion>
             {g.items.map((m) => {
               const estado = estados.get(m.match.id);
