@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { createDb } from "../../lib/db";
 import { getPreferences, updatePreferences, type Preferences } from "../../lib/db/preferences";
+import { withApi } from "../../lib/observability/with-api";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -9,16 +10,16 @@ function json(body: unknown, status = 200) {
   });
 }
 
-export const GET: APIRoute = async ({ locals }) => {
+export const GET: APIRoute = withApi(async ({ locals }) => {
   const user = locals.user;
   if (!user) return json({ error: "Unauthorized" }, 401);
 
   const db = createDb(locals.runtime.env.DB);
   return json(await getPreferences(db, user.id));
-};
+});
 
 // Acepta cualquier combinación de: reminder60, reminder15 (boolean) y theme
-export const PATCH: APIRoute = async ({ request, locals }) => {
+export const PATCH: APIRoute = withApi(async ({ request, locals }) => {
   const user = locals.user;
   if (!user) return json({ error: "Unauthorized" }, 401);
 
@@ -40,4 +41,4 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
   const db = createDb(locals.runtime.env.DB);
   const updated = await updatePreferences(db, user.id, changes);
   return json(updated);
-};
+});

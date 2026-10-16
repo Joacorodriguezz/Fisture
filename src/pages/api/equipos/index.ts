@@ -2,8 +2,9 @@ import type { APIRoute } from "astro";
 import { createDb } from "../../../lib/db";
 import { userTeams, teams, leagues } from "../../../../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { withApi } from "../../../lib/observability/with-api";
 
-export const GET: APIRoute = async ({ locals }) => {
+export const GET: APIRoute = withApi(async ({ locals }) => {
   const user = locals.user;
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -33,9 +34,9 @@ export const GET: APIRoute = async ({ locals }) => {
   return new Response(JSON.stringify(myTeams), {
     headers: { "Content-Type": "application/json" },
   });
-};
+});
 
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = withApi(async ({ request, locals }) => {
   const user = locals.user;
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -90,4 +91,4 @@ export const POST: APIRoute = async ({ request, locals }) => {
     status: 201,
     headers: { "Content-Type": "application/json" },
   });
-};
+});

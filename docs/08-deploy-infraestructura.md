@@ -147,6 +147,17 @@ wrangler secret put ADMIN_SECRET
    - Root directory: `/`
 5. Agregar variables de entorno en Settings
 
+### 6.1 Observabilidad después del deploy
+
+1. Aplicar las migraciones (`npm run db:migrate:prod`) **antes** del deploy: la `0004_sync_runs` crea la tabla del historial de sync.
+2. Configurar el secret `ADMIN_SECRET` (lo usan `/api/admin/sync` y `/api/admin/status`).
+3. Verificar `GET https://<dominio>/api/health`. Devuelve 503 (`sync: fail`) hasta que haya un sync exitoso registrado: lanzar uno con `POST /api/admin/sync` (Bearer `ADMIN_SECRET`).
+4. Logs en vivo: `npx wrangler pages deployment tail`; histórico en el dashboard (Workers & Pages → proyecto → Logs).
+5. Monitor externo recomendado (UptimeRobot, Better Stack, Cloudflare Health Checks) sobre `/api/health` con aviso por mail o Telegram.
+6. **Cron en Pages:** Pages no ejecuta Cron Triggers. Mientras no se resuelva, `/api/health` queda en `fail` pasadas 50 h sin sync (y `degraded` desde las 26 h): es la señal esperada.
+
+Detalle del diseño: `docs/10-observabilidad-tdd.md`.
+
 ### 7. Configurar Dominio (Opcional)
 
 1. Pages → tu proyecto → Custom domains

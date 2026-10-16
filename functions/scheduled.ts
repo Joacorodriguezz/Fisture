@@ -1,7 +1,7 @@
-// Mismo servicio que usa /api/admin/sync (football-data.org + Promiedos)
-import { syncAllLeagues } from "../src/lib/data-providers/sync";
-import { createDb } from "../src/lib/db";
-import { runCalendarAutoSync } from "../src/lib/calendar/sync-service";
+// Mismo servicio que usa /api/admin/sync (ESPN + chequeos de consistencia), más el sync de calendarios.
+// Cada ejecución queda registrada en la tabla sync_runs.
+import { runSync } from "../src/lib/observability/run-sync";
+import { createLogger, defaultLevel } from "../src/lib/observability/logger";
 
 interface ScheduledEvent {
   cron: string;
@@ -20,37 +20,15 @@ export default {
     env: Env,
     ctx: ExecutionContext
   ): Promise<void> {
-    console.log(`[CRON] Starting sync at ${new Date().toISOString()}`);
-    console.log(`[CRON] Triggered by: ${event.cron}`);
+    const logger = createLogger({ level: defaultLevel(env.ENVIRONMENT), env: env.ENVIRONMENT }).child({
+      cron: event.cron,
+    });
 
     try {
-      const results = await syncAllLeagues(env);
-
-      // Log resultados
-      let totalMatches = 0;
-      let totalErrors = 0;
-
-      for (const result of results) {
-        console.log(`[CRON] ${result.league}:`, {
-          teams: `${result.teamsCreated} created`,
-          matches: `${result.matchesCreated} created, ${result.matchesUpdated} updated`,
-          errors: result.errors.length,
-        });
-
-        totalMatches += result.matchesCreated + result.matchesUpdated;
-        totalErrors += result.errors.length;
-      }
-
-      // Llevar los calendarios de los usuarios al día con el fixture nuevo
-      await runCalendarAutoSync(env, createDb(env.DB));
-
-      // Invalidar cache de partidos en KV
-      await env.KV.delete("cache:matches:all");
-
-      console.log(`[CRON] Sync completed at ${new Date().toISOString()}`);
-      console.log(`[CRON] Summary: ${totalMatches} matches synced, ${totalErrors} errors`);
+      await runSync(env, "cron", { calendarAutoSync: true, logger });
     } catch (error) {
-      console.error(`[CRON] Sync failed:`, error);
+      // Solo llega acá si ni siquiera se pudo registrar el run (p. ej. D1 caída)
+      logger.error("cron_failed", { err: error });
     }
   },
 };

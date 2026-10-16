@@ -4,8 +4,9 @@ import { createSession } from "../../../../lib/auth/session";
 import { createDb } from "../../../../lib/db";
 import { users } from "../../../../../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { withApi } from "../../../../lib/observability/with-api";
 
-export const GET: APIRoute = async ({ params, url, redirect, cookies, locals }) => {
+export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, locals }) => {
   const { provider } = params;
   const env = locals.runtime.env;
 
@@ -108,7 +109,7 @@ export const GET: APIRoute = async ({ params, url, redirect, cookies, locals }) 
 
     return redirect("/ligas");
   } catch (error) {
-    console.error("OAuth error:", error);
+    locals.logger?.error("oauth_failed", { provider: params.provider, err: error });
     return redirect("/login?error=oauth_failed");
   }
-};
+});

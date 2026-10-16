@@ -29,5 +29,8 @@ declare namespace App {
   interface Locals extends Runtime {
     // Usuario de la sesión (lo carga el middleware si hay sesión válida)
     user?: import("../drizzle/schema").User;
+    // Los pone withApi en las rutas de /api
+    requestId?: string;
+    logger?: import("./lib/observability/logger").Logger;
   }
 }
