@@ -4,6 +4,7 @@ import {
   syncMatches,
   removeMatchFromCalendar,
 } from "../../../lib/calendar/sync-service";
+import { withApi } from "../../../lib/observability/with-api";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -13,7 +14,7 @@ function json(body: unknown, status = 200) {
 }
 
 // Agrega o actualiza uno o varios partidos en el calendario del usuario
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = withApi(async ({ request, locals }) => {
   const user = locals.user;
   if (!user) return json({ error: "Unauthorized" }, 401);
 
@@ -31,10 +32,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const allSuccess = results.every((r) => r.success);
 
   return json({ success: allSuccess, results }, allSuccess ? 200 : 207);
-};
+});
 
 // Quita el evento del partido del calendario del usuario
-export const DELETE: APIRoute = async ({ url, locals }) => {
+export const DELETE: APIRoute = withApi(async ({ url, locals }) => {
   const user = locals.user;
   if (!user) return json({ error: "Unauthorized" }, 401);
 
@@ -51,4 +52,4 @@ export const DELETE: APIRoute = async ({ url, locals }) => {
     const message = error instanceof Error ? error.message : "Error desconocido";
     return json({ success: false, error: message }, 500);
   }
-};
+});

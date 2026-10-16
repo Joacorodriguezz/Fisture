@@ -5,8 +5,9 @@ import { matches, teams, leagues, userTeams } from "../../../../drizzle/schema";
 import { eq, and, gte, or } from "drizzle-orm";
 import { generateICS, type CalendarEvent } from "../../../lib/calendar/ics";
 import { getPreferences, reminderMinutes } from "../../../lib/db/preferences";
+import { withApi } from "../../../lib/observability/with-api";
 
-export const GET: APIRoute = async ({ url, locals }) => {
+export const GET: APIRoute = withApi(async ({ url, locals }) => {
   const user = locals.user;
   if (!user) {
     return new Response("Unauthorized", { status: 401 });
@@ -149,4 +150,4 @@ export const GET: APIRoute = async ({ url, locals }) => {
       "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });
-};
+});

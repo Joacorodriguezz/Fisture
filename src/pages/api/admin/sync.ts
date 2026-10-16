@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro";
 import { syncAllLeagues, syncSingleLeague } from "../../../lib/data-providers/sync";
+import { withApi } from "../../../lib/observability/with-api";
 
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = withApi(async ({ request, locals }) => {
   const env = locals.runtime.env;
 
   // Verificar admin secret
@@ -64,4 +65,4 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     );
   }
-};
+});

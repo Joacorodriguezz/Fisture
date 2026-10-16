@@ -1,8 +1,9 @@
 import type { APIRoute } from "astro";
 import { createDb } from "../../../lib/db";
 import { getUpcomingMatches, getSyncStates } from "../../../lib/db/queries";
+import { withApi } from "../../../lib/observability/with-api";
 
-export const GET: APIRoute = async ({ url, locals }) => {
+export const GET: APIRoute = withApi(async ({ url, locals }) => {
   const user = locals.user;
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -61,4 +62,4 @@ export const GET: APIRoute = async ({ url, locals }) => {
   return new Response(JSON.stringify(response), {
     headers: { "Content-Type": "application/json" },
   });
-};
+});
