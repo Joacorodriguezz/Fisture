@@ -1,8 +1,10 @@
 import type { APIRoute } from "astro";
 import { createDb } from "../../../lib/db";
+import { getMatchesForTeams } from "../../../lib/db/queries";
 import { matches, teams, leagues, userTeams } from "../../../../drizzle/schema";
-import { eq, and, gte, or, inArray } from "drizzle-orm";
+import { eq, and, gte, or } from "drizzle-orm";
 import { generateICS, type CalendarEvent } from "../../../lib/calendar/ics";
+import { getPreferences, reminderMinutes } from "../../../lib/db/preferences";
 
 export const GET: APIRoute = async ({ url, locals }) => {
   const user = locals.user;
@@ -105,34 +107,13 @@ export const GET: APIRoute = async ({ url, locals }) => {
       return new Response("No teams followed", { status: 404 });
     }
 
-    const teamIdList = myTeamIds.map((t) => t.teamId);
+    const allMatches = await getMatchesForTeams(
+      db,
+      myTeamIds.map((t) => t.teamId),
+      1000
+    );
 
-    const allMatches = await db
-      .select({
-        match: matches,
-        homeTeam: teams,
-        league: leagues,
-      })
-      .from(matches)
-      .innerJoin(teams, eq(matches.homeTeamId, teams.id))
-      .innerJoin(leagues, eq(matches.leagueId, leagues.id))
-      .where(
-        and(
-          or(
-            inArray(matches.homeTeamId, teamIdList),
-            inArray(matches.awayTeamId, teamIdList)
-          ),
-          gte(matches.dateTime, new Date())
-        )
-      );
-
-    for (const { match, homeTeam, league } of allMatches) {
-      const awayTeam = await db.query.teams.findFirst({
-        where: eq(teams.id, match.awayTeamId),
-      });
-
-      if (!awayTeam) continue;
-
+    for (const { match, homeTeam, awayTeam, league } of allMatches) {
       const startTime = new Date(match.dateTime);
       const endTime = new Date(startTime);
       endTime.setHours(endTime.getHours() + 2);
@@ -154,7 +135,8 @@ export const GET: APIRoute = async ({ url, locals }) => {
     return new Response("No events to download", { status: 404 });
   }
 
-  const icsContent = generateICS(events);
+  const prefs = await getPreferences(db, user.id);
+  const icsContent = generateICS(events, { reminderMinutes: reminderMinutes(prefs) });
   const filename = matchId
     ? `partido-${matchId}.ics`
     : teamId

@@ -1,0 +1,147 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Volanta from "../components/tribuna/Volanta.astro";
+import Titular from "../components/tribuna/Titular.astro";
+import Bajada from "../components/tribuna/Bajada.astro";
+import BarraSeccion from "../components/tribuna/BarraSeccion.astro";
+import Escudo from "../components/tribuna/Escudo.astro";
+import SincronizarTodo from "../components/islands/SincronizarTodo";
+import SincronizarPartido from "../components/islands/SincronizarPartido";
+import { createDb } from "../lib/db";
+import { getMatchesInRange, getFollowedIds, getSyncStates } from "../lib/db/queries";
+import { markOutdatedEvents } from "../lib/calendar/sync-service";
+import { toSyncStatus } from "../lib/sync-ui";
+import { diaISO, esDiaISO, fechaLarga, hora, rangoDelDia, sumarDias } from "../lib/format";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+const db = createDb(Astro.locals.runtime.env.DB);
+
+// Día a mostrar: ?fecha=AAAA-MM-DD (por defecto, hoy en Buenos Aires)
+const hoy = diaISO(new Date());
+const fechaParam = Astro.url.searchParams.get("fecha");
+const dia = esDiaISO(fechaParam) ? fechaParam : hoy;
+const soloMios = Astro.url.searchParams.get("solo") === "mios";
+
+const { desde, hasta } = rangoDelDia(dia);
+const [delDia, seguidos] = await Promise.all([getMatchesInRange(db, desde, hasta), getFollowedIds(db, user.id)]);
+
+await markOutdatedEvents(db, user.id);
+const estados = await getSyncStates(db, user.id, delDia.map((m) => m.match.id));
+
+const esMio = (m: (typeof delDia)[number]) => seguidos.has(m.homeTeam.id) || seguidos.has(m.awayTeam.id);
+const partidos = soloMios ? delDia.filter(esMio) : delDia;
+
+// Agrupar por competencia, manteniendo el orden por horario dentro de cada una
+const porLiga = new Map<string, { nombre: string; items: typeof partidos }>();
+for (const m of partidos) {
+  if (!porLiga.has(m.league.id)) porLiga.set(m.league.id, { nombre: m.league.name, items: [] });
+  porLiga.get(m.league.id)!.items.push(m);
+}
+const grupos = [...porLiga.values()].sort((a, b) => a.items[0].match.dateTime.getTime() - b.items[0].match.dateTime.getTime());
+
+// Los que todavía no están al día en el calendario. Cada partido es una llamada a la API: el lote tiene tope.
+const LOTE_MAXIMO = 25;
+const pendientes = partidos.filter((m) => toSyncStatus(estados.get(m.match.id)?.status) !== "synced").map((m) => m.match.id);
+const lote = pendientes.slice(0, LOTE_MAXIMO);
+const sobran = pendientes.length - lote.length;
+const enCalendario = partidos.length - pendientes.length;
+
+const titulo = dia === hoy ? "Hoy" : dia === sumarDias(hoy, 1) ? "Mañana" : dia === sumarDias(hoy, -1) ? "Ayer" : fechaLarga(rangoDelDia(dia).desde);
+const enlace = (fecha: string) => `/hoy?fecha=${fecha}${soloMios ? "&solo=mios" : ""}`;
+const enlaceFiltro = (mios: boolean) => `/hoy?fecha=${dia}${mios ? "&solo=mios" : ""}`;
+---
+
+<Layout title="Partidos del día - FISTURE" pagina={3}>
+  <div style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px">
+      <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+        <Volanta tono="tinta">{fechaLarga(rangoDelDia(dia).desde)}</Volanta>
+        <Titular nivel="1">{titulo.toUpperCase()}</Titular>
+      </div>
+      {partidos.length > 0 && (
+        <SincronizarTodo
+          client:load
+          matchIds={lote}
+          etiqueta={lote.length > 0 ? `Agregar todos (${lote.length})` : "Todo en tu calendario"}
+          etiquetaCargando="Agregando…"
+        />
+      )}
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px">
+      <nav aria-label="Cambiar de día" style="display:flex;flex-wrap:wrap;gap:8px">
+        <a class="tb-chip" href={enlace(sumarDias(dia, -1))}>← Día anterior</a>
+        {dia !== hoy && <a class="tb-chip" href={enlace(hoy)}>Hoy</a>}
+        <a class="tb-chip" href={enlace(sumarDias(dia, 1))}>Día siguiente →</a>
+      </nav>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <a href={enlaceFiltro(false)} aria-current={!soloMios ? "true" : undefined} class={!soloMios ? "tb-chip tb-chip--activo" : "tb-chip"}>Todos</a>
+        <a href={enlaceFiltro(true)} aria-current={soloMios ? "true" : undefined} class={soloMios ? "tb-chip tb-chip--activo" : "tb-chip"}>Mis equipos</a>
+      </div>
+    </div>
+
+    {partidos.length > 0 && (
+      <Bajada>
+        {partidos.length} {partidos.length === 1 ? "partido" : "partidos"} · {enCalendario} en tu calendario
+        {sobran > 0 && ` · "Agregar todos" suma de a ${LOTE_MAXIMO}; quedan ${sobran} más para el próximo clic.`}
+      </Bajada>
+    )}
+
+    {grupos.length === 0 ? (
+      <div class="tb-vacio">
+        <span>
+          {soloMios && delDia.length > 0
+            ? "Ninguno de tus equipos juega este día."
+            : "No hay partidos cargados para este día."}
+        </span>
+        {soloMios && delDia.length > 0 && <a href={enlaceFiltro(false)} class="tb-boton tb-boton--primario" style="text-decoration:none">Ver todos los partidos</a>}
+      </div>
+    ) : (
+      <div style="display:flex;flex-direction:column;gap:28px">
+        {grupos.map((g) => (
+          <div style="display:flex;flex-direction:column">
+            <BarraSeccion tono="rojo" extra={g.items.length === 1 ? "1 partido" : `${g.items.length} partidos`}>
+              {g.nombre}
+            </BarraSeccion>
+            {g.items.map((m) => {
+              const estado = estados.get(m.match.id);
+              return (
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:16px 12px;border-bottom:1px solid var(--linea)">
+                  <a
+                    href={`/partidos/${m.match.id}`}
+                    style="flex:1;min-width:240px;display:grid;grid-template-columns:80px minmax(0,1fr);align-items:center;gap:16px;color:var(--tinta);text-decoration:none"
+                  >
+                    <span style="font:400 36px/1 var(--font-titular)">{hora(m.match.dateTime)}</span>
+                    <div style="min-width:0;display:flex;flex-direction:column;gap:4px">
+                      <span style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;font:400 24px/1.05 var(--font-titular);text-transform:uppercase">
+                        <Escudo src={m.homeTeam.logo} nombre={m.homeTeam.name} sigla={m.homeTeam.shortName} size={36} />
+                        <span>{m.homeTeam.name}</span>
+                        <span style="color:var(--tinta-suave)">vs</span>
+                        <Escudo src={m.awayTeam.logo} nombre={m.awayTeam.name} sigla={m.awayTeam.shortName} size={36} />
+                        <span>{m.awayTeam.name}</span>
+                      </span>
+                      <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
+                        {m.match.round ? `${m.match.round} · ` : ""}{m.match.venue ?? "Sede a confirmar"}
+                        {esMio(m) && <b style="color:var(--rojo);font-family:var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase"> · ★ Tu equipo</b>}
+                      </span>
+                    </div>
+                  </a>
+                  <SincronizarPartido
+                    client:load
+                    matchId={m.match.id}
+                    status={estado?.status ?? null}
+                    errorMessage={estado?.errorMessage ?? null}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+</Layout>

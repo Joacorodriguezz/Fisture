@@ -1,10 +1,16 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import PartidoCard from "../../components/PartidoCard.astro";
+import Volanta from "../../components/tribuna/Volanta.astro";
+import Titular from "../../components/tribuna/Titular.astro";
+import CabezalSeccion from "../../components/tribuna/CabezalSeccion.astro";
+import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
+import Escudo from "../../components/tribuna/Escudo.astro";
+import SincronizarPartido from "../../components/islands/SincronizarPartido";
 import { createDb } from "../../lib/db";
-import { getUpcomingMatches } from "../../lib/db/queries";
-import { calendarSyncs } from "../../../drizzle/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { getUpcomingMatches, getSyncStates } from "../../lib/db/queries";
+import { asc, eq } from "drizzle-orm";
+import { teams, userTeams } from "../../../drizzle/schema";
+import { fechaLarga, hora } from "../../lib/format";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -12,90 +18,107 @@ if (!user) {
 }
 
 const db = createDb(Astro.locals.runtime.env.DB);
-const matchesData = await getUpcomingMatches(db, user.id, 30);
 
-// Obtener estado de sync para cada partido
-const matchIds = matchesData.map((m) => m.match.id);
-let syncMap = new Map<string, string>();
+const seguidos = await db
+  .select({ id: teams.id, name: teams.name })
+  .from(userTeams)
+  .innerJoin(teams, eq(userTeams.teamId, teams.id))
+  .where(eq(userTeams.userId, user.id))
+  .orderBy(asc(teams.name));
 
-if (matchIds.length > 0) {
-  const syncs = await db
-    .select()
-    .from(calendarSyncs)
-    .where(
-      and(
-        eq(calendarSyncs.userId, user.id),
-        inArray(calendarSyncs.matchId, matchIds)
-      )
-    );
+// Filtro por equipo: solo acepta equipos que el usuario sigue
+const equipoParam = Astro.url.searchParams.get("equipo");
+const equipo = seguidos.find((t) => t.id === equipoParam)?.id ?? null;
 
-  syncMap = new Map(syncs.map((s) => [s.matchId, s.status || "pending"]));
+const partidos = await getUpcomingMatches(db, user.id, 60, equipo ?? undefined);
+const estados = await getSyncStates(db, user.id, partidos.map((m) => m.match.id));
+
+// Agrupar por día, manteniendo el orden cronológico
+const dias = new Map<string, typeof partidos>();
+for (const m of partidos) {
+  const dia = fechaLarga(m.match.dateTime);
+  if (!dias.has(dia)) dias.set(dia, []);
+  dias.get(dia)!.push(m);
 }
 
-// Agrupar partidos por fecha
-const matchesByDate = new Map<string, typeof matchesData>();
-matchesData.forEach((m) => {
-  const dateKey = new Date(m.match.dateTime).toLocaleDateString("es-AR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-  if (!matchesByDate.has(dateKey)) {
-    matchesByDate.set(dateKey, []);
-  }
-  matchesByDate.get(dateKey)!.push(m);
-});
+// "Hoy" y "Mañana" delante de la fecha para ubicarse rápido
+const ahora = Date.now();
+const hoyTxt = fechaLarga(new Date(ahora));
+const mananaTxt = fechaLarga(new Date(ahora + 24 * 60 * 60 * 1000));
+const prefijo = (dia: string) => (dia === hoyTxt ? "Hoy · " : dia === mananaTxt ? "Mañana · " : "");
+const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, etiqueta: `${prefijo(dia)}${dia}`, items }));
 ---
 
-<Layout title="Próximos Partidos - FISTURE">
-  <div class="max-w-4xl mx-auto px-4 py-8">
-    <div class="flex justify-between items-center mb-8">
-      <h1 class="text-3xl font-bold">Próximos Partidos</h1>
+<Layout title="Próximos Partidos - FISTURE" pagina={5}>
+  <div style="display:flex;flex-direction:column;gap:28px">
+    <CabezalSeccion firma="Tu fixture">la jornada está aquí</CabezalSeccion>
 
-      {matchesData.length > 0 && (
-        <a
-          href="/api/calendario/download"
-          class="btn btn-secondary btn-sm"
-          download
-        >
-          <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Descargar todos (.ics)
-        </a>
-      )}
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+      <Volanta tono="tinta">Lo que viene</Volanta>
+      <Titular nivel="1">PARTIDO POR PARTIDO</Titular>
     </div>
 
-    {matchesData.length === 0 ? (
-      <div class="text-center py-12 bg-white rounded-lg shadow">
-        <div class="text-5xl mb-4">📅</div>
-        <p class="text-gray-600 mb-4">No hay partidos próximos</p>
-        <p class="text-gray-500 text-sm mb-6">
-          Agregá equipos para ver sus próximos partidos
-        </p>
-        <a href="/equipos/buscar" class="btn btn-primary">
-          Buscar equipos
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <a href="/partidos" aria-current={equipo === null ? "true" : undefined} className={equipo === null ? "tb-chip tb-chip--activo" : "tb-chip"}>Todos</a>
+      {seguidos.map((t) => (
+        <a href={`/partidos?equipo=${t.id}`} aria-current={equipo === t.id ? "true" : undefined} className={equipo === t.id ? "tb-chip tb-chip--activo" : "tb-chip"}>{t.name}</a>
+      ))}
+    </div>
+
+    {grupos.length === 0 ? (
+      <div class="tb-vacio">
+        <span>
+          {equipo
+            ? "Este equipo no tiene partidos próximos."
+            : seguidos.length === 0
+              ? "Todavía no seguís ningún equipo."
+              : "No hay partidos próximos para tus equipos."}
+        </span>
+        <a href={equipo ? "/partidos" : "/ligas"} class="tb-boton tb-boton--primario" style="text-decoration:none">
+          {equipo ? "Ver todos los partidos" : "Elegir equipos"}
         </a>
       </div>
     ) : (
-      <div class="space-y-8">
-        {Array.from(matchesByDate.entries()).map(([dateKey, matches]) => (
-          <div>
-            <h2 class="text-lg font-medium text-gray-700 mb-4 capitalize sticky top-16 bg-gray-50 py-2 z-10">
-              {dateKey}
-            </h2>
-            <div class="space-y-4">
-              {matches.map((m) => (
-                <PartidoCard
-                  match={m.match}
-                  homeTeam={m.homeTeam}
-                  awayTeam={m.awayTeam}
-                  league={m.league}
-                  provider={user.provider}
-                  syncStatus={syncMap.get(m.match.id)}
-                />
-              ))}
-            </div>
+      <div style="display:flex;flex-direction:column;gap:28px">
+        {grupos.map((g) => (
+          <div style="display:flex;flex-direction:column">
+            <BarraSeccion tono="rojo" extra={g.items.length === 1 ? "1 partido" : `${g.items.length} partidos`}>
+              {g.etiqueta}
+            </BarraSeccion>
+            {g.items.map((m) => {
+              const estado = estados.get(m.match.id);
+              return (
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:16px 12px;border-bottom:1px solid var(--linea)">
+                  <a
+                    href={`/partidos/${m.match.id}`}
+                    style="flex:1;min-width:240px;display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:16px;color:var(--tinta);text-decoration:none"
+                  >
+                    <span style="font:400 40px/1 var(--font-titular)">{hora(m.match.dateTime)}</span>
+                    <div style="min-width:0;display:flex;flex-direction:column;gap:4px">
+                      <span style="font:700 12px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">
+                        {m.league.name}{m.match.round ? ` · ${m.match.round}` : ""}
+                      </span>
+                      <span style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;font:400 26px/1.05 var(--font-titular);text-transform:uppercase">
+                        <Escudo src={m.homeTeam.logo} nombre={m.homeTeam.name} sigla={m.homeTeam.shortName} size={40} />
+                        <span>{m.homeTeam.name}</span>
+                        <span style="color:var(--tinta-suave)">vs</span>
+                        <Escudo src={m.awayTeam.logo} nombre={m.awayTeam.name} sigla={m.awayTeam.shortName} size={40} />
+                        <span>{m.awayTeam.name}</span>
+                      </span>
+                      <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
+                        {m.match.venue ?? "Sede a confirmar"}
+                      </span>
+                    </div>
+                  </a>
+                  <SincronizarPartido
+                    client:load
+                    matchId={m.match.id}
+                    status={estado?.status ?? null}
+                    errorMessage={estado?.errorMessage ?? null}
+                  />
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>

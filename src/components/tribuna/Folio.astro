@@ -1,0 +1,17 @@
+---
+// Folio.astro: pie de página tipo publicación impresa
+interface Props {
+  pagina?: number;
+  publicacion?: string;
+  fecha: string;
+}
+
+const { pagina = 1, publicacion = "Fisture", fecha } = Astro.props;
+---
+
+<footer class="tb-folio">
+  <span>
+    <span class="tb-folio__pagina">{pagina}</span> • {publicacion}
+  </span>
+  <span>{fecha}</span>
+</footer>

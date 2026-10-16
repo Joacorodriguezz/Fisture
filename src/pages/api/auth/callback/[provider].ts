@@ -106,7 +106,7 @@ export const GET: APIRoute = async ({ params, url, redirect, cookies, locals }) 
       maxAge: 60 * 60 * 24 * 30,
     });
 
-    return redirect("/equipos");
+    return redirect("/ligas");
   } catch (error) {
     console.error("OAuth error:", error);
     return redirect("/login?error=oauth_failed");

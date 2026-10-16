@@ -12,6 +12,10 @@ export interface GoogleCalendarEvent {
     dateTime: string;
     timeZone: string;
   };
+  reminders?: {
+    useDefault: boolean;
+    overrides?: { method: "popup" | "email"; minutes: number }[];
+  };
 }
 
 export interface GoogleCalendarResponse {
@@ -95,7 +99,8 @@ export function formatMatchForGoogle(
   awayTeam: string,
   league: string,
   dateTime: Date,
-  venue?: string | null
+  venue: string | null | undefined,
+  reminderMinutes: number[]
 ): GoogleCalendarEvent {
   const endTime = new Date(dateTime);
   endTime.setHours(endTime.getHours() + 2); // Duración estimada: 2 horas
@@ -111,6 +116,10 @@ export function formatMatchForGoogle(
     end: {
       dateTime: endTime.toISOString(),
       timeZone: "America/Argentina/Buenos_Aires",
+    },
+    reminders: {
+      useDefault: false,
+      overrides: reminderMinutes.map((minutes) => ({ method: "popup", minutes })),
     },
   };
 }

@@ -1,9 +1,17 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import PartidoCard from "../../components/PartidoCard.astro";
+import Volanta from "../../components/tribuna/Volanta.astro";
+import Titular from "../../components/tribuna/Titular.astro";
+import Boton from "../../components/tribuna/Boton.astro";
+import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
+import Escudo from "../../components/tribuna/Escudo.astro";
+import SeguimientoEquipo from "../../components/islands/SeguimientoEquipo";
+import SincronizarPartido from "../../components/islands/SincronizarPartido";
 import { createDb } from "../../lib/db";
-import { teams, leagues, matches, userTeams, calendarSyncs } from "../../../drizzle/schema";
-import { eq, and, or, gte, inArray } from "drizzle-orm";
+import { getTeamUpcomingMatches, getSyncStates } from "../../lib/db/queries";
+import { and, eq } from "drizzle-orm";
+import { leagues, teams, userTeams } from "../../../drizzle/schema";
+import { fechaCorta, hora } from "../../lib/format";
 
 const user = Astro.locals.user;
 if (!user) {
@@ -12,240 +20,130 @@ if (!user) {
 
 const { id } = Astro.params;
 if (!id) {
-  return Astro.redirect("/equipos");
+  return Astro.redirect("/ligas");
 }
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
-// Obtener equipo
-const team = await db.query.teams.findFirst({
-  where: eq(teams.id, id),
-});
-
+const team = await db.query.teams.findFirst({ where: eq(teams.id, id) });
 if (!team) {
-  return Astro.redirect("/equipos");
+  return Astro.redirect("/ligas");
 }
 
-// Obtener liga
-const league = await db.query.leagues.findFirst({
-  where: eq(leagues.id, team.leagueId),
-});
+const liga = await db.query.leagues.findFirst({ where: eq(leagues.id, team.leagueId) });
 
-// Verificar si el usuario sigue este equipo
-const userTeam = await db.query.userTeams.findFirst({
+const seguimiento = await db.query.userTeams.findFirst({
   where: and(eq(userTeams.userId, user.id), eq(userTeams.teamId, id)),
 });
 
-const isFollowing = !!userTeam;
+const todos = await getTeamUpcomingMatches(db, id, 50);
 
-// Obtener próximos partidos del equipo
-const teamMatches = await db
-  .select({
-    match: matches,
-    homeTeam: teams,
-    league: leagues,
-  })
-  .from(matches)
-  .innerJoin(teams, eq(matches.homeTeamId, teams.id))
-  .innerJoin(leagues, eq(matches.leagueId, leagues.id))
-  .where(
-    and(
-      or(eq(matches.homeTeamId, id), eq(matches.awayTeamId, id)),
-      gte(matches.dateTime, new Date())
-    )
-  )
-  .orderBy(matches.dateTime)
-  .limit(20);
+const lado = Astro.url.searchParams.get("lado") === "local" ? "local"
+  : Astro.url.searchParams.get("lado") === "visitante" ? "visitante"
+  : "todos";
 
-// Obtener away teams
-const awayTeamIds = teamMatches.map((m) => m.match.awayTeamId);
-const awayTeams = awayTeamIds.length > 0
-  ? await db.select().from(teams).where(inArray(teams.id, awayTeamIds))
-  : [];
-const awayTeamMap = new Map(awayTeams.map((t) => [t.id, t]));
+const partidos = todos.filter((m) => {
+  if (lado === "local") return m.homeTeam.id === id;
+  if (lado === "visitante") return m.awayTeam.id === id;
+  return true;
+});
 
-// Estado de sync
-const matchIds = teamMatches.map((m) => m.match.id);
-let syncMap = new Map<string, string>();
+const estados = await getSyncStates(db, user.id, partidos.map((m) => m.match.id));
 
-if (matchIds.length > 0) {
-  const syncs = await db
-    .select()
-    .from(calendarSyncs)
-    .where(
-      and(
-        eq(calendarSyncs.userId, user.id),
-        inArray(calendarSyncs.matchId, matchIds)
-      )
-    );
-  syncMap = new Map(syncs.map((s) => [s.matchId, s.status || "pending"]));
-}
+const filtros = [
+  { valor: "todos", label: "Todos" },
+  { valor: "local", label: "Local" },
+  { valor: "visitante", label: "Visitante" },
+];
 ---
 
-<Layout title={`${team.name} - FISTURE`}>
-  <div class="max-w-4xl mx-auto px-4 py-8">
-    <div class="flex items-center gap-4 mb-8">
-      <a href="/equipos" class="text-gray-500 hover:text-gray-700">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-      </a>
-      <img
-        src={team.logo || "/placeholder-team.svg"}
-        alt={team.name}
-        class="w-16 h-16 object-contain"
-      />
-      <div>
-        <h1 class="text-3xl font-bold">{team.name}</h1>
-        <p class="text-gray-500">{league?.name || "Liga desconocida"}</p>
+<Layout title={`${team.name} - FISTURE`} pagina={3}>
+  <div style="display:flex;flex-direction:column;gap:32px">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;font:700 14px/18px var(--font-rotulo);color:var(--tinta-suave)">
+      <a href="/ligas" style="color:var(--tinta);text-decoration:none;letter-spacing:.06em;text-transform:uppercase">Ligas</a>
+      <span>/</span>
+      {liga && (
+        <>
+          <a href={`/ligas/${liga.id}`} style="color:var(--tinta);text-decoration:none;letter-spacing:.06em;text-transform:uppercase">{liga.name}</a>
+          <span>/</span>
+        </>
+      )}
+      <span style="letter-spacing:.06em;text-transform:uppercase">{team.name}</span>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-end">
+      <div style="box-shadow:4px 4px 0 var(--rojo)">
+        <Escudo src={team.logo} nombre={team.name} sigla={team.shortName} size={160} pad={20} />
+      </div>
+      <div style="flex:1;min-width:280px;display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+        <Volanta tono="rojo">{liga?.name ?? "Liga"}</Volanta>
+        <Titular nivel="1">{team.name}</Titular>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
+          <SeguimientoEquipo
+            client:load
+            teamId={team.id}
+            nombre={team.name}
+            siguiendo={!!seguimiento}
+            autoSync={!!seguimiento?.autoSync}
+          />
+          {partidos.length > 0 && (
+            <Boton href={`/api/calendario/download?teamId=${team.id}`}>Descargar .ics</Boton>
+          )}
+        </div>
       </div>
     </div>
 
-    <div class="flex flex-wrap gap-4 mb-8">
-      {isFollowing ? (
-        <div class="flex items-center gap-4">
-          <span class="badge badge-success text-sm py-2 px-4">
-            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-            </svg>
-            Siguiendo
-          </span>
-          <label class="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              id="auto-sync"
-              checked={userTeam?.autoSync}
-              class="w-4 h-4 rounded"
-            />
-            Auto-sync calendario
-          </label>
-          <button id="unfollow-btn" class="btn btn-secondary btn-sm">
-            Dejar de seguir
-          </button>
-        </div>
-      ) : (
-        <button id="follow-btn" class="btn btn-primary">
-          + Seguir equipo
-        </button>
-      )}
+    <div style="display:flex;flex-direction:column">
+      <BarraSeccion tono="rojo" extra={`${partidos.length} ${partidos.length === 1 ? "partido" : "partidos"}`}>
+        Próximos partidos
+      </BarraSeccion>
 
-      {teamMatches.length > 0 && (
-        <div class="flex gap-2 ml-auto">
-          <button id="sync-all-btn" class="btn btn-primary btn-sm">
-            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            Agregar todos al calendario
-          </button>
-          <a href={`/api/calendario/download?teamId=${id}`} class="btn btn-secondary btn-sm" download>
-            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            Descargar .ics
-          </a>
-        </div>
-      )}
-    </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;padding:16px 0 8px">
+        {filtros.map((f) => (
+          <a href={`?lado=${f.valor}`} aria-current={lado === f.valor ? "true" : undefined} className={lado === f.valor ? "tb-chip tb-chip--activo" : "tb-chip"}>{f.label}</a>
+        ))}
+      </div>
 
-    <h2 class="text-xl font-bold mb-4">Próximos Partidos</h2>
-
-    {teamMatches.length === 0 ? (
-      <div class="text-center py-12 bg-white rounded-lg shadow">
-        <div class="text-5xl mb-4">📅</div>
-        <p class="text-gray-600">No hay partidos programados</p>
-        <p class="text-gray-500 text-sm mt-2">
-          Los partidos se cargan automáticamente desde la API
+      {partidos.length === 0 ? (
+        <p style="margin:0;padding:24px 12px;font:400 17px/27px var(--font-texto);color:var(--tinta-suave)">
+          No hay partidos programados. Se cargan automáticamente desde la API.
         </p>
-      </div>
-    ) : (
-      <div class="space-y-4">
-        {teamMatches.map((m) => {
-          const awayTeam = awayTeamMap.get(m.match.awayTeamId);
+      ) : (
+        partidos.map((m) => {
+          const esLocal = m.homeTeam.id === id;
+          const rival = esLocal ? m.awayTeam : m.homeTeam;
+          const estado = estados.get(m.match.id);
           return (
-            <PartidoCard
-              match={m.match}
-              homeTeam={m.homeTeam}
-              awayTeam={awayTeam || { id: "", name: "Desconocido" }}
-              league={m.league}
-              provider={user.provider}
-              syncStatus={syncMap.get(m.match.id)}
-            />
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding:14px 12px;border-bottom:1px solid var(--linea)">
+              <a
+                href={`/partidos/${m.match.id}`}
+                style="flex:1;min-width:220px;display:flex;align-items:center;gap:20px;color:var(--tinta);text-decoration:none"
+              >
+                <div style="flex:none;width:96px;display:flex;flex-direction:column">
+                  <span style="font:700 12px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">{m.match.round ?? ""}</span>
+                  <span style="font:400 26px/1 var(--font-titular)">{hora(m.match.dateTime)}</span>
+                  <span style="font:600 12px/16px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">{fechaCorta(m.match.dateTime)}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;min-width:0">
+                  <Escudo src={rival.logo} nombre={rival.name} sigla={rival.shortName} size={44} />
+                  <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+                    <span style="font:700 17px/20px var(--font-rotulo);text-transform:uppercase">vs {rival.name}</span>
+                    <span style="font:500 13px/17px var(--font-rotulo);color:var(--tinta-suave)">
+                      {esLocal ? "Local" : "Visitante"} · {m.match.venue ?? "Sede a confirmar"}
+                    </span>
+                  </div>
+                </div>
+              </a>
+              <SincronizarPartido
+                client:load
+                matchId={m.match.id}
+                status={estado?.status ?? null}
+                errorMessage={estado?.errorMessage ?? null}
+              />
+            </div>
           );
-        })}
-      </div>
-    )}
+        })
+      )}
+    </div>
   </div>
-
-  <script define:vars={{ teamId: id, isFollowing, matchIds }}>
-    // Seguir equipo
-    document.getElementById('follow-btn')?.addEventListener('click', async () => {
-      const btn = document.getElementById('follow-btn');
-      btn.disabled = true;
-      btn.textContent = 'Agregando...';
-
-      const res = await fetch('/api/equipos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId }),
-      });
-
-      if (res.ok) {
-        location.reload();
-      } else {
-        btn.disabled = false;
-        btn.textContent = '+ Seguir equipo';
-        alert('Error al seguir el equipo');
-      }
-    });
-
-    // Dejar de seguir
-    document.getElementById('unfollow-btn')?.addEventListener('click', async () => {
-      if (!confirm('¿Dejar de seguir este equipo?')) return;
-
-      const res = await fetch(`/api/equipos/${teamId}`, { method: 'DELETE' });
-
-      if (res.ok) {
-        location.reload();
-      } else {
-        alert('Error al dejar de seguir');
-      }
-    });
-
-    // Auto-sync toggle
-    document.getElementById('auto-sync')?.addEventListener('change', async (e) => {
-      const autoSync = e.target.checked;
-
-      await fetch(`/api/equipos/${teamId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ autoSync }),
-      });
-    });
-
-    // Sincronizar todos los partidos
-    document.getElementById('sync-all-btn')?.addEventListener('click', async () => {
-      const btn = document.getElementById('sync-all-btn');
-      const originalText = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 mr-1">⏳</span> Sincronizando...';
-
-      const res = await fetch('/api/calendario/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchIds }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const synced = data.results.filter(r => r.success).length;
-        alert(`${synced} partido(s) agregados al calendario`);
-        location.reload();
-      } else {
-        alert('Error al sincronizar');
-      }
-
-      btn.disabled = false;
-      btn.innerHTML = originalText;
-    });
-  </script>
 </Layout>

@@ -1,0 +1,15 @@
+---
+// Titular.astro: título principal en Anton, mayúsculas
+interface Props {
+  nivel?: "tapa" | "1" | "2" | "3";
+  tono?: "rojo" | "sobre-foto" | "contorno";
+  as?: "h1" | "h2" | "h3" | "p";
+}
+
+const { nivel = "1", tono, as } = Astro.props;
+const Tag = as ?? (nivel === "tapa" || nivel === "1" ? "h1" : nivel === "2" ? "h2" : "h3");
+---
+
+<Tag class:list={["tb-titular", `tb-titular--${nivel}`, tono && `tb-titular--${tono}`]}>
+  <slot />
+</Tag>

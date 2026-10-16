@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, primaryKey } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ============================================
@@ -59,6 +59,27 @@ export const teams = sqliteTable(
     ),
   },
   (table) => [index("idx_teams_name").on(table.name)]
+);
+
+// ============================================
+// PARTICIPACIÓN: qué equipos juegan cada competencia
+// (un equipo juega su liga y, además, copas internacionales)
+// ============================================
+
+export const leagueTeams = sqliteTable(
+  "league_teams",
+  {
+    leagueId: text("league_id")
+      .notNull()
+      .references(() => leagues.id, { onDelete: "cascade" }),
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.leagueId, table.teamId] }),
+    teamIdx: index("idx_league_teams_team").on(table.teamId),
+  })
 );
 
 // ============================================
@@ -146,10 +167,26 @@ export const calendarSyncs = sqliteTable(
     externalEventId: text("external_event_id"),
     status: text("status").default("pending"), // pending, synced, needs_update, failed
     lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
+    // Fecha/hora del partido con la que se creó el evento. Si cambia en
+    // `matches`, el evento quedó desactualizado (status needs_update).
+    syncedDateTime: integer("synced_date_time", { mode: "timestamp" }),
     errorMessage: text("error_message"),
   },
   (table) => [index("idx_calendar_syncs_status").on(table.status)]
 );
+
+// ============================================
+// PREFERENCIAS DE USUARIO
+// ============================================
+
+export const userPreferences = sqliteTable("user_preferences", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  reminder60: integer("reminder_60", { mode: "boolean" }).notNull().default(true),
+  reminder15: integer("reminder_15", { mode: "boolean" }).notNull().default(true),
+  theme: text("theme").notNull().default("papel"), // 'papel' | 'nocturna'
+});
 
 // ============================================
 // TIPOS INFERIDOS
@@ -172,3 +209,5 @@ export type NewMatch = typeof matches.$inferInsert;
 
 export type CalendarSync = typeof calendarSyncs.$inferSelect;
 export type NewCalendarSync = typeof calendarSyncs.$inferInsert;
+
+export type UserPreferences = typeof userPreferences.$inferSelect;

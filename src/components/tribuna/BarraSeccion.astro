@@ -1,0 +1,14 @@
+---
+// BarraSeccion.astro: franja de título de sección con un dato a la derecha
+interface Props {
+  tono?: "rojo" | "tinta";
+  extra?: string;
+}
+
+const { tono = "rojo", extra } = Astro.props;
+---
+
+<div class:list={["tb-barra", `tb-barra--${tono}`]} role="heading" aria-level="2">
+  <span><slot /></span>
+  {extra && <span class="tb-barra__extra">{extra}</span>}
+</div>
