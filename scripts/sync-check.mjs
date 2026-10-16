@@ -16,6 +16,7 @@ const MIGRACIONES = [
   "0001_add_multi_source_support.sql",
   "0002_preferences_and_sync_state.sql",
   "0003_league_teams.sql",
+  "0004_sync_runs.sql",
 ];
 
 const salida = join(tmpdir(), "fisture-sync.bundle.mjs");
