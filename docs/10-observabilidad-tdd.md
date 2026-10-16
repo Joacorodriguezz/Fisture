@@ -1,6 +1,6 @@
 # TDD: Observabilidad de la API
 
-> Technical Design Document. Estado: **propuesto** (pendiente de aprobación). Rama de implementación: `feat/observabilidad`, desde `development`.
+> Technical Design Document. Estado: **implementado** (pasos 0 a 7 completados en `feat/observabilidad`). Rama de implementación: `feat/observabilidad`, desde `development`.
 
 ## 1. Contexto y problema
 
@@ -145,8 +145,8 @@ Se agrega la tabla correspondiente a `drizzle/schema.ts` y el SQL a `drizzle/mig
 | Condición | Estado |
 | --- | --- |
 | Último run `success` hace menos de 26 h | `ok` |
-| Último run `partial`, o el último `success` tiene entre 26 h y 50 h | `degraded` |
-| Último run `failed`, sin runs, último `success` de más de 50 h, o run `running` colgado | `fail` |
+| Último run `partial` de hace menos de 50 h, o el último `success` tiene entre 26 h y 50 h, o hay un run `running` reciente y todavía ningún `success` | `degraded` |
+| Último run `failed`, sin runs, último `success` (o `partial`) de más de 50 h, o run `running` colgado | `fail` |
 
 26 h = intervalo diario (24 h) más margen. Los umbrales son constantes exportadas.
 
@@ -168,7 +168,7 @@ Se ejecutan al final de cada sync, y sus hallazgos se guardan en `sync_runs.issu
 | `match_same_team` | partidos con local = visitante | error |
 | `stale_scheduled` | `status = 'scheduled'` con `date_time` de más de 3 h en el pasado | warn |
 | `duplicate_match` | misma liga, mismos equipos y misma fecha repetidos | error |
-| `empty_league` | competencia activa sin partidos futuros ni de la temporada | warn |
+| `empty_league` | competencia activa sin ningún partido | warn |
 | `finished_without_score` | `finished` con marcador nulo | warn |
 
 Cada hallazgo: `{ code, severity, count, sample: [ids, máx. 5] }`. Si hay alguno con severidad `error`, el run queda al menos `partial` y se loguea `logger.error`.
@@ -234,3 +234,14 @@ Cada paso es un commit (Conventional Commits) dentro de la rama `feat/observabil
 | Tamaño de `results`/`issues` | JSON acotado: máx. 5 IDs de muestra por hallazgo y errores truncados a 500 caracteres |
 | Umbrales de salud (26 h / 50 h) | Provisionales; ajustar si el cron cambia de frecuencia |
 | Nivel de log en producción | `info` por defecto. Volumen estimado bajo; revisar si se acerca al límite de logs de Cloudflare |
+
+## 13. Notas de implementación (desvíos respecto del diseño original)
+
+- **Helper de admin:** `src/lib/observability/admin-auth.ts` unifica la autorización de `/api/admin/*` (comparación en tiempo constante). `/api/admin/sync` ahora la usa; el 401 mantiene el mismo cuerpo.
+- **Respuesta de `POST /api/admin/sync`:** conserva `success` y `results`, y suma `runId`, `status` e `issues`. Si todo el sync lanza una excepción responde 500 con `success: false`.
+- **`runSync` no relanza:** devuelve `{ runId, status, results, issues, error? }`. Solo propaga si ni siquiera puede registrar el inicio del run (D1 caída); el cron lo captura y lo loguea.
+- **Fallos secundarios como `issues`:** un fallo del sync de calendarios (`calendar_autosync_failed`) o de los chequeos (`consistency_check_failed`) no tumba el sync, pero queda registrado con severidad `error` y deja el run en `partial`.
+- **`match_missing_team` en D1:** D1 impone las claves foráneas, así que en la práctica no debería aparecer; el chequeo queda como red de seguridad y su test usa una base aparte con `matches` sin FK.
+- **Logs de salud:** un `/api/health` en `fail` responde 503 y se loguea como `error` en cada consulta (por la regla 5xx → error). Con un monitor externo consultando cada minuto, el log se llena mientras dure la falla; es intencional para que se note.
+- **`[observability]` en `wrangler.toml`:** Wrangler 3.90 lo acepta sin advertencias en `pages dev`. Falta confirmar en el dashboard de Pages que los logs aparecen tras el primer deploy.
+- **Verificación local realizada:** `wrangler pages dev` + `POST /api/admin/sync` (arg.1) → run `success` registrado, `/api/health` pasó de 503 (sin runs) a 200, `/api/admin/status` devuelve el run y responde 401 sin token. `npm run sync:check` también aplica la migración `0004`.

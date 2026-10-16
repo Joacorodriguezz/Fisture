@@ -25,3 +25,7 @@ crons = ["0 9 * * *"]  # 9:00 UTC = 6:00 Argentina
 
 [vars]
 ENVIRONMENT = "development"
+
+# Logs y excepciones en el dashboard de Cloudflare (y `wrangler pages deployment tail`)
+[observability]
+enabled = true

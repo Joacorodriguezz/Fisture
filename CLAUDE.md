@@ -20,6 +20,7 @@ npm run db:generate  # Generar migraciones Drizzle
 npm run db:migrate:local  # Aplicar migraciones localmente
 npm run db:migrate:prod   # Aplicar migraciones en producción
 npm run sync:check        # Verificar el sync de competencias (ESPN) contra una D1 efímera
+npm test                  # Tests (Vitest + D1 efímera con Miniflare)
 ```
 
 ## Estructura
@@ -41,6 +42,14 @@ drizzle/
 ├── migrations/      # SQL migrations
 └── seed.ts          # Datos iniciales
 ```
+
+## Observabilidad
+
+- Todo handler de `pages/api/**` se exporta envuelto con `withApi(...)` (`lib/observability/with-api.ts`): requestId (header `x-request-id`), log de request y captura de excepciones (500 uniforme).
+- Logs: usar `locals.logger` en handlers y `rootLogger` en servicios (`lib/observability/logger.ts`). Formato JSON; nunca `console.*` directo ni datos personales/credenciales (las claves sensibles se enmascaran).
+- Cada sync (cron o `POST /api/admin/sync`) pasa por `runSync` y queda en la tabla `sync_runs`, con chequeos de consistencia.
+- `GET /api/health` (público): 200 ok/degraded, 503 fail. `GET /api/admin/status` (Bearer `ADMIN_SECRET`): salud + últimos 20 runs.
+- Ver logs en vivo: `npx wrangler pages deployment tail`. Diseño completo: `docs/10-observabilidad-tdd.md`.
 
 ## Convenciones
 
