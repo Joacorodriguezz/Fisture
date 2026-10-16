@@ -1,4 +1,4 @@
-import { eq, and, gte, or, inArray, asc } from "drizzle-orm";
+import { eq, and, gte, lt, or, inArray, asc } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import {
   matches,
@@ -148,4 +148,26 @@ export async function getAutoSyncMatchIds(db: Database, userId: string, limit: n
     })
     .slice(0, limit)
     .map((r) => r.match.id);
+}
+
+// Todos los partidos de las ligas activas dentro de un rango de fechas (desde incluido, hasta excluido)
+export async function getMatchesInRange(db: Database, desde: Date, hasta: Date) {
+  return db
+    .select({
+      match: matches,
+      homeTeam: teams,
+      awayTeam: awayTeams,
+      league: leagues,
+    })
+    .from(matches)
+    .innerJoin(teams, eq(matches.homeTeamId, teams.id))
+    .innerJoin(awayTeams, eq(matches.awayTeamId, awayTeams.id))
+    .innerJoin(leagues, eq(matches.leagueId, leagues.id))
+    .where(and(gte(matches.dateTime, desde), lt(matches.dateTime, hasta), eq(leagues.isActive, true)))
+    .orderBy(asc(matches.dateTime));
+}
+
+// Ids de los equipos que sigue el usuario
+export async function getFollowedIds(db: Database, userId: string): Promise<Set<string>> {
+  return new Set(await getFollowedTeamIds(db, userId));
 }

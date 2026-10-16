@@ -29,6 +29,7 @@ const enSeccion = (...prefijos: string[]) =>
 const secciones =
   user && showNavbar
     ? [
+        { label: "Hoy", href: "/hoy", actual: enSeccion("/hoy") },
         { label: "Ligas", href: "/ligas", actual: enSeccion("/ligas", "/equipos") },
         { label: "Partidos", href: "/partidos", actual: enSeccion("/partidos") },
         { label: "Calendario", href: "/calendario", actual: enSeccion("/calendario") },

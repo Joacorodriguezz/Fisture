@@ -70,3 +70,30 @@ export const PROVIDER_LABEL: Record<string, string> = {
 export function providerLabel(provider: string): string {
   return PROVIDER_LABEL[provider] ?? "calendario";
 }
+
+// ---- Días calendario en hora de Buenos Aires (UTC-3, sin horario de verano) ----
+const OFFSET_AR_HS = 3;
+
+// "2026-10-16"
+export function diaISO(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: TZ }).format(date);
+}
+
+export function esDiaISO(valor: string | null | undefined): valor is string {
+  if (!valor || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
+  const [y, m, d] = valor.split("-").map(Number);
+  const fecha = new Date(Date.UTC(y, m - 1, d));
+  return fecha.getUTCFullYear() === y && fecha.getUTCMonth() === m - 1 && fecha.getUTCDate() === d;
+}
+
+// Inicio (incluido) y fin (excluido) del día en Buenos Aires, como instantes UTC
+export function rangoDelDia(iso: string): { desde: Date; hasta: Date } {
+  const [y, m, d] = iso.split("-").map(Number);
+  const desde = new Date(Date.UTC(y, m - 1, d, OFFSET_AR_HS));
+  return { desde, hasta: new Date(desde.getTime() + 24 * 60 * 60 * 1000) };
+}
+
+export function sumarDias(iso: string, dias: number): string {
+  const { desde } = rangoDelDia(iso);
+  return diaISO(new Date(desde.getTime() + dias * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000));
+}
