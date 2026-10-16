@@ -61,6 +61,6 @@ feat/* fix/* chore/* docs/* ci/*  → trabajo diario, salen de development
 - **Release**: PR `development` → `main` con **Create a merge commit** (único método permitido en `main`; evita que ambas ramas diverjan). Al mergear se deploya a producción.
 - **Hotfix urgente**: `fix/*` desde `main` → PR a `main`, y después PR de `main` → `development` para no perder el arreglo.
 - Preview deployments: cada PR y `development` generan un preview en Cloudflare Pages.
-- CI (`.github/workflows/ci.yml`): job `build` (`npm ci` + `npm run build`) en cada PR y push a `main`. Debe pasar para poder mergear.
+- CI (`.github/workflows/ci.yml`): job `build` (`npm ci` + `npm run build`) en cada PR y push a `main` o `development`. Debe pasar para poder mergear.
 - Nombres de rama: `tipo/descripcion-corta` en minúsculas y con guiones. Commits en formato Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `ci:`).
 - Al crear PRs, apuntar a `development` salvo que sea un release o hotfix.
