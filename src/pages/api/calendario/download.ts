@@ -4,6 +4,7 @@ import { getMatchesForTeams } from "../../../lib/db/queries";
 import { matches, teams, leagues, userTeams } from "../../../../drizzle/schema";
 import { eq, and, gte, or } from "drizzle-orm";
 import { generateICS, type CalendarEvent } from "../../../lib/calendar/ics";
+import { matchToIcsEvent } from "../../../lib/calendar/ics-match";
 import { getPreferences, reminderMinutes } from "../../../lib/db/preferences";
 import { withApi } from "../../../lib/observability/with-api";
 
@@ -47,18 +48,7 @@ export const GET: APIRoute = withApi(async ({ url, locals }) => {
       return new Response("Away team not found", { status: 404 });
     }
 
-    const startTime = new Date(match.dateTime);
-    const endTime = new Date(startTime);
-    endTime.setHours(endTime.getHours() + 2);
-
-    events.push({
-      id: match.id,
-      title: `${homeTeam.name} vs ${awayTeam.name}`,
-      description: `${league.name}\n\nGenerado con FISTURE`,
-      location: match.venue || undefined,
-      startTime,
-      endTime,
-    });
+    events.push(matchToIcsEvent(match, homeTeam.name, awayTeam.name, league.name));
   } else if (teamId) {
     // Descargar todos los partidos de un equipo
     const teamMatches = await db
@@ -84,18 +74,7 @@ export const GET: APIRoute = withApi(async ({ url, locals }) => {
 
       if (!awayTeam) continue;
 
-      const startTime = new Date(match.dateTime);
-      const endTime = new Date(startTime);
-      endTime.setHours(endTime.getHours() + 2);
-
-      events.push({
-        id: match.id,
-        title: `${homeTeam.name} vs ${awayTeam.name}`,
-        description: `${league.name}\n\nGenerado con FISTURE`,
-        location: match.venue || undefined,
-        startTime,
-        endTime,
-      });
+      events.push(matchToIcsEvent(match, homeTeam.name, awayTeam.name, league.name));
     }
   } else if (all) {
     // Descargar todos los partidos de equipos favoritos
@@ -115,18 +94,7 @@ export const GET: APIRoute = withApi(async ({ url, locals }) => {
     );
 
     for (const { match, homeTeam, awayTeam, league } of allMatches) {
-      const startTime = new Date(match.dateTime);
-      const endTime = new Date(startTime);
-      endTime.setHours(endTime.getHours() + 2);
-
-      events.push({
-        id: match.id,
-        title: `${homeTeam.name} vs ${awayTeam.name}`,
-        description: `${league.name}\n\nGenerado con FISTURE`,
-        location: match.venue || undefined,
-        startTime,
-        endTime,
-      });
+      events.push(matchToIcsEvent(match, homeTeam.name, awayTeam.name, league.name));
     }
   } else {
     return new Response("matchId, teamId, or all=true required", { status: 400 });
