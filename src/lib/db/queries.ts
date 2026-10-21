@@ -144,7 +144,7 @@ export async function getAutoSyncMatchIds(db: Database, userId: string, limit: n
   return rows
     .filter((r) => {
       const state = states.get(r.match.id);
-      return !state || state.status !== "synced";
+      return !state || !["synced", "detached", "cancelled"].includes(state.status);
     })
     .slice(0, limit)
     .map((r) => r.match.id);

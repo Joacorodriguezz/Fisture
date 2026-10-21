@@ -2,8 +2,14 @@ import { useState } from "react";
 import { syncView, toSyncStatus, type SyncStatus } from "../../lib/sync-ui";
 import { irALogin } from "../../lib/auth/client";
 
+interface Aviso {
+  code: string;
+  count: number;
+  items: { title: string; start: string; end: string }[];
+}
+
 interface SyncResponse {
-  results?: { matchId: string; success: boolean; error?: string }[];
+  results?: { matchId: string; success: boolean; error?: string; warnings?: Aviso[] }[];
   error?: string;
 }
 
@@ -30,6 +36,8 @@ export default function SincronizarPartido({
   const [estado, setEstado] = useState<SyncStatus>(toSyncStatus(status));
   const [error, setError] = useState<string | null>(errorMessage);
   const [quitando, setQuitando] = useState(false);
+  // Títulos de eventos propios del usuario que se superponen con el partido (solo se muestran, no se guardan)
+  const [solapados, setSolapados] = useState<string[]>([]);
 
   const vista = syncView(estado, error);
 
@@ -52,6 +60,8 @@ export default function SincronizarPartido({
 
       if (res.ok && resultado?.success) {
         setEstado("synced");
+        const choque = resultado.warnings?.find((w) => w.code === "overlap");
+        setSolapados(choque ? choque.items.map((i) => i.title) : []);
       } else {
         setEstado("failed");
         setError(resultado?.error || data.error || "Error al sincronizar");
@@ -71,6 +81,7 @@ export default function SincronizarPartido({
       if (!res.ok) throw new Error(data.error || "No se pudo quitar del calendario");
       setEstado("none");
       setError(null);
+      setSolapados([]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo quitar del calendario");
     } finally {
@@ -122,6 +133,19 @@ export default function SincronizarPartido({
           }}
         >
           {vista.motivo}
+        </span>
+      )}
+      {solapados.length > 0 && (
+        <span
+          role="status"
+          style={{
+            font: "400 14px/19px var(--font-texto)",
+            color: "var(--tinta-suave)",
+            maxWidth: 320,
+            textAlign: grande ? "left" : "right",
+          }}
+        >
+          Se superpone con: {solapados.join(", ")}
         </span>
       )}
       {error && estado !== "failed" && <span className="tb-error">{error}</span>}

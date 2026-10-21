@@ -2,7 +2,7 @@
 // y chequeos de consistencia. Lo usan el cron (functions/scheduled.ts) y POST /api/admin/sync.
 import { createDb } from "../db";
 import { syncAllLeagues, syncSingleLeague, type SyncEnv, type SyncResult } from "../data-providers/sync";
-import { runCalendarAutoSync } from "../calendar/sync-service";
+import { reconcileCalendars } from "../calendar/sync-service";
 import { checkConsistency } from "./consistency";
 import { rootLogger, type Logger } from "./logger";
 import { failSyncRun, finishSyncRun, startSyncRun } from "./sync-runs";
@@ -24,7 +24,7 @@ export interface RunSyncDeps {
 const depsReales: RunSyncDeps = {
   syncAllLeagues,
   syncSingleLeague,
-  calendarAutoSync: (env, db) => runCalendarAutoSync(env as unknown as Env, db),
+  calendarAutoSync: (env, db) => reconcileCalendars(env as unknown as Env, db),
 };
 
 export interface RunSyncOptions {

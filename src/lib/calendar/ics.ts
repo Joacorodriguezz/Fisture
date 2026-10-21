@@ -7,6 +7,11 @@ export interface CalendarEvent {
   location?: string;
   startTime: Date;
   endTime: Date;
+  // Un cancelado se marca para que, al reimportar, el calendario lo quite
+  status?: "CONFIRMED" | "CANCELLED";
+  // Número de versión del evento: tiene que crecer en cada cambio para que Apple lo trate como actualización
+  sequence?: number;
+  lastModified?: Date;
 }
 
 function formatICSDate(date: Date): string {
@@ -45,6 +50,9 @@ export function generateICS(events: CalendarEvent[], options: ICSOptions = {}): 
     lines.push(`DTSTART:${formatICSDate(event.startTime)}`);
     lines.push(`DTEND:${formatICSDate(event.endTime)}`);
     lines.push(`SUMMARY:${escapeICSText(event.title)}`);
+    lines.push(`STATUS:${event.status ?? "CONFIRMED"}`);
+    if (event.sequence !== undefined) lines.push(`SEQUENCE:${event.sequence}`);
+    if (event.lastModified) lines.push(`LAST-MODIFIED:${formatICSDate(event.lastModified)}`);
 
     if (event.description) {
       lines.push(`DESCRIPTION:${escapeICSText(event.description)}`);

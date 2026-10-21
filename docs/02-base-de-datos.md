@@ -169,10 +169,16 @@ export const calendarSyncs = sqliteTable("calendar_syncs", {
   matchId: text("match_id").notNull().references(() => matches.id, { onDelete: "cascade" }),
   provider: text("provider").notNull(), // 'google' | 'microsoft' | 'apple'
   externalEventId: text("external_event_id"),
-  status: text("status").default("pending"), // pending, synced, needs_update, failed
+  status: text("status").default("pending"), // pending, synced, needs_update, failed, detached, cancelled
   lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
+  // Con qué fecha, estado ('scheduled' | 'postponed' | 'cancelled') y sede se creó el evento: si el partido
+  // cambia respecto de esto, el evento queda needs_update
+  syncedDateTime: integer("synced_date_time", { mode: "timestamp" }),
+  syncedState: text("synced_state"),
+  syncedVenue: text("synced_venue"),
   errorMessage: text("error_message"),
-})
+}, (t) => [uniqueIndex("uq_calendar_syncs_user_match").on(t.userId, t.matchId)])
+// Estados y casos borde: docs/11-calendario-casos-borde-tdd.md
 
 // ============================================
 // TIPOS INFERIDOS
