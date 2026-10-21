@@ -63,6 +63,11 @@ a:hover {
   text-transform: uppercase;
 }
 
+.tb-footer__enlace,
+.tb-footer__enlace:hover {
+  color: inherit;
+}
+
 @media (max-width: 640px) {
   .tb-main {
     padding: 24px 16px 40px;
