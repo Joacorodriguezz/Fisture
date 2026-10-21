@@ -90,7 +90,7 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
         Iniciá sesión con Google o Microsoft para ver qué partidos ya están en tu calendario, cuáles faltan y sincronizarlos.
         Mientras tanto podés recorrer los partidos y las ligas sin cuenta.
       </Bajada>
-      <div style="display:flex;flex-wrap:wrap;gap:12px">
+      <div class="mv-bloque" style="display:flex;flex-wrap:wrap;gap:12px">
         <Boton variante="primario" href={loginHref("/calendario")}>Iniciar sesión</Boton>
         <Boton href="/hoy">Ver partidos de hoy</Boton>
       </div>
@@ -102,7 +102,7 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
         <Volanta tono="tinta">{proveedor}</Volanta>
         <Titular nivel="1">TODO EN HORARIO</Titular>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+      <div class="cal-acciones" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
         {proximos.length > 0 && <Boton href="/api/calendario/download?all=true">Descargar .ics</Boton>}
         <SincronizarTodo client:visible matchIds={lote} etiqueta={lote.length > 0 ? `Sincronizar ahora (${lote.length})` : "Sincronizar ahora"} etiquetaCargando="Sincronizando…" />
       </div>
@@ -117,10 +117,10 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
       </div>
     )}
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:0;background:var(--celeste-claro);border:2px solid var(--celeste)">
+    <div class="cal-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:0;background:var(--celeste-claro);border:2px solid var(--celeste)">
       {stats.map((s, i) => (
         <div style={`padding:20px 16px;border-right:${i < stats.length - 1 ? "1px solid var(--linea)" : "0"};display:flex;flex-direction:column;gap:6px`}>
-          <span style={`font:400 64px/.92 var(--font-titular);color:${s.color}`}>{s.n}</span>
+          <span class="cal-cifra" style={`font:400 64px/.92 var(--font-titular);color:${s.color}`}>{s.n}</span>
           <span style="font:700 14px/18px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase">{s.label}</span>
           <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">{s.detalle}</span>
         </div>
@@ -137,7 +137,7 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
           const estado = estadoRevision(m.match.id);
           const registro = estados.get(m.match.id);
           return (
-            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:14px 12px;border-bottom:1px solid var(--linea)">
+            <div class="cal-rev" style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:14px 12px;border-bottom:1px solid var(--linea)">
               <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px">
                 <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-suave)">
                   {m.league.name} · {fechaCorta(m.match.dateTime)} {hora(m.match.dateTime)}
@@ -165,7 +165,7 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
 
       <Recuadro tono="celeste" titulo="Cómo funciona la sync">
         <div style="display:flex;flex-direction:column;gap:8px">
-          <div><b>Todos los días a las 6 hs</b> traemos el fixture actualizado de football-data.org y Promiedos.</div>
+          <div><b>Todos los días a las 6 hs</b> traemos el fixture actualizado de todas las ligas.</div>
           <div><b>Si cambia un horario</b> actualizamos el evento en tu calendario, si el equipo tiene auto-sync activado.</div>
           <div><b>Si borraste un evento</b> desde tu calendario, volvé a agregarlo con Reintentar o Sincronizar ahora.</div>
           <div><b>Otro calendario</b>: descargá el .ics y importalo.</div>

@@ -72,6 +72,7 @@ const fin = horaFin(match.dateTime);
         </div>
         )}
 
+        <div class="fp-accion">
         <SincronizarPartido
           client:load
           anonimo={!user}
@@ -81,6 +82,7 @@ const fin = horaFin(match.dateTime);
           status={estado?.status ?? null}
           errorMessage={estado?.errorMessage ?? null}
         />
+        </div>
       </div>
     </div>
   </div>

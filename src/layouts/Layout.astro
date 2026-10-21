@@ -3,7 +3,7 @@ import Cabecera from "../components/tribuna/Cabecera.astro";
 import Folio from "../components/tribuna/Folio.astro";
 import { createDb } from "../lib/db";
 import { getPreferences } from "../lib/db/preferences";
-import { fechaLarga, primerNombre } from "../lib/format";
+import { fechaLarga, fechaMovil, primerNombre } from "../lib/format";
 import { loginHref } from "../lib/auth/guards";
 import "../styles/global.css";
 import "../styles/tribuna90.css";
@@ -46,6 +46,7 @@ const accion =
 
 const numero = user ? `Hola, ${primerNombre(user.name, user.email)}` : "Fixture sync";
 const fecha = fechaLarga(new Date());
+const fechaCorta = fechaMovil(new Date());
 ---
 
 <!doctype html>
@@ -77,7 +78,7 @@ const fecha = fechaLarga(new Date());
   </head>
   <body class="tb-app">
     <a class="tb-saltar" href="#contenido">Saltar al contenido</a>
-    <Cabecera volanta={volanta} numero={numero} numeroHref={user ? "/configuracion" : undefined} fecha={fecha} secciones={secciones} accion={accion} />
+    <Cabecera volanta={volanta} numero={numero} numeroHref={user ? "/configuracion" : undefined} fecha={fecha} fechaMovil={fechaCorta} secciones={secciones} accion={accion} usuario={user ? { nombre: primerNombre(user.name, user.email), detalle: user.email } : undefined} />
     <main class="tb-main" id="contenido" tabindex="-1">
       <slot />
       <div style="margin-top:56px">
@@ -86,7 +87,6 @@ const fecha = fechaLarga(new Date());
     </main>
     <footer class="tb-footer">
       <span style="font:400 20px/1 var(--font-titular);transform:skewX(-8deg)">FISTURE</span>
-      <span>Datos: ESPN · football-data.org · Promiedos · Sync diario 6 hs</span>
       <span><a href="/privacidad" class="tb-footer__enlace">Privacidad</a> · <a href="/terminos" class="tb-footer__enlace">Condiciones</a></span>
     </footer>
   </body>

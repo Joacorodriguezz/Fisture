@@ -56,7 +56,7 @@ export default function SeguimientoEquipo({ teamId, nombre, siguiendo: siguiendo
 
   if (!siguiendo) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" }}>
+      <div className="seg" style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" }}>
         <button type="button" className="tb-boton tb-boton--primario" disabled={ocupado} onClick={seguir}>
           {ocupado ? "Siguiendo…" : "Seguir equipo"}
         </button>
@@ -66,8 +66,8 @@ export default function SeguimientoEquipo({ teamId, nombre, siguiendo: siguiendo
   }
 
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    <div className="seg" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16 }}>
+      <div className="seg__auto" style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <span style={{ font: "700 14px/18px var(--font-rotulo)", letterSpacing: ".06em", textTransform: "uppercase" }}>
           Auto-sync
         </span>
@@ -84,7 +84,7 @@ export default function SeguimientoEquipo({ teamId, nombre, siguiendo: siguiendo
       </div>
 
       {confirmando ? (
-        <div role="alertdialog" aria-label={`Confirmar: dejar de seguir a ${nombre}`} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+        <div className="seg__confirmar" role="alertdialog" aria-label={`Confirmar: dejar de seguir a ${nombre}`} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
           <span style={{ font: "700 14px/18px var(--font-rotulo)", textTransform: "uppercase" }}>¿Dejar de seguir a {nombre}?</span>
           <button type="button" className="tb-boton tb-boton--primario" disabled={ocupado} onClick={dejarDeSeguir}>
             Sí, dejar de seguir

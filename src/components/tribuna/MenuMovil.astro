@@ -1,0 +1,83 @@
+---
+// MenuMovil.astro: botón "Menú" en la cabecera que abre un panel con el sumario de secciones. Solo mobile (≤640px).
+import type { Seccion } from "./Cabecera.astro";
+
+interface Props {
+  secciones: Seccion[];
+  fecha?: string;
+  // Sesión iniciada: se muestra la cuenta abajo. Sin sesión, el botón de login.
+  usuario?: { nombre: string; detalle: string };
+  loginHref?: string;
+}
+
+const { secciones, fecha, usuario, loginHref } = Astro.props;
+
+const DETALLE: Record<string, { detalle: string; pagina: string }> = {
+  "/hoy": { detalle: "Todos los partidos del día, por liga", pagina: "3" },
+  "/ligas": { detalle: "Elegí liga y seguí equipos", pagina: "2" },
+  "/partidos": { detalle: "Lo que viene de tus equipos", pagina: "5" },
+  "/calendario": { detalle: "Qué está en tu calendario y qué falta", pagina: "7" },
+  "/configuracion": { detalle: "Avisos, edición y sesión", pagina: "8" },
+};
+---
+
+<div class="tb-menu">
+  <button type="button" class="tb-menu__abrir" aria-label="Abrir menú" aria-expanded="false" aria-controls="tb-menu-panel" data-menu-abrir>
+    <span class="tb-menu__rayas" aria-hidden="true"><span></span><span></span><span></span></span>
+    Menú
+  </button>
+
+  <div id="tb-menu-panel" class="tb-menu__panel" role="dialog" aria-modal="true" aria-label="Menú" hidden>
+    <div class="tb-menu__cab">
+      <span class="tb-menu__nombre">Fisture</span>
+      <button type="button" class="tb-menu__cerrar" data-menu-cerrar>Cerrar ✕</button>
+    </div>
+    <div class="tb-menu__sumario"><span>Sumario</span>{fecha && <span>{fecha}</span>}</div>
+    <nav class="tb-menu__nav" aria-label="Secciones">
+      {secciones.map((s) => {
+        const extra = DETALLE[s.href];
+        return (
+          <a href={s.href} aria-current={s.actual ? "page" : undefined}>
+            <span class="tb-menu__item">
+              <span class="tb-menu__titulo">{s.label}</span>
+              {extra && <span class="tb-menu__detalle">{extra.detalle}</span>}
+            </span>
+            {s.actual ? <span class="tb-menu__aca">Estás acá</span> : extra && <span class="tb-menu__pagina">{extra.pagina}</span>}
+          </a>
+        );
+      })}
+    </nav>
+    <div class="tb-menu__pie">
+      {usuario ? (
+        <>
+          <span class="tb-menu__avatar" aria-hidden="true">{usuario.nombre.charAt(0).toUpperCase()}</span>
+          <span class="tb-menu__quien"><b>{usuario.nombre}</b><span>{usuario.detalle}</span></span>
+          <a class="tb-menu__salir" href="/api/auth/logout">Cerrar sesión</a>
+        </>
+      ) : (
+        loginHref && <a class="tb-menu__login" href={loginHref}>Iniciar sesión</a>
+      )}
+    </div>
+  </div>
+</div>
+
+<script>
+  const panel = document.getElementById("tb-menu-panel");
+  const abrir = document.querySelector<HTMLButtonElement>("[data-menu-abrir]");
+  const cerrar = document.querySelector<HTMLButtonElement>("[data-menu-cerrar]");
+
+  function mostrar(visible: boolean) {
+    if (!panel || !abrir) return;
+    panel.hidden = !visible;
+    abrir.setAttribute("aria-expanded", String(visible));
+    document.body.style.overflow = visible ? "hidden" : "";
+    if (visible) cerrar?.focus();
+    else abrir.focus();
+  }
+
+  abrir?.addEventListener("click", () => mostrar(true));
+  cerrar?.addEventListener("click", () => mostrar(false));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && panel && !panel.hidden) mostrar(false);
+  });
+</script>

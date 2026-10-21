@@ -1,5 +1,8 @@
 ---
-// Cabecera.astro: franja roja superior con el nombre, la fecha y la navegación de secciones
+// Cabecera.astro: franja roja superior con el nombre, la fecha y la navegación de secciones.
+// En mobile (≤640px) queda compacta: la navegación pasa al menú desplegable (MenuMovil.astro).
+import MenuMovil from "./MenuMovil.astro";
+
 export interface Seccion {
   label: string;
   href: string;
@@ -12,12 +15,16 @@ interface Props {
   numero?: string;
   numeroHref?: string;
   fecha?: string;
+  // Fecha corta para mobile ("Mié 21 de octubre")
+  fechaMovil?: string;
   secciones?: Seccion[];
   // Botón de acción a la derecha de la navegación (ej. "Iniciar sesión")
   accion?: { label: string; href: string };
+  // Datos de la cuenta para el menú mobile
+  usuario?: { nombre: string; detalle: string };
 }
 
-const { volanta, nombre = "Fisture", numero, numeroHref, fecha, secciones = [], accion } = Astro.props;
+const { volanta, nombre = "Fisture", numero, numeroHref, fecha, fechaMovil, secciones = [], accion, usuario } = Astro.props;
 ---
 
 <header class="tb-cabecera">
@@ -30,6 +37,7 @@ const { volanta, nombre = "Fisture", numero, numeroHref, fecha, secciones = [], 
         {fecha && <div>{fecha}</div>}
       </div>
     )}
+    {secciones.length > 0 && <MenuMovil secciones={secciones} fecha={fechaMovil ?? fecha} usuario={usuario} loginHref={accion?.href} />}
   </div>
   {(secciones.length > 0 || accion) && (
     <nav class="tb-cabecera__nav" aria-label="Secciones">
