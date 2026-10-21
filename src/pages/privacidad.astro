@@ -1,0 +1,134 @@
+---
+import Layout from "../layouts/Layout.astro";
+import LegalDoc from "../components/LegalDoc.astro";
+import { CONTACTO_EMAIL } from "../lib/legal";
+---
+
+<Layout title="Política de Privacidad - FISTURE" showNavbar={false}>
+  <LegalDoc
+    volanta="Legales"
+    titulo="POLÍTICA DE PRIVACIDAD"
+    bajada="Qué datos tuyos usa Fisture, para qué, y cómo los podés borrar."
+  >
+    <p>
+      Fisture (<a href="/">fisture.pages.dev</a>) es una app que agrega los partidos de los equipos que seguís a tu
+      calendario de Google u Outlook. Esta política explica qué información tratamos para lograrlo. Si tenés dudas,
+      escribinos a <a href={`mailto:${CONTACTO_EMAIL}`}>{CONTACTO_EMAIL}</a>.
+    </p>
+
+    <h2>1. Qué datos recolectamos</h2>
+    <ul>
+      <li>
+        <b>Datos de tu cuenta:</b> al iniciar sesión con Google o Microsoft recibimos tu email, tu nombre, tu foto de
+        perfil y un identificador de tu cuenta en ese proveedor.
+      </li>
+      <li>
+        <b>Credenciales de acceso al calendario:</b> los tokens que el proveedor nos entrega para poder crear y
+        actualizar eventos en tu calendario.
+      </li>
+      <li>
+        <b>Lo que configurás en Fisture:</b> los equipos que seguís, tus preferencias (recordatorios y tema visual) y
+        qué partidos sincronizaste.
+      </li>
+      <li>
+        <b>Datos técnicos:</b> registros del servidor (fecha, ruta solicitada, errores) para detectar fallas. No guardamos
+        contraseñas, porque nunca las vemos.
+      </li>
+    </ul>
+
+    <h2>2. Para qué los usamos</h2>
+    <ul>
+      <li>Identificarte e iniciar tu sesión.</li>
+      <li>
+        Crear, actualizar y eliminar en tu calendario los eventos de los partidos que vos elegís, y mantenerlos al día
+        si cambia el horario.
+      </li>
+      <li>Mostrarte tus equipos y partidos, y aplicar tus recordatorios.</li>
+      <li>Operar, mantener y corregir errores del servicio.</li>
+    </ul>
+
+    <h2>3. Permiso sobre tu calendario</h2>
+    <p>
+      Pedimos permiso para <b>crear y editar eventos</b> (Google: <code>calendar.events</code>; Microsoft:
+      <code>Calendars.ReadWrite</code>). Solo tocamos los eventos de partidos que Fisture creó. No leemos, copiamos ni
+      analizamos el resto de tus eventos.
+    </p>
+    <p>
+      El uso que Fisture hace de la información recibida de las APIs de Google cumple con la
+      <a href="https://developers.google.com/terms/api-services-user-data-policy">
+        Política de Datos de Usuario de los Servicios de API de Google
+      </a>, incluidos los requisitos de Uso Limitado. Usamos los datos de Google solo para brindar las funciones
+      descritas acá: no los vendemos, no los usamos para publicidad ni para entrenar modelos, y ninguna persona los lee
+      salvo que sea necesario para resolver un problema que nos reportes o para cumplir la ley.
+    </p>
+
+    <h2>4. Con quién los compartimos</h2>
+    <p>No vendemos ni alquilamos tus datos. Solo intervienen estos proveedores para que el servicio funcione:</p>
+    <ul>
+      <li><b>Cloudflare:</b> aloja la app, la base de datos y las sesiones.</li>
+      <li><b>Google o Microsoft:</b> el proveedor que elegiste, para autenticarte y escribir en tu calendario.</li>
+    </ul>
+    <p>
+      Los datos de partidos y equipos vienen de fuentes públicas (football-data.org, Promiedos). A esos servicios no
+      les enviamos información tuya.
+    </p>
+
+    <h2>5. Cookies</h2>
+    <p>
+      Usamos una única cookie de sesión, necesaria para mantenerte conectado. No usamos cookies de publicidad ni de
+      seguimiento de terceros. Las tipografías se cargan desde Google Fonts, que puede registrar tu dirección IP al
+      servirlas.
+    </p>
+
+    <h2>6. Cuánto tiempo los conservamos</h2>
+    <p>
+      Guardamos tus datos mientras tengas una cuenta. La sesión expira sola con el tiempo. Cuando pedís el borrado de la
+      cuenta, eliminamos tus datos personales y tus credenciales de la base de datos.
+    </p>
+
+    <h2>7. Tus derechos y cómo ejercerlos</h2>
+    <ul>
+      <li>
+        <b>Cerrar sesión</b> en cualquier momento desde Configuración.
+      </li>
+      <li>
+        <b>Revocar el acceso a tu calendario</b> desde tu cuenta: en Google, en
+        <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>; en Microsoft, en
+        <a href="https://account.live.com/consent/Manage">account.live.com/consent/Manage</a>.
+      </li>
+      <li>
+        <b>Acceder, corregir o borrar tus datos:</b> escribinos a
+        <a href={`mailto:${CONTACTO_EMAIL}`}>{CONTACTO_EMAIL}</a> desde el email con el que te registraste y lo
+        resolvemos. Al borrar tu cuenta, los eventos que ya están en tu calendario quedan ahí: podés eliminarlos vos.
+      </li>
+    </ul>
+    <p>
+      Si estás en Argentina, tenés los derechos de acceso, rectificación y supresión de la Ley 25.326 de Protección de
+      los Datos Personales. La Agencia de Acceso a la Información Pública es el órgano de control de esa ley.
+    </p>
+
+    <h2>8. Seguridad</h2>
+    <p>
+      Toda la comunicación va cifrada por HTTPS y el acceso administrativo está protegido. Ningún sistema es
+      completamente seguro, pero limitamos los datos que guardamos a lo necesario para funcionar.
+    </p>
+
+    <h2>9. Menores</h2>
+    <p>
+      Fisture no está dirigida a menores de 13 años y no recolectamos datos de ellos a sabiendas. Si creés que un menor
+      se registró, avisanos y borramos la cuenta.
+    </p>
+
+    <h2>10. Cambios en esta política</h2>
+    <p>
+      Si la modificamos, publicamos la nueva versión acá con su fecha de actualización. Si el cambio es importante,
+      también te avisaremos dentro de la app.
+    </p>
+
+    <h2>11. Contacto</h2>
+    <p>
+      Consultas sobre privacidad: <a href={`mailto:${CONTACTO_EMAIL}`}>{CONTACTO_EMAIL}</a>. Los términos de uso están
+      en <a href="/terminos">Condiciones del Servicio</a>.
+    </p>
+  </LegalDoc>
+</Layout>

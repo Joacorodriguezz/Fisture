@@ -51,6 +51,10 @@ const opciones = [
       <span>Permiso para crear y editar eventos en tu calendario. Lo usamos solo para los partidos que vos elijas.</span>
     </div>
 
+    <p style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
+      Al continuar aceptás las <a href="/terminos">Condiciones del Servicio</a> y la <a href="/privacidad">Política de Privacidad</a>.
+    </p>
+
     <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
       {opciones.map((o) => (
         <a href={o.href} class="tb-opcion">
