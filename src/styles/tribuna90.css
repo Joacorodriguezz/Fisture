@@ -410,3 +410,8 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 .tb-cabecera__nav a.tb-cabecera__accion { margin: 0 0 0 auto; background: var(--on-rojo); color: var(--rojo-fondo); padding: 4px 12px; text-decoration: none; }
 .tb-cabecera__nav a.tb-cabecera__accion:hover { text-decoration: underline; text-underline-offset: 4px; }
 @media (max-width: 720px) { .tb-cabecera__nav a.tb-cabecera__accion { margin: 0; } }
+
+/* Saltar al contenido: visible solo al enfocarlo con teclado */
+.tb-saltar { position: absolute; left: 8px; top: -64px; z-index: 10; padding: 10px 16px; background: var(--barra-tinta); color: var(--crema-sobre-oscuro); font: 700 15px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; text-decoration: none; }
+.tb-saltar:focus { top: 8px; outline: 2px solid var(--on-rojo); outline-offset: 2px; }
+.tb-main:focus { outline: none; }

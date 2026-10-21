@@ -171,7 +171,7 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
                 </span>
                 <span
                   style={{
-                    font: "700 12px/16px var(--font-rotulo)",
+                    font: "700 13px/16px var(--font-rotulo)",
                     letterSpacing: ".06em",
                     textTransform: "uppercase",
                     color: siguiendo ? "var(--rojo)" : "var(--tinta-suave)",

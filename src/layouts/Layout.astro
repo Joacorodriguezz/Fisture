@@ -69,10 +69,16 @@ const fecha = fechaLarga(new Date());
         rel="stylesheet"
       />
     </noscript>
+    {!user && (
+      <script is:inline>
+        try { if (matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.dataset.theme = "nocturna"; } catch (e) {}
+      </script>
+    )}
   </head>
   <body class="tb-app">
+    <a class="tb-saltar" href="#contenido">Saltar al contenido</a>
     <Cabecera volanta={volanta} numero={numero} numeroHref={user ? "/configuracion" : undefined} fecha={fecha} secciones={secciones} accion={accion} />
-    <main class="tb-main">
+    <main class="tb-main" id="contenido" tabindex="-1">
       <slot />
       <div style="margin-top:56px">
         <Folio pagina={pagina} fecha={fecha} />

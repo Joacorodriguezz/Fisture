@@ -103,7 +103,7 @@ export default function SincronizarPartido({
       {vista.estado && (
         <span
           style={{
-            font: "700 12px/16px var(--font-rotulo)",
+            font: "700 13px/16px var(--font-rotulo)",
             letterSpacing: ".04em",
             textTransform: "uppercase",
             color: vista.estadoColor,
