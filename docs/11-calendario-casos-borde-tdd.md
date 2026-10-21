@@ -93,7 +93,7 @@ Errores transitorios: `synced|needs_update → failed` (sin tocar el evento) y v
 ### 4.1 Decisiones
 
 **D1. Id determinístico para el evento (idempotencia).**
-Google admite que el cliente elija el id del evento (5 a 1024 caracteres de `a-v` y `0-9`). Se usa `fx` + los primeros 40 hex de `sha256(userId + ":" + matchId)`. Un segundo `create` con el mismo id devuelve `409`, y ahí se **adopta** el evento (A2, A3). Si el evento está `cancelled` (A9, el usuario lo borró antes), se restaura con `PATCH status: "confirmed"`.
+Google admite que el cliente elija el id del evento (5 a 1024 caracteres de `a-v` y `0-9`). Se usa `fa` + los primeros 40 hex de `sha256(userId + ":" + matchId)`. Un segundo `create` con el mismo id devuelve `409`, y ahí se **adopta** el evento (A2, A3). Si el evento está `cancelled` (A9, el usuario lo borró antes), se restaura con `PATCH status: "confirmed"`.
 Microsoft no permite elegir el id. Se manda `transactionId` (la API lo ofrece justamente para evitar `POST` repetidos) y se etiqueta el evento con una propiedad extendida `fisture.matchId`. Si hay una fila perdida, se busca por esa propiedad antes de crear (A3).
 *Alternativas descartadas:* un candado en D1 (no cubre la fila perdida ni la cuenta re-vinculada) y buscar por título (frágil, ver D6).
 
