@@ -68,7 +68,7 @@ const enlaceFiltro = (mios: boolean) => `/hoy?fecha=${dia}${mios ? "&solo=mios" 
       </div>
       {partidos.length > 0 && (
         <SincronizarTodo
-          client:load
+          client:visible
           anonimo={!user}
           matchIds={lote}
           etiqueta={!user ? "Agregar todos a mi calendario" : lote.length > 0 ? `Agregar todos (${lote.length})` : "Todo en tu calendario"}
@@ -137,7 +137,7 @@ const enlaceFiltro = (mios: boolean) => `/hoy?fecha=${dia}${mios ? "&solo=mios" 
                     </div>
                   </a>
                   <SincronizarPartido
-                    client:load
+                    client:visible
                     anonimo={!user}
                     matchId={m.match.id}
                     status={estado?.status ?? null}

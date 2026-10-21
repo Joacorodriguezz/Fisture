@@ -72,7 +72,7 @@ const cantidadSeguidos = items.filter((i) => i.siguiendo).length;
           No hay equipos cargados para esta liga. Se cargan automáticamente al sincronizar con la API.
         </div>
       ) : (
-        <FiltroEquipos client:load equipos={items} modo="navegar" placeholder="Filtrá por nombre" />
+        <FiltroEquipos client:visible equipos={items} modo="navegar" placeholder="Filtrá por nombre" />
       )}
     </div>
   </div>

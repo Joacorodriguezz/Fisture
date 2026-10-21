@@ -60,7 +60,15 @@ const fecha = fechaLarga(new Date());
     <link
       href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
   </head>
   <body class="tb-app">
     <Cabecera volanta={volanta} numero={numero} numeroHref={user ? "/configuracion" : undefined} fecha={fecha} secciones={secciones} accion={accion} />

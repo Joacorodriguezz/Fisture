@@ -128,7 +128,7 @@ const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, etiqueta
                     </div>
                   </a>
                   <SincronizarPartido
-                    client:load
+                    client:visible
                     anonimo={!user}
                     matchId={m.match.id}
                     status={estado?.status ?? null}

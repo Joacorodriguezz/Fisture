@@ -83,7 +83,7 @@ const filtros = [
         <Titular nivel="1">{team.name}</Titular>
         <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
           <SeguimientoEquipo
-            client:load
+            client:visible
             anonimo={!user}
             teamId={team.id}
             nombre={team.name}
@@ -139,7 +139,7 @@ const filtros = [
                 </div>
               </a>
               <SincronizarPartido
-                client:load
+                client:visible
                 anonimo={!user}
                 matchId={m.match.id}
                 status={estado?.status ?? null}

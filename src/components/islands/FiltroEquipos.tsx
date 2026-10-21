@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useDeferredValue, useMemo, useState } from "react";
 import { normalizar } from "./estilos";
 import { irALogin } from "../../lib/auth/client";
 
@@ -32,7 +32,7 @@ interface Props {
   anonimo?: boolean;
 }
 
-function Escudo({ logo, nombre, sigla, size }: { logo: string | null; nombre: string; sigla: string | null; size: number }) {
+const Escudo = memo(function Escudo({ logo, nombre, sigla, size }: { logo: string | null; nombre: string; sigla: string | null; size: number }) {
   return (
     <span
       style={{
@@ -49,13 +49,13 @@ function Escudo({ logo, nombre, sigla, size }: { logo: string | null; nombre: st
       }}
     >
       {logo ? (
-        <img src={logo} alt={nombre} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+        <img src={logo} alt={nombre} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
       ) : (
         <span style={{ font: "400 16px/1 var(--font-titular)" }}>{(sigla || nombre).slice(0, 3).toUpperCase()}</span>
       )}
     </span>
   );
-}
+});
 
 export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Filtrá por nombre", ligaInicial = "", anonimo = false }: Props) {
   const [consulta, setConsulta] = useState("");
@@ -66,12 +66,14 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // La lista puede tener cientos de equipos: el input responde al instante y el filtrado va diferido
+  const consultaDiferida = useDeferredValue(consulta);
   const filtrados = useMemo(() => {
-    const q = normalizar(consulta);
+    const q = normalizar(consultaDiferida);
     return equipos.filter(
       (e) => (!liga || e.ligaIds.includes(liga)) && (!q || normalizar(e.nombre).includes(q))
     );
-  }, [equipos, consulta, liga]);
+  }, [equipos, consultaDiferida, liga]);
 
   async function seguir(teamId: string) {
     if (anonimo) return irALogin();
