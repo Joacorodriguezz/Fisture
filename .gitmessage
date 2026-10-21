@@ -1,0 +1,10 @@
+# tipo(scope): título en imperativo, sin punto final (máx. 50 caracteres)
+#
+# Cuerpo (opcional, líneas de máx. 72 caracteres): qué cambia y POR QUÉ,
+# no cómo. Usá `git commit` sin -m para escribirlo acá.
+#
+# Footer (opcional): "Closes #123" cierra el issue al llegar a la rama
+# por defecto; "Refs #123" solo lo referencia.
+#
+# Tipos: feat fix perf refactor docs test style build ci chore revert
+# Test: "Si aplico este commit, entonces este commit… <título>"

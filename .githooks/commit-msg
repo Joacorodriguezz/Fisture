@@ -1,0 +1,29 @@
+#!/bin/sh
+# Valida el mensaje de commit (Conventional Commits + buenas prácticas).
+# Instalar con: npm run hooks:install
+msg_file="$1"
+subject=$(grep -v '^#' "$msg_file" | sed -n '1p')
+
+# Merges, reverts automáticos y fixup/squash de rebase: no se validan.
+case "$subject" in
+  Merge\ *|Revert\ \"*|fixup!\ *|squash!\ *) exit 0 ;;
+esac
+
+types='feat|fix|perf|refactor|docs|test|style|build|ci|chore|revert|release'
+fail() {
+  echo "✖ Commit rechazado: $1" >&2
+  echo "  Título: $subject" >&2
+  echo "  Formato: tipo(scope): descripción en imperativo (ver .gitmessage)" >&2
+  exit 1
+}
+
+echo "$subject" | grep -Eq "^($types)(\([a-z0-9._/-]+\))?!?: .+" \
+  || fail "debe empezar con tipo(scope): — tipos: $(echo "$types" | tr '|' ' ')"
+[ "${#subject}" -le 50 ] \
+  || fail "el título tiene ${#subject} caracteres (máx. 50). Si no entra, probablemente el commit hace demasiado: dividilo"
+case "$subject" in
+  *.|*…|*...) fail "el título no lleva punto final ni puntos suspensivos" ;;
+esac
+second=$(grep -v '^#' "$msg_file" | sed -n '2p')
+[ -z "$second" ] || fail "dejá una línea en blanco entre el título y el cuerpo"
+exit 0
