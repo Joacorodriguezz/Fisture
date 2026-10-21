@@ -4,13 +4,14 @@ import Folio from "../components/tribuna/Folio.astro";
 import { createDb } from "../lib/db";
 import { getPreferences } from "../lib/db/preferences";
 import { fechaLarga, primerNombre } from "../lib/format";
+import { loginHref } from "../lib/auth/guards";
 import "../styles/global.css";
 import "../styles/tribuna90.css";
 
 interface Props {
   title: string;
   volanta?: string;
-  // Muestra la navegación de secciones (solo para usuarios logueados)
+  // Muestra la navegación de secciones (pública)
   showNavbar?: boolean;
   pagina?: number;
 }
@@ -26,16 +27,22 @@ const ruta = Astro.url.pathname;
 const enSeccion = (...prefijos: string[]) =>
   prefijos.some((p) => ruta === p || ruta.startsWith(p + "/"));
 
-const secciones =
-  user && showNavbar
-    ? [
-        { label: "Hoy", href: "/hoy", actual: enSeccion("/hoy") },
-        { label: "Ligas", href: "/ligas", actual: enSeccion("/ligas", "/equipos") },
-        { label: "Partidos", href: "/partidos", actual: enSeccion("/partidos") },
-        { label: "Calendario", href: "/calendario", actual: enSeccion("/calendario") },
-        { label: "Configuración", href: "/configuracion", actual: enSeccion("/configuracion") },
-      ]
-    : [];
+// La navegación es pública; "Configuración" es personal y solo aparece con sesión
+const secciones = showNavbar
+  ? [
+      { label: "Hoy", href: "/hoy", actual: enSeccion("/hoy") },
+      { label: "Ligas", href: "/ligas", actual: enSeccion("/ligas", "/equipos") },
+      { label: "Partidos", href: "/partidos", actual: enSeccion("/partidos") },
+      { label: "Calendario", href: "/calendario", actual: enSeccion("/calendario") },
+      ...(user ? [{ label: "Configuración", href: "/configuracion", actual: enSeccion("/configuracion") }] : []),
+    ]
+  : [];
+
+// Sin sesión: botón de login que vuelve a la página actual (salvo en /login)
+const accion =
+  user || enSeccion("/login")
+    ? undefined
+    : { label: "Iniciar sesión / Registrarse", href: loginHref(ruta + Astro.url.search) };
 
 const numero = user ? `Hola, ${primerNombre(user.name, user.email)}` : "Fixture sync";
 const fecha = fechaLarga(new Date());
@@ -56,7 +63,7 @@ const fecha = fechaLarga(new Date());
     />
   </head>
   <body class="tb-app">
-    <Cabecera volanta={volanta} numero={numero} numeroHref={user ? "/configuracion" : undefined} fecha={fecha} secciones={secciones} />
+    <Cabecera volanta={volanta} numero={numero} numeroHref={user ? "/configuracion" : undefined} fecha={fecha} secciones={secciones} accion={accion} />
     <main class="tb-main">
       <slot />
       <div style="margin-top:56px">

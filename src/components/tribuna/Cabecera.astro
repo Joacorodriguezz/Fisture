@@ -13,9 +13,11 @@ interface Props {
   numeroHref?: string;
   fecha?: string;
   secciones?: Seccion[];
+  // Botón de acción a la derecha de la navegación (ej. "Iniciar sesión / Registrarse")
+  accion?: { label: string; href: string };
 }
 
-const { volanta, nombre = "Fisture", numero, numeroHref, fecha, secciones = [] } = Astro.props;
+const { volanta, nombre = "Fisture", numero, numeroHref, fecha, secciones = [], accion } = Astro.props;
 ---
 
 <header class="tb-cabecera">
@@ -29,11 +31,12 @@ const { volanta, nombre = "Fisture", numero, numeroHref, fecha, secciones = [] }
       </div>
     )}
   </div>
-  {secciones.length > 0 && (
+  {(secciones.length > 0 || accion) && (
     <nav class="tb-cabecera__nav" aria-label="Secciones">
       {secciones.map((s) => (
         <a href={s.href} aria-current={s.actual ? "page" : undefined}>{s.label}</a>
       ))}
+      {accion && <a class="tb-cabecera__accion" href={accion.href}>{accion.label}</a>}
     </nav>
   )}
 </header>

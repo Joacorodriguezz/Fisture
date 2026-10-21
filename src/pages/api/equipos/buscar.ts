@@ -5,13 +5,8 @@ import { like, eq, and } from "drizzle-orm";
 import { withApi } from "../../../lib/observability/with-api";
 
 export const GET: APIRoute = withApi(async ({ url, locals }) => {
+  // Búsqueda pública: sin sesión devuelve isFollowing=false
   const user = locals.user;
-  if (!user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
 
   const query = url.searchParams.get("q")?.trim();
   if (!query || query.length < 2) {
@@ -37,10 +32,9 @@ export const GET: APIRoute = withApi(async ({ url, locals }) => {
     .where(like(teams.name, `%${query}%`))
     .limit(20);
 
-  const userTeamIds = await db
-    .select({ teamId: userTeams.teamId })
-    .from(userTeams)
-    .where(eq(userTeams.userId, user.id));
+  const userTeamIds = user
+    ? await db.select({ teamId: userTeams.teamId }).from(userTeams).where(eq(userTeams.userId, user.id))
+    : [];
 
   const followingSet = new Set(userTeamIds.map((ut) => ut.teamId));
 

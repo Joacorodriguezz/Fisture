@@ -11,12 +11,11 @@ import { createDb } from "../lib/db";
 import { getMatchesInRange, getFollowedIds, getSyncStates } from "../lib/db/queries";
 import { markOutdatedEvents } from "../lib/calendar/sync-service";
 import { toSyncStatus } from "../lib/sync-ui";
+import { loginHref } from "../lib/auth/guards";
 import { diaISO, esDiaISO, fechaLarga, hora, rangoDelDia, sumarDias } from "../lib/format";
 
+// Página pública: sin sesión se ven todos los partidos del día, sin estado de calendario ni "mis equipos"
 const user = Astro.locals.user;
-if (!user) {
-  return Astro.redirect("/login");
-}
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
@@ -24,13 +23,18 @@ const db = createDb(Astro.locals.runtime.env.DB);
 const hoy = diaISO(new Date());
 const fechaParam = Astro.url.searchParams.get("fecha");
 const dia = esDiaISO(fechaParam) ? fechaParam : hoy;
-const soloMios = Astro.url.searchParams.get("solo") === "mios";
+const soloMios = !!user && Astro.url.searchParams.get("solo") === "mios";
 
 const { desde, hasta } = rangoDelDia(dia);
-const [delDia, seguidos] = await Promise.all([getMatchesInRange(db, desde, hasta), getFollowedIds(db, user.id)]);
+const [delDia, seguidos] = await Promise.all([
+  getMatchesInRange(db, desde, hasta),
+  user ? getFollowedIds(db, user.id) : Promise.resolve(new Set<string>()),
+]);
 
-await markOutdatedEvents(db, user.id);
-const estados = await getSyncStates(db, user.id, delDia.map((m) => m.match.id));
+if (user) await markOutdatedEvents(db, user.id);
+const estados = user
+  ? await getSyncStates(db, user.id, delDia.map((m) => m.match.id))
+  : new Map<string, { status: string; errorMessage: string | null }>();
 
 const esMio = (m: (typeof delDia)[number]) => seguidos.has(m.homeTeam.id) || seguidos.has(m.awayTeam.id);
 const partidos = soloMios ? delDia.filter(esMio) : delDia;
@@ -65,8 +69,9 @@ const enlaceFiltro = (mios: boolean) => `/hoy?fecha=${dia}${mios ? "&solo=mios" 
       {partidos.length > 0 && (
         <SincronizarTodo
           client:load
+          anonimo={!user}
           matchIds={lote}
-          etiqueta={lote.length > 0 ? `Agregar todos (${lote.length})` : "Todo en tu calendario"}
+          etiqueta={!user ? "Agregar todos a mi calendario" : lote.length > 0 ? `Agregar todos (${lote.length})` : "Todo en tu calendario"}
           etiquetaCargando="Agregando…"
         />
       )}
@@ -80,14 +85,15 @@ const enlaceFiltro = (mios: boolean) => `/hoy?fecha=${dia}${mios ? "&solo=mios" 
       </nav>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         <a href={enlaceFiltro(false)} aria-current={!soloMios ? "true" : undefined} class={!soloMios ? "tb-chip tb-chip--activo" : "tb-chip"}>Todos</a>
-        <a href={enlaceFiltro(true)} aria-current={soloMios ? "true" : undefined} class={soloMios ? "tb-chip tb-chip--activo" : "tb-chip"}>Mis equipos</a>
+        <a href={user ? enlaceFiltro(true) : loginHref(enlaceFiltro(true))} title={user ? undefined : "Iniciá sesión para ver tus equipos"} aria-current={soloMios ? "true" : undefined} class={soloMios ? "tb-chip tb-chip--activo" : "tb-chip"}>Mis equipos</a>
       </div>
     </div>
 
     {partidos.length > 0 && (
       <Bajada>
-        {partidos.length} {partidos.length === 1 ? "partido" : "partidos"} · {enCalendario} en tu calendario
-        {sobran > 0 && ` · "Agregar todos" suma de a ${LOTE_MAXIMO}; quedan ${sobran} más para el próximo clic.`}
+        {partidos.length} {partidos.length === 1 ? "partido" : "partidos"}
+        {user ? ` · ${enCalendario} en tu calendario` : " · Iniciá sesión para agregarlos a tu calendario."}
+        {user && sobran > 0 && ` · "Agregar todos" suma de a ${LOTE_MAXIMO}; quedan ${sobran} más para el próximo clic.`}
       </Bajada>
     )}
 
@@ -132,6 +138,7 @@ const enlaceFiltro = (mios: boolean) => `/hoy?fecha=${dia}${mios ? "&solo=mios" 
                   </a>
                   <SincronizarPartido
                     client:load
+                    anonimo={!user}
                     matchId={m.match.id}
                     status={estado?.status ?? null}
                     errorMessage={estado?.errorMessage ?? null}

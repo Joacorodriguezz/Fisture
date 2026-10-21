@@ -405,3 +405,8 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 @media (max-width: 640px) {
   .tb-cabecera__nombre { font-size: 44px; }
 }
+
+/* Botón de login en la cabecera (visitantes sin sesión) */
+.tb-cabecera__nav a.tb-cabecera__accion { margin: 0 0 0 auto; background: var(--on-rojo); color: var(--rojo-fondo); padding: 4px 12px; text-decoration: none; }
+.tb-cabecera__nav a.tb-cabecera__accion:hover { text-decoration: underline; text-underline-offset: 4px; }
+@media (max-width: 720px) { .tb-cabecera__nav a.tb-cabecera__accion { margin: 0; } }

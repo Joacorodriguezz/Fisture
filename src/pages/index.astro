@@ -29,7 +29,7 @@ const pasos = [
 ];
 ---
 
-<Layout title="FISTURE - Tus partidos en tu calendario" showNavbar={false}>
+<Layout title="FISTURE - Tus partidos en tu calendario">
   <div style="display:flex;flex-direction:column;gap:48px">
     <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:32px">
       <div style="display:flex;flex-direction:column;align-items:flex-start;gap:20px;max-width:720px">
@@ -38,6 +38,7 @@ const pasos = [
         <Bajada>Elegís tus equipos una vez y Fisture carga cada partido en Google Calendar o Outlook, con aviso una hora y quince minutos antes.</Bajada>
         <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:8px">
           <Boton variante="primario" href="/login">Empezá gratis →</Boton>
+          <Boton href="/hoy">Ver partidos de hoy</Boton>
           <span style="font:600 14px/18px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">
             Sin tarjeta · Sync diario a las 6 hs
           </span>

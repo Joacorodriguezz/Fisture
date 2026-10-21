@@ -1,22 +1,26 @@
 import { useState } from "react";
 import Segmentado from "./Segmentado";
+import { irALogin } from "../../lib/auth/client";
 
 interface Props {
   teamId: string;
   nombre: string;
   siguiendo: boolean;
   autoSync: boolean;
+  // Visitante sin sesión: seguir un equipo pide iniciar sesión
+  anonimo?: boolean;
 }
 
 // Acciones de seguimiento de la ficha de equipo: seguir, dejar de seguir y auto-sync.
 // El estado vive en la island: no hace falta recargar la página.
-export default function SeguimientoEquipo({ teamId, nombre, siguiendo: siguiendoInicial, autoSync }: Props) {
+export default function SeguimientoEquipo({ teamId, nombre, siguiendo: siguiendoInicial, autoSync, anonimo = false }: Props) {
   const [siguiendo, setSiguiendo] = useState(siguiendoInicial);
   const [confirmando, setConfirmando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function seguir() {
+    if (anonimo) return irALogin();
     setOcupado(true);
     setError(null);
     try {
@@ -25,6 +29,7 @@ export default function SeguimientoEquipo({ teamId, nombre, siguiendo: siguiendo
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ teamId }),
       });
+      if (res.status === 401) return irALogin();
       if (!res.ok && res.status !== 409) throw new Error("follow failed");
       setSiguiendo(true);
     } catch {
