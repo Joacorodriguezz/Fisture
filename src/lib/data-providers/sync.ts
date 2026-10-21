@@ -330,7 +330,9 @@ async function syncPartidos(
     const datos = {
       homeTeamId,
       awayTeamId,
-      dateTime: m.dateTime,
+      // D1 almacena timestamps en segundos: comparar con esa precisión evita
+      // reescribir un partido sin cambios si el proveedor envía milisegundos.
+      dateTime: new Date(Math.floor(m.dateTime.getTime() / 1000) * 1000),
       venue: m.venue ?? null,
       status: m.status,
       homeScore: m.homeScore ?? null,

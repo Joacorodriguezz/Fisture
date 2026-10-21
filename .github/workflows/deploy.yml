@@ -15,19 +15,32 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/test-suite.yml
+
   deploy:
     name: deploy
+    needs: [validate]
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
-      - run: npm run build
+      - uses: actions/download-artifact@v4
+        with:
+          name: application
+          path: dist/
+
+      - name: Validar URL para smoke post-deploy
+        env:
+          PUBLIC_APP_URL: ${{ secrets.PUBLIC_APP_URL }}
+        run: node -e 'const u = new URL(process.env.PUBLIC_APP_URL); if (u.protocol !== "https:") process.exit(1)'
 
       # Migraciones antes del deploy (la app nueva puede depender de ellas).
       - name: Migrar D1 de producción
@@ -41,3 +54,14 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Smoke de producción (solo lectura)
+        run: npm run test:smoke
+        env:
+          PUBLIC_APP_URL: ${{ secrets.PUBLIC_APP_URL }}
+
+      - name: Instrucciones si falla el release
+        if: failure()
+        run: |
+          echo 'Release fallido. Revisar el paso que falló; si ya se desplegó, verificar producción y considerar rollback desde Cloudflare Pages.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'El rollback de código no revierte migraciones D1. Ver docs/11-testing-y-release.md.' >> "$GITHUB_STEP_SUMMARY"

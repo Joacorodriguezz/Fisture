@@ -33,3 +33,8 @@ npm-debug.log*
 
 # Drizzle
 drizzle/meta/
+
+# Test reports and isolated E2E data
+coverage/
+playwright-report/
+test-results/

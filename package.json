@@ -17,7 +17,15 @@
     "sync:check": "node scripts/sync-check.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "hooks:install": "git config core.hooksPath .githooks && git config commit.template .gitmessage"
+    "hooks:install": "git config core.hooksPath .githooks && git config commit.template .gitmessage",
+    "typecheck": "astro check",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:smoke": "node scripts/production-smoke.mjs",
+    "check": "npm run typecheck && npm run test:coverage && npm run build && npm run test:e2e"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^12.0.0",
@@ -30,9 +38,13 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.11",
     "@cloudflare/workers-types": "^4.20241127.0",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitest/coverage-v8": "^3.2.7",
     "drizzle-kit": "^0.28.0",
     "miniflare": "^3.20250718.3",
     "tailwindcss": "^3.4.0",

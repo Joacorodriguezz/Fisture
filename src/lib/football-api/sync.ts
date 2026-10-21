@@ -45,19 +45,20 @@ async function syncLeague(
     await db
       .insert(leagues)
       .values({
-        apiId: league.apiId,
+        externalId: `api-football:${league.apiId}`,
+        source: "api-football",
         name: league.name,
         country: league.country,
         season,
         isActive: true,
       })
       .onConflictDoUpdate({
-        target: leagues.apiId,
+        target: leagues.externalId,
         set: { season, isActive: true },
       });
 
     const dbLeague = await db.query.leagues.findFirst({
-      where: eq(leagues.apiId, league.apiId),
+      where: eq(leagues.externalId, `api-football:${league.apiId}`),
     });
 
     if (!dbLeague) {
@@ -77,7 +78,8 @@ async function syncLeague(
         await db
           .insert(teams)
           .values({
-            apiId: t.team.id,
+            externalId: `api-football:${t.team.id}`,
+            source: "api-football",
             name: t.team.name,
             shortName: t.team.code,
             logo: t.team.logo,
@@ -102,10 +104,10 @@ async function syncLeague(
 
     for (const fixture of fixtures) {
       const homeTeam = await db.query.teams.findFirst({
-        where: eq(teams.apiId, fixture.teams.home.id),
+        where: eq(teams.externalId, `api-football:${fixture.teams.home.id}`),
       });
       const awayTeam = await db.query.teams.findFirst({
-        where: eq(teams.apiId, fixture.teams.away.id),
+        where: eq(teams.externalId, `api-football:${fixture.teams.away.id}`),
       });
 
       if (!homeTeam || !awayTeam) {
@@ -114,11 +116,12 @@ async function syncLeague(
       }
 
       const existingMatch = await db.query.matches.findFirst({
-        where: eq(matches.apiId, fixture.fixture.id),
+        where: eq(matches.externalId, `api-football:${fixture.fixture.id}`),
       });
 
       const matchData = {
-        apiId: fixture.fixture.id,
+        externalId: `api-football:${fixture.fixture.id}`,
+        source: "api-football",
         homeTeamId: homeTeam.id,
         awayTeamId: awayTeam.id,
         leagueId: dbLeague.id,

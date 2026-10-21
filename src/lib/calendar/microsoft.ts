@@ -169,11 +169,11 @@ export function formatMatchForMicrosoft(
     },
     start: {
       dateTime: formatDateTime(dateTime),
-      timeZone: "Argentina Standard Time",
+      timeZone: "UTC",
     },
     end: {
       dateTime: formatDateTime(endTime),
-      timeZone: "Argentina Standard Time",
+      timeZone: "UTC",
     },
     ...(venue && { location: { displayName: venue } }),
   };

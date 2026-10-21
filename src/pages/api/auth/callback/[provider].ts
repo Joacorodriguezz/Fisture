@@ -37,7 +37,7 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
       const response = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
         headers: { Authorization: `Bearer ${tokens.accessToken()}` },
       });
-      const profile = await response.json();
+      const profile = await response.json() as { email: string; name: string; picture?: string; id: string };
 
       userInfo = {
         email: profile.email,
@@ -52,7 +52,7 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
       const response = await fetch("https://graph.microsoft.com/v1.0/me", {
         headers: { Authorization: `Bearer ${tokens.accessToken()}` },
       });
-      const profile = await response.json();
+      const profile = await response.json() as { mail?: string; userPrincipalName: string; displayName: string; id: string };
 
       userInfo = {
         email: profile.mail || profile.userPrincipalName,
