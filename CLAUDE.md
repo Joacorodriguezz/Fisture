@@ -79,6 +79,13 @@ Hook `commit-msg` (`.githooks/`) valida tipo, longitud, puntuación y línea en 
 - Migraciones D1, variables de entorno nuevas y breaking changes se declaran siempre en "Despliegue y riesgos".
 - Con `gh pr create`, pasar el cuerpo siguiendo la plantilla (`--body-file`) y terminar con la línea de atribución del entorno.
 
+## Cambios grandes: TDD primero
+
+- Cada vez que el usuario pida un cambio grande (feature nueva, rediseño, refactor amplio, cambios de datos o de integraciones), lo primero que se entrega es un **TDD (Technical Design Document)**, no código.
+- El TDD se guarda en `docs/` con numeración correlativa (`docs/NN-tema-tdd.md`), siguiendo como modelo `docs/10-observabilidad-tdd.md` y `docs/11-calendario-casos-borde-tdd.md`.
+- El TDD registra: contexto/problema; objetivos y no objetivos; decisiones con su porqué y alternativas descartadas; estrategia de tests (test primero: rojo, verde, refactor); plan de implementación por pasos; despliegue/rollback; riesgos; y una sección de **notas de implementación** vacía al inicio.
+- La implementación empieza solo después de que el usuario revise y apruebe el TDD. Al terminar, se completa la sección de notas de implementación con los desvíos respecto del diseño.
+
 ## Convenciones
 
 - Archivos `.astro` para páginas y componentes estáticos (0 JS)
