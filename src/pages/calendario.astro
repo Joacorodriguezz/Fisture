@@ -14,25 +14,28 @@ import { markOutdatedEvents } from "../lib/calendar/sync-service";
 import { calendarSyncs } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { toSyncStatus } from "../lib/sync-ui";
+import { loginHref } from "../lib/auth/guards";
 import { fechaCorta, fechaHora, hora, providerLabel } from "../lib/format";
 
+// Página pública: sin sesión muestra una invitación a iniciar sesión (el estado del calendario es personal)
 const user = Astro.locals.user;
-if (!user) {
-  return Astro.redirect("/login");
-}
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
 // Eventos cuyo partido cambió de horario quedan marcados antes de mostrar el estado
-await markOutdatedEvents(db, user.id);
+if (user) await markOutdatedEvents(db, user.id);
 
-const proximos = await getUpcomingMatches(db, user.id, 200);
-const estados = await getSyncStates(db, user.id, proximos.map((m) => m.match.id));
+const proximos = user ? await getUpcomingMatches(db, user.id, 200) : [];
+const estados = user
+  ? await getSyncStates(db, user.id, proximos.map((m) => m.match.id))
+  : new Map<string, { status: string; errorMessage: string | null }>();
 
-const filasCalendario = await db
-  .select({ lastSyncedAt: calendarSyncs.lastSyncedAt })
-  .from(calendarSyncs)
-  .where(eq(calendarSyncs.userId, user.id));
+const filasCalendario = user
+  ? await db
+      .select({ lastSyncedAt: calendarSyncs.lastSyncedAt })
+      .from(calendarSyncs)
+      .where(eq(calendarSyncs.userId, user.id))
+  : [];
 const ultima = filasCalendario
   .map((r) => r.lastSyncedAt)
   .filter((d): d is Date => d instanceof Date)
@@ -74,11 +77,25 @@ const stats = [
 ];
 
 const ultimaTxt = ultima ? fechaHora(ultima) : "todavía no";
-const proveedor = providerLabel(user.provider);
+const proveedor = user ? providerLabel(user.provider) : "Tu calendario";
 const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
 ---
 
 <Layout title="Calendario - FISTURE" pagina={7}>
+  {!user ? (
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:20px;max-width:720px">
+      <Volanta tono="tinta">Tu calendario</Volanta>
+      <Titular nivel="1">TODO EN HORARIO</Titular>
+      <Bajada>
+        Iniciá sesión con Google o Microsoft para ver qué partidos ya están en tu calendario, cuáles faltan y sincronizarlos.
+        Mientras tanto podés recorrer los partidos y las ligas sin cuenta.
+      </Bajada>
+      <div style="display:flex;flex-wrap:wrap;gap:12px">
+        <Boton variante="primario" href={loginHref("/calendario")}>Iniciar sesión / Registrarse</Boton>
+        <Boton href="/hoy">Ver partidos de hoy</Boton>
+      </div>
+    </div>
+  ) : (
   <div style="display:flex;flex-direction:column;gap:32px">
     <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px">
       <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
@@ -87,7 +104,7 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
         {proximos.length > 0 && <Boton href="/api/calendario/download?all=true">Descargar .ics</Boton>}
-        <SincronizarTodo client:load matchIds={lote} etiqueta={lote.length > 0 ? `Sincronizar ahora (${lote.length})` : "Sincronizar ahora"} etiquetaCargando="Sincronizando…" />
+        <SincronizarTodo client:visible matchIds={lote} etiqueta={lote.length > 0 ? `Sincronizar ahora (${lote.length})` : "Sincronizar ahora"} etiquetaCargando="Sincronizando…" />
       </div>
     </div>
 
@@ -130,7 +147,7 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
                 </a>
               </div>
               <SincronizarPartido
-                client:load
+                client:visible
                 matchId={m.match.id}
                 status={estado}
                 errorMessage={registro?.errorMessage ?? null}
@@ -156,4 +173,5 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
       </Recuadro>
     </div>
   </div>
+)}
 </Layout>

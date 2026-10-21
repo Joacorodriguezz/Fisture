@@ -172,7 +172,10 @@ export const calendarSyncs = sqliteTable(
     syncedDateTime: integer("synced_date_time", { mode: "timestamp" }),
     errorMessage: text("error_message"),
   },
-  (table) => [index("idx_calendar_syncs_status").on(table.status)]
+  (table) => [
+    index("idx_calendar_syncs_status").on(table.status),
+    index("idx_calendar_syncs_user_match").on(table.userId, table.matchId),
+  ]
 );
 
 // ============================================

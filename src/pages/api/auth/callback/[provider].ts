@@ -5,6 +5,7 @@ import { createDb } from "../../../../lib/db";
 import { users } from "../../../../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { withApi } from "../../../../lib/observability/with-api";
+import { safeNext } from "../../../../lib/auth/guards";
 
 export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, locals }) => {
   const { provider } = params;
@@ -22,7 +23,7 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
     return redirect("/login?error=invalid_state");
   }
 
-  const { codeVerifier } = JSON.parse(storedData);
+  const { codeVerifier, next } = JSON.parse(storedData) as { codeVerifier: string; next?: string | null };
   await env.KV.delete(`oauth:${state}`);
 
   try {
@@ -107,7 +108,8 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
       maxAge: 60 * 60 * 24 * 30,
     });
 
-    return redirect("/ligas");
+    // next se validó al iniciar el login y se vuelve a validar acá antes de redirigir
+    return redirect(safeNext(next) ?? "/ligas");
   } catch (error) {
     locals.logger?.error("oauth_failed", { provider: params.provider, err: error });
     return redirect("/login?error=oauth_failed");
