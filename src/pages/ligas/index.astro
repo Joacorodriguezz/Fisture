@@ -4,14 +4,13 @@ import Volanta from "../../components/tribuna/Volanta.astro";
 import Titular from "../../components/tribuna/Titular.astro";
 import Boton from "../../components/tribuna/Boton.astro";
 import Escudo from "../../components/tribuna/Escudo.astro";
+import { loginHref } from "../../lib/auth/guards";
 import { createDb } from "../../lib/db";
 import { asc, desc, eq } from "drizzle-orm";
 import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 
+// Página pública: sin sesión no hay "tus equipos"
 const user = Astro.locals.user;
-if (!user) {
-  return Astro.redirect("/login");
-}
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
@@ -23,13 +22,15 @@ const allTeams = await db
   .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
   .orderBy(asc(teams.name));
 
-const misEquipos = await db
-  .select({ team: teams, league: leagues })
-  .from(userTeams)
-  .innerJoin(teams, eq(userTeams.teamId, teams.id))
-  .innerJoin(leagues, eq(teams.leagueId, leagues.id))
-  .where(eq(userTeams.userId, user.id))
-  .orderBy(desc(userTeams.createdAt));
+const misEquipos = user
+  ? await db
+      .select({ team: teams, league: leagues })
+      .from(userTeams)
+      .innerJoin(teams, eq(userTeams.teamId, teams.id))
+      .innerJoin(leagues, eq(teams.leagueId, leagues.id))
+      .where(eq(userTeams.userId, user.id))
+      .orderBy(desc(userTeams.createdAt))
+  : [];
 
 const seguidos = new Set(misEquipos.map((e) => e.team.id));
 
@@ -55,6 +56,7 @@ const tarjetas = allLeagues.map((liga) => {
       <Boton variante="primario" href="/equipos/buscar">Buscar equipo →</Boton>
     </div>
 
+    {user && (
     <div style="display:flex;flex-direction:column;gap:12px">
       <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">Tus equipos</span>
       {misEquipos.length > 0 ? (
@@ -75,6 +77,14 @@ const tarjetas = allLeagues.map((liga) => {
         </p>
       )}
     </div>
+    )}
+
+    {!user && (
+      <div class="tb-vacio">
+        <span>Explorá las ligas libremente. Para seguir equipos y agregar partidos a tu calendario, iniciá sesión.</span>
+        <Boton variante="primario" href={loginHref("/ligas")}>Iniciar sesión / Registrarse</Boton>
+      </div>
+    )}
 
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:24px">
       {tarjetas.map(({ liga, total, siguiendo, muestra }) => (
@@ -91,9 +101,11 @@ const tarjetas = allLeagues.map((liga) => {
           </div>
           <div style="border-top:1px solid var(--linea);padding-top:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;font:700 14px/18px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase">
             <span>{total} equipos</span>
-            <span style={`color:${siguiendo ? "var(--rojo)" : "var(--tinta-suave)"}`}>
-              {siguiendo ? `Seguís ${siguiendo}` : "Sin equipos"}
-            </span>
+            {user && (
+              <span style={`color:${siguiendo ? "var(--rojo)" : "var(--tinta-suave)"}`}>
+                {siguiendo ? `Seguís ${siguiendo}` : "Sin equipos"}
+              </span>
+            )}
             <span style="font-size:20px">→</span>
           </div>
         </a>

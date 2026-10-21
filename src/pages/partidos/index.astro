@@ -7,31 +7,37 @@ import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
 import Escudo from "../../components/tribuna/Escudo.astro";
 import SincronizarPartido from "../../components/islands/SincronizarPartido";
 import { createDb } from "../../lib/db";
-import { getUpcomingMatches, getSyncStates } from "../../lib/db/queries";
+import { getUpcomingMatches, getMatchesInRange, getSyncStates } from "../../lib/db/queries";
+import { loginHref } from "../../lib/auth/guards";
 import { asc, eq } from "drizzle-orm";
 import { teams, userTeams } from "../../../drizzle/schema";
 import { fechaLarga, hora } from "../../lib/format";
 
+// Página pública. Con sesión: próximos partidos de tus equipos. Sin sesión: próximos partidos de todas las ligas.
 const user = Astro.locals.user;
-if (!user) {
-  return Astro.redirect("/login");
-}
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
-const seguidos = await db
-  .select({ id: teams.id, name: teams.name })
-  .from(userTeams)
-  .innerJoin(teams, eq(userTeams.teamId, teams.id))
-  .where(eq(userTeams.userId, user.id))
-  .orderBy(asc(teams.name));
+const seguidos = user
+  ? await db
+      .select({ id: teams.id, name: teams.name })
+      .from(userTeams)
+      .innerJoin(teams, eq(userTeams.teamId, teams.id))
+      .where(eq(userTeams.userId, user.id))
+      .orderBy(asc(teams.name))
+  : [];
 
 // Filtro por equipo: solo acepta equipos que el usuario sigue
 const equipoParam = Astro.url.searchParams.get("equipo");
 const equipo = seguidos.find((t) => t.id === equipoParam)?.id ?? null;
 
-const partidos = await getUpcomingMatches(db, user.id, 60, equipo ?? undefined);
-const estados = await getSyncStates(db, user.id, partidos.map((m) => m.match.id));
+const DIAS_PUBLICOS = 14;
+const partidos = user
+  ? await getUpcomingMatches(db, user.id, 60, equipo ?? undefined)
+  : (await getMatchesInRange(db, new Date(), new Date(Date.now() + DIAS_PUBLICOS * 24 * 60 * 60 * 1000))).slice(0, 60);
+const estados = user
+  ? await getSyncStates(db, user.id, partidos.map((m) => m.match.id))
+  : new Map<string, { status: string; errorMessage: string | null }>();
 
 // Agrupar por día, manteniendo el orden cronológico
 const dias = new Map<string, typeof partidos>();
@@ -58,17 +64,28 @@ const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, etiqueta
       <Titular nivel="1">PARTIDO POR PARTIDO</Titular>
     </div>
 
+    {!user && (
+      <p style="margin:0;font:400 17px/27px var(--font-texto);color:var(--tinta-suave)">
+        Próximos {DIAS_PUBLICOS} días en todas las ligas.{" "}
+        <a href={loginHref("/partidos")}>Iniciá sesión</a> para ver solo los partidos de tus equipos y agregarlos a tu calendario.
+      </p>
+    )}
+
+    {user && (
     <div style="display:flex;flex-wrap:wrap;gap:8px">
       <a href="/partidos" aria-current={equipo === null ? "true" : undefined} className={equipo === null ? "tb-chip tb-chip--activo" : "tb-chip"}>Todos</a>
       {seguidos.map((t) => (
         <a href={`/partidos?equipo=${t.id}`} aria-current={equipo === t.id ? "true" : undefined} className={equipo === t.id ? "tb-chip tb-chip--activo" : "tb-chip"}>{t.name}</a>
       ))}
     </div>
+    )}
 
     {grupos.length === 0 ? (
       <div class="tb-vacio">
         <span>
-          {equipo
+          {!user
+            ? "No hay partidos cargados para los próximos días."
+            : equipo
             ? "Este equipo no tiene partidos próximos."
             : seguidos.length === 0
               ? "Todavía no seguís ningún equipo."
@@ -111,7 +128,8 @@ const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, etiqueta
                     </div>
                   </a>
                   <SincronizarPartido
-                    client:load
+                    client:visible
+                    anonimo={!user}
                     matchId={m.match.id}
                     status={estado?.status ?? null}
                     errorMessage={estado?.errorMessage ?? null}

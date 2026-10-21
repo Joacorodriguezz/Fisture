@@ -3,9 +3,13 @@ import Layout from "../layouts/Layout.astro";
 import Volanta from "../components/tribuna/Volanta.astro";
 import Titular from "../components/tribuna/Titular.astro";
 import Bajada from "../components/tribuna/Bajada.astro";
+import { safeNext } from "../lib/auth/guards";
+
+// A dónde volver después de loguearse (solo rutas internas seguras)
+const next = safeNext(Astro.url.searchParams.get("next"));
 
 if (Astro.locals.user) {
-  return Astro.redirect("/ligas");
+  return Astro.redirect(next ?? "/ligas");
 }
 
 // Mensajes según el código que devuelve el callback de OAuth (/api/auth/callback/[provider])
@@ -21,12 +25,12 @@ const error = codigoError ? mensajesError[codigoError] ?? "No pudimos iniciar se
 
 const opciones = [
   {
-    href: "/api/auth/login/google",
+    href: `/api/auth/login/google${next ? `?next=${encodeURIComponent(next)}` : ""}`,
     label: "Google",
     detalle: "Crea los eventos en tu Google Calendar automáticamente",
   },
   {
-    href: "/api/auth/login/microsoft",
+    href: `/api/auth/login/microsoft${next ? `?next=${encodeURIComponent(next)}` : ""}`,
     label: "Microsoft",
     detalle: "Crea los eventos en Outlook automáticamente",
   },
@@ -35,7 +39,7 @@ const opciones = [
 
 <Layout title="Iniciar Sesión - FISTURE" showNavbar={false}>
   <div style="max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:20px;padding:24px 0">
-    <a href="/" class="tb-volver">← Volver</a>
+    <a href={next ?? "/"} class="tb-volver">← Volver</a>
     <Volanta tono="tinta">Iniciá sesión</Volanta>
     <Titular nivel="1">ENTRÁ A LA CANCHA</Titular>
     <Bajada>Usá la cuenta del calendario donde querés ver los partidos.</Bajada>

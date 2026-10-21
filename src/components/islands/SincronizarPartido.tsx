@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { syncView, toSyncStatus, type SyncStatus } from "../../lib/sync-ui";
+import { irALogin } from "../../lib/auth/client";
 
 interface SyncResponse {
   results?: { matchId: string; success: boolean; error?: string }[];
@@ -14,6 +15,8 @@ interface Props {
   // Ficha del partido: botón más grande y opción de quitarlo del calendario
   grande?: boolean;
   permitirQuitar?: boolean;
+  // Visitante sin sesión: agregar al calendario pide iniciar sesión
+  anonimo?: boolean;
 }
 
 export default function SincronizarPartido({
@@ -22,6 +25,7 @@ export default function SincronizarPartido({
   errorMessage = null,
   grande = false,
   permitirQuitar = false,
+  anonimo = false,
 }: Props) {
   const [estado, setEstado] = useState<SyncStatus>(toSyncStatus(status));
   const [error, setError] = useState<string | null>(errorMessage);
@@ -31,6 +35,7 @@ export default function SincronizarPartido({
 
   async function agregar() {
     if (estado === "synced" || estado === "syncing") return;
+    if (anonimo) return irALogin();
 
     setEstado("syncing");
     setError(null);
@@ -41,6 +46,7 @@ export default function SincronizarPartido({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ matchId }),
       });
+      if (res.status === 401) return irALogin();
       const data = (await res.json()) as SyncResponse;
       const resultado = data.results?.[0];
 

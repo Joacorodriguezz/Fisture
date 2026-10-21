@@ -8,10 +8,8 @@ import { createDb } from "../../lib/db";
 import { asc, eq } from "drizzle-orm";
 import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 
+// Página pública: sin sesión nadie "sigue" ningún equipo
 const user = Astro.locals.user;
-if (!user) {
-  return Astro.redirect("/login");
-}
 
 const { id } = Astro.params;
 if (!id) {
@@ -34,9 +32,11 @@ const equiposLiga = await db
   .orderBy(asc(teams.name));
 
 const seguidos = new Set(
-  (await db.select({ teamId: userTeams.teamId }).from(userTeams).where(eq(userTeams.userId, user.id))).map(
-    (r) => r.teamId
-  )
+  user
+    ? (await db.select({ teamId: userTeams.teamId }).from(userTeams).where(eq(userTeams.userId, user.id))).map(
+        (r) => r.teamId
+      )
+    : []
 );
 
 const items = equiposLiga.map((t) => ({
@@ -72,7 +72,7 @@ const cantidadSeguidos = items.filter((i) => i.siguiendo).length;
           No hay equipos cargados para esta liga. Se cargan automáticamente al sincronizar con la API.
         </div>
       ) : (
-        <FiltroEquipos client:load equipos={items} modo="navegar" placeholder="Filtrá por nombre" />
+        <FiltroEquipos client:visible equipos={items} modo="navegar" placeholder="Filtrá por nombre" />
       )}
     </div>
   </div>

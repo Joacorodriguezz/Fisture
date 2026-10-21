@@ -12,11 +12,10 @@ import { getTeamUpcomingMatches, getSyncStates } from "../../lib/db/queries";
 import { and, eq } from "drizzle-orm";
 import { leagues, teams, userTeams } from "../../../drizzle/schema";
 import { fechaCorta, hora } from "../../lib/format";
+import { loginHref } from "../../lib/auth/guards";
 
+// Página pública: seguir al equipo y el estado de sync solo aplican con sesión
 const user = Astro.locals.user;
-if (!user) {
-  return Astro.redirect("/login");
-}
 
 const { id } = Astro.params;
 if (!id) {
@@ -32,9 +31,11 @@ if (!team) {
 
 const liga = await db.query.leagues.findFirst({ where: eq(leagues.id, team.leagueId) });
 
-const seguimiento = await db.query.userTeams.findFirst({
-  where: and(eq(userTeams.userId, user.id), eq(userTeams.teamId, id)),
-});
+const seguimiento = user
+  ? await db.query.userTeams.findFirst({
+      where: and(eq(userTeams.userId, user.id), eq(userTeams.teamId, id)),
+    })
+  : undefined;
 
 const todos = await getTeamUpcomingMatches(db, id, 50);
 
@@ -48,7 +49,9 @@ const partidos = todos.filter((m) => {
   return true;
 });
 
-const estados = await getSyncStates(db, user.id, partidos.map((m) => m.match.id));
+const estados = user
+  ? await getSyncStates(db, user.id, partidos.map((m) => m.match.id))
+  : new Map<string, { status: string; errorMessage: string | null }>();
 
 const filtros = [
   { valor: "todos", label: "Todos" },
@@ -80,14 +83,15 @@ const filtros = [
         <Titular nivel="1">{team.name}</Titular>
         <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
           <SeguimientoEquipo
-            client:load
+            client:visible
+            anonimo={!user}
             teamId={team.id}
             nombre={team.name}
             siguiendo={!!seguimiento}
             autoSync={!!seguimiento?.autoSync}
           />
           {partidos.length > 0 && (
-            <Boton href={`/api/calendario/download?teamId=${team.id}`}>Descargar .ics</Boton>
+            <Boton href={user ? `/api/calendario/download?teamId=${team.id}` : loginHref(Astro.url.pathname + Astro.url.search)}>Descargar .ics</Boton>
           )}
         </div>
       </div>
@@ -135,7 +139,8 @@ const filtros = [
                 </div>
               </a>
               <SincronizarPartido
-                client:load
+                client:visible
+                anonimo={!user}
                 matchId={m.match.id}
                 status={estado?.status ?? null}
                 errorMessage={estado?.errorMessage ?? null}

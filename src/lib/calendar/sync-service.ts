@@ -1,7 +1,7 @@
 // Sincronización de partidos con el calendario del usuario (Google / Microsoft).
 // La usan la API (/api/calendario/*) y el cron diario (functions/scheduled.ts).
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { calendarSyncs, matches, users, userTeams } from "../../../drizzle/schema";
 import { getValidAccessToken } from "../auth/tokens";
 import type { Database } from "../db";
@@ -211,33 +211,25 @@ export async function removeMatchFromCalendar(
   await db.delete(calendarSyncs).where(eq(calendarSyncs.id, existing.id));
 }
 
-// Marca como needs_update los eventos cuyo partido cambió de fecha u hora
+// Marca como needs_update los eventos cuyo partido cambió de fecha u hora.
+// Dos UPDATE set-based en vez de uno por evento (antes: 1 SELECT + N UPDATE en cada vista de página).
 export async function markOutdatedEvents(db: Database, userId: string): Promise<number> {
-  const rows = await db
-    .select({ sync: calendarSyncs, dateTime: matches.dateTime })
-    .from(calendarSyncs)
-    .innerJoin(matches, eq(calendarSyncs.matchId, matches.id))
-    .where(and(eq(calendarSyncs.userId, userId), eq(calendarSyncs.status, "synced")));
+  const sincronizados = and(eq(calendarSyncs.userId, userId), eq(calendarSyncs.status, "synced"));
+  const fechaActual = sql`(SELECT ${matches.dateTime} FROM ${matches} WHERE ${matches.id} = ${calendarSyncs.matchId})`;
 
-  let outdated = 0;
-  for (const { sync, dateTime } of rows) {
-    // Eventos creados antes de guardar syncedDateTime: asumimos que están al día
-    if (!sync.syncedDateTime) {
-      await db
-        .update(calendarSyncs)
-        .set({ syncedDateTime: dateTime })
-        .where(eq(calendarSyncs.id, sync.id));
-      continue;
-    }
-    if (sync.syncedDateTime.getTime() !== dateTime.getTime()) {
-      await db
-        .update(calendarSyncs)
-        .set({ status: "needs_update" })
-        .where(eq(calendarSyncs.id, sync.id));
-      outdated++;
-    }
-  }
-  return outdated;
+  // Eventos creados antes de guardar syncedDateTime: asumimos que están al día
+  await db
+    .update(calendarSyncs)
+    .set({ syncedDateTime: fechaActual })
+    .where(and(sincronizados, isNull(calendarSyncs.syncedDateTime)));
+
+  const desactualizados = await db
+    .update(calendarSyncs)
+    .set({ status: "needs_update" })
+    .where(and(sincronizados, isNotNull(calendarSyncs.syncedDateTime), sql`${calendarSyncs.syncedDateTime} != ${fechaActual}`))
+    .returning({ id: calendarSyncs.id });
+
+  return desactualizados.length;
 }
 
 // Job diario: reconcilia eventos desactualizados y sincroniza los partidos pendientes
