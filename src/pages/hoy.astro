@@ -85,7 +85,7 @@ const enlaceFiltro = (mios: boolean) => `/hoy?fecha=${dia}${mios ? "&solo=mios" 
       </nav>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         <a href={enlaceFiltro(false)} aria-current={!soloMios ? "true" : undefined} class={!soloMios ? "tb-chip tb-chip--activo" : "tb-chip"}>Todos</a>
-        <a href={user ? enlaceFiltro(true) : loginHref(enlaceFiltro(true))} title={user ? undefined : "Iniciá sesión para ver tus equipos"} aria-current={soloMios ? "true" : undefined} class={soloMios ? "tb-chip tb-chip--activo" : "tb-chip"}>Mis equipos</a>
+        <a href={user ? enlaceFiltro(true) : loginHref(enlaceFiltro(true))} title={user ? undefined : "Iniciá sesión para ver tus equipos"} aria-current={soloMios ? "true" : undefined} class={soloMios ? "tb-chip tb-chip--activo" : "tb-chip"}>{user ? "Mis equipos" : "Mis equipos · con sesión"}</a>
       </div>
     </div>
 
@@ -93,7 +93,7 @@ const enlaceFiltro = (mios: boolean) => `/hoy?fecha=${dia}${mios ? "&solo=mios" 
       <Bajada>
         {partidos.length} {partidos.length === 1 ? "partido" : "partidos"}
         {user ? ` · ${enCalendario} en tu calendario` : " · Iniciá sesión para agregarlos a tu calendario."}
-        {user && sobran > 0 && ` · "Agregar todos" suma de a ${LOTE_MAXIMO}; quedan ${sobran} más para el próximo clic.`}
+        {user && sobran > 0 && ` · Se agregan ${LOTE_MAXIMO} por vez, quedan ${sobran}.`}
       </Bajada>
     )}
 
