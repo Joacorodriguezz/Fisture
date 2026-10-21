@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { esAccionable, syncView, toSyncStatus } from "../../src/lib/sync-ui";
+import { esAccionable, syncView, toSyncStatus } from "../../../src/lib/sync-ui";
 
 describe("estados de sincronización en la UI", () => {
   it("mapea los estados nuevos de la base", () => {

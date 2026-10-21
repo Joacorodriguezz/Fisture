@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createTestDb, type TestDb } from "../helpers/d1";
-import { clienteFalso, fila, getToken, insertarSync, sembrar, setMatch, T0 } from "../helpers/calendar";
-import { createDb, type Database } from "../../src/lib/db";
-import { reconcileCalendars } from "../../src/lib/calendar/sync-service";
-import { CalendarApiError } from "../../src/lib/calendar/errors";
+import { createTestDb, type TestDb } from "../../helpers/d1";
+import { clienteFalso, fila, getToken, insertarSync, sembrar, setMatch, T0 } from "../../helpers/calendar";
+import { createDb, type Database } from "../../../src/lib/db";
+import { reconcileCalendars } from "../../../src/lib/calendar/sync-service";
+import { CalendarApiError } from "../../../src/lib/calendar/errors";
 
 const AHORA = new Date((T0 - 86_400) * 1000);
 

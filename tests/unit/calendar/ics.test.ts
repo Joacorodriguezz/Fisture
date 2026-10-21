@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { generateICS } from "../../src/lib/calendar/ics";
-import { matchToIcsEvent } from "../../src/lib/calendar/ics-match";
+import { generateICS } from "../../../src/lib/calendar/ics";
+import { matchToIcsEvent } from "../../../src/lib/calendar/ics-match";
 
 const partido = (o: { status?: string; updatedAt?: Date | null; dateTime?: Date } = {}) =>
   matchToIcsEvent(

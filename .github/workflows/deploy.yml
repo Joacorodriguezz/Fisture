@@ -64,4 +64,4 @@ jobs:
         if: failure()
         run: |
           echo 'Release fallido. Revisar el paso que falló; si ya se desplegó, verificar producción y considerar rollback desde Cloudflare Pages.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'El rollback de código no revierte migraciones D1. Ver docs/11-testing-y-release.md.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'El rollback de código no revierte migraciones D1. Ver docs/13-testing-y-release.md.' >> "$GITHUB_STEP_SUMMARY"

@@ -38,4 +38,14 @@ No se ejecutan deploys ni migraciones remotas. La migración `0006` se verifica 
 
 ## Notas de implementación
 
-Pendientes de completar tras ejecutar la suite sobre el backend integrado.
+- Base efectiva: `origin/development` en `5f702de` (PR #17). Al verificar el estado remoto, `main` seguía en `d4113e9`; no se hizo merge, push ni deploy.
+- Se conservó la suite previa mediante un checkpoint local recuperable en `backup/suite-previa-backend` y se integró con rebase. Se preservaron los errores tipados, PATCH, snapshots e índice único del backend nuevo, junto con la corrección UTC de Outlook de la suite anterior.
+- Se movieron las regresiones del backend a `tests/unit/calendar`, `tests/integration/calendar` y `tests/unit/auth`. La selección de integración es el complemento de unitarias, auditada contra `vitest list --json` y los archivos reales.
+- Los tests entre capas usan un simulador HTTP en memoria: el servicio, los adaptadores y D1 son reales. Las reglas finas del dominio conservan el cliente inyectable de la PR.
+- Regresión detectada: `POST /api/calendario/sync` devolvía 500 con body `null` o tipos incorrectos. Se agregó validación de JSON/IDs con respuesta 400 y pruebas que exigen cero llamadas al proveedor y cero filas nuevas.
+- El helper D1 libera el runtime si una migración falla y aplica batches por migración para reducir el costo y las conexiones del setup. No se agregaron reintentos de Vitest para ocultar fallos.
+- Umbrales elevados: 90% líneas/statements/funciones y 85% branches en el grupo global; 95%/90% para calendarios. Reporte JUnit en CI, además de cobertura y trazas de navegador.
+- Resultados finales: `npm run check` pasa tanto en Node 24 local como en Node 22.23.3 con `CI=true`: 32 archivos, 133 tests unitarios, 132 de integración y 22 E2E (escritorio/móvil), sin reintentos necesarios. Typecheck sin errores, build correcto y workflows validados con actionlint 1.7.12.
+- Cobertura de los módulos incluidos: 95,26% de líneas, 93,42% de funciones; calendarios: 99,35% de líneas. Los umbrales globales y específicos pasan. El porcentaje de branches puede variar levemente entre las versiones de Node por la instrumentación V8; ambas ejecuciones superaron los mínimos.
+- La validación de modo CI fue local en Windows, no una ejecución remota de GitHub Actions. Los contratos con APIs reales siguen pendientes según el TDD de calendario. No se ejecutó `sync:check` porque usa ESPN real; la ingesta queda comprobada con fixtures sin red en integración.
+- Se volvió a verificar el descubrimiento después de excluir explícitamente `tests/e2e/**` de Vitest y reducir logs de tests exitosos. Ver guía operativa en `docs/13-testing-y-release.md`.

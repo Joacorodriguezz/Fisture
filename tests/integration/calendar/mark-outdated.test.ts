@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createTestDb, type TestDb } from "./helpers/d1";
-import { fila, insertarSync, sembrar, setMatch, T0 } from "./helpers/calendar";
-import { createDb, type Database } from "../src/lib/db";
-import { markOutdatedEvents } from "../src/lib/calendar/sync-service";
+import { createTestDb, type TestDb } from "../../helpers/d1";
+import { fila, insertarSync, sembrar, setMatch, T0 } from "../../helpers/calendar";
+import { createDb, type Database } from "../../../src/lib/db";
+import { markOutdatedEvents } from "../../../src/lib/calendar/sync-service";
 
 // "Ahora" fijo, un día antes de los partidos del test
 const AHORA = new Date((T0 - 86_400) * 1000);

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getClient, type MatchDetail } from "../../src/lib/calendar/clients";
-import { fistureEventId } from "../../src/lib/calendar/event-id";
+import { getClient, type MatchDetail } from "../../../src/lib/calendar/clients";
+import { fistureEventId } from "../../../src/lib/calendar/event-id";
 
 const fetchMock = vi.fn();
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });

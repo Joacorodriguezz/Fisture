@@ -56,13 +56,21 @@ try {
   ];
   const sessions = [];
   for (const project of ["desktop", "mobile"]) {
-    for (const scenario of ["follow", "preferences", "calendar", "logout", "navigation", "errors"]) {
+    for (const scenario of ["follow", "preferences", "calendar", "logout", "navigation", "errors", "calendar-states"]) {
       for (let retry = 0; retry <= 1; retry++) {
         const id = `${project}-${scenario}-${retry}`;
         sql.push(`INSERT INTO users (id, email, name, provider, provider_id) VALUES ('${id}', '${id}@example.test', 'Persona E2E', 'google', '${id}');`);
         sessions.push({ key: `session:e2e-${id}`, value: id });
-        if (["calendar", "navigation", "errors"].includes(scenario)) {
+        if (["calendar", "navigation", "errors", "calendar-states"].includes(scenario)) {
           sql.push(`INSERT INTO user_teams (id, user_id, team_id, auto_sync) VALUES ('follow-${id}', '${id}', 'river', 0);`);
+        }
+        if (scenario === "calendar-states") {
+          for (const state of ["detached", "cancelled", "synced"]) {
+            const matchId = `${id}-${state}`;
+            const matchState = state === "cancelled" ? "cancelled" : "scheduled";
+            sql.push(`INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, venue, status) VALUES ('${matchId}', '${matchId}', 'river', 'boca', 'e2e-league', ${kickoff}, 'Monumental', '${matchState}');`);
+            sql.push(`INSERT INTO calendar_syncs (id, user_id, match_id, provider, status, synced_date_time, synced_state, synced_venue) VALUES ('sync-${matchId}', '${id}', '${matchId}', 'google', '${state}', ${kickoff - 3600}, '${matchState}', 'Monumental');`);
+          }
         }
       }
     }

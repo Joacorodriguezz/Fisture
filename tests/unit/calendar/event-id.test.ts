@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fistureEventId } from "../../src/lib/calendar/event-id";
+import { fistureEventId } from "../../../src/lib/calendar/event-id";
 
 describe("fistureEventId", () => {
   it("es determinístico", async () => {

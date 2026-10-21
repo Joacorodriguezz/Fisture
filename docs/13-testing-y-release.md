@@ -1,4 +1,4 @@
-# Tests y aprobación de releases
+# Tests y aprobación de releases del backend actual
 
 La suite valida cada PR a `development` y `main`. El check obligatorio `build` agrega el resultado de todos los jobs: tipos, unitarias, integración con D1, cobertura y navegador. Un job fallido o cancelado impide que el check quede verde. No hay filtros de archivos ni tests omitidos en PRs de release.
 
@@ -17,6 +17,7 @@ Comandos individuales:
 | Comando | Qué verifica |
 | --- | --- |
 | `npm run typecheck` | Astro/TypeScript, incluyendo el esquema Drizzle |
+| `npm run test:discover` | Todos los archivos de test tienen casos y pertenecen exactamente a un proyecto |
 | `npm run test:unit` | Fechas argentinas, ICS, sesiones, contratos HTTP, adaptación ESPN, logging y smoke |
 | `npm run test:integration` | Migraciones, consultas y aislamiento de usuarios en D1, endpoints, tokens y sincronización |
 | `npm run test:coverage` | Ambas suites Vitest y umbrales de cobertura |
@@ -24,11 +25,13 @@ Comandos individuales:
 | `npm run test:e2e:ui` | Navegador de pruebas interactivo, requiere build previo |
 | `npm run test:smoke` | Consultas HTTP de solo lectura contra `PUBLIC_APP_URL` explícita |
 
-Los tests existentes de observabilidad se conservan. Los que mezclan funciones puras y D1 corren en el proyecto `integration`; logger y wrapper HTTP corren en `unit`.
+Los tests existentes de observabilidad se conservan. Los que mezclan funciones puras y D1 corren en el proyecto `integration`; logger y wrapper HTTP corren en `unit`. Las regresiones de la PR #17 se reorganizaron en `tests/unit/calendar` y `tests/integration/calendar`, y las de autenticación en `tests/unit/auth`. Se conserva el comportamiento del backend nuevo.
+
+Vitest selecciona `tests/unit/**/*.test.ts` como unitarios; los demás archivos `tests/**/*.test.ts` corresponden a integración, con la excepción explícita de logger/wrapper. Las selecciones son complementarias. `test:discover` compara los archivos del filesystem con la colección real de Vitest: falla por imports rotos, archivos vacíos, archivos omitidos, proyectos desconocidos o selección duplicada. `npm test`, `npm run check` y el CI ejecutan este control.
 
 ## Datos y dependencias externas
 
-Las pruebas de integración usan una D1 efímera por caso o suite. Las migraciones SQL reales se aplican desde cero. Las APIs externas se simulan en la frontera HTTP con fixtures y respuestas controladas; los tests verifican payloads, errores e idempotencia.
+Las pruebas de integración usan una D1 efímera por caso o suite. Las migraciones SQL reales se aplican desde cero, con batches por migración para reducir IPC y liberación del runtime si el setup falla. La migración `0006` también se comprueba desde el esquema anterior con duplicados sembrados. Las APIs externas se simulan en la frontera HTTP con fixtures y respuestas controladas; los tests verifican payloads, errores e idempotencia.
 
 El servidor E2E crea un directorio temporal propio con configuración, D1 y KV locales. Wrangler aplica migraciones, inserta partidos relativos a la fecha de ejecución y sesiones válidas en KV, verifica que reaplicar migraciones no borre los datos, y sirve `dist/`. No lee `wrangler.toml`, `.dev.vars` ni credenciales del proyecto para servir los E2E. El directorio se limpia al terminar normalmente. Una terminación forzada del árbol de procesos puede dejar un directorio `fisture-e2e-*` en el temporal del sistema.
 
@@ -36,22 +39,26 @@ Cada escenario, proyecto y reintento tiene su propio usuario y sesión. Las prue
 
 ## Flujos críticos
 
-- Páginas públicas y redirección a login de páginas protegidas.
+- Lectura pública de ligas/equipos/partidos/calendario; login con `next` seguro para acciones personales.
 - Buscar, seguir y dejar de seguir equipos; persistencia del auto-sync.
 - Preferencias, recordatorios y tema persistidos tras recargar.
 - Ligas, equipos, próximos partidos y detalle.
 - Descarga real de archivo ICS con eventos y recordatorios.
 - Logout que invalida la sesión en KV, incluso al intentar reutilizar la cookie.
-- Fallo de permisos de calendario visible y persistido para reintentar.
+- Fallo de permisos informado sin persistir un falso `failed` del partido (contrato actual de auth).
+- Sesiones inválidas eliminadas y APIs personales con JSON 401, sin redirecciones a HTML.
+- Estados reprogramado, `detached` y cancelado en las vistas reales.
 - Salud del worker y endpoints administrativos protegidos.
-- Integración: creación/actualización/eliminación de eventos en Google y Microsoft, reintentos, aislamiento entre usuarios y renovación de tokens.
+- Integración: creación/actualización/eliminación de eventos en Google y Microsoft, reintentos, requests concurrentes, aislamiento entre usuarios y renovación de tokens.
+- Conservar notas y recordatorios al actualizar; errores 401/429/503 no crean eventos nuevos.
+- Reconciliación sin auto-sync y respeto por eventos borrados a mano; títulos privados de solapamientos solo en la respuesta, nunca en logs ni D1.
 - Ingesta ESPN a D1: sin duplicados al repetir, cambios de horario y equipos compartidos entre competencias.
 
 ## Cobertura y resultados
 
-Los umbrales iniciales son 75% de líneas, statements y funciones y 65% de branches sobre el conjunto explícito de módulos en `vitest.config.ts`. Este porcentaje **no representa toda la aplicación**: prioriza fechas, sesiones/tokens, calendarios, consultas/preferencias, ingesta ESPN, observabilidad y APIs de equipos/preferencias/ICS. Nuevas funciones críticas deben incorporarse al conjunto y tener pruebas del comportamiento.
+Los umbrales son 90% de líneas, statements y funciones y 85% de branches sobre el conjunto explícito de módulos en `vitest.config.ts`. Calendarios tiene un presupuesto propio más exigente: 95% de líneas/statements/funciones y 90% de branches. Este porcentaje **no representa toda la aplicación**: prioriza fechas, acceso/sesiones/tokens, estados de UI, calendarios, consultas/preferencias, ingesta ESPN, observabilidad y APIs de equipos/preferencias/calendario. Nuevas funciones críticas deben incorporarse al conjunto y tener pruebas del comportamiento.
 
-GitHub conserva `coverage` y `playwright-report` por 14 días, incluyendo HTML, screenshots, videos y traces de fallos. `application` conserva por 7 días el build probado. Playwright reintenta una vez en CI con datos separados; los tests Vitest no tienen reintentos automáticos.
+GitHub conserva `coverage`, `vitest-results` (JUnit) y `playwright-report` por 14 días, incluyendo HTML, screenshots, videos y traces de fallos. `application` conserva por 7 días el build probado. Playwright reintenta una vez en CI con datos separados para diagnóstico, pero `failOnFlakyTests` impide aprobar un resultado inestable; los tests Vitest no tienen reintentos automáticos. Vitest y Playwright prohíben `.only` en CI para que un test focalizado no silencie la suite.
 
 ## Release a producción
 
@@ -75,6 +82,7 @@ Si falla un test previo, no se migra ni despliega. Si falla el smoke después de
 
 ## Referencias
 
+- Diseño de la adaptación: `docs/12-suite-backend-tdd.md`. Contrato de calendario: `docs/11-calendario-casos-borde-tdd.md`.
 - [Pages local development](https://developers.cloudflare.com/pages/functions/local-development/).
 - [Playwright web server](https://playwright.dev/docs/test-webserver).
 - [GitHub reusable workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows).

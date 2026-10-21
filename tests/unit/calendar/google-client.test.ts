@@ -6,8 +6,8 @@ import {
   listGoogleOverlaps,
   restoreGoogleCalendarEvent,
   updateGoogleCalendarEvent,
-} from "../../src/lib/calendar/google";
-import { CalendarApiError } from "../../src/lib/calendar/errors";
+} from "../../../src/lib/calendar/google";
+import { CalendarApiError } from "../../../src/lib/calendar/errors";
 
 const fetchMock = vi.fn();
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });

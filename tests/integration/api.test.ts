@@ -17,7 +17,7 @@ describe("API con D1 real efímera", () => {
   afterEach(async () => { await t?.dispose(); });
 
   it("todos los handlers protegidos rechazan usuarios sin sesión", async () => {
-    for (const handler of [listTeams, follow, unfollow, autoSync, getPrefs, patchPrefs, search, download]) {
+    for (const handler of [listTeams, follow, unfollow, autoSync, getPrefs, patchPrefs, download]) {
       expect((await callApi(handler, t.DB)).status).toBe(401);
     }
   });

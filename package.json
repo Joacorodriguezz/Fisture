@@ -15,8 +15,9 @@
     "cf:dev": "wrangler pages dev ./dist",
     "cf:deploy": "wrangler pages deploy ./dist",
     "sync:check": "node scripts/sync-check.mjs",
-    "test": "vitest run",
+    "test": "npm run test:discover && vitest run",
     "test:watch": "vitest",
+    "test:discover": "node scripts/check-test-discovery.mjs",
     "hooks:install": "git config core.hooksPath .githooks && git config commit.template .gitmessage",
     "typecheck": "astro check",
     "test:unit": "vitest run --project unit",
@@ -25,7 +26,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:smoke": "node scripts/production-smoke.mjs",
-    "check": "npm run typecheck && npm run test:coverage && npm run build && npm run test:e2e"
+    "check": "npm run typecheck && npm run test:discover && npm run test:coverage && npm run build && npm run test:e2e"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^12.0.0",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CalendarApiError, classifyCalendarError, throwIfNotOk } from "../../src/lib/calendar/errors";
+import { CalendarApiError, classifyCalendarError, throwIfNotOk } from "../../../src/lib/calendar/errors";
 
 const api = (status: number, reason?: string, retryAfter?: number) =>
   new CalendarApiError("x", status, { reason, retryAfter });

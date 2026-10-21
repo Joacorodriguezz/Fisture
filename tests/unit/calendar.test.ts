@@ -54,7 +54,7 @@ it("formatea Microsoft con UTC explícito y el aviso más anticipado", () => {
 });
 
 describe.each([
-  { provider: "Google", create: createGoogleCalendarEvent, update: updateGoogleCalendarEvent, remove: deleteGoogleCalendarEvent, method: "PUT", event: () => formatMatchForGoogle("A", "B", "L", new Date(), null, []) },
+  { provider: "Google", create: createGoogleCalendarEvent, update: updateGoogleCalendarEvent, remove: deleteGoogleCalendarEvent, method: "PATCH", event: () => formatMatchForGoogle("A", "B", "L", new Date(), null, []) },
   { provider: "Microsoft", create: createMicrosoftCalendarEvent, update: updateMicrosoftCalendarEvent, remove: deleteMicrosoftCalendarEvent, method: "PATCH", event: () => formatMatchForMicrosoft("A", "B", "L", new Date(), null, []) },
 ])("contrato HTTP de $provider", ({ create, update, remove, method, event }) => {
   it("envía método, autorización y payload", async () => {

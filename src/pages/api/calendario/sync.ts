@@ -18,11 +18,14 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
   const user = locals.user;
   if (!user) return json({ error: "Unauthorized" }, 401);
 
-  const body = await request.json().catch(() => ({}));
-  const { matchId, matchIds } = body as { matchId?: string; matchIds?: string[] };
-
-  const idsToSync: string[] = matchIds || (matchId ? [matchId] : []);
-  if (idsToSync.length === 0) {
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json({ error: "matchId or matchIds required" }, 400);
+  }
+  const { matchId, matchIds } = body as { matchId?: unknown; matchIds?: unknown };
+  const validId = (id: unknown): id is string => typeof id === "string" && id.trim().length > 0;
+  const idsToSync = matchIds !== undefined ? matchIds : validId(matchId) ? [matchId] : [];
+  if (!Array.isArray(idsToSync) || idsToSync.length === 0 || !idsToSync.every(validId)) {
     return json({ error: "matchId or matchIds required" }, 400);
   }
 
