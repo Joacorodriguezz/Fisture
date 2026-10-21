@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
+import { irALogin } from "../../lib/auth/client";
 
 interface Props {
   matchIds: string[];
   etiqueta: string;
   etiquetaCargando?: string;
   variante?: "primario" | "tinta" | "secundario";
+  // Visitante sin sesión: pide iniciar sesión en vez de sincronizar
+  anonimo?: boolean;
 }
 
 interface SyncResponse {
@@ -21,6 +24,7 @@ export default function SincronizarTodo({
   etiqueta,
   etiquetaCargando = "Sincronizando…",
   variante = "primario",
+  anonimo = false,
 }: Props) {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +44,7 @@ export default function SincronizarTodo({
   }, []);
 
   async function sincronizar() {
+    if (anonimo) return irALogin();
     if (cargando || matchIds.length === 0) return;
     setCargando(true);
     setError(null);
@@ -51,6 +56,7 @@ export default function SincronizarTodo({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ matchIds }),
       });
+      if (res.status === 401) return irALogin();
       if (!res.ok && res.status !== 207) throw new Error(`HTTP ${res.status}`);
 
       const data = (await res.json().catch(() => ({}))) as SyncResponse;
@@ -76,7 +82,7 @@ export default function SincronizarTodo({
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }} aria-live="polite">
       {resumen && <span style={{ font: "700 13px/16px var(--font-rotulo)", letterSpacing: ".04em", textTransform: "uppercase", color: "var(--celeste)" }}>✓ {resumen}</span>}
-      <button type="button" className={clase} disabled={cargando || matchIds.length === 0} onClick={sincronizar}>
+      <button type="button" className={clase} disabled={cargando || (!anonimo && matchIds.length === 0)} onClick={sincronizar}>
         {cargando ? etiquetaCargando : etiqueta}
       </button>
       {error && <span className="tb-error">{error}</span>}

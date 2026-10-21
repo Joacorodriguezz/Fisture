@@ -10,10 +10,8 @@ import { getMatchDetail, getSyncStates } from "../../lib/db/queries";
 import { getPreferences } from "../../lib/db/preferences";
 import { fechaCorta, fechaLarga, hora, horaFin, providerLabel } from "../../lib/format";
 
+// Página pública: el estado en el calendario y los avisos solo aplican con sesión
 const user = Astro.locals.user;
-if (!user) {
-  return Astro.redirect("/login");
-}
 
 const { id } = Astro.params;
 const db = createDb(Astro.locals.runtime.env.DB);
@@ -24,10 +22,10 @@ if (!detalle) {
 }
 
 const { match, homeTeam, awayTeam, league } = detalle;
-const estado = (await getSyncStates(db, user.id, [match.id])).get(match.id);
-const prefs = await getPreferences(db, user.id);
+const estado = user ? (await getSyncStates(db, user.id, [match.id])).get(match.id) : undefined;
+const prefs = user ? await getPreferences(db, user.id) : null;
 
-const avisos = [prefs.reminder60 && "1 hora", prefs.reminder15 && "15 minutos"].filter(Boolean);
+const avisos = prefs ? [prefs.reminder60 && "1 hora", prefs.reminder15 && "15 minutos"].filter(Boolean) : [];
 const avisosTxt = avisos.length ? `${avisos.join(" y ")} antes` : "Sin avisos";
 
 const venue = match.venue ?? "Sede a confirmar";
@@ -56,10 +54,11 @@ const fin = horaFin(match.dateTime);
             <div><b>Hora:</b> {hora(match.dateTime)} a {fin} hs (Buenos Aires)</div>
             <div><b>Estadio:</b> {venue}</div>
             <div><b>Torneo:</b> {league.name}{match.round ? ` · ${match.round}` : ""}</div>
-            <div><b>Avisos:</b> {avisosTxt}</div>
+            {user && <div><b>Avisos:</b> {avisosTxt}</div>}
           </div>
         </Recuadro>
 
+        {user && (
         <div style="display:flex;flex-direction:column;gap:8px">
           <span style="font:700 12px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-suave)">
             En tu {providerLabel(user.provider)}
@@ -71,9 +70,11 @@ const fin = horaFin(match.dateTime);
             </span>
           </div>
         </div>
+        )}
 
         <SincronizarPartido
           client:load
+          anonimo={!user}
           grande
           permitirQuitar
           matchId={match.id}

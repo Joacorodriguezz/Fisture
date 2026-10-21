@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { normalizar } from "./estilos";
+import { irALogin } from "../../lib/auth/client";
 
 export interface EquipoItem {
   id: string;
@@ -27,6 +28,8 @@ interface Props {
   modo: "navegar" | "seguir";
   placeholder?: string;
   ligaInicial?: string;
+  // Visitante sin sesión: seguir un equipo pide iniciar sesión
+  anonimo?: boolean;
 }
 
 function Escudo({ logo, nombre, sigla, size }: { logo: string | null; nombre: string; sigla: string | null; size: number }) {
@@ -54,7 +57,7 @@ function Escudo({ logo, nombre, sigla, size }: { logo: string | null; nombre: st
   );
 }
 
-export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Filtrá por nombre", ligaInicial = "" }: Props) {
+export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Filtrá por nombre", ligaInicial = "", anonimo = false }: Props) {
   const [consulta, setConsulta] = useState("");
   const [liga, setLiga] = useState(ligaInicial);
   const [seguidos, setSeguidos] = useState<Set<string>>(
@@ -71,6 +74,7 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
   }, [equipos, consulta, liga]);
 
   async function seguir(teamId: string) {
+    if (anonimo) return irALogin();
     setOcupado(teamId);
     setError(null);
     try {
@@ -79,6 +83,7 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ teamId }),
       });
+      if (res.status === 401) return irALogin();
       if (!res.ok && res.status !== 409) throw new Error("follow failed");
       setSeguidos((prev) => new Set(prev).add(teamId));
     } catch {

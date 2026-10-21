@@ -1,46 +1,37 @@
 import { defineMiddleware } from "astro:middleware";
 import { getSession } from "./lib/auth/session";
+import { decidirAcceso, loginHref } from "./lib/auth/guards";
 import { createDb } from "./lib/db";
 import { users } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
-const PUBLIC_PATHS = ["/", "/login", "/api/auth", "/api/admin", "/api/health", "/favicon.svg", "/privacidad", "/terminos"];
-
-function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(path + "/"));
-}
-
+// La web se navega sin sesión. El middleware solo carga el usuario (si hay) y aplica
+// las reglas de lib/auth/guards.ts a las pocas rutas que sí exigen cuenta.
 export const onRequest = defineMiddleware(
   async ({ locals, cookies, url, redirect }, next) => {
     const env = locals.runtime.env;
-    const isPublic = isPublicPath(url.pathname);
 
-    // Verificar session (también en rutas públicas, para saber si hay usuario logueado)
     const sessionId = cookies.get("session")?.value;
-    if (!sessionId) {
-      return isPublic ? next() : redirect("/login");
+    if (sessionId) {
+      const userId = await getSession(env.KV, sessionId);
+      const user = userId
+        ? await createDb(env.DB).query.users.findFirst({ where: eq(users.id, userId) })
+        : undefined;
+
+      if (user) {
+        locals.user = user;
+      } else {
+        cookies.delete("session", { path: "/" });
+      }
     }
 
-    const userId = await getSession(env.KV, sessionId);
-    if (!userId) {
-      cookies.delete("session", { path: "/" });
-      return isPublic ? next() : redirect("/login");
+    switch (decidirAcceso(url.pathname, !!locals.user)) {
+      case "login":
+        return redirect(loginHref(url.pathname + url.search));
+      case "no_autorizado":
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+      default:
+        return next();
     }
-
-    // Obtener usuario
-    const db = createDb(env.DB);
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
-
-    if (!user) {
-      cookies.delete("session", { path: "/" });
-      return isPublic ? next() : redirect("/login");
-    }
-
-    // Agregar usuario a locals
-    locals.user = user;
-
-    return next();
   }
 );

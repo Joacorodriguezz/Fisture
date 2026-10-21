@@ -2,8 +2,9 @@ import type { APIRoute } from "astro";
 import { generateState, generateCodeVerifier } from "arctic";
 import { createGoogleProvider, createMicrosoftProvider, isValidProvider } from "../../../../lib/auth/providers";
 import { withApi } from "../../../../lib/observability/with-api";
+import { safeNext } from "../../../../lib/auth/guards";
 
-export const GET: APIRoute = withApi(async ({ params, redirect, locals }) => {
+export const GET: APIRoute = withApi(async ({ params, url, redirect, locals }) => {
   const { provider } = params;
   const env = locals.runtime.env;
 
@@ -16,7 +17,7 @@ export const GET: APIRoute = withApi(async ({ params, redirect, locals }) => {
 
   await env.KV.put(
     `oauth:${state}`,
-    JSON.stringify({ codeVerifier, provider }),
+    JSON.stringify({ codeVerifier, provider, next: safeNext(url.searchParams.get("next")) }),
     { expirationTtl: 600 }
   );
 
