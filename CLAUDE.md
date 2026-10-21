@@ -79,6 +79,13 @@ Hook `commit-msg` (`.githooks/`) valida tipo, longitud, puntuación y línea en 
 - Migraciones D1, variables de entorno nuevas y breaking changes se declaran siempre en "Despliegue y riesgos".
 - Con `gh pr create`, pasar el cuerpo siguiendo la plantilla (`--body-file`) y terminar con la línea de atribución del entorno.
 
+## Calendario
+
+- Agregar un partido es idempotente (id determinístico en Google, etiqueta `fisture.matchId` en Microsoft, índice único `(user_id, match_id)`). Nunca se crea un evento nuevo ante un error transitorio (5xx, 429, red).
+- Estados de `calendar_syncs.status`: `pending`, `synced`, `needs_update`, `failed`, `detached` (el usuario borró el evento: el cron no lo recrea) y `cancelled` (partido cancelado, evento quitado).
+- El cron (`reconcileCalendars`) corrige los eventos desactualizados de todos los usuarios, tengan o no auto-sync. Se detecta cambio de hora, sede, postergado y cancelado.
+- Los títulos de eventos ajenos (aviso de solapamiento) no se loguean ni se guardan. Diseño completo: `docs/11-calendario-casos-borde-tdd.md`.
+
 ## Cambios grandes: TDD primero
 
 - Cada vez que el usuario pida un cambio grande (feature nueva, rediseño, refactor amplio, cambios de datos o de integraciones), lo primero que se entrega es un **TDD (Technical Design Document)**, no código.

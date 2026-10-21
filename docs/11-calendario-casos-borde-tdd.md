@@ -1,6 +1,6 @@
 # TDD: Casos borde del calendario (eventos existentes y reprogramaciones)
 
-> Technical Design Document. Estado: **propuesto** (nada implementado todavía). Fecha: 2026-10-21. Rama de implementación sugerida: `feat/calendario-casos-borde`, desde `development`.
+> Technical Design Document. Estado: **implementado** (pasos 1 a 9 completados en `feat/calendario-casos-borde`; el spike del paso 0 queda pendiente, ver §14). Fecha: 2026-10-21. Rama de implementación: `feat/calendario-casos-borde`, desde `development`.
 >
 > Este documento registra **qué problemas hay hoy, qué decidimos y por qué**. El código y los tests se escriben después, siguiendo el orden del §11.
 
@@ -101,7 +101,7 @@ Microsoft no permite elegir el id. Se manda `transactionId` (la API lo ofrece ju
 Es la red de seguridad de A2: aunque dos requests pasen la verificación a la vez, la segunda inserción no puede crear una fila duplicada. `saveState` pasa a `INSERT ... ON CONFLICT DO UPDATE`. La migración elimina antes los duplicados existentes (§7).
 
 **D3. Actualizar con `PATCH`, solo con los campos propios.**
-Google deja de usar `PUT`. Se envían `summary`, `start`, `end`, `location` y la descripción base. **No** se envían `reminders` en una reprogramación: son del usuario desde que se creó el evento (A5). Microsoft ya usa `PATCH`.
+Google deja de usar `PUT`. Se envían solo `summary`, `start`, `end` y `location`. **No** se envían `reminders` ni la descripción: son del usuario desde que se creó el evento (A5). Microsoft ya usa `PATCH`.
 
 **D4. Clasificación de errores en un solo lugar.**
 Los clientes lanzan `CalendarApiError { status, retryAfter? }` en vez de `Error` genérico. `classifyCalendarError` devuelve uno de:
@@ -169,7 +169,7 @@ Un evento "Cancelado" en el calendario sigue ocupando espacio y recordando al us
 No se sabe la fecha nueva, así que moverlo sería inventar un dato. El prefijo `[POSTERGADO]` avisa sin borrar. Cuando el proveedor publica la fecha nueva, B4 lo corrige.
 
 **D12. Reconciliación para todos los usuarios con eventos desactualizados (G7, G8).**
-`runCalendarAutoSync` pasa a ser `reconcileCalendars`:
+`runCalendarAutoSync` pasó a llamarse `reconcileCalendars`:
 1. `markOutdatedEvents` sin `userId` (una sola pasada set-based para todos). Se llama al terminar el sync de datos y no solo al ver una página.
 2. Candidatos: usuarios con `needs_update` **o** con auto-sync, ordenados por cantidad de `needs_update` descendente, con `ORDER BY` explícito y límite `CRON_MAX_USERS` (G8).
 3. Por usuario, primero los `needs_update`/`failed` y después las altas nuevas, dentro de `CRON_MATCHES_PER_USER`. Una corrección vale más que una alta.
@@ -361,6 +361,26 @@ Cada paso es un commit (Conventional Commits) en `feat/calendario-casos-borde`; 
 | Cambio manual de hora por el usuario | Se respeta hasta la próxima reprogramación real del partido; entonces FISTURE vuelve a escribir el horario (el partido manda sobre la hora) |
 | Cambio de proveedor del usuario | `calendar_syncs.provider` puede no coincidir con `user.provider` si se re-vincula con otra cuenta; fuera de alcance. Se registra y se trata como fila perdida (A3) |
 
-## 14. Notas de implementación
+## 14. Notas de implementación (desvíos respecto del diseño original)
 
-*(Se completa durante la implementación con los desvíos respecto de este diseño, igual que el §13 de `docs/10`. El resultado del spike del paso 0 va acá.)*
+- **Spike del paso 0 NO realizado.** No hubo acceso a cuentas reales de Google y Microsoft desde el entorno de implementación. Los clientes están probados contra respuestas simuladas (`fetch` falso), no contra las APIs. Antes de pasar a producción hay que confirmar a mano, con una cuenta de prueba de cada proveedor:
+  1. Google acepta crear con un `id` propio (`fa` + 40 hex) y responde `409` si se repite.
+  2. Un evento borrado (`cancelled`) con ese id se puede restaurar con `PATCH status: "confirmed"`.
+  3. Un `PATCH` sobre un evento borrado responde `404`/`410` y no `200`. Si respondiera `200`, un evento que el usuario borró se daría por actualizado y no pasaría a `detached` (A4). En ese caso hay que consultar el estado con `getGoogleCalendarEvent` antes de actualizar.
+  4. Graph filtra `/me/events` por `singleValueExtendedProperties/Any(...)` y acepta `transactionId` al crear.
+  Si alguno falla, se ajusta D1 y se anota acá.
+- **Prefijo prohibido en el id de Google:** el diseño decía `fx`, pero `x` queda fuera del alfabeto base32hex (`a-v`, `0-9`). El prefijo es `fa`.
+- **Costura `deps`:** `syncMatches(db, env, user, ids, { mode, deps })` recibe `deps.client` y `deps.getToken`; `removeMatchFromCalendar` recibe `deps` como último argumento. La interfaz del cliente y `getClient` viven ahora en `src/lib/calendar/clients.ts` (antes estaban dentro de `sync-service.ts`).
+- **`create` del cliente es el que adopta:** en lugar de que `syncMatches` maneje el `409`, `CalendarClient.create` es idempotente por dentro (Google: `409` → `GET` → restaurar o actualizar; Microsoft: buscar por la etiqueta antes de crear). `syncMatches` solo ve un id. La idempotencia se prueba en `tests/calendar/clients.test.ts`.
+- **Microsoft cuesta una llamada más al crear:** la búsqueda por la etiqueta se hace siempre antes de crear (+1 subrequest por alta, no por actualización).
+- **`transactionId` de Microsoft:** se usa el id determinístico recortado a 40 caracteres.
+- **Resultado de `syncMatches`:** `SyncResult` suma `code` (la clase del error) y `warnings`. Un corte por `auth` o `rate_limit` devuelve un resultado fallido para el partido que falló y para todos los que quedaban, sin guardar nada en la base.
+- **Agregar a mano un partido cancelado sin fila previa** devuelve error ("El partido está cancelado") y no crea fila.
+- **`markOutdatedEvents(db, userId?, now?)`:** el `userId` pasó a ser opcional (global) y se agregó `now` para poder probar el corte de partidos jugados. Además de rellenar `synced_date_time`, rellena `synced_state` en eventos anteriores a la migración. La sede `NULL` de una fila antigua **no** se rellena: si el partido recibe sede después, cuenta como cambio.
+- **`getAutoSyncMatchIds`** excluye ahora `detached` y `cancelled` además de `synced`.
+- **`reconcileCalendars(env, db, deps?, options?)`:** `options` permite `now`, `maxUsers` y `matchesPerUser` (los tests los usan; el cron usa los valores por defecto). Los `failed` también se reintentan (para cualquier usuario), como decía el §3.
+- **UI:** nuevo helper `esAccionable` en `sync-ui.ts`: los lotes ("sincronizar todo") solo intentan `none`, `needs_update` y `failed`. Antes, en `/hoy`, "pendientes" era todo lo que no fuera `synced`; con los estados nuevos habría resucitado los `detached`. El texto de `needs_update` pasó de "Cambió el horario" a "Reprogramado" porque ahora cubre sede y estado.
+- **`.ics`:** `ics-match.ts` (nuevo) arma el evento de un partido y reemplaza tres bloques duplicados de `download.ts`. El `SEQUENCE` son los segundos de `matches.updated_at`.
+- **Fuera de alcance, sin cambios:** `removeMatchFromCalendar` (el botón "Quitar") sigue propagando errores del proveedor como antes; el borrado ya toleraba `404`, ahora también `410` en Google.
+- **Migración `0006`:** probada con duplicados sembrados. `0005` no está en `MIGRACIONES` de `sync-check.mjs` (no estaba antes); `0006` hace `DROP INDEX IF EXISTS`, así que funciona con o sin ella.
+- **Verificación realizada:** `npm test` (202 tests, 20 archivos), `npm run build` y `npm run sync:check` pasan. No se probó contra Google ni Microsoft reales (ver el primer punto).
