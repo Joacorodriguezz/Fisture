@@ -19,4 +19,5 @@ jobs:
           curl --fail-with-body --silent --show-error \
             --max-time 120 --retry 2 --retry-delay 10 \
             -X POST "${APP_URL%/}/api/admin/sync" \
+            -H "Content-Type: application/json" \
             -H "Authorization: Bearer $ADMIN_SECRET"
