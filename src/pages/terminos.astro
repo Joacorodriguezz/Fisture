@@ -1,0 +1,94 @@
+---
+import Layout from "../layouts/Layout.astro";
+import LegalDoc from "../components/LegalDoc.astro";
+import { CONTACTO_EMAIL } from "../lib/legal";
+---
+
+<Layout title="Condiciones del Servicio - FISTURE" showNavbar={false}>
+  <LegalDoc
+    volanta="Legales"
+    titulo="CONDICIONES DEL SERVICIO"
+    bajada="Las reglas para usar Fisture. Son cortas y en castellano."
+  >
+    <p>
+      Al crear una cuenta o usar Fisture (<a href="/">fisture.pages.dev</a>) aceptás estas condiciones. Si no estás de
+      acuerdo, no uses el servicio. Cómo tratamos tus datos está en la
+      <a href="/privacidad">Política de Privacidad</a>.
+    </p>
+
+    <h2>1. Qué es Fisture</h2>
+    <p>
+      Fisture te permite elegir equipos de fútbol y agregar sus partidos a tu calendario de Google u Outlook, y
+      mantenerlos actualizados cuando cambia el horario. El servicio se ofrece de forma gratuita.
+    </p>
+
+    <h2>2. Tu cuenta</h2>
+    <ul>
+      <li>Iniciás sesión con tu cuenta de Google o Microsoft. Sos responsable de lo que pase con tu cuenta.</li>
+      <li>Tenés que tener al menos 13 años.</li>
+      <li>Nos das permiso para crear, actualizar y eliminar en tu calendario los eventos de los partidos que elijas.</li>
+    </ul>
+
+    <h2>3. Uso aceptable</h2>
+    <p>No podés:</p>
+    <ul>
+      <li>Usar el servicio para algo ilegal o para perjudicar a otras personas.</li>
+      <li>Intentar acceder a datos de otros usuarios o a áreas restringidas, ni vulnerar la seguridad del servicio.</li>
+      <li>
+        Sobrecargar el servicio con consultas automáticas, ni extraer sus datos de forma masiva (scraping).
+      </li>
+    </ul>
+
+    <h2>4. Los datos de partidos</h2>
+    <p>
+      Fechas, horarios, resultados y escudos provienen de fuentes de terceros y pueden tener errores o demoras. Los
+      horarios de los partidos los puede cambiar la organización en cualquier momento. Fisture hace lo posible por
+      actualizarlos, pero <b>no garantiza</b> que sean exactos: verificá siempre en la fuente oficial antes de
+      organizarte.
+    </p>
+
+    <h2>5. Disponibilidad</h2>
+    <p>
+      Ofrecemos el servicio "tal como está". Puede tener interrupciones, cambios o dejar de funcionar total o
+      parcialmente, con o sin aviso. No prometemos que la sincronización sea ininterrumpida ni libre de errores.
+    </p>
+
+    <h2>6. Propiedad intelectual</h2>
+    <p>
+      El diseño, el código y la marca Fisture pertenecen a su autor. Los nombres y escudos de equipos y competiciones
+      son marcas de sus respectivos titulares y se muestran solo con fines informativos. Fisture no tiene relación con
+      ellos.
+    </p>
+
+    <h2>7. Limitación de responsabilidad</h2>
+    <p>
+      En la medida que la ley lo permita, Fisture no responde por daños indirectos derivados del uso del servicio, como
+      un partido que te perdiste por un horario incorrecto o un evento que no se creó. Nuestra responsabilidad total
+      frente a vos se limita a lo que pagaste por el servicio, que es cero.
+    </p>
+
+    <h2>8. Terminar la relación</h2>
+    <p>
+      Podés dejar de usar Fisture cuando quieras: cerrá sesión, revocá el acceso a tu calendario y, si querés, pedinos
+      el borrado de tu cuenta (ver Política de Privacidad). Podemos suspender o cerrar cuentas que incumplan estas
+      condiciones.
+    </p>
+
+    <h2>9. Cambios</h2>
+    <p>
+      Podemos actualizar estas condiciones. Publicaremos la versión nueva acá con su fecha; si seguís usando Fisture
+      después, se entiende que la aceptás.
+    </p>
+
+    <h2>10. Ley aplicable</h2>
+    <p>
+      Estas condiciones se rigen por las leyes de la República Argentina. Cualquier conflicto se resolverá ante los
+      tribunales ordinarios competentes de ese país.
+    </p>
+
+    <h2>11. Contacto</h2>
+    <p>
+      Escribinos a <a href={`mailto:${CONTACTO_EMAIL}`}>{CONTACTO_EMAIL}</a>.
+    </p>
+  </LegalDoc>
+</Layout>

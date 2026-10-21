@@ -1,0 +1,62 @@
+---
+// LegalDoc.astro: contenedor de texto legal (privacidad, términos) con la tipografía de la identidad
+import Volanta from "./tribuna/Volanta.astro";
+import Titular from "./tribuna/Titular.astro";
+import Bajada from "./tribuna/Bajada.astro";
+import { LEGAL_ACTUALIZADO } from "../lib/legal";
+
+interface Props {
+  volanta: string;
+  titulo: string;
+  bajada: string;
+}
+
+const { volanta, titulo, bajada } = Astro.props;
+---
+
+<article class="tb-legal">
+  <a href="/" class="tb-volver">← Volver</a>
+  <Volanta tono="tinta">{volanta}</Volanta>
+  <Titular nivel="1">{titulo}</Titular>
+  <Bajada>{bajada}</Bajada>
+  <p class="tb-legal__fecha">Última actualización: {LEGAL_ACTUALIZADO}</p>
+  <div class="tb-legal__cuerpo"><slot /></div>
+</article>
+
+<style is:global>
+  .tb-legal {
+    max-width: 720px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px 0;
+  }
+  .tb-legal__fecha {
+    font: 600 13px/16px var(--font-rotulo);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+  }
+  .tb-legal__cuerpo {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    font: 400 17px/1.6 var(--font-texto);
+  }
+  .tb-legal__cuerpo h2 {
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 2px solid var(--tinta);
+    font: 700 22px/1.1 var(--font-rotulo);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .tb-legal__cuerpo ul {
+    padding-left: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    list-style: square;
+  }
+</style>
