@@ -2,7 +2,7 @@
 // La usan la API (/api/calendario/*) y el cron diario (functions/scheduled.ts).
 // Diseño y decisiones: docs/11-calendario-casos-borde-tdd.md
 
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { calendarSyncs, matches, users, userTeams } from "../../../drizzle/schema";
 import { getValidAccessToken } from "../auth/tokens";
 import type { Database } from "../db";
@@ -274,50 +274,145 @@ export async function removeMatchFromCalendar(
   await db.delete(calendarSyncs).where(eq(calendarSyncs.id, existing.id));
 }
 
-// Marca como needs_update los eventos cuyo partido cambió de fecha u hora.
-// Dos UPDATE set-based en vez de uno por evento (antes: 1 SELECT + N UPDATE en cada vista de página).
-export async function markOutdatedEvents(db: Database, userId: string): Promise<number> {
-  const sincronizados = and(eq(calendarSyncs.userId, userId), eq(calendarSyncs.status, "synced"));
-  const fechaActual = sql`(SELECT ${matches.dateTime} FROM ${matches} WHERE ${matches.id} = ${calendarSyncs.matchId})`;
+// Un partido que empezó hace más de esto se considera jugado: no se corrige su evento (D9)
+const HORAS_PARTIDO_JUGADO = 3;
 
-  // Eventos creados antes de guardar syncedDateTime: asumimos que están al día
+// Marca como needs_update los eventos que quedaron desactualizados respecto del partido: cambió la
+// fecha u hora, la sede, o pasó a postergado/cancelado (o volvió de cancelado). Sin userId procesa a
+// todos los usuarios. Pocos UPDATE set-based, sin importar cuántos eventos haya.
+export async function markOutdatedEvents(db: Database, userId?: string, now: Date = new Date()): Promise<number> {
+  const delUsuario = userId ? eq(calendarSyncs.userId, userId) : undefined;
+  const sincronizados = and(delUsuario, eq(calendarSyncs.status, "synced"));
+
+  const partido = (columna: unknown) =>
+    sql`(SELECT ${columna} FROM ${matches} WHERE ${matches.id} = ${calendarSyncs.matchId})`;
+  const fechaActual = partido(matches.dateTime);
+  const sedeActual = partido(sql`NULLIF(${matches.venue}, '')`);
+  // live y finished no cambian lo que se ve en el calendario: cuentan como scheduled
+  const estadoActual = partido(
+    sql`CASE WHEN ${matches.status} IN ('postponed','cancelled') THEN ${matches.status} ELSE 'scheduled' END`
+  );
+
+  // Eventos creados antes de guardar la fecha o el estado: asumimos que están al día
   await db
     .update(calendarSyncs)
     .set({ syncedDateTime: fechaActual })
     .where(and(sincronizados, isNull(calendarSyncs.syncedDateTime)));
+  await db
+    .update(calendarSyncs)
+    .set({ syncedState: estadoActual })
+    .where(and(sincronizados, isNull(calendarSyncs.syncedState)));
 
+  // Solo partidos que no se jugaron todavía (D9)
+  const limiteJugado = Math.floor(now.getTime() / 1000) - HORAS_PARTIDO_JUGADO * 3600;
+  const sinJugar = sql`${fechaActual} >= ${limiteJugado}`;
+
+  // IS NOT compara bien los NULL (sede vacía)
   const desactualizados = await db
     .update(calendarSyncs)
     .set({ status: "needs_update" })
-    .where(and(sincronizados, isNotNull(calendarSyncs.syncedDateTime), sql`${calendarSyncs.syncedDateTime} != ${fechaActual}`))
+    .where(
+      and(
+        sincronizados,
+        sinJugar,
+        sql`(${calendarSyncs.syncedDateTime} IS NOT ${fechaActual}
+          OR ${calendarSyncs.syncedState} IS NOT ${estadoActual}
+          OR ${calendarSyncs.syncedVenue} IS NOT ${sedeActual})`
+      )
+    )
     .returning({ id: calendarSyncs.id });
 
-  return desactualizados.length;
+  // Un partido cancelado que vuelve a jugarse: hay que crear el evento de nuevo (B6)
+  const revividos = await db
+    .update(calendarSyncs)
+    .set({ status: "needs_update" })
+    .where(
+      and(delUsuario, eq(calendarSyncs.status, "cancelled"), sinJugar, sql`${estadoActual} != 'cancelled'`)
+    )
+    .returning({ id: calendarSyncs.id });
+
+  return desactualizados.length + revividos.length;
 }
 
-// Job diario: reconcilia eventos desactualizados y sincroniza los partidos pendientes
-export async function runCalendarAutoSync(env: Env, db: Database): Promise<void> {
-  // Usuarios con al menos un equipo con auto-sync activado
-  const candidates = await db
+export interface ReconcileOptions {
+  now?: Date;
+  maxUsers?: number;
+  matchesPerUser?: number;
+}
+
+// Partidos que hay que corregir o reintentar de un usuario, los más próximos primero
+async function pendingMatchIds(db: Database, userId: string, now: Date, limit: number): Promise<string[]> {
+  const limiteJugado = new Date(now.getTime() - HORAS_PARTIDO_JUGADO * 3600 * 1000);
+  const rows = await db
+    .select({ matchId: calendarSyncs.matchId })
+    .from(calendarSyncs)
+    .innerJoin(matches, eq(matches.id, calendarSyncs.matchId))
+    .where(
+      and(
+        eq(calendarSyncs.userId, userId),
+        inArray(calendarSyncs.status, ["needs_update", "failed"]),
+        gte(matches.dateTime, limiteJugado)
+      )
+    )
+    .orderBy(asc(matches.dateTime))
+    .limit(limit);
+  return rows.map((r) => r.matchId);
+}
+
+// Usuarios a atender: los que tienen eventos para corregir y los que tienen auto-sync, empezando por
+// los que más pendientes tienen (así nadie queda sin atender para siempre cuando hay más usuarios que el límite).
+async function reconcileCandidates(db: Database, now: Date, maxUsers: number): Promise<string[]> {
+  const limiteJugado = new Date(now.getTime() - HORAS_PARTIDO_JUGADO * 3600 * 1000);
+  const pendientes = await db
+    .select({ userId: calendarSyncs.userId, n: sql<number>`count(*)` })
+    .from(calendarSyncs)
+    .innerJoin(matches, eq(matches.id, calendarSyncs.matchId))
+    .where(and(inArray(calendarSyncs.status, ["needs_update", "failed"]), gte(matches.dateTime, limiteJugado)))
+    .groupBy(calendarSyncs.userId);
+  const conAutoSync = await db
     .selectDistinct({ userId: userTeams.userId })
     .from(userTeams)
-    .where(eq(userTeams.autoSync, true))
-    .limit(CRON_MAX_USERS);
+    .where(eq(userTeams.autoSync, true));
 
-  for (const { userId } of candidates) {
+  const cantidad = new Map<string, number>();
+  for (const { userId } of conAutoSync) cantidad.set(userId, 0);
+  for (const { userId, n } of pendientes) cantidad.set(userId, Number(n));
+
+  return [...cantidad.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, maxUsers)
+    .map(([userId]) => userId);
+}
+
+// Job diario: detecta los eventos desactualizados de todos los usuarios, los corrige y da de alta
+// los partidos pendientes de los equipos con auto-sync (D12).
+export async function reconcileCalendars(
+  env: Env,
+  db: Database,
+  deps?: SyncDeps,
+  options: ReconcileOptions = {}
+): Promise<void> {
+  const now = options.now ?? new Date();
+  const perUser = options.matchesPerUser ?? CRON_MATCHES_PER_USER;
+
+  await markOutdatedEvents(db, undefined, now);
+
+  for (const userId of await reconcileCandidates(db, now, options.maxUsers ?? CRON_MAX_USERS)) {
     try {
       const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
       if (!user) continue;
 
-      await markOutdatedEvents(db, user.id);
-      const ids = await getAutoSyncMatchIds(db, user.id, CRON_MATCHES_PER_USER);
+      // Primero las correcciones: valen más que las altas nuevas
+      const pendientes = await pendingMatchIds(db, user.id, now, perUser);
+      const nuevos = await getAutoSyncMatchIds(db, user.id, perUser);
+      const ids = [...new Set([...pendientes, ...nuevos])].slice(0, perUser);
       if (ids.length === 0) continue;
 
-      const results = await syncMatches(db, env, user, ids, { mode: "auto" });
+      const results = await syncMatches(db, env, user, ids, { mode: "auto", deps });
       const ok = results.filter((r) => r.success).length;
-      rootLogger.info("calendar_autosync_user", { provider: user.provider, ok, total: results.length });
+      rootLogger.info("calendar_reconcile_user", { provider: user.provider, ok, total: results.length });
     } catch (error) {
-      rootLogger.error("calendar_autosync_user_failed", { userId, err: error });
+      rootLogger.error("calendar_reconcile_user_failed", { userId, err: error });
     }
   }
 }
