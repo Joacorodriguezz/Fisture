@@ -118,8 +118,8 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
     )}
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:0;background:var(--celeste-claro);border:2px solid var(--celeste)">
-      {stats.map((s) => (
-        <div style="padding:20px 16px;border-right:1px solid var(--linea);display:flex;flex-direction:column;gap:6px">
+      {stats.map((s, i) => (
+        <div style={`padding:20px 16px;border-right:${i < stats.length - 1 ? "1px solid var(--linea)" : "0"};display:flex;flex-direction:column;gap:6px`}>
           <span style={`font:400 64px/.92 var(--font-titular);color:${s.color}`}>{s.n}</span>
           <span style="font:700 14px/18px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase">{s.label}</span>
           <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">{s.detalle}</span>
@@ -139,7 +139,7 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
           return (
             <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:14px 12px;border-bottom:1px solid var(--linea)">
               <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px">
-                <span style="font:700 12px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-suave)">
+                <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-suave)">
                   {m.league.name} · {fechaCorta(m.match.dateTime)} {hora(m.match.dateTime)}
                 </span>
                 <a href={`/partidos/${m.match.id}`} style="font:700 17px/20px var(--font-rotulo);text-transform:uppercase;color:var(--tinta);text-decoration:none">
