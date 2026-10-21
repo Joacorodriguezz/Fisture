@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, primaryKey } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ============================================
@@ -165,16 +165,19 @@ export const calendarSyncs = sqliteTable(
       .references(() => matches.id, { onDelete: "cascade" }),
     provider: text("provider").notNull(), // 'google' | 'microsoft' | 'apple'
     externalEventId: text("external_event_id"),
-    status: text("status").default("pending"), // pending, synced, needs_update, failed
+    status: text("status").default("pending"), // pending, synced, needs_update, failed, detached, cancelled
     lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
     // Fecha/hora del partido con la que se creó el evento. Si cambia en
     // `matches`, el evento quedó desactualizado (status needs_update).
     syncedDateTime: integer("synced_date_time", { mode: "timestamp" }),
+    // Estado relevante ('scheduled' | 'postponed' | 'cancelled') y sede con los que se creó el evento
+    syncedState: text("synced_state"),
+    syncedVenue: text("synced_venue"),
     errorMessage: text("error_message"),
   },
   (table) => [
     index("idx_calendar_syncs_status").on(table.status),
-    index("idx_calendar_syncs_user_match").on(table.userId, table.matchId),
+    uniqueIndex("uq_calendar_syncs_user_match").on(table.userId, table.matchId),
   ]
 );
 
