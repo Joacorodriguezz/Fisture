@@ -104,7 +104,7 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
         {proximos.length > 0 && <Boton href="/api/calendario/download?all=true">Descargar .ics</Boton>}
-        <SincronizarTodo client:load matchIds={lote} etiqueta={lote.length > 0 ? `Sincronizar ahora (${lote.length})` : "Sincronizar ahora"} etiquetaCargando="Sincronizando…" />
+        <SincronizarTodo client:visible matchIds={lote} etiqueta={lote.length > 0 ? `Sincronizar ahora (${lote.length})` : "Sincronizar ahora"} etiquetaCargando="Sincronizando…" />
       </div>
     </div>
 
@@ -147,7 +147,7 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
                 </a>
               </div>
               <SincronizarPartido
-                client:load
+                client:visible
                 matchId={m.match.id}
                 status={estado}
                 errorMessage={registro?.errorMessage ?? null}

@@ -68,7 +68,7 @@ const items = todosLosEquipos
       </p>
     ) : (
       <FiltroEquipos
-        client:load
+        client:visible
         anonimo={!user}
         equipos={items}
         ligas={todasLasLigas.map((l) => ({ id: l.id, nombre: l.name }))}
