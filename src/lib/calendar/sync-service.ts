@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { calendarSyncs, matches, users, userTeams } from "../../../drizzle/schema";
 import { getValidAccessToken } from "../auth/tokens";
 import type { Database } from "../db";
+import { rootLogger } from "../observability/logger";
 import { getMatchDetail, getAutoSyncMatchIds } from "../db/queries";
 import { getPreferences, reminderMinutes, type Preferences } from "../db/preferences";
 import {
@@ -176,7 +177,7 @@ export async function syncMatches(
       results.push({ matchId, success: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error desconocido";
-      console.error(`[CALENDAR] Sync error for match ${matchId}:`, message);
+      rootLogger.error("calendar_match_sync_failed", { matchId, message });
 
       await saveState(db, user.id, user.provider, matchId, {
         status: "failed",
@@ -259,9 +260,9 @@ export async function runCalendarAutoSync(env: Env, db: Database): Promise<void>
 
       const results = await syncMatches(db, env, user, ids);
       const ok = results.filter((r) => r.success).length;
-      console.log(`[CRON] Calendar ${user.provider}: ${ok}/${results.length} partidos sincronizados`);
+      rootLogger.info("calendar_autosync_user", { provider: user.provider, ok, total: results.length });
     } catch (error) {
-      console.error(`[CRON] Calendar sync failed for user ${userId}:`, error);
+      rootLogger.error("calendar_autosync_user_failed", { userId, err: error });
     }
   }
 }

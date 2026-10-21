@@ -1,0 +1,178 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createTestDb, type TestDb } from "../helpers/d1";
+import { createDb, type Database } from "../../src/lib/db";
+import { failSyncRun, finishSyncRun, startSyncRun } from "../../src/lib/observability/sync-runs";
+import {
+  evaluateSyncHealth,
+  getHealth,
+  overallStatus,
+  RUN_HUNG_AFTER_MS,
+  SYNC_DEGRADED_MAX_AGE_MS,
+  SYNC_OK_MAX_AGE_MS,
+} from "../../src/lib/observability/health";
+import { GET as healthGET } from "../../src/pages/api/health";
+import { GET as statusGET } from "../../src/pages/api/admin/status";
+
+const H = 3_600_000;
+const NOW = 1_800_000_000_000;
+
+describe("evaluateSyncHealth (puro)", () => {
+  const ok = { status: "success" as const, startedAt: NOW - 2 * H, finishedAt: NOW - 2 * H + 1000 };
+
+  it("sin runs: fail (puede ser un cron que nunca corrió)", () => {
+    expect(evaluateSyncHealth({ latest: null, lastSuccessAt: null, now: NOW })).toBe("fail");
+  });
+  it("success reciente: ok", () => {
+    expect(evaluateSyncHealth({ latest: ok, lastSuccessAt: ok.finishedAt, now: NOW })).toBe("ok");
+  });
+  it("success justo en el límite de 26 h: ok; pasado el límite: degraded", () => {
+    const borde = { ...ok, finishedAt: NOW - SYNC_OK_MAX_AGE_MS };
+    expect(evaluateSyncHealth({ latest: borde, lastSuccessAt: borde.finishedAt, now: NOW })).toBe("ok");
+    expect(evaluateSyncHealth({ latest: borde, lastSuccessAt: borde.finishedAt - 1, now: NOW })).toBe("degraded");
+  });
+  it("success entre 26 h y 50 h: degraded; más de 50 h: fail", () => {
+    const a = NOW - 30 * H;
+    expect(evaluateSyncHealth({ latest: { ...ok, finishedAt: a }, lastSuccessAt: a, now: NOW })).toBe("degraded");
+    const b = NOW - SYNC_DEGRADED_MAX_AGE_MS - 1;
+    expect(evaluateSyncHealth({ latest: { ...ok, finishedAt: b }, lastSuccessAt: b, now: NOW })).toBe("fail");
+  });
+  it("último run failed: fail aunque haya un success reciente", () => {
+    const failed = { status: "failed" as const, startedAt: NOW - H, finishedAt: NOW - H };
+    expect(evaluateSyncHealth({ latest: failed, lastSuccessAt: NOW - 2 * H, now: NOW })).toBe("fail");
+  });
+  it("último run partial reciente: degraded; partial de hace más de 50 h: fail", () => {
+    const p = { status: "partial" as const, startedAt: NOW - H, finishedAt: NOW - H };
+    expect(evaluateSyncHealth({ latest: p, lastSuccessAt: null, now: NOW })).toBe("degraded");
+    const viejo = { ...p, finishedAt: NOW - SYNC_DEGRADED_MAX_AGE_MS - 1 };
+    expect(evaluateSyncHealth({ latest: viejo, lastSuccessAt: null, now: NOW })).toBe("fail");
+  });
+  it("run running colgado (más de 10 min): fail", () => {
+    const colgado = { status: "running" as const, startedAt: NOW - RUN_HUNG_AFTER_MS - 1, finishedAt: null };
+    expect(evaluateSyncHealth({ latest: colgado, lastSuccessAt: NOW - H, now: NOW })).toBe("fail");
+  });
+  it("run running reciente: se juzga por el último success (o degraded si no hay)", () => {
+    const corriendo = { status: "running" as const, startedAt: NOW - 60_000, finishedAt: null };
+    expect(evaluateSyncHealth({ latest: corriendo, lastSuccessAt: NOW - H, now: NOW })).toBe("ok");
+    expect(evaluateSyncHealth({ latest: corriendo, lastSuccessAt: null, now: NOW })).toBe("degraded");
+  });
+});
+
+describe("overallStatus", () => {
+  it("fail > degraded > ok", () => {
+    expect(overallStatus({ db: "ok", kv: "ok", sync: "ok" })).toBe("ok");
+    expect(overallStatus({ db: "ok", kv: "ok", sync: "degraded" })).toBe("degraded");
+    expect(overallStatus({ db: "ok", kv: "fail", sync: "degraded" })).toBe("fail");
+  });
+});
+
+describe("getHealth y endpoints (D1)", () => {
+  let t: TestDb;
+  let db: Database;
+  const kvOk = { get: async () => null } as any;
+  const kvRoto = {
+    get: async () => {
+      throw new Error("KV caído");
+    },
+  } as any;
+
+  const ctxHealth = (env: any) =>
+    ({
+      request: new Request("https://fisture.test/api/health"),
+      url: new URL("https://fisture.test/api/health"),
+      locals: { runtime: { env } },
+    }) as any;
+
+  const ctxStatus = (env: any, auth?: string) =>
+    ({
+      request: new Request("https://fisture.test/api/admin/status", { headers: auth ? { Authorization: auth } : {} }),
+      url: new URL("https://fisture.test/api/admin/status"),
+      locals: { runtime: { env } },
+    }) as any;
+
+  beforeAll(async () => {
+    t = await createTestDb();
+    db = createDb(t.DB);
+  });
+  afterAll(async () => {
+    await t.dispose();
+  });
+  beforeEach(async () => {
+    await t.DB.prepare("DELETE FROM sync_runs").run();
+  });
+
+  const syncExitoso = async (cuando: number) => {
+    const id = await startSyncRun(db, "cron", cuando);
+    await finishSyncRun(db, id, { results: [], issues: [] }, cuando + 1000);
+  };
+
+  it("getHealth ok con un sync reciente", async () => {
+    await syncExitoso(Date.now() - H);
+    const h = await getHealth({ DB: t.DB, KV: kvOk });
+    expect(h.status).toBe("ok");
+    expect(h.checks).toEqual({ db: "ok", kv: "ok", sync: "ok" });
+    expect(h.lastSyncAt).toBeTruthy();
+  });
+
+  it("getHealth: KV roto => fail en kv", async () => {
+    await syncExitoso(Date.now() - H);
+    const h = await getHealth({ DB: t.DB, KV: kvRoto });
+    expect(h.checks.kv).toBe("fail");
+    expect(h.status).toBe("fail");
+  });
+
+  it("getHealth: D1 rota => db y sync en fail", async () => {
+    const dbRota = {
+      prepare: () => {
+        throw new Error("D1 caída");
+      },
+    } as any;
+    const h = await getHealth({ DB: dbRota, KV: kvOk });
+    expect(h.checks.db).toBe("fail");
+    expect(h.checks.sync).toBe("fail");
+    expect(h.status).toBe("fail");
+  });
+
+  it("GET /api/health: 200 con base sana", async () => {
+    await syncExitoso(Date.now() - H);
+    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk }));
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).status).toBe("ok");
+  });
+
+  it("GET /api/health: 503 si el sync está en fail (sin runs)", async () => {
+    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk }));
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as any).checks.sync).toBe("fail");
+  });
+
+  it("GET /api/health no expone detalles internos", async () => {
+    const id = await startSyncRun(db, "cron", Date.now() - H);
+    await failSyncRun(db, id, new Error("clave secreta de ESPN: abc"), Date.now());
+    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk }));
+    const texto = JSON.stringify(await res.json());
+    expect(texto).not.toContain("abc");
+    expect(texto).not.toContain("error");
+  });
+
+  it("GET /api/admin/status: 401 sin token o con token incorrecto", async () => {
+    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3" };
+    expect((await statusGET(ctxStatus(env))).status).toBe(401);
+    expect((await statusGET(ctxStatus(env, "Bearer otro"))).status).toBe(401);
+  });
+
+  it("GET /api/admin/status: 401 si no hay ADMIN_SECRET configurado", async () => {
+    expect((await statusGET(ctxStatus({ DB: t.DB, KV: kvOk }, "Bearer undefined"))).status).toBe(401);
+  });
+
+  it("GET /api/admin/status: 200 con token y devuelve los runs", async () => {
+    await syncExitoso(Date.now() - H);
+    await syncExitoso(Date.now() - 2 * H);
+    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3" };
+    const res = await statusGET(ctxStatus(env, "Bearer s3"));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.runs).toHaveLength(2);
+    expect(body.runs[0]).toMatchObject({ status: "success", trigger: "cron" });
+    expect(body.health.status).toBe("ok");
+  });
+});

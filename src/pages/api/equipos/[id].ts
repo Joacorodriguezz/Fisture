@@ -2,8 +2,9 @@ import type { APIRoute } from "astro";
 import { createDb } from "../../../lib/db";
 import { userTeams } from "../../../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
+import { withApi } from "../../../lib/observability/with-api";
 
-export const DELETE: APIRoute = async ({ params, locals }) => {
+export const DELETE: APIRoute = withApi(async ({ params, locals }) => {
   const user = locals.user;
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -42,9 +43,9 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
   return new Response(JSON.stringify({ success: true }), {
     headers: { "Content-Type": "application/json" },
   });
-};
+});
 
-export const PATCH: APIRoute = async ({ params, request, locals }) => {
+export const PATCH: APIRoute = withApi(async ({ params, request, locals }) => {
   const user = locals.user;
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -82,4 +83,4 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
   return new Response(JSON.stringify(updated), {
     headers: { "Content-Type": "application/json" },
   });
-};
+});

@@ -1,8 +1,9 @@
 import type { APIRoute } from "astro";
 import { generateState, generateCodeVerifier } from "arctic";
 import { createGoogleProvider, createMicrosoftProvider, isValidProvider } from "../../../../lib/auth/providers";
+import { withApi } from "../../../../lib/observability/with-api";
 
-export const GET: APIRoute = async ({ params, redirect, locals }) => {
+export const GET: APIRoute = withApi(async ({ params, redirect, locals }) => {
   const { provider } = params;
   const env = locals.runtime.env;
 
@@ -43,4 +44,4 @@ export const GET: APIRoute = async ({ params, redirect, locals }) => {
   }
 
   return redirect(authUrl.toString());
-};
+});

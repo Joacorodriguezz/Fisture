@@ -19,9 +19,13 @@ id = "8a9fc92ed9774806833736d1bec711bb"
 # binding = "R2"
 # bucket_name = "fisture-assets"
 
-# Cron job diario para sync de partidos
-[triggers]
-crons = ["0 9 * * *"]  # 9:00 UTC = 6:00 Argentina
+# Pages no soporta Cron Triggers: el sync diario lo dispara
+# .github/workflows/sync-cron.yml (POST /api/admin/sync).
 
 [vars]
-ENVIRONMENT = "development"
+ENVIRONMENT = "production"
+PUBLIC_APP_URL = "https://fisture.pages.dev"
+
+# Logs y excepciones en el dashboard de Cloudflare (y `wrangler pages deployment tail`)
+[observability]
+enabled = true

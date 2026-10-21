@@ -211,3 +211,27 @@ export type CalendarSync = typeof calendarSyncs.$inferSelect;
 export type NewCalendarSync = typeof calendarSyncs.$inferInsert;
 
 export type UserPreferences = typeof userPreferences.$inferSelect;
+
+// ============================================
+// OBSERVABILIDAD: HISTORIAL DE SYNC
+// ============================================
+
+export const syncRuns = sqliteTable(
+  "sync_runs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    trigger: text("trigger").notNull(), // 'cron' | 'admin'
+    startedAt: integer("started_at").notNull(), // epoch ms
+    finishedAt: integer("finished_at"),
+    status: text("status").notNull(), // running, success, partial, failed
+    durationMs: integer("duration_ms"),
+    results: text("results").notNull().default("[]"),
+    issues: text("issues").notNull().default("[]"),
+    error: text("error"),
+  },
+  (table) => [index("idx_sync_runs_started").on(table.startedAt)]
+);
+
+export type SyncRun = typeof syncRuns.$inferSelect;

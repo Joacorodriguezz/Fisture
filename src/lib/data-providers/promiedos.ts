@@ -2,6 +2,7 @@
 // Extrae datos de partidos de fútbol argentino
 
 import type { DataProvider, ProviderTeam, ProviderMatch, ProviderLeague } from "./types";
+import { rootLogger } from "../observability/logger";
 
 const BASE_URL = "https://www.promiedos.com.ar";
 
@@ -79,7 +80,7 @@ export function createPromiedosClient(): DataProvider {
 
       return JSON.parse(match[1]) as PromiedosData;
     } catch (error) {
-      console.error("Error fetching Promiedos:", error);
+      rootLogger.error("promiedos_fetch_failed", { err: error });
       return null;
     }
   }
