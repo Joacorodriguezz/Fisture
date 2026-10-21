@@ -16,7 +16,8 @@
     "cf:deploy": "wrangler pages deploy ./dist",
     "sync:check": "node scripts/sync-check.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "hooks:install": "git config core.hooksPath .githooks && git config commit.template .gitmessage"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^12.0.0",
