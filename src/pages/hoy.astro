@@ -10,7 +10,7 @@ import SincronizarPartido from "../components/islands/SincronizarPartido";
 import { createDb } from "../lib/db";
 import { getMatchesInRange, getFollowedIds, getSyncStates } from "../lib/db/queries";
 import { markOutdatedEvents } from "../lib/calendar/sync-service";
-import { toSyncStatus } from "../lib/sync-ui";
+import { esAccionable, toSyncStatus } from "../lib/sync-ui";
 import { loginHref } from "../lib/auth/guards";
 import { diaISO, esDiaISO, fechaLarga, hora, rangoDelDia, sumarDias } from "../lib/format";
 
@@ -49,10 +49,10 @@ const grupos = [...porLiga.values()].sort((a, b) => a.items[0].match.dateTime.ge
 
 // Los que todavía no están al día en el calendario. Cada partido es una llamada a la API: el lote tiene tope.
 const LOTE_MAXIMO = 25;
-const pendientes = partidos.filter((m) => toSyncStatus(estados.get(m.match.id)?.status) !== "synced").map((m) => m.match.id);
+const pendientes = partidos.filter((m) => esAccionable(toSyncStatus(estados.get(m.match.id)?.status))).map((m) => m.match.id);
 const lote = pendientes.slice(0, LOTE_MAXIMO);
 const sobran = pendientes.length - lote.length;
-const enCalendario = partidos.length - pendientes.length;
+const enCalendario = partidos.filter((m) => toSyncStatus(estados.get(m.match.id)?.status) === "synced").length;
 
 const titulo = dia === hoy ? "Hoy" : dia === sumarDias(hoy, 1) ? "Mañana" : dia === sumarDias(hoy, -1) ? "Ayer" : fechaLarga(rangoDelDia(dia).desde);
 const enlace = (fecha: string) => `/hoy?fecha=${fecha}${soloMios ? "&solo=mios" : ""}`;

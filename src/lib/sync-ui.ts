@@ -2,7 +2,7 @@
 // Se usa en Astro (SSR) y en las islands de React.
 // Vocabulario único: Agregar · Actualizar · Reintentar. Cada estado también se distingue por ícono, no solo por color.
 
-export type SyncStatus = "none" | "syncing" | "synced" | "needs_update" | "failed";
+export type SyncStatus = "none" | "syncing" | "synced" | "needs_update" | "failed" | "detached" | "cancelled";
 
 export interface SyncView {
   label: string; // texto corto del botón (listas)
@@ -14,10 +14,16 @@ export interface SyncView {
   disabled: boolean;
 }
 
-// Pasa el status guardado en DB (pending, synced, needs_update, failed) a un SyncStatus de UI
+// Pasa el status guardado en DB (pending, synced, needs_update, failed, detached, cancelled) a un SyncStatus de UI
 export function toSyncStatus(status: string | null | undefined): SyncStatus {
-  if (status === "synced" || status === "needs_update" || status === "failed") return status;
+  if (status === "synced" || status === "needs_update" || status === "failed" || status === "detached" || status === "cancelled") return status;
   return "none";
+}
+
+// Estados en los que un lote ("sincronizar todo") debe intentar algo. detached lo quitó el usuario a mano
+// y cancelled no tiene evento: ninguno entra en un lote, solo un clic individual recrea un detached.
+export function esAccionable(status: SyncStatus): boolean {
+  return status === "none" || status === "needs_update" || status === "failed";
 }
 
 export function syncView(status: SyncStatus, errorMessage?: string | null): SyncView {
@@ -48,10 +54,21 @@ export function syncView(status: SyncStatus, errorMessage?: string | null): Sync
         label: "Actualizar",
         labelLargo: "Actualizar evento",
         variante: "primario",
-        estado: "↻ Cambió el horario",
+        estado: "↻ Reprogramado",
         estadoColor: "var(--rojo)",
-        motivo: "El partido cambió de fecha u hora. Tu evento todavía tiene el horario viejo.",
+        motivo: "El partido cambió de fecha, hora, estadio o estado. Tu evento todavía no lo refleja.",
         disabled: false,
+      };
+    case "cancelled":
+      // El evento se quitó solo; no hay nada para hacer hasta que el partido vuelva a jugarse
+      return {
+        label: "Cancelado",
+        labelLargo: "Partido cancelado",
+        variante: "secundario",
+        estado: "✕ Partido cancelado",
+        estadoColor: "var(--rojo)",
+        motivo: "",
+        disabled: true,
       };
     case "failed":
       return {
