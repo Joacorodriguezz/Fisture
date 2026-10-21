@@ -4,7 +4,6 @@ import Volanta from "../../components/tribuna/Volanta.astro";
 import Titular from "../../components/tribuna/Titular.astro";
 import Boton from "../../components/tribuna/Boton.astro";
 import Escudo from "../../components/tribuna/Escudo.astro";
-import { loginHref } from "../../lib/auth/guards";
 import { createDb } from "../../lib/db";
 import { asc, desc, eq } from "drizzle-orm";
 import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
@@ -77,13 +76,6 @@ const tarjetas = allLeagues.map((liga) => {
         </p>
       )}
     </div>
-    )}
-
-    {!user && (
-      <div class="tb-vacio">
-        <span>Explorá las ligas libremente. Para seguir equipos y agregar partidos a tu calendario, iniciá sesión.</span>
-        <Boton variante="primario" href={loginHref("/ligas")}>Iniciar sesión / Registrarse</Boton>
-      </div>
     )}
 
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:24px">

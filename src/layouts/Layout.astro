@@ -42,7 +42,7 @@ const secciones = showNavbar
 const accion =
   user || enSeccion("/login")
     ? undefined
-    : { label: "Iniciar sesión / Registrarse", href: loginHref(ruta + Astro.url.search) };
+    : { label: "Iniciar sesión", href: loginHref(ruta + Astro.url.search) };
 
 const numero = user ? `Hola, ${primerNombre(user.name, user.email)}` : "Fixture sync";
 const fecha = fechaLarga(new Date());
@@ -80,7 +80,7 @@ const fecha = fechaLarga(new Date());
     </main>
     <footer class="tb-footer">
       <span style="font:400 20px/1 var(--font-titular);transform:skewX(-8deg)">FISTURE</span>
-      <span>Datos: football-data.org · Promiedos · Sync diario 6 hs</span>
+      <span>Datos: ESPN · football-data.org · Promiedos · Sync diario 6 hs</span>
       <span><a href="/privacidad" class="tb-footer__enlace">Privacidad</a> · <a href="/terminos" class="tb-footer__enlace">Condiciones</a></span>
     </footer>
   </body>

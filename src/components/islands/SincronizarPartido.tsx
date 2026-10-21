@@ -92,7 +92,7 @@ export default function SincronizarPartido({
     >
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
         <button type="button" className={clase} disabled={vista.disabled} onClick={agregar}>
-          {grande ? vista.labelLargo : vista.label}
+          {anonimo && estado === "none" ? "Iniciá sesión para agregar" : grande ? vista.labelLargo : vista.label}
         </button>
         {permitirQuitar && estado === "synced" && (
           <button type="button" className="tb-boton" disabled={quitando} onClick={quitar}>
