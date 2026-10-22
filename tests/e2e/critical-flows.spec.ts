@@ -164,11 +164,20 @@ test("salud, auth administrativa y errores HTTP sobre el worker construido", asy
   expect((await request.post("/api/admin/sync", { data: {} })).status()).toBe(401);
 });
 
-test("navegación responsive: menú accesible, cierre y cuenta autenticada", async ({ page }, info) => {
-  await page.goto("/ligas");
-  const open = page.getByRole("button", { name: "Abrir menú", exact: true });
-  const panel = page.getByRole("dialog", { name: "Menú", exact: true });
-  if (info.project.name === "mobile") {
+// Los tests de viewport se separan por proyecto: cada uno cubre un solo comportamiento.
+const soloMovil = () => test.skip(({ isMobile }) => !isMobile, "solo en el proyecto móvil");
+const soloEscritorio = () => test.skip(({ isMobile }) => isMobile, "solo en el proyecto de escritorio");
+const navegacionPrincipal = (page: Page) => page.getByRole("navigation", { name: "Secciones", exact: true });
+const botonMenu = (page: Page) => page.getByRole("button", { name: "Abrir menú", exact: true });
+const panelMenu = (page: Page) => page.getByRole("dialog", { name: "Menú", exact: true });
+
+test.describe("navegación responsive: móvil", () => {
+  soloMovil();
+
+  test("el menú se abre, se cierra con Escape devolviendo el foco y navega", async ({ page }) => {
+    await page.goto("/ligas");
+    const open = botonMenu(page);
+    const panel = panelMenu(page);
     await open.click();
     await expect(open).toHaveAttribute("aria-expanded", "true");
     await expect(panel).toBeVisible();
@@ -182,34 +191,55 @@ test("navegación responsive: menú accesible, cierre y cuenta autenticada", asy
     await panel.getByRole("link", { name: /^Calendario/ }).click();
     await expect(page).toHaveURL(/\/calendario$/);
     await expect(panel).toBeHidden();
-  } else {
-    await expect(open).toBeHidden();
-    await page.getByRole("navigation", { name: "Secciones", exact: true }).getByRole("link", { name: "Calendario", exact: true }).click();
-    await expect(page).toHaveURL(/\/calendario$/);
-  }
-  await login(page, info, "responsive-menu");
-  await page.goto("/ligas");
-  if (info.project.name === "mobile") {
-    await open.click();
-    await expect(panel.getByText(`${info.project.name}-responsive-menu-${info.retry}@example.test`, { exact: true })).toBeVisible();
-    await panel.getByRole("link", { name: /^Configuración/ }).click();
-  } else {
-    await page.getByRole("navigation", { name: "Secciones", exact: true }).getByRole("link", { name: "Configuración", exact: true }).click();
-  }
-  await expect(page).toHaveURL(/\/configuracion$/);
-  await expect(page.getByRole("heading", { level: 1, name: "TU CUENTA" })).toBeVisible();
+  });
+
+  test("con sesión el menú muestra la cuenta y lleva a Configuración", async ({ page }, info) => {
+    await login(page, info, "responsive-menu");
+    await page.goto("/ligas");
+    await botonMenu(page).click();
+    await expect(panelMenu(page).getByText(`${info.project.name}-responsive-menu-${info.retry}@example.test`, { exact: true })).toBeVisible();
+    await panelMenu(page).getByRole("link", { name: /^Configuración/ }).click();
+    await expect(page).toHaveURL(/\/configuracion$/);
+    await expect(page.getByRole("heading", { level: 1, name: "TU CUENTA" })).toBeVisible();
+  });
 });
 
-test("Hoy conserva día y filtros; las ligas móviles recuerdan su estado", async ({ page }, info) => {
-  await login(page, info, "responsive-today");
+test.describe("navegación responsive: escritorio", () => {
+  soloEscritorio();
+
+  test("no hay botón de menú y la navegación lleva a Calendario", async ({ page }) => {
+    await page.goto("/ligas");
+    await expect(botonMenu(page)).toBeHidden();
+    await navegacionPrincipal(page).getByRole("link", { name: "Calendario", exact: true }).click();
+    await expect(page).toHaveURL(/\/calendario$/);
+  });
+
+  test("con sesión la navegación lleva a Configuración", async ({ page }, info) => {
+    await login(page, info, "responsive-menu");
+    await page.goto("/ligas");
+    await navegacionPrincipal(page).getByRole("link", { name: "Configuración", exact: true }).click();
+    await expect(page).toHaveURL(/\/configuracion$/);
+    await expect(page.getByRole("heading", { level: 1, name: "TU CUENTA" })).toBeVisible();
+  });
+});
+
+// Día del partido sembrado, calculado desde la API como lo vería el usuario
+async function diaDelSuperclasico(page: Page) {
   const response = await page.request.get("/api/partidos");
   expect(response.status()).toBe(200);
-  const upcoming = await response.json() as { id: string; dateTime: string }[];
-  const kickoff = upcoming.find((match) => match.id === "superclasico")!.dateTime;
-  const day = diaISO(new Date(kickoff));
-  await page.goto(`/hoy?fecha=${day}`);
-  const view = page.locator(info.project.name === "mobile" ? ".tb-solo-movil" : ".tb-solo-escritorio");
-  if (info.project.name === "mobile") {
+  const upcoming = (await response.json()) as { id: string; dateTime: string }[];
+  return diaISO(new Date(upcoming.find((match) => match.id === "superclasico")!.dateTime));
+}
+
+test.describe("Hoy: móvil", () => {
+  soloMovil();
+  const vista = (page: Page) => page.locator(".tb-solo-movil");
+
+  test("las ligas recuerdan su estado plegado tras recargar", async ({ page }, info) => {
+    await login(page, info, "responsive-today");
+    const day = await diaDelSuperclasico(page);
+    await page.goto(`/hoy?fecha=${day}`);
+    const view = vista(page);
     const league = view.getByRole("button", { name: /^Liga E2E .*partidos?$/ });
     await ready(page, league);
     await expect(league).toHaveAttribute("aria-expanded", "true");
@@ -220,24 +250,58 @@ test("Hoy conserva día y filtros; las ligas móviles recuerdan su estado", asyn
     await page.reload();
     await ready(page, league);
     await expect(league).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("el chip de la liga la vuelve a desplegar y se ven las demás ligas", async ({ page }, info) => {
+    await login(page, info, "responsive-today-chip");
+    const day = await diaDelSuperclasico(page);
+    await page.goto(`/hoy?fecha=${day}`);
+    const view = vista(page);
+    const league = view.getByRole("button", { name: /^Liga E2E .*partidos?$/ });
+    await ready(page, league);
+    await league.click();
+    await expect(league).toHaveAttribute("aria-expanded", "false");
     await view.locator(".hm-chips").getByRole("button", { name: /^Liga E2E/ }).click();
     await expect(league).toHaveAttribute("aria-expanded", "true");
     await expect(view.getByRole("button", { name: /^Liga neutral .*partidos?$/ })).toBeVisible();
-  } else {
-    await expect(view.getByRole("heading", { name: /Liga neutral/ })).toBeVisible();
-  }
-  await view.getByRole("link", { name: "Mis equipos", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/hoy\\?fecha=${day}&solo=mios$`));
-  if (info.project.name === "mobile") {
+  });
+
+  test("Mis equipos oculta las ligas ajenas y conserva el filtro al cambiar de día", async ({ page }, info) => {
+    await login(page, info, "responsive-today-mine");
+    const day = await diaDelSuperclasico(page);
+    await page.goto(`/hoy?fecha=${day}`);
+    const view = vista(page);
+    await view.getByRole("link", { name: "Mis equipos", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/hoy\\?fecha=${day}&solo=mios$`));
     await expect(view.getByRole("button", { name: /^Liga neutral/ })).toHaveCount(0);
     const nextDay = sumarDias(day, 1);
     await view.getByRole("navigation", { name: "Cambiar de día" }).locator(`a[href="/hoy?fecha=${nextDay}&solo=mios"]`).click();
     await expect(page).toHaveURL(new RegExp(`/hoy\\?fecha=${nextDay}&solo=mios$`));
-  } else {
+  });
+});
+
+test.describe("Hoy: escritorio", () => {
+  soloEscritorio();
+  const vista = (page: Page) => page.locator(".tb-solo-escritorio");
+
+  test("muestra todas las ligas del día", async ({ page }, info) => {
+    await login(page, info, "responsive-today");
+    const day = await diaDelSuperclasico(page);
+    await page.goto(`/hoy?fecha=${day}`);
+    await expect(vista(page).getByRole("heading", { name: /Liga neutral/ })).toBeVisible();
+  });
+
+  test("Mis equipos oculta las ligas ajenas y conserva el filtro al cambiar de día", async ({ page }, info) => {
+    await login(page, info, "responsive-today-mine");
+    const day = await diaDelSuperclasico(page);
+    await page.goto(`/hoy?fecha=${day}`);
+    const view = vista(page);
+    await view.getByRole("link", { name: "Mis equipos", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/hoy\\?fecha=${day}&solo=mios$`));
     await expect(view.getByRole("heading", { name: /Liga neutral/ })).toHaveCount(0);
     await view.getByRole("link", { name: /Día siguiente/ }).click();
     await expect(page).toHaveURL(new RegExp(`/hoy\\?fecha=${sumarDias(day, 1)}&solo=mios$`));
-  }
+  });
 });
 
 test("las pantallas principales no desbordan el viewport", async ({ page }) => {

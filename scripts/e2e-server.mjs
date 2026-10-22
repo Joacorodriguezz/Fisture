@@ -62,12 +62,12 @@ try {
   ];
   const sessions = [];
   for (const project of ["desktop", "mobile"]) {
-    for (const scenario of ["follow", "preferences", "calendar", "logout", "navigation", "errors", "calendar-states", "responsive-menu", "responsive-today"]) {
+    for (const scenario of ["follow", "preferences", "calendar", "logout", "navigation", "errors", "calendar-states", "responsive-menu", "responsive-today", "responsive-today-chip", "responsive-today-mine"]) {
       for (let retry = 0; retry <= 1; retry++) {
         const id = `${project}-${scenario}-${retry}`;
         sql.push(`INSERT INTO users (id, email, name, provider, provider_id) VALUES ('${id}', '${id}@example.test', 'Persona E2E', 'google', '${id}');`);
         sessions.push({ key: `session:e2e-${id}`, value: id });
-        if (["calendar", "navigation", "errors", "calendar-states", "responsive-today"].includes(scenario)) {
+        if (["calendar", "navigation", "errors", "calendar-states", "responsive-today", "responsive-today-chip", "responsive-today-mine"].includes(scenario)) {
           sql.push(`INSERT INTO user_teams (id, user_id, team_id, auto_sync) VALUES ('follow-${id}', '${id}', 'river', 0);`);
         }
         if (scenario === "calendar-states") {
