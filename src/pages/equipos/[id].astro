@@ -83,7 +83,7 @@ const filtros = [
         <Titular nivel="1">{team.name}</Titular>
         <div class="eq-acciones" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
           <SeguimientoEquipo
-            client:visible
+            client:load
             anonimo={!user}
             teamId={team.id}
             nombre={team.name}
@@ -104,7 +104,7 @@ const filtros = [
 
       <div style="display:flex;flex-wrap:wrap;gap:8px;padding:16px 0 8px">
         {filtros.map((f) => (
-          <a href={`?lado=${f.valor}`} aria-current={lado === f.valor ? "true" : undefined} className={lado === f.valor ? "tb-chip tb-chip--activo" : "tb-chip"}>{f.label}</a>
+          <a href={`?lado=${f.valor}`} aria-current={lado === f.valor ? "true" : undefined} class={lado === f.valor ? "tb-chip tb-chip--activo" : "tb-chip"}>{f.label}</a>
         ))}
       </div>
 

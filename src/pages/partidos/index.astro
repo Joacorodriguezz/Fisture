@@ -73,9 +73,9 @@ const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, etiqueta
 
     {user && (
     <div class="pm-chips" style="display:flex;flex-wrap:wrap;gap:8px">
-      <a href="/partidos" aria-current={equipo === null ? "true" : undefined} className={equipo === null ? "tb-chip tb-chip--activo" : "tb-chip"}>Todos</a>
+      <a href="/partidos" aria-current={equipo === null ? "true" : undefined} class={equipo === null ? "tb-chip tb-chip--activo" : "tb-chip"}>Todos</a>
       {seguidos.map((t) => (
-        <a href={`/partidos?equipo=${t.id}`} aria-current={equipo === t.id ? "true" : undefined} className={equipo === t.id ? "tb-chip tb-chip--activo" : "tb-chip"}>{t.name}</a>
+        <a href={`/partidos?equipo=${t.id}`} aria-current={equipo === t.id ? "true" : undefined} class={equipo === t.id ? "tb-chip tb-chip--activo" : "tb-chip"}>{t.name}</a>
       ))}
     </div>
     )}

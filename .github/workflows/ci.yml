@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, development]
   push:
-    branches: [main, development]
+    branches: [development]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -14,16 +14,18 @@ permissions:
   contents: read
 
 jobs:
+  suite:
+    uses: ./.github/workflows/test-suite.yml
+
   build:
+    # Nombre estable: el ruleset existente exige este check.
     name: build
+    needs: [suite]
+    if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 1
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
+      - name: Exigir toda la suite
+        env:
+          SUITE_RESULT: ${{ needs.suite.result }}
+        run: test "$SUITE_RESULT" = "success"

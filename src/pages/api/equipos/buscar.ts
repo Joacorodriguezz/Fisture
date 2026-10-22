@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { createDb } from "../../../lib/db";
 import { teams, leagues, userTeams } from "../../../../drizzle/schema";
-import { like, eq, and } from "drizzle-orm";
+import { like, eq } from "drizzle-orm";
 import { withApi } from "../../../lib/observability/with-api";
 
 export const GET: APIRoute = withApi(async ({ url, locals }) => {

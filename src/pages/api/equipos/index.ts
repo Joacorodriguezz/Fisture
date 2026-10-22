@@ -45,10 +45,10 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
     });
   }
 
-  const body = await request.json();
-  const { teamId } = body;
+  const body = await request.json().catch(() => null);
+  const teamId = body && typeof body === "object" && "teamId" in body ? body.teamId : undefined;
 
-  if (!teamId) {
+  if (typeof teamId !== "string" || !teamId) {
     return new Response(JSON.stringify({ error: "teamId is required" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },

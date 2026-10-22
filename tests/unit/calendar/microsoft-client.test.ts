@@ -5,7 +5,7 @@ import {
   formatMatchForMicrosoft,
   listMicrosoftOverlaps,
   updateMicrosoftCalendarEvent,
-} from "../../src/lib/calendar/microsoft";
+} from "../../../src/lib/calendar/microsoft";
 
 const fetchMock = vi.fn();
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });

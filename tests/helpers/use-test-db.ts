@@ -10,13 +10,32 @@ export interface UseTestDb {
   readonly db: Database;
 }
 
-// Vacía todas las tablas de la app sin depender de una lista hardcodeada: reintenta
-// las que fallan por claves foráneas hasta que sus dependientes ya estén vacías.
+// Tablas de la app, descubiertas una sola vez por D1 (sin lista hardcodeada)
+const tablasPorDb = new WeakMap<D1Database, string[]>();
+async function tablasDe(DB: D1Database): Promise<string[]> {
+  let tablas = tablasPorDb.get(DB);
+  if (!tablas) {
+    const { results } = await DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name <> 'd1_migrations'"
+    ).all<{ name: string }>();
+    tablas = results.map((r) => r.name);
+    tablasPorDb.set(DB, tablas);
+  }
+  return tablas;
+}
+
+// Vacía todas las tablas en un solo batch (una transacción): con las claves foráneas diferidas
+// hasta el commit el orden de borrado no importa. Si el batch falla, cae al borrado tabla por
+// tabla reintentando las que fallan por claves foráneas.
 async function vaciarTablas(DB: D1Database) {
-  const { results } = await DB.prepare(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name <> 'd1_migrations'"
-  ).all<{ name: string }>();
-  let pendientes = results.map((r) => r.name);
+  const tablas = await tablasDe(DB);
+  try {
+    await DB.batch([DB.prepare("PRAGMA defer_foreign_keys = on"), ...tablas.map((t) => DB.prepare(`DELETE FROM "${t}"`))]);
+    return;
+  } catch {
+    /* se reintenta tabla por tabla */
+  }
+  let pendientes = tablas;
   while (pendientes.length > 0) {
     const fallidas: string[] = [];
     for (const tabla of pendientes) {

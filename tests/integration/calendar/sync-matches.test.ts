@@ -1,16 +1,21 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createTestDb, type TestDb } from "../helpers/d1";
-import { clienteFalso, fila, filas, getToken, insertarSync, sembrar, setMatch, T0, usuario } from "../helpers/calendar";
-import { createDb, type Database } from "../../src/lib/db";
-import { syncMatches } from "../../src/lib/calendar/sync-service";
-import { CalendarApiError } from "../../src/lib/calendar/errors";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestDb, type TestDb } from "../../helpers/d1";
+import { relojFijo } from "../../helpers/clock";
+import { clienteFalso, fila, filas, getToken, insertarSync, sembrar, setMatch, T0, usuario } from "../../helpers/calendar";
+import { createDb, type Database } from "../../../src/lib/db";
+import { syncMatches } from "../../../src/lib/calendar/sync-service";
+import { CalendarApiError } from "../../../src/lib/calendar/errors";
+import { rootLogger } from "../../../src/lib/observability/logger";
+import { ENV_VACIO } from "../../helpers/fixtures";
 
 describe("syncMatches", () => {
+  // syncMatches usa new Date() para decidir si un partido ya se jugó: se fija un día antes de T0
+  relojFijo(new Date((T0 - 86_400) * 1000));
   let t: TestDb;
   let db: Database;
   let falso: ReturnType<typeof clienteFalso>;
 
-  const env = {} as Env;
+  const env = ENV_VACIO;
   const sync = async (ids: string[], mode: "auto" | "manual" = "manual", userId = "u1") =>
     syncMatches(db, env, await usuario(db, userId), ids, { mode, deps: { client: falso.client, getToken } });
 
@@ -131,6 +136,20 @@ describe("syncMatches", () => {
       await sync(["m1", "m2"]);
       await sync(["m3"], "auto");
       expect(falso.llamadas.overlaps).toBe(0);
+    });
+
+    it("los títulos privados solo vuelven al usuario; no se guardan ni aparecen en logs", async () => {
+      const privateTitle = "Reunión privada que no debe persistir";
+      const logs = [vi.spyOn(rootLogger, "info"), vi.spyOn(rootLogger, "warn"), vi.spyOn(rootLogger, "error")];
+      falso.setSolapados([{ ...choque[0], title: privateTitle }]);
+      const [result] = await sync(["m1"]);
+      expect(result.warnings?.[0].items[0].title).toBe(privateTitle);
+      expect(JSON.stringify(await filas(t))).not.toContain(privateTitle);
+      expect(JSON.stringify(logs.map((spy) => spy.mock.calls))).not.toContain(privateTitle);
+      falso.client.overlaps = async () => { throw new Error(privateTitle); };
+      await setMatch(t, "m1", { venue: "Otra sede" });
+      await sync(["m1"]);
+      expect(JSON.stringify(logs.map((spy) => spy.mock.calls))).not.toContain(privateTitle);
     });
 
     it("si la consulta de solapamientos falla, el partido igual queda agregado", async () => {

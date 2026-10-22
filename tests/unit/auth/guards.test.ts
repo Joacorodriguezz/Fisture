@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decidirAcceso, loginHref, safeNext } from "../../src/lib/auth/guards";
+import { decidirAcceso, loginHref, safeNext } from "../../../src/lib/auth/guards";
 
 describe("decidirAcceso: navegación sin sesión", () => {
   const paginasPublicas = [

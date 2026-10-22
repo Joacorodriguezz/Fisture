@@ -20,7 +20,11 @@ npm run db:generate  # Generar migraciones Drizzle
 npm run db:migrate:local  # Aplicar migraciones localmente
 npm run db:migrate:prod   # Aplicar migraciones en producción
 npm run sync:check        # Verificar el sync de competencias (ESPN) contra una D1 efímera
-npm test                  # Tests (Vitest + D1 efímera con Miniflare)
+npm test                  # Tests (guard de descubrimiento + Vitest, D1 efímera con Miniflare)
+npm run typecheck         # astro check
+npm run test:coverage     # Vitest con umbrales de cobertura
+npm run test:e2e          # Playwright (escritorio y móvil); requiere npm run build
+npm run check             # Lo que corre el CI: typecheck, discovery, cobertura, build y E2E
 ```
 
 ## Estructura
@@ -110,9 +114,9 @@ feat/* fix/* chore/* docs/* ci/*  → trabajo diario, salen de development
 
 - **Nunca** se pushea directo a `main` ni a `development`: ambas están protegidas por rulesets (PR + check `build` obligatorio, sin force-push ni borrado, sin bypass).
 - **Features y fixes**: rama desde `development` → PR a `development` → **Squash and merge** (un commit por feature).
-- **Release**: PR `development` → `main` con **Create a merge commit** (único método permitido en `main`; evita que ambas ramas diverjan). Al mergear, `deploy.yml` corre los tests, aplica las migraciones de D1 y despliega a producción.
+- **Release**: PR `development` → `main` con **Create a merge commit** (único método permitido en `main`; evita que ambas ramas diverjan). Al mergear, `deploy.yml` corre la suite completa, aplica las migraciones de D1, despliega el artefacto probado y hace un smoke de solo lectura contra `PUBLIC_APP_URL`.
 - **Hotfix urgente**: `fix/*` desde `main` → PR a `main`, y después PR de `main` → `development` para no perder el arreglo.
 - No hay preview deployments: Cloudflare Pages no tiene Git conectado, así que ni los PRs ni `development` se despliegan. Solo `main` llega a Cloudflare, vía `deploy.yml`.
-- CI (`.github/workflows/ci.yml`): job `build` (`npm ci` + `npm run build`) en cada PR y push a `main` o `development`. Debe pasar para poder mergear.
+- CI (`.github/workflows/ci.yml`): llama a la suite reutilizable (`test-suite.yml`: typecheck, cobertura, build y E2E) en cada PR y push a `development`; el job `build` exige su resultado y debe pasar para poder mergear. Detalle en `docs/13-testing-y-release.md`.
 - Nombres de rama: `tipo/descripcion-corta` en minúsculas y con guiones. Commits en formato Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `ci:`).
 - Al crear PRs, apuntar a `development` salvo que sea un release o hotfix.

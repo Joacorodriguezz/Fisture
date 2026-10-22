@@ -58,7 +58,7 @@ export const teams = sqliteTable(
       sql`(strftime('%s', 'now'))`
     ),
   },
-  (table) => [index("idx_teams_name").on(table.name)]
+  (table) => ({ nameIdx: index("idx_teams_name").on(table.name) })
 );
 
 // ============================================
@@ -103,10 +103,10 @@ export const userTeams = sqliteTable(
       sql`(strftime('%s', 'now'))`
     ),
   },
-  (table) => [
-    index("idx_user_teams_user").on(table.userId),
-    index("idx_user_teams_team").on(table.teamId),
-  ]
+  (table) => ({
+    userIdx: index("idx_user_teams_user").on(table.userId),
+    teamIdx: index("idx_user_teams_team").on(table.teamId),
+  })
 );
 
 // ============================================
@@ -140,11 +140,11 @@ export const matches = sqliteTable(
       sql`(strftime('%s', 'now'))`
     ),
   },
-  (table) => [
-    index("idx_matches_date").on(table.dateTime),
-    index("idx_matches_home_team").on(table.homeTeamId),
-    index("idx_matches_away_team").on(table.awayTeamId),
-  ]
+  (table) => ({
+    dateIdx: index("idx_matches_date").on(table.dateTime),
+    homeIdx: index("idx_matches_home_team").on(table.homeTeamId),
+    awayIdx: index("idx_matches_away_team").on(table.awayTeamId),
+  })
 );
 
 // ============================================
@@ -175,10 +175,10 @@ export const calendarSyncs = sqliteTable(
     syncedVenue: text("synced_venue"),
     errorMessage: text("error_message"),
   },
-  (table) => [
-    index("idx_calendar_syncs_status").on(table.status),
-    uniqueIndex("uq_calendar_syncs_user_match").on(table.userId, table.matchId),
-  ]
+  (table) => ({
+    statusIdx: index("idx_calendar_syncs_status").on(table.status),
+    userMatchIdx: uniqueIndex("uq_calendar_syncs_user_match").on(table.userId, table.matchId),
+  })
 );
 
 // ============================================
@@ -237,7 +237,7 @@ export const syncRuns = sqliteTable(
     issues: text("issues").notNull().default("[]"),
     error: text("error"),
   },
-  (table) => [index("idx_sync_runs_started").on(table.startedAt)]
+  (table) => ({ startedIdx: index("idx_sync_runs_started").on(table.startedAt) })
 );
 
 export type SyncRun = typeof syncRuns.$inferSelect;

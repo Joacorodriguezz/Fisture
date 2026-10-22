@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Miniflare } from "miniflare";
 import type { D1Database } from "@cloudflare/workers-types";
 
-const DIR = join(process.cwd(), "drizzle", "migrations");
+const DIR = join(process.cwd(), "drizzle", "migrations"); // SQL real del backend integrado
 
 async function aplicar(DB: D1Database, archivo: string) {
   const sql = readFileSync(join(DIR, archivo), "utf8")

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { GET } from "../../src/pages/api/auth/login/[provider]";
+import { GET } from "../../../src/pages/api/auth/login/[provider]";
 
 function ctx(next: string | null) {
   const guardado = new Map<string, string>();
