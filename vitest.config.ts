@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 
 // El proyecto integration recoge automáticamente cualquier nuevo test que no sea unitario.
 // Compartir exactamente la misma selección evita omisiones y doble ejecución.
-const unitFiles = ["tests/unit/**/*.test.ts", "tests/observability/{logger,with-api}.test.ts"];
+const unitFiles = ["tests/unit/**/*.test.ts", "tests/observability/{logger,with-api,admin}.test.ts"];
 
 export default defineConfig({
   test: {
@@ -32,6 +32,7 @@ export default defineConfig({
         "src/lib/db/{preferences,queries}.ts", "src/lib/data-providers/{espn,sync}.ts",
         "src/lib/observability/*.ts",
         "src/pages/api/preferencias.ts", "src/pages/api/equipos/*.ts", "src/pages/api/calendario/*.ts",
+        "src/pages/api/auth/**/*.ts", "src/pages/api/admin/*.ts", "src/pages/api/partidos/*.ts",
       ],
       thresholds: {
         lines: 90, statements: 90, functions: 90, branches: 85,
