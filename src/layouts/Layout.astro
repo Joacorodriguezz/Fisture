@@ -5,6 +5,7 @@ import { createDb } from "../lib/db";
 import { getPreferences } from "../lib/db/preferences";
 import { fechaLarga, fechaMovil, primerNombre } from "../lib/format";
 import { loginHref } from "../lib/auth/guards";
+import { urlCanonica } from "../lib/seo";
 import "../styles/global.css";
 import "../styles/tribuna90.css";
 
@@ -29,9 +30,8 @@ const {
   noindex = false,
 } = Astro.props;
 
-// URL absoluta de la página (sin query), a partir de PUBLIC_APP_URL
-const baseUrl = Astro.locals.runtime.env.PUBLIC_APP_URL.replace(/\/+$/, "");
-const canonical = `${baseUrl}${Astro.url.pathname}`;
+// URL absoluta de la página (sin query ni barra final), a partir de PUBLIC_APP_URL
+const canonical = urlCanonica(Astro.locals.runtime.env.PUBLIC_APP_URL, Astro.url.pathname);
 
 const user = Astro.locals.user;
 const prefs = user
