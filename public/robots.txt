@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /configuracion
+Disallow: /login
+
+Sitemap: https://fisture.pages.dev/sitemap.xml
