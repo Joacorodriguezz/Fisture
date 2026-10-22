@@ -20,7 +20,11 @@ npm run db:generate  # Generar migraciones Drizzle
 npm run db:migrate:local  # Aplicar migraciones localmente
 npm run db:migrate:prod   # Aplicar migraciones en producción
 npm run sync:check        # Verificar el sync de competencias (ESPN) contra una D1 efímera
-npm test                  # Tests (Vitest + D1 efímera con Miniflare)
+npm test                  # Tests (guard de descubrimiento + Vitest, D1 efímera con Miniflare)
+npm run typecheck         # astro check
+npm run test:coverage     # Vitest con umbrales de cobertura
+npm run test:e2e          # Playwright (escritorio y móvil); requiere npm run build
+npm run check             # Lo que corre el CI: typecheck, discovery, cobertura, build y E2E
 ```
 
 ## Estructura
@@ -113,6 +117,6 @@ feat/* fix/* chore/* docs/* ci/*  → trabajo diario, salen de development
 - **Release**: PR `development` → `main` con **Create a merge commit** (único método permitido en `main`; evita que ambas ramas diverjan). Al mergear se deploya a producción.
 - **Hotfix urgente**: `fix/*` desde `main` → PR a `main`, y después PR de `main` → `development` para no perder el arreglo.
 - Preview deployments: cada PR y `development` generan un preview en Cloudflare Pages.
-- CI (`.github/workflows/ci.yml`): job `build` (`npm ci` + `npm run build`) en cada PR y push a `main` o `development`. Debe pasar para poder mergear.
+- CI (`.github/workflows/ci.yml`): llama a la suite reutilizable (`test-suite.yml`: typecheck, cobertura, build y E2E) en cada PR y push a `development`; el job `build` exige su resultado y debe pasar para poder mergear. Detalle en `docs/13-testing-y-release.md`.
 - Nombres de rama: `tipo/descripcion-corta` en minúsculas y con guiones. Commits en formato Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `ci:`).
 - Al crear PRs, apuntar a `development` salvo que sea un release o hotfix.
