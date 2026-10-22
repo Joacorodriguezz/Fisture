@@ -1,17 +1,21 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb, type TestDb } from "../../helpers/d1";
+import { relojFijo } from "../../helpers/clock";
 import { clienteFalso, fila, filas, getToken, insertarSync, sembrar, setMatch, T0, usuario } from "../../helpers/calendar";
 import { createDb, type Database } from "../../../src/lib/db";
 import { syncMatches } from "../../../src/lib/calendar/sync-service";
 import { CalendarApiError } from "../../../src/lib/calendar/errors";
 import { rootLogger } from "../../../src/lib/observability/logger";
+import { ENV_VACIO } from "../../helpers/fixtures";
 
 describe("syncMatches", () => {
+  // syncMatches usa new Date() para decidir si un partido ya se jugó: se fija un día antes de T0
+  relojFijo(new Date((T0 - 86_400) * 1000));
   let t: TestDb;
   let db: Database;
   let falso: ReturnType<typeof clienteFalso>;
 
-  const env = {} as Env;
+  const env = ENV_VACIO;
   const sync = async (ids: string[], mode: "auto" | "manual" = "manual", userId = "u1") =>
     syncMatches(db, env, await usuario(db, userId), ids, { mode, deps: { client: falso.client, getToken } });
 

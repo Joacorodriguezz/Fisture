@@ -4,6 +4,7 @@ import { clienteFalso, fila, getToken, insertarSync, sembrar, setMatch, T0 } fro
 import { createDb, type Database } from "../../../src/lib/db";
 import { reconcileCalendars } from "../../../src/lib/calendar/sync-service";
 import { CalendarApiError } from "../../../src/lib/calendar/errors";
+import { ENV_VACIO } from "../../helpers/fixtures";
 
 const AHORA = new Date((T0 - 86_400) * 1000);
 
@@ -13,7 +14,7 @@ describe("reconcileCalendars", () => {
   let falso: ReturnType<typeof clienteFalso>;
 
   const reconciliar = (limites?: { maxUsers?: number; matchesPerUser?: number }) =>
-    reconcileCalendars({} as Env, db, { client: falso.client, getToken }, { now: AHORA, ...limites });
+    reconcileCalendars(ENV_VACIO, db, { client: falso.client, getToken }, { now: AHORA, ...limites });
 
   const seguir = (userId: string, teamId = "t1") =>
     t.DB.prepare("INSERT INTO user_teams (id, user_id, team_id, auto_sync) VALUES (?, ?, ?, 1)").bind(`ut-${userId}`, userId, teamId).run();

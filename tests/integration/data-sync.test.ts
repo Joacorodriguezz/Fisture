@@ -1,53 +1,78 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import scoreboard from "../fixtures/espn-scoreboard.json";
-import { createTestDb, type TestDb } from "../helpers/d1";
-import { createDb, type Database } from "../../src/lib/db";
+import { useTestDb } from "../helpers/use-test-db";
+import { AHORA, DIA_MS, relojFijo } from "../helpers/clock";
 import { syncSingleLeague } from "../../src/lib/data-providers/sync";
 import { leagues, teams, matches, leagueTeams } from "../../drizzle/schema";
 
 describe("ingesta ESPN a D1", () => {
-  let t: TestDb;
-  let db: Database;
+  const t = useTestDb();
   let data: typeof scoreboard;
-  beforeEach(async () => {
-    t = await createTestDb(); db = createDb(t.DB);
+  relojFijo();
+  beforeEach(() => {
     data = structuredClone(scoreboard);
-    data.events[0].date = new Date(Date.now() + 86_400_000).toISOString();
-    data.events[0].season.year = new Date().getUTCFullYear();
+    data.events[0].date = new Date(AHORA.getTime() + DIA_MS).toISOString();
+    data.events[0].season.year = AHORA.getUTCFullYear();
     vi.stubGlobal("fetch", vi.fn(async () => Response.json(data)));
   });
-  afterEach(async () => { await t?.dispose(); });
 
-  it("persiste fixture, repite sin escrituras y actualiza cambios sin duplicar", async () => {
-    const first = await syncSingleLeague({ DB: t.DB }, "arg.1");
-    expect(first).toMatchObject({ teamsCreated: 2, matchesCreated: 1, errors: [] });
-    expect(await db.select().from(leagueTeams)).toHaveLength(2);
-    const [original] = await db.select().from(matches);
-    const second = await syncSingleLeague({ DB: t.DB }, "arg.1");
-    expect(second).toMatchObject({ teamsCreated: 0, teamsUpdated: 0, matchesCreated: 0, matchesUpdated: 0, errors: [] });
-    data.events[0].date = new Date(Date.now() + 172_800_000).toISOString();
-    data.events[0].competitions[0].competitors[1].team.displayName = "River Plate actualizado";
-    const third = await syncSingleLeague({ DB: t.DB }, "arg.1");
-    expect(third).toMatchObject({ teamsUpdated: 1, matchesUpdated: 1, errors: [] });
-    const persistedTime = new Date(Math.floor(Date.parse(data.events[0].date) / 1000) * 1000);
-    expect(await db.select().from(matches)).toEqual([expect.objectContaining({ id: original.id, dateTime: persistedTime })]);
-    expect(await db.select().from(teams)).toHaveLength(2);
+  const sync = (leagueId = "arg.1") => syncSingleLeague({ DB: t.DB }, leagueId);
+
+  describe("primera ingesta", () => {
+    it("crea equipos y partido y vincula los equipos a la liga", async () => {
+      expect(await sync()).toMatchObject({ teamsCreated: 2, matchesCreated: 1, errors: [] });
+      expect(await t.db.select().from(leagueTeams)).toHaveLength(2);
+    });
   });
-  it("comparte equipos entre liga y copa, conservando su liga de origen", async () => {
-    await syncSingleLeague({ DB: t.DB }, "arg.1");
-    const [liga] = await db.select().from(leagues).where(eq(leagues.externalId, "arg.1"));
-    data.events[0].id = "cup-match";
-    data.events[0].season.slug = "semifinals";
-    expect(await syncSingleLeague({ DB: t.DB }, "conmebol.libertadores")).toMatchObject({ teamsCreated: 0, matchesCreated: 1, errors: [] });
-    expect(await db.select().from(teams)).toEqual([expect.objectContaining({ leagueId: liga.id }), expect.objectContaining({ leagueId: liga.id })]);
-    expect(await db.select().from(leagueTeams)).toHaveLength(4);
+
+  describe("ingesta repetida", () => {
+    beforeEach(async () => {
+      await sync();
+    });
+
+    it("sin cambios en el proveedor no escribe nada", async () => {
+      expect(await sync()).toMatchObject({ teamsCreated: 0, teamsUpdated: 0, matchesCreated: 0, matchesUpdated: 0, errors: [] });
+    });
+
+    it("un cambio de hora y de nombre actualiza el existente sin duplicar", async () => {
+      const [original] = await t.db.select().from(matches);
+      data.events[0].date = new Date(AHORA.getTime() + 2 * DIA_MS).toISOString();
+      data.events[0].competitions[0].competitors[1].team.displayName = "River Plate actualizado";
+
+      expect(await sync()).toMatchObject({ teamsUpdated: 1, matchesUpdated: 1, errors: [] });
+
+      // D1 guarda segundos: se compara con esa precisión
+      const persistido = new Date(Math.floor(Date.parse(data.events[0].date) / 1000) * 1000);
+      expect(await t.db.select().from(matches)).toEqual([expect.objectContaining({ id: original.id, dateTime: persistido })]);
+      expect(await t.db.select().from(teams)).toHaveLength(2);
+    });
   });
-  it("una liga desconocida y un proveedor fallido no borran datos existentes", async () => {
-    await syncSingleLeague({ DB: t.DB }, "arg.1");
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({}, { status: 400 })));
-    expect(await syncSingleLeague({ DB: t.DB }, "arg.1")).toMatchObject({ matchesCreated: 0, matchesUpdated: 0 });
-    expect(await db.select().from(matches)).toHaveLength(1);
-    expect((await syncSingleLeague({ DB: t.DB }, "unknown")).errors).not.toHaveLength(0);
+
+  describe("liga y copa", () => {
+    it("comparten equipos conservando su liga de origen", async () => {
+      await sync();
+      const [liga] = await t.db.select().from(leagues).where(eq(leagues.externalId, "arg.1"));
+      data.events[0].id = "cup-match";
+      data.events[0].season.slug = "semifinals";
+
+      expect(await sync("conmebol.libertadores")).toMatchObject({ teamsCreated: 0, matchesCreated: 1, errors: [] });
+      expect(await t.db.select().from(teams)).toEqual([expect.objectContaining({ leagueId: liga.id }), expect.objectContaining({ leagueId: liga.id })]);
+      expect(await t.db.select().from(leagueTeams)).toHaveLength(4);
+    });
+  });
+
+  describe("fallos del proveedor", () => {
+    it("un proveedor que falla no borra los datos existentes", async () => {
+      await sync();
+      vi.stubGlobal("fetch", vi.fn(async () => Response.json({}, { status: 400 })));
+
+      expect(await sync()).toMatchObject({ matchesCreated: 0, matchesUpdated: 0 });
+      expect(await t.db.select().from(matches)).toHaveLength(1);
+    });
+
+    it("una liga desconocida informa el error", async () => {
+      expect((await sync("unknown")).errors).not.toHaveLength(0);
+    });
   });
 });

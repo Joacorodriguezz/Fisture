@@ -5,7 +5,8 @@ import { vi } from "vitest";
 export function calendarHttp() {
   const events = new Map<string, Record<string, any>>();
   const transactions = new Map<string, string>();
-  const failures: { method: string; status: number; message: string }[] = [];
+  // match (opcional) acota el fallo a las rutas que coincidan; sin él lo consume el primer request del método
+  const failures: { method: string; status: number; message: string; match?: RegExp }[] = [];
   const requests: { url: URL; method: string; body?: Record<string, any> }[] = [];
   let sequence = 0;
   const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -13,7 +14,7 @@ export function calendarHttp() {
     const method = init?.method ?? "GET";
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     requests.push({ url, method, body });
-    const failure = failures.findIndex((f) => f.method === method);
+    const failure = failures.findIndex((f) => f.method === method && (!f.match || f.match.test(url.pathname)));
     if (failure >= 0) {
       const [{ status, message }] = failures.splice(failure, 1);
       return Response.json({ error: { message } }, { status });
