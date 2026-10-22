@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { deleteAccount } from "../../lib/db/account";
+import { revocarAcceso } from "../../lib/auth/revoke";
 import { deleteSession } from "../../lib/auth/session";
 import { withApi } from "../../lib/observability/with-api";
 
@@ -28,6 +29,9 @@ export const DELETE: APIRoute = withApi(async ({ request, cookies, locals }) => 
   const sessionId = cookies.get("session")?.value;
   if (sessionId) await deleteSession(env.KV, sessionId);
   cookies.delete("session", { path: "/" });
+
+  // Después de D1 (D5): si esto falla el usuario ya está borrado y el token no quedó guardado en ningún lado
+  await revocarAcceso(env, { provider: user.provider, refreshToken: user.refreshToken }, locals.logger);
 
   // Ni el email ni el userId van al log (D9): withApi agrega el userId del request si hay usuario
   locals.logger?.info("account_deleted", { provider: user.provider, rows: filas });

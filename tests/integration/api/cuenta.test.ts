@@ -137,6 +137,51 @@ describe("DELETE /api/cuenta", () => {
     expect(await filasDe(nuevo!.id)).toEqual({ users: 1, user_teams: 0, user_preferences: 0, calendar_syncs: 0 });
   });
 
+  describe("revocación en el proveedor", () => {
+    const conToken = async (id: string, refreshToken: string | null) => {
+      await t.db.update(users).set({ refreshToken }).where(eq(users.id, id));
+      return (await t.db.query.users.findFirst({ where: eq(users.id, id) }))!;
+    };
+
+    it("Google: revoca el refresh token después de borrar en D1", async () => {
+      const user = await conToken("user-1", "rt-secreto");
+      let usuariosAlRevocar = -1;
+      revocar.mockImplementation(async () => {
+        usuariosAlRevocar = (await filasDe("user-1")).users;
+      });
+
+      const res = await llamar({ user });
+
+      expect(res.status).toBe(200);
+      expect(usuariosAlRevocar).toBe(0);
+      expect(revocar).toHaveBeenCalledWith("rt-secreto");
+    });
+
+    it("C6: si la revocación falla responde 200 igual", async () => {
+      const user = await conToken("user-1", "rt-secreto");
+      revocar.mockRejectedValue(new Error("Google caído"));
+
+      const res = await llamar({ user });
+
+      expect(res.status).toBe(200);
+      expect((await filasDe("user-1")).users).toBe(0);
+    });
+
+    it("C7: un usuario de Microsoft no intenta revocar", async () => {
+      const user = await conToken("user-2", "rt-ms");
+      const res = await llamar({ user, body: { confirmar: user.email } });
+      expect(res.status).toBe(200);
+      expect(revocar).not.toHaveBeenCalled();
+    });
+
+    it("C8: un usuario sin refresh token no intenta revocar", async () => {
+      const user = await conToken("user-1", null);
+      const res = await llamar({ user });
+      expect(res.status).toBe(200);
+      expect(revocar).not.toHaveBeenCalled();
+    });
+  });
+
   it("C13: si falla el DELETE en D1 responde 500, la sesión sigue y no se revoca nada", async () => {
     const fallida = new Proxy(t.DB, {
       get(target, prop) {
