@@ -1,7 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createTestDb, type TestDb } from "../helpers/d1";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useTestDb } from "../helpers/use-test-db";
 import { createLogger } from "../../src/lib/observability/logger";
-import { createDb, type Database } from "../../src/lib/db";
 import { getLatestRuns } from "../../src/lib/observability/sync-runs";
 import { runSync, type RunSyncDeps } from "../../src/lib/observability/run-sync";
 
@@ -19,8 +18,7 @@ function res(league: string, errors: string[] = []) {
 }
 
 describe("runSync", () => {
-  let t: TestDb;
-  let db: Database;
+  const t = useTestDb();
   let kvDelete: ReturnType<typeof vi.fn>;
   let env: any;
   let lineas: { level: string; data: Record<string, any> }[];
@@ -33,18 +31,7 @@ describe("runSync", () => {
     ...over,
   });
 
-  beforeAll(async () => {
-    t = await createTestDb();
-    db = createDb(t.DB);
-  });
-  afterAll(async () => {
-    await t.dispose();
-  });
-  beforeEach(async () => {
-    await t.DB.prepare("DELETE FROM sync_runs").run();
-    await t.DB.prepare("DELETE FROM matches").run();
-    await t.DB.prepare("DELETE FROM teams").run();
-    await t.DB.prepare("DELETE FROM leagues").run();
+  beforeEach(() => {
     kvDelete = vi.fn(async () => {});
     env = { DB: t.DB, KV: { delete: kvDelete } };
     lineas = [];
@@ -55,7 +42,7 @@ describe("runSync", () => {
     const r = await runSync(env, "cron", { deps: deps(), logger });
     expect(r.status).toBe("success");
     expect(r.results).toHaveLength(2);
-    const [run] = await getLatestRuns(db, 1);
+    const [run] = await getLatestRuns(t.db, 1);
     expect(run).toMatchObject({ id: r.runId, trigger: "cron", status: "success" });
     expect(run.results.map((x) => x.league)).toEqual(["Liga A", "Liga B"]);
     expect(kvDelete).toHaveBeenCalledWith("cache:matches:all");
@@ -67,7 +54,7 @@ describe("runSync", () => {
       logger,
     });
     expect(r.status).toBe("partial");
-    const [run] = await getLatestRuns(db, 1);
+    const [run] = await getLatestRuns(t.db, 1);
     expect(run.status).toBe("partial");
     expect(run.results[1].errors).toEqual(["ESPN 500"]);
     expect(lineas.some((l) => l.level === "warn" && l.data.league === "Liga B")).toBe(true);
@@ -84,7 +71,7 @@ describe("runSync", () => {
     });
     expect(r.status).toBe("failed");
     expect(r.error).toBe("D1 caída");
-    const [run] = await getLatestRuns(db, 1);
+    const [run] = await getLatestRuns(t.db, 1);
     expect(run).toMatchObject({ status: "failed", error: "D1 caída" });
     expect(lineas.some((l) => l.level === "error" && l.data.msg === "sync_failed")).toBe(true);
     expect(kvDelete).not.toHaveBeenCalled();
@@ -126,7 +113,7 @@ describe("runSync", () => {
     await t.DB.prepare("INSERT INTO leagues (id, name, country, external_id, season, is_active) VALUES ('vacia', 'V', 'AR', 'v', 2026, 1)").run();
     const r = await runSync(env, "cron", { deps: deps(), logger });
     expect(r.issues.map((i) => i.code)).toContain("empty_league");
-    const [run] = await getLatestRuns(db, 1);
+    const [run] = await getLatestRuns(t.db, 1);
     expect(run.issues.map((i) => i.code)).toContain("empty_league");
   });
 
