@@ -5,6 +5,7 @@ import Titular from "../components/tribuna/Titular.astro";
 import Boton from "../components/tribuna/Boton.astro";
 import BarraSeccion from "../components/tribuna/BarraSeccion.astro";
 import Segmentado from "../components/islands/Segmentado";
+import EliminarCuenta from "../components/islands/EliminarCuenta";
 import { createDb } from "../lib/db";
 import { getPreferences } from "../lib/db/preferences";
 import { providerLabel } from "../lib/format";
@@ -96,6 +97,11 @@ const preferencias = [
           />
         </div>
       ))}
+    </div>
+
+    <div style="display:flex;flex-direction:column">
+      <BarraSeccion tono="rojo">Zona de peligro</BarraSeccion>
+      <EliminarCuenta client:visible email={user.email} provider={user.provider} />
     </div>
   </div>
 </Layout>
