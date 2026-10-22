@@ -27,11 +27,11 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html", "lcov", "json-summary"],
       include: [
-        "src/lib/format.ts", "src/lib/auth/{guards,session,tokens}.ts", "src/lib/sync-ui.ts",
+        "src/lib/format.ts", "src/lib/auth/{guards,session,tokens,revoke}.ts", "src/lib/sync-ui.ts",
         "src/lib/calendar/*.ts",
-        "src/lib/db/{preferences,queries}.ts", "src/lib/data-providers/{espn,sync}.ts",
+        "src/lib/db/{account,preferences,queries}.ts", "src/lib/data-providers/{espn,sync}.ts",
         "src/lib/observability/*.ts",
-        "src/pages/api/preferencias.ts", "src/pages/api/equipos/*.ts", "src/pages/api/calendario/*.ts",
+        "src/pages/api/{preferencias,cuenta}.ts", "src/pages/api/equipos/*.ts", "src/pages/api/calendario/*.ts",
         "src/pages/api/auth/**/*.ts", "src/pages/api/admin/*.ts", "src/pages/api/partidos/*.ts",
       ],
       thresholds: {
