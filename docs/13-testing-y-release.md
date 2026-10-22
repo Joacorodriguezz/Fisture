@@ -90,7 +90,7 @@ Además de los tests, este PR corrige código de producción que la suite dejó 
 
 Los umbrales son 90% de líneas, statements y funciones y 85% de branches sobre el conjunto explícito de módulos en `vitest.config.ts`. Calendarios tiene un presupuesto propio más exigente: 95% de líneas/statements/funciones y 90% de branches. Este porcentaje **no representa toda la aplicación**: prioriza fechas, acceso/sesiones/tokens, estados de UI, calendarios, consultas/preferencias, ingesta ESPN, observabilidad y APIs de equipos/preferencias/calendario. Nuevas funciones críticas deben incorporarse al conjunto y tener pruebas del comportamiento.
 
-Quedan fuera del cálculo (y sin tests propios en este PR): los endpoints de autenticación (`login`, `callback`, `logout`), `admin/sync`, `partidos`, `football-data`, `promiedos` y `football-api`. Los de auth y los endpoints se cubren en un PR aparte; los proveedores de datos necesitan fixtures HTTP propias.
+Quedan fuera del cálculo y sin tests propios: `football-data`, `promiedos` y `football-api`; los proveedores de datos necesitan fixtures HTTP propias.
 
 GitHub conserva `coverage`, `vitest-results` (JUnit) y `playwright-report` por 14 días, incluyendo HTML, screenshots, videos y traces de fallos. `application` conserva por 7 días el build probado. Playwright reintenta una vez en CI con datos separados para diagnóstico, pero `failOnFlakyTests` impide aprobar un resultado inestable; los tests Vitest no tienen reintentos automáticos. Vitest y Playwright prohíben `.only` en CI para que un test focalizado no silencie la suite.
 

@@ -109,16 +109,34 @@ describe("getHealth y endpoints (D1)", () => {
     expect(h.status).toBe("fail");
   });
 
-  it("getHealth: D1 rota => db y sync en fail", async () => {
-    const dbRota = {
-      prepare: () => {
-        throw new Error("D1 caída");
-      },
-    } as any;
+  const dbRota = {
+    prepare: () => {
+      throw new Error("D1 caída");
+    },
+  } as any;
+
+  it("getHealth: D1 rota => db en fail y estado general fail", async () => {
     const h = await getHealth({ DB: dbRota, KV: kvOk });
     expect(h.checks.db).toBe("fail");
-    expect(h.checks.sync).toBe("fail");
     expect(h.status).toBe("fail");
+  });
+
+  it("getHealth: sin poder consultar D1 no se evalúa el sync y queda en fail", async () => {
+    const h = await getHealth({ DB: dbRota, KV: kvOk });
+    expect(h.checks.sync).toBe("fail");
+    expect(h.lastSyncAt).toBeNull();
+  });
+
+  it("getHealth: D1 sana pero la tabla de runs ilegible => solo sync en fail", async () => {
+    await syncExitoso(Date.now() - H); // con runs legibles daría ok: el fail viene de la lectura
+    const dbSinRuns = {
+      prepare: (sql: string) => {
+        if (sql.includes("sync_runs")) throw new Error("no such table: sync_runs");
+        return t.DB.prepare(sql);
+      },
+    } as any;
+    const h = await getHealth({ DB: dbSinRuns, KV: kvOk });
+    expect(h.checks).toMatchObject({ db: "ok", sync: "fail" });
   });
 
   it("GET /api/health: 200 con base sana", async () => {
