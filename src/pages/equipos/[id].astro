@@ -83,7 +83,7 @@ const filtros = [
         <Titular nivel="1">{team.name}</Titular>
         <div class="eq-acciones" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
           <SeguimientoEquipo
-            client:visible
+            client:load
             anonimo={!user}
             teamId={team.id}
             nombre={team.name}

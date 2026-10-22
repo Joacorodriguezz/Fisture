@@ -2,8 +2,9 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import { createTestDb, type TestDb } from "../helpers/d1";
 import { createDb, type Database } from "../../src/lib/db";
 import { seedApp } from "../helpers/fixtures";
-import { matches, userTeams, calendarSyncs } from "../../drizzle/schema";
-import { getUpcomingMatches, getMatchesForTeams, getMatchesInRange, getFollowedIds, getSyncStates } from "../../src/lib/db/queries";
+import { matches, leagues, userTeams, calendarSyncs } from "../../drizzle/schema";
+import { getUpcomingMatches, getMatchesForTeams, getMatchesInRange, getMatchCountsByDay, getFollowedIds, getSyncStates } from "../../src/lib/db/queries";
+import { eq } from "drizzle-orm";
 
 let t: TestDb;
 let db: Database;
@@ -29,4 +30,19 @@ it("usa rangos semiabiertos y divide estados en lotes sin filtrar datos de otro 
   const ids = [match.id, ...Array.from({ length: 100 }, (_, i) => `missing-${i}`)];
   expect(await getSyncStates(db, "user-1", ids)).toEqual(new Map([[match.id, { status: "synced", errorMessage: null }]]));
   expect(await getSyncStates(db, "user-2", ids)).toEqual(new Map());
+});
+
+it("cuenta partidos por día argentino con límites exactos y excluye ligas inactivas", async () => {
+  await db.delete(matches);
+  const dates = ["2026-10-21T02:59:59Z", "2026-10-21T03:00:00Z", "2026-10-22T02:59:59Z", "2026-10-22T03:00:00Z"];
+  await db.insert(matches).values(dates.map((dateTime, i) => ({
+    id: `boundary-${i}`, externalId: `boundary-${i}`, leagueId: "test-league",
+    homeTeamId: "river", awayTeamId: "boca", dateTime: new Date(dateTime),
+  })));
+  const from = new Date("2026-10-21T03:00:00Z");
+  const to = new Date("2026-10-22T03:00:00Z");
+  expect(await getMatchCountsByDay(db, from, to)).toEqual(new Map([["2026-10-21", 2]]));
+  expect(await getMatchCountsByDay(db, new Date("2026-10-20T03:00:00Z"), to)).toEqual(new Map([["2026-10-20", 1], ["2026-10-21", 2]]));
+  await db.update(leagues).set({ isActive: false }).where(eq(leagues.id, "test-league"));
+  expect(await getMatchCountsByDay(db, from, to)).toEqual(new Map());
 });

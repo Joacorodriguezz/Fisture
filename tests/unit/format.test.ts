@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diaISO, esDiaISO, rangoDelDia, sumarDias, hora, horaFin, fechaHora, fechaCorta, fechaLarga, primerNombre, providerLabel } from "../../src/lib/format";
+import { diaISO, esDiaISO, rangoDelDia, sumarDias, hora, horaFin, fechaHora, fechaCorta, fechaLarga, fechaMovil, diaSemanaCorto, primerNombre, providerLabel } from "../../src/lib/format";
 
 describe("fechas en Buenos Aires", () => {
   it("usa el día anterior cerca de la medianoche UTC", () => {
@@ -19,6 +19,12 @@ describe("fechas en Buenos Aires", () => {
     expect(hasta.toISOString()).toBe("2027-01-01T03:00:00.000Z");
     expect(sumarDias("2026-12-31", 1)).toBe("2027-01-01");
     expect(sumarDias("2024-03-01", -1)).toBe("2024-02-29");
+  });
+  it("la cabecera y la tira móvil respetan el día argentino y no muestran puntos", () => {
+    const midnightUtc = new Date("2026-10-21T01:30:00Z");
+    expect(fechaMovil(midnightUtc)).toBe("Mar 20 de octubre");
+    expect(diaSemanaCorto(midnightUtc)).toBe("mar");
+    expect(fechaMovil(new Date("2027-01-01T01:00:00Z"))).toBe("Jue 31 de diciembre");
   });
 });
 

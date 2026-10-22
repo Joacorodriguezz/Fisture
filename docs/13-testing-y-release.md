@@ -35,6 +35,8 @@ Las pruebas de integración usan una D1 efímera por caso o suite. Las migracion
 
 El servidor E2E crea un directorio temporal propio con configuración, D1 y KV locales. Wrangler aplica migraciones, inserta partidos relativos a la fecha de ejecución y sesiones válidas en KV, verifica que reaplicar migraciones no borre los datos, y sirve `dist/`. No lee `wrangler.toml`, `.dev.vars` ni credenciales del proyecto para servir los E2E. El directorio se limpia al terminar normalmente. Una terminación forzada del árbol de procesos puede dejar un directorio `fisture-e2e-*` en el temporal del sistema.
 
+Con Wrangler 3, el runner conecta al inspector local en un puerto efímero y confirma `Network.disable` antes de anunciar readiness. Es una mitigación del [problema de eventos acumulados en ejecución headless](https://github.com/cloudflare/workers-sdk/issues/14191), no un mock del tráfico de aplicación: las requests y el build siguen siendo reales. Si falla el inspector, el runner falla. Revisar la necesidad de esta mitigación al actualizar Wrangler. El entorno soportado de la suite es Node 22; no se declara validada esta ampliación con Node 24.
+
 Cada escenario, proyecto y reintento tiene su propio usuario y sesión. Las pruebas no reutilizan un servidor existente. El navegador bloquea requests a hosts externos. Las operaciones reales de Google/Microsoft se verifican en integración con HTTP simulado; el consentimiento OAuth real requiere comprobación manual con una cuenta de prueba antes de cambiar scopes o configuración del proveedor. No hay bypass de autenticación en la aplicación.
 
 ## Flujos críticos
@@ -48,6 +50,9 @@ Cada escenario, proyecto y reintento tiene su propio usuario y sesión. Las prue
 - Fallo de permisos informado sin persistir un falso `failed` del partido (contrato actual de auth).
 - Sesiones inválidas eliminadas y APIs personales con JSON 401, sin redirecciones a HTML.
 - Estados reprogramado, `detached` y cancelado en las vistas reales.
+- Menú móvil con Escape y retorno de foco, cuenta autenticada y navegación.
+- Tira de días de Hoy, filtro Mis equipos y ligas colapsables con estado persistido.
+- Conteos por día argentino y pantallas sin desbordes horizontales.
 - Salud del worker y endpoints administrativos protegidos.
 - Integración: creación/actualización/eliminación de eventos en Google y Microsoft, reintentos, requests concurrentes, aislamiento entre usuarios y renovación de tokens.
 - Conservar notas y recordatorios al actualizar; errores 401/429/503 no crean eventos nuevos.
