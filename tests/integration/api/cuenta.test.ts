@@ -182,6 +182,23 @@ describe("DELETE /api/cuenta", () => {
     });
   });
 
+  it("C11: un Origin de otro sitio responde 403 y no borra nada", async () => {
+    const res = await llamar({ headers: { Origin: "https://evil.com" } });
+    expect(res.status).toBe(403);
+    expect(await filasDe("user-1")).toEqual({ users: 1, user_teams: 1, user_preferences: 1, calendar_syncs: 1 });
+    expect(revocar).not.toHaveBeenCalled();
+  });
+
+  it("C11: el Origin de la propia app pasa", async () => {
+    expect((await llamar({ headers: { Origin: APP_URL } })).status).toBe(200);
+  });
+
+  it("D8: exige Content-Type application/json (415) y no borra nada", async () => {
+    const res = await llamar({ headers: { "Content-Type": "text/plain" } });
+    expect(res.status).toBe(415);
+    expect((await filasDe("user-1")).users).toBe(1);
+  });
+
   it("C13: si falla el DELETE en D1 responde 500, la sesión sigue y no se revoca nada", async () => {
     const fallida = new Proxy(t.DB, {
       get(target, prop) {

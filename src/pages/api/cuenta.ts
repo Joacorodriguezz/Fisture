@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { deleteAccount } from "../../lib/db/account";
+import { esMismoOrigen } from "../../lib/auth/guards";
 import { revocarAcceso } from "../../lib/auth/revoke";
 import { deleteSession } from "../../lib/auth/session";
 import { withApi } from "../../lib/observability/with-api";
@@ -17,13 +18,18 @@ export const DELETE: APIRoute = withApi(async ({ request, cookies, locals }) => 
   const user = locals.user;
   if (!user) return json({ error: "Unauthorized" }, 401);
 
+  const env = locals.runtime.env;
+  if (!esMismoOrigen(request, env)) return json({ error: "Origen no permitido" }, 403);
+  if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) {
+    return json({ error: "Content-Type debe ser application/json" }, 415);
+  }
+
   const body = (await request.json().catch(() => null)) as { confirmar?: unknown } | null;
   if (typeof body?.confirmar !== "string") return json({ error: "Falta la confirmación" }, 400);
   if (body.confirmar.trim().toLowerCase() !== user.email.toLowerCase()) {
     return json({ error: "La confirmación no coincide con el email de la cuenta" }, 400);
   }
 
-  const env = locals.runtime.env;
   const filas = await deleteAccount(env.DB, user.id);
 
   const sessionId = cookies.get("session")?.value;

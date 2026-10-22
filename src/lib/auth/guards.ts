@@ -21,6 +21,19 @@ export function decidirAcceso(pathname: string, hayUsuario: boolean): Acceso {
   return coincide(pathname, PAGINAS_PROTEGIDAS) ? "login" : "permitir";
 }
 
+// Defensa contra requests forjadas desde otro sitio: si el navegador manda Origin, debe ser el de
+// la app (PUBLIC_APP_URL). Sin Origin (curl, tests, mismo origen en algunos casos) se deja pasar:
+// la cookie es sameSite=lax y los endpoints sensibles además exigen JSON.
+export function esMismoOrigen(request: Request, env: { PUBLIC_APP_URL?: string }): boolean {
+  const origin = request.headers.get("Origin");
+  if (origin === null) return true;
+  try {
+    return origin === new URL(env.PUBLIC_APP_URL ?? "").origin;
+  } catch {
+    return false;
+  }
+}
+
 const MAX_NEXT = 512;
 
 // Valida el destino post-login: solo rutas relativas internas (evita open redirect).
