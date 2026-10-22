@@ -31,13 +31,40 @@ Vitest selecciona `tests/unit/**/*.test.ts` como unitarios; los demás archivos 
 
 ## Datos y dependencias externas
 
-Las pruebas de integración usan una D1 efímera por caso o suite. Las migraciones SQL reales se aplican desde cero, con batches por migración para reducir IPC y liberación del runtime si el setup falla. La migración `0006` también se comprueba desde el esquema anterior con duplicados sembrados. Las APIs externas se simulan en la frontera HTTP con fixtures y respuestas controladas; los tests verifican payloads, errores e idempotencia.
+Las pruebas de integración usan una D1 efímera por archivo, que `useTestDb()` vacía en un solo batch antes de cada test. Las migraciones SQL reales se aplican desde cero, con batches por migración para reducir IPC y liberación del runtime si el setup falla. La migración `0006` también se comprueba desde el esquema anterior con duplicados sembrados. Las APIs externas se simulan en la frontera HTTP con fixtures y respuestas controladas; los tests verifican payloads, errores e idempotencia.
 
 El servidor E2E crea un directorio temporal propio con configuración, D1 y KV locales. Wrangler aplica migraciones, inserta partidos relativos a la fecha de ejecución y sesiones válidas en KV, verifica que reaplicar migraciones no borre los datos, y sirve `dist/`. No lee `wrangler.toml`, `.dev.vars` ni credenciales del proyecto para servir los E2E. El directorio se limpia al terminar normalmente. Una terminación forzada del árbol de procesos puede dejar un directorio `fisture-e2e-*` en el temporal del sistema.
 
 Con Wrangler 3, el runner conecta al inspector local en un puerto efímero y confirma `Network.disable` antes de anunciar readiness. Es una mitigación del [problema de eventos acumulados en ejecución headless](https://github.com/cloudflare/workers-sdk/issues/14191), no un mock del tráfico de aplicación: las requests y el build siguen siendo reales. Si falla el inspector, el runner falla. Revisar la necesidad de esta mitigación al actualizar Wrangler. El entorno soportado de la suite es Node 22; no se declara validada esta ampliación con Node 24.
 
 Cada escenario, proyecto y reintento tiene su propio usuario y sesión. Las pruebas no reutilizan un servidor existente. El navegador bloquea requests a hosts externos. Las operaciones reales de Google/Microsoft se verifican en integración con HTTP simulado; el consentimiento OAuth real requiere comprobación manual con una cuenta de prueba antes de cambiar scopes o configuración del proveedor. No hay bypass de autenticación en la aplicación.
+
+## Convenciones de los tests
+
+- **Un concepto por test.** Los casos repetidos van en `it.each`/`describe.each`, no en bucles dentro del test: si falla uno, el reporte indica cuál.
+- **Reloj fijo.** Nada depende de `Date.now()` ni de fechas absolutas futuras: `helpers/clock.ts` (`relojFijo()`) simula solo `Date` (Miniflare necesita los timers reales). Los tests con `T0` (enero de 2027) fijan el reloj un día antes.
+- **Una D1 por archivo.** `useTestDb()` (`helpers/use-test-db.ts`) crea la base una vez y la vacía antes de cada test. Crear un Miniflare por test multiplica el tiempo por ~5.
+- **Contextos de endpoints.** `apiCtx()` arma el `APIContext` mínimo; `callApi()` lo usa con la D1 de prueba. `ENV_VACIO` es el entorno tipado para servicios con clientes falsos.
+- **Datos de prueba.** `seedApp()` (`helpers/fixtures.ts`) alimenta los tests con D1 real y HTTP simulado (`calendarHttp()`); `sembrar()` (`helpers/calendar.ts`) los del servicio con cliente de calendario falso. Son escenarios distintos a propósito: no mezclarlos en un mismo archivo.
+- **Fallos inyectados.** `calendarHttp().failures` acepta `match` (regex de la ruta) para que el fallo caiga en la request esperada y no en la primera del mismo método.
+- **E2E por viewport.** Los comportamientos de móvil y escritorio son tests separados (`soloMovil()`/`soloEscritorio()`); el otro proyecto los omite, por eso el reporte muestra tests omitidos.
+- **Logs.** `silent: "passed-only"` oculta los `console.*` de los tests que pasan. Si un test necesita comprobar un log, lo espía.
+
+## Cambios de comportamiento incluidos en este PR
+
+Además de los tests, este PR corrige código de producción que la suite dejó al descubierto. Cada cambio es verificable en los tests indicados:
+
+| Cambio | Efecto | Test |
+| --- | --- | --- |
+| `microsoft.ts`: `timeZone` de los eventos pasa de `"Argentina Standard Time"` a `"UTC"` | El instante enviado ya era UTC; la etiqueta anterior corría el evento 3 h más tarde en Outlook | `tests/unit/calendar.test.ts` |
+| `POST /api/equipos`, `PATCH /api/equipos/[id]`, `POST /api/calendario/sync`: validan el cuerpo | JSON inválido o tipos incorrectos responden 400 en vez de 500 | `tests/integration/api.test.ts`, `calendar-api.test.ts` |
+| `data-providers/sync.ts`: `dateTime` truncado a segundos | Repetir la ingesta no reescribe partidos sin cambios | `tests/integration/data-sync.test.ts` |
+| `football-api/sync.ts`, `drizzle/seed.ts`: `apiId` → `externalId` + `source` | Alinea el código con el esquema vigente | tipos (`npm run typecheck`) |
+| `equipos/[id].astro`: `SeguimientoEquipo` pasa de `client:visible` a `client:load` | El botón principal de la página hidrata de inmediato; excepción deliberada a la convención de `CLAUDE.md` | E2E `busca, sigue y deja de seguir…` |
+| `class` en lugar de `className` en `.astro` | Los chips de filtro recuperan su clase | verificación visual (sin test específico) |
+| `schema.ts`: índices con la forma de objeto | Sin cambios en las migraciones | `npm run typecheck` y el ledger de migraciones del E2E |
+
+**Riesgo del cambio de zona horaria.** Los eventos de Outlook creados antes de este cambio conservan la hora errónea: el sync compara `syncedDateTime` (instante UTC, que no cambió), así que no los detecta como desactualizados. Para corregirlos hay que reprogramar el partido o quitarlo y volver a agregarlo. Si se quiere corregir en bloque, sería una migración de datos aparte, con aprobación.
 
 ## Flujos críticos
 
@@ -62,6 +89,8 @@ Cada escenario, proyecto y reintento tiene su propio usuario y sesión. Las prue
 ## Cobertura y resultados
 
 Los umbrales son 90% de líneas, statements y funciones y 85% de branches sobre el conjunto explícito de módulos en `vitest.config.ts`. Calendarios tiene un presupuesto propio más exigente: 95% de líneas/statements/funciones y 90% de branches. Este porcentaje **no representa toda la aplicación**: prioriza fechas, acceso/sesiones/tokens, estados de UI, calendarios, consultas/preferencias, ingesta ESPN, observabilidad y APIs de equipos/preferencias/calendario. Nuevas funciones críticas deben incorporarse al conjunto y tener pruebas del comportamiento.
+
+Quedan fuera del cálculo (y sin tests propios en este PR): los endpoints de autenticación (`login`, `callback`, `logout`), `admin/sync`, `partidos`, `football-data`, `promiedos` y `football-api`. Los de auth y los endpoints se cubren en un PR aparte; los proveedores de datos necesitan fixtures HTTP propias.
 
 GitHub conserva `coverage`, `vitest-results` (JUnit) y `playwright-report` por 14 días, incluyendo HTML, screenshots, videos y traces de fallos. `application` conserva por 7 días el build probado. Playwright reintenta una vez en CI con datos separados para diagnóstico, pero `failOnFlakyTests` impide aprobar un resultado inestable; los tests Vitest no tienen reintentos automáticos. Vitest y Playwright prohíben `.only` en CI para que un test focalizado no silencie la suite.
 

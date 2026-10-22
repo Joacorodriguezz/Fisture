@@ -10,6 +10,8 @@ export default defineConfig({
     hookTimeout: 20_000,
     maxWorkers: 2,
     allowOnly: !process.env.CI,
+    // Oculta los logs (console.*) de los tests que pasan; los que fallan los muestran completos.
+    // Un test no debe depender de leer la consola: para eso se espía y se afirma (vi.spyOn).
     silent: "passed-only",
     reporters: process.env.CI ? ["default", "junit"] : ["default"],
     outputFile: { junit: "test-results/vitest.xml" },
@@ -19,6 +21,8 @@ export default defineConfig({
       { extends: true, test: { name: "unit", environment: "node", include: unitFiles } },
       { extends: true, test: { name: "integration", environment: "node", include: ["tests/**/*.test.ts"], exclude: [...unitFiles, "tests/e2e/**"] } },
     ],
+    // Cobertura de un conjunto explícito de módulos críticos, no de toda la app (ver docs/13).
+    // Al agregar o testear un módulo crítico nuevo, sumarlo a `include`.
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov", "json-summary"],
