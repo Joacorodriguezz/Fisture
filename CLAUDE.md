@@ -9,7 +9,7 @@ App para sincronizar partidos de fútbol con tu calendario personal.
 - **Database**: Cloudflare D1 (SQLite) + Drizzle ORM
 - **Cache**: Cloudflare KV (sesiones)
 - **Auth**: Arctic + Oslo (OAuth)
-- **Deploy**: Cloudflare Pages
+- **Deploy**: Cloudflare Pages, por subida directa desde GitHub Actions (el proyecto no tiene Git conectado)
 
 ## Comandos
 
@@ -107,16 +107,16 @@ Hook `commit-msg` (`.githooks/`) valida tipo, longitud, puntuación y línea en 
 ## Flujo de ramas
 
 ```
-main         → producción (lo deployado en Cloudflare Pages)
+main         → producción (lo despliega .github/workflows/deploy.yml en Cloudflare Pages)
 development  → integración / staging (rama por defecto del repo)
 feat/* fix/* chore/* docs/* ci/*  → trabajo diario, salen de development
 ```
 
 - **Nunca** se pushea directo a `main` ni a `development`: ambas están protegidas por rulesets (PR + check `build` obligatorio, sin force-push ni borrado, sin bypass).
 - **Features y fixes**: rama desde `development` → PR a `development` → **Squash and merge** (un commit por feature).
-- **Release**: PR `development` → `main` con **Create a merge commit** (único método permitido en `main`; evita que ambas ramas diverjan). Al mergear se deploya a producción.
+- **Release**: PR `development` → `main` con **Create a merge commit** (único método permitido en `main`; evita que ambas ramas diverjan). Al mergear, `deploy.yml` corre la suite completa, aplica las migraciones de D1, despliega el artefacto probado y hace un smoke de solo lectura contra `PUBLIC_APP_URL`.
 - **Hotfix urgente**: `fix/*` desde `main` → PR a `main`, y después PR de `main` → `development` para no perder el arreglo.
-- Preview deployments: cada PR y `development` generan un preview en Cloudflare Pages.
+- No hay preview deployments: Cloudflare Pages no tiene Git conectado, así que ni los PRs ni `development` se despliegan. Solo `main` llega a Cloudflare, vía `deploy.yml`.
 - CI (`.github/workflows/ci.yml`): llama a la suite reutilizable (`test-suite.yml`: typecheck, cobertura, build y E2E) en cada PR y push a `development`; el job `build` exige su resultado y debe pasar para poder mergear. Detalle en `docs/13-testing-y-release.md`.
 - Nombres de rama: `tipo/descripcion-corta` en minúsculas y con guiones. Commits en formato Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `ci:`).
 - Al crear PRs, apuntar a `development` salvo que sea un release o hotfix.
