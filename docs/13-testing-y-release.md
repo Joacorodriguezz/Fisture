@@ -108,7 +108,7 @@ Secrets existentes requeridos para el job de deploy: `CLOUDFLARE_API_TOKEN`, `CL
 
 ## Migraciones y fallos
 
-Aplicar desde cero y comprobar el ledger no demuestra que una migración destructiva sea segura para los datos existentes. Cada cambio de esquema debe usar expand/contract y revisión explícita. La migración histórica `0001` elimina tablas: debe figurar como ya aplicada en producción antes de ejecutar un release sobre una base existente. Este trabajo no agrega migraciones ni cambia el ledger remoto.
+Aplicar desde cero y comprobar el ledger no demuestra que una migración destructiva sea segura para los datos existentes. Cada cambio de esquema debe usar expand/contract y revisión explícita. La migración histórica `0001` elimina tablas: debe figurar como ya aplicada en producción antes de ejecutar un release sobre una base existente. La migración `0007_outlook_utc_reconcile` es solo de datos (sin cambio de esquema): marca `needs_update` los eventos de Outlook ya sincronizados, creados antes de pasar `timeZone` a `UTC` y por eso 3 h corridos. El cron los reescribe con la hora correcta; los partidos ya jugados no se corrigen (D9). Es idempotente y no tiene reversa útil: tras un rollback de código el cron reescribiría esos eventos otra vez, sin pérdida de datos.
 
 Si falla un test previo, no se migra ni despliega. Si falla el smoke después de subir Pages, el workflow queda rojo y muestra instrucciones; no hay rollback automático. Revisar el deployment recién creado y volver al deployment previo desde Cloudflare Pages si corresponde. El rollback de código no revierte D1 y exige compatibilidad con las migraciones aplicadas.
 
