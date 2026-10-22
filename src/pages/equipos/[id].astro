@@ -62,7 +62,7 @@ const filtros = [
 
 <Layout title={`${team.name} - FISTURE`} pagina={3}>
   <div style="display:flex;flex-direction:column;gap:32px">
-    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;font:700 14px/18px var(--font-rotulo);color:var(--tinta-suave)">
+    <div class="eq-mig" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;font:700 14px/18px var(--font-rotulo);color:var(--tinta-suave)">
       <a href="/ligas" style="color:var(--tinta);text-decoration:none;letter-spacing:.06em;text-transform:uppercase">Ligas</a>
       <span>/</span>
       {liga && (
@@ -74,14 +74,14 @@ const filtros = [
       <span style="letter-spacing:.06em;text-transform:uppercase">{team.name}</span>
     </div>
 
-    <div style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-end">
-      <div style="box-shadow:4px 4px 0 var(--rojo)">
+    <div class="eq-cab" style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-end">
+      <div class="eq-escudo" style="box-shadow:4px 4px 0 var(--rojo)">
         <Escudo src={team.logo} nombre={team.name} sigla={team.shortName} size={160} pad={20} />
       </div>
-      <div style="flex:1;min-width:280px;display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+      <div class="eq-titulo" style="flex:1;min-width:280px;display:flex;flex-direction:column;align-items:flex-start;gap:12px">
         <Volanta tono="rojo">{liga?.name ?? "Liga"}</Volanta>
         <Titular nivel="1">{team.name}</Titular>
-        <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
+        <div class="eq-acciones" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
           <SeguimientoEquipo
             client:visible
             anonimo={!user}
@@ -118,12 +118,13 @@ const filtros = [
           const rival = esLocal ? m.awayTeam : m.homeTeam;
           const estado = estados.get(m.match.id);
           return (
-            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding:14px 12px;border-bottom:1px solid var(--linea)">
+            <div class="eq-fila" style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding:14px 12px;border-bottom:1px solid var(--linea)">
               <a
                 href={`/partidos/${m.match.id}`}
+                class="eq-enlace"
                 style="flex:1;min-width:220px;display:flex;align-items:center;gap:20px;color:var(--tinta);text-decoration:none"
               >
-                <div style="flex:none;width:96px;display:flex;flex-direction:column">
+                <div class="eq-hora" style="flex:none;width:96px;display:flex;flex-direction:column">
                   <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">{m.match.round ?? ""}</span>
                   <span style="font:400 26px/1 var(--font-titular)">{hora(m.match.dateTime)}</span>
                   <span style="font:600 13px/16px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">{fechaCorta(m.match.dateTime)}</span>

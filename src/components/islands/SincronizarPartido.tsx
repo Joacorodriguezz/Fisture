@@ -23,6 +23,8 @@ interface Props {
   permitirQuitar?: boolean;
   // Visitante sin sesión: agregar al calendario pide iniciar sesión
   anonimo?: boolean;
+  // Versión compacta para filas de lista en mobile
+  compacto?: boolean;
 }
 
 export default function SincronizarPartido({
@@ -32,6 +34,7 @@ export default function SincronizarPartido({
   grande = false,
   permitirQuitar = false,
   anonimo = false,
+  compacto = false,
 }: Props) {
   const [estado, setEstado] = useState<SyncStatus>(toSyncStatus(status));
   const [error, setError] = useState<string | null>(errorMessage);
@@ -89,7 +92,7 @@ export default function SincronizarPartido({
     }
   }
 
-  const clase = `tb-boton ${vista.variante !== "secundario" ? `tb-boton--${vista.variante}` : ""}`;
+  const clase = `tb-boton ${compacto ? "tb-boton--compacto " : ""}${vista.variante !== "secundario" ? `tb-boton--${vista.variante}` : ""}`;
   const mostrarMotivo = estado === "failed" || estado === "needs_update";
 
   return (
@@ -103,7 +106,7 @@ export default function SincronizarPartido({
     >
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
         <button type="button" className={clase} disabled={vista.disabled} onClick={agregar}>
-          {anonimo && estado === "none" ? "Iniciá sesión para agregar" : grande ? vista.labelLargo : vista.label}
+          {anonimo && estado === "none" ? (compacto ? "Iniciá sesión" : "Iniciá sesión para agregar") : grande ? vista.labelLargo : vista.label}
         </button>
         {permitirQuitar && estado === "synced" && (
           <button type="button" className="tb-boton" disabled={quitando} onClick={quitar}>
@@ -114,7 +117,7 @@ export default function SincronizarPartido({
       {vista.estado && (
         <span
           style={{
-            font: "700 13px/16px var(--font-rotulo)",
+            font: compacto ? "700 12px/14px var(--font-rotulo)" : "700 13px/16px var(--font-rotulo)",
             letterSpacing: ".04em",
             textTransform: "uppercase",
             color: vista.estadoColor,
@@ -128,7 +131,7 @@ export default function SincronizarPartido({
           style={{
             font: "400 14px/19px var(--font-texto)",
             color: "var(--tinta-suave)",
-            maxWidth: 320,
+            maxWidth: compacto ? 140 : 320,
             textAlign: grande ? "left" : "right",
           }}
         >
