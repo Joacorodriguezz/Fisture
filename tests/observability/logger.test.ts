@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLogger, defaultLevel, redact, serializeError } from "../../src/lib/observability/logger";
 
 function capturar(opts: Parameters<typeof createLogger>[0] = {}) {
@@ -12,6 +12,8 @@ function capturar(opts: Parameters<typeof createLogger>[0] = {}) {
 }
 
 describe("logger", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("emite una línea JSON con ts, level, msg y los campos", () => {
     const { logger, lineas } = capturar();
     logger.info("hola", { userId: "u1", n: 2 });
@@ -103,7 +105,6 @@ describe("logger", () => {
     expect(log).toHaveBeenCalledTimes(2);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(error).toHaveBeenCalledTimes(1);
-    vi.restoreAllMocks();
   });
 });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "../../../src/pages/api/auth/login/[provider]";
 
 function ctx(next: string | null) {
@@ -27,6 +27,11 @@ function ctx(next: string | null) {
 const next = (guardado: Map<string, string>) => JSON.parse([...guardado.values()][0]).next;
 
 describe("login OAuth: parámetro next", () => {
+  // withApi loguea cada request por console.*: se silencia para no ensuciar la salida
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
   it("guarda un next interno en el estado OAuth del servidor", async () => {
     const { ctx: c, guardado } = ctx("/equipos/12?lado=local");
     const res = await GET(c);
