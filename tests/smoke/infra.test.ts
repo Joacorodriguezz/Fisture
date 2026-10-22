@@ -20,7 +20,7 @@ describe("infraestructura de tests", () => {
 
   it("escribe y lee en la base", async () => {
     await t.DB.prepare("INSERT INTO leagues (id, name, country, external_id, season) VALUES (?, ?, ?, ?, ?)")
-      .bind("l1", "Liga de prueba", "AR", "arg.1", "2026")
+      .bind("l1", "Liga de prueba", "AR", "arg.1", 2026)
       .run();
     const fila = await t.DB.prepare("SELECT name FROM leagues WHERE id = ?").bind("l1").first<{ name: string }>();
     expect(fila?.name).toBe("Liga de prueba");

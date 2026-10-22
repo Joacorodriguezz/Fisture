@@ -1,6 +1,7 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createTestDb, type TestDb } from "../helpers/d1";
-import { createDb, type Database } from "../../src/lib/db";
+import { beforeEach, describe, expect, it } from "vitest";
+import { createTestDb } from "../helpers/d1";
+import { useTestDb } from "../helpers/use-test-db";
+import { createDb } from "../../src/lib/db";
 import { checkConsistency } from "../../src/lib/observability/consistency";
 
 const AHORA_S = 1_800_000_000; // epoch en segundos (date_time se guarda en segundos)
@@ -8,8 +9,7 @@ const AHORA_MS = AHORA_S * 1000;
 const HORA = 3600;
 
 describe("checkConsistency", () => {
-  let t: TestDb;
-  let db: Database;
+  const t = useTestDb();
 
   const liga = (id: string, activa = 1) =>
     t.DB.prepare("INSERT INTO leagues (id, name, country, external_id, season, is_active) VALUES (?, ?, 'AR', ?, 2026, ?)")
@@ -39,33 +39,23 @@ describe("checkConsistency", () => {
       )
       .run();
 
-  beforeAll(async () => {
-    t = await createTestDb();
-    db = createDb(t.DB);
-  });
-  afterAll(async () => {
-    await t.dispose();
-  });
   beforeEach(async () => {
-    for (const tabla of ["matches", "league_teams", "teams", "leagues"]) {
-      await t.DB.prepare(`DELETE FROM ${tabla}`).run();
-    }
     await liga("l1");
     await equipo("t1");
     await equipo("t2");
     await equipo("t3");
   });
 
-  const codigos = async () => (await checkConsistency(db, AHORA_MS)).map((i) => i.code);
+  const codigos = async () => (await checkConsistency(t.db, AHORA_MS)).map((i) => i.code);
 
   it("una base sana no devuelve hallazgos", async () => {
     await partido("m1");
-    expect(await checkConsistency(db, AHORA_MS)).toEqual([]);
+    expect(await checkConsistency(t.db, AHORA_MS)).toEqual([]);
   });
 
   it("match_same_team: local igual a visitante", async () => {
     await partido("m1", { home: "t1", away: "t1" });
-    const issues = await checkConsistency(db, AHORA_MS);
+    const issues = await checkConsistency(t.db, AHORA_MS);
     expect(issues).toEqual([{ code: "match_same_team", severity: "error", count: 1, sample: ["m1"] }]);
   });
 
@@ -97,14 +87,14 @@ describe("checkConsistency", () => {
   it("stale_scheduled: programado y ya vencido hace más de 3 h", async () => {
     await partido("viejo", { date: AHORA_S - 4 * HORA });
     await partido("reciente", { date: AHORA_S - 1 * HORA, away: "t3" });
-    const issues = await checkConsistency(db, AHORA_MS);
+    const issues = await checkConsistency(t.db, AHORA_MS);
     expect(issues).toEqual([{ code: "stale_scheduled", severity: "warn", count: 1, sample: ["viejo"] }]);
   });
 
   it("duplicate_match: misma liga, equipos y fecha", async () => {
     await partido("a", { date: AHORA_S + HORA });
     await partido("b", { date: AHORA_S + HORA });
-    const issues = await checkConsistency(db, AHORA_MS);
+    const issues = await checkConsistency(t.db, AHORA_MS);
     expect(issues).toEqual([{ code: "duplicate_match", severity: "error", count: 1, sample: [expect.any(String)] }]);
   });
 
@@ -112,20 +102,20 @@ describe("checkConsistency", () => {
     await liga("vacia");
     await liga("inactiva", 0);
     await partido("m1");
-    const issues = await checkConsistency(db, AHORA_MS);
+    const issues = await checkConsistency(t.db, AHORA_MS);
     expect(issues).toEqual([{ code: "empty_league", severity: "warn", count: 1, sample: ["vacia"] }]);
   });
 
   it("finished_without_score: finalizado sin marcador", async () => {
     await partido("m1", { status: "finished", date: AHORA_S - 10 * HORA, hs: 2, as: null });
     await partido("m2", { status: "finished", date: AHORA_S - 10 * HORA, away: "t3", hs: 1, as: 0 });
-    const issues = await checkConsistency(db, AHORA_MS);
+    const issues = await checkConsistency(t.db, AHORA_MS);
     expect(issues).toEqual([{ code: "finished_without_score", severity: "warn", count: 1, sample: ["m1"] }]);
   });
 
   it("el sample se limita a 5 ids pero count es el total", async () => {
     for (let i = 0; i < 8; i++) await partido(`s${i}`, { home: "t1", away: "t1", date: AHORA_S + i * HORA });
-    const issue = (await checkConsistency(db, AHORA_MS)).find((i) => i.code === "match_same_team")!;
+    const issue = (await checkConsistency(t.db, AHORA_MS)).find((i) => i.code === "match_same_team")!;
     expect(issue.count).toBe(8);
     expect(issue.sample).toHaveLength(5);
   });
