@@ -1,6 +1,6 @@
 # TDD: Borrado de cuenta por el propio usuario
 
-> Technical Design Document. Estado: **propuesto, pendiente de revisión**. Fecha: 2026-10-22. Rama de implementación: `feat/borrado-de-cuenta`, desde `development`.
+> Technical Design Document. Estado: **implementado** (ver §9). Fecha: 2026-10-22. Rama de implementación: `feat/borrado-de-cuenta`, desde `development`.
 >
 > Este documento registra **qué problema hay hoy, qué decidimos y por qué**. El código y los tests se escriben después de que se apruebe, siguiendo el orden del §8.
 
@@ -167,7 +167,19 @@ Se escribe cada test en **rojo**, se implementa lo mínimo para **verde** y se r
 
 ## 9. Notas de implementación
 
-_(Se completa al terminar: desvíos respecto del diseño, decisiones tomadas en el camino.)_
+Desvíos y decisiones tomadas durante la implementación:
+
+- **Cascada verificada.** D1/Miniflare aplica las FK: el test cuenta 1 fila en `user_teams`, `user_preferences` y `calendar_syncs` antes de borrar y 0 después, sin huérfanas, sin borrar nada a mano. No hizo falta `PRAGMA foreign_keys`.
+- **Batch en vez de una sola sentencia.** `lib/db/account.ts` usa un `DB.batch` (transacción) con tres `COUNT(*)` y el `DELETE FROM users`, para loguear las filas borradas por tabla (D9) sin perder atomicidad. Los conteos salen de las tablas dependientes, no de `meta.changes` (que solo cuenta el `DELETE` del usuario).
+- **`userId` en el log.** `withApi` agrega `userId` al log "request" si `locals.user` existe, lo que contradice D9/C12. El handler hace `delete locals.user` al terminar (el usuario ya no existe); un test de logs lo cubre (se verificó que falla sin esa línea). No se tocó `withApi`.
+- **415 para Content-Type.** D8 no fijaba el código; se eligió `415` cuando el `Content-Type` no es `application/json`. `esMismoOrigen` deja pasar requests sin `Origin` (curl, tests) y rechaza cualquier `Origin` distinto, incluido `null`.
+- **Validación en el handler.** El `401` sin sesión lo da el handler (como `preferencias.ts`) además del middleware; `/api/cuenta` no está en `APIS_PUBLICAS`. Un `confirmar` con espacios alrededor se recorta antes de comparar.
+- **Tests de revocación con `fetch` simulado** contra el `Google` real de Arctic. Un 400 con cuerpo OAuth llega como `OAuth2RequestError` (sin `status`), por eso en ese caso se loguea solo `provider`; un 5xx llega con `status`.
+- **Revocación con el refresh token** leído de `locals.user` (cargado por el middleware), sin consulta extra.
+- **E2E.** Se sumó el escenario `delete-account` al seed de `scripts/e2e-server.mjs` (un usuario por proyecto y reintento). Los E2E nuevos (borrado completo y cancelar el diálogo) pasaron en escritorio y móvil.
+- **Cobertura.** `revoke.ts`, `account.ts` y `api/cuenta.ts` se agregaron a `coverage.include` en `vitest.config.ts`.
+- **Texto legal.** `privacidad.astro` §6 y §7 describen el borrado autoservicio, el email queda como alternativa; `LEGAL_ACTUALIZADO` pasó a "22 de octubre de 2026".
+- **Base de la rama.** `feat/borrado-de-cuenta` se creó desde el commit `72d2241` (TDD de borrado y cifrado), no desde `development`, porque ese commit contiene la infraestructura de tests que el TDD asume.
 
 ## 10. Fuera de alcance (fases siguientes)
 
