@@ -14,9 +14,24 @@ interface Props {
   // Muestra la navegación de secciones (pública)
   showNavbar?: boolean;
   pagina?: number;
+  // Descripción para buscadores y redes sociales
+  descripcion?: string;
+  // Páginas personales o de login: no indexar
+  noindex?: boolean;
 }
 
-const { title, volanta = "Tus partidos en tu calendario", showNavbar = true, pagina = 1 } = Astro.props;
+const {
+  title,
+  volanta = "Tus partidos en tu calendario",
+  showNavbar = true,
+  pagina = 1,
+  descripcion = "Sincronizá los partidos de tus equipos y ligas de fútbol con tu calendario personal.",
+  noindex = false,
+} = Astro.props;
+
+// URL absoluta de la página (sin query), a partir de PUBLIC_APP_URL
+const baseUrl = Astro.locals.runtime.env.PUBLIC_APP_URL.replace(/\/+$/, "");
+const canonical = `${baseUrl}${Astro.url.pathname}`;
 
 const user = Astro.locals.user;
 const prefs = user
@@ -55,6 +70,15 @@ const fechaCorta = fechaMovil(new Date());
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
+    <meta name="description" content={descripcion} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <link rel="canonical" href={canonical} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={descripcion} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content="es_AR" />
+    <meta name="twitter:card" content="summary" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
