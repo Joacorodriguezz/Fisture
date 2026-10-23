@@ -176,7 +176,7 @@ Desvíos y decisiones tomadas durante la implementación:
 - **Validación en el handler.** El `401` sin sesión lo da el handler (como `preferencias.ts`) además del middleware; `/api/cuenta` no está en `APIS_PUBLICAS`. Un `confirmar` con espacios alrededor se recorta antes de comparar.
 - **Tests de revocación con `fetch` simulado** contra el `Google` real de Arctic. Un 400 con cuerpo OAuth llega como `OAuth2RequestError` (sin `status`), por eso en ese caso se loguea solo `provider`; un 5xx llega con `status`.
 - **Revocación con el refresh token** leído de `locals.user` (cargado por el middleware), sin consulta extra.
-- **E2E.** Se sumó el escenario `delete-account` al seed de `scripts/e2e-server.mjs` (un usuario por proyecto y reintento). Los E2E nuevos (borrado completo y cancelar el diálogo) pasaron en escritorio y móvil.
+- **E2E.** Se sumó el escenario `delete-account` al seed de `scripts/e2e-server.mjs` (un usuario por proyecto y reintento). Los E2E nuevos (borrado completo y cancelar el diálogo) usan usuarios propios (`delete-account` y `delete-cancel`): compartir el usuario `preferences` con el test de preferencias volvía inestable toda la suite. Suite E2E completa: 37 pasaron, 9 omitidos (por proyecto).
 - **Cobertura.** `revoke.ts`, `account.ts` y `api/cuenta.ts` se agregaron a `coverage.include` en `vitest.config.ts`.
 - **Texto legal.** `privacidad.astro` §6 y §7 describen el borrado autoservicio, el email queda como alternativa; `LEGAL_ACTUALIZADO` pasó a "22 de octubre de 2026".
 - **Base de la rama.** `feat/borrado-de-cuenta` se creó desde el commit `72d2241` (TDD de borrado y cifrado), no desde `development`, porque ese commit contiene la infraestructura de tests que el TDD asume.

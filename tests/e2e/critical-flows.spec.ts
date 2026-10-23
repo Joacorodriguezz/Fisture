@@ -130,7 +130,7 @@ test("elimina la cuenta tras confirmar con el email y la sesión deja de servir"
 });
 
 test("el diálogo de eliminar cuenta se cierra con Cancelar y no borra nada", async ({ page }, info) => {
-  await login(page, info, "preferences");
+  await login(page, info, "delete-cancel");
   await page.goto("/configuracion");
   const abrir = page.getByRole("button", { name: "Eliminar mi cuenta", exact: true });
   await ready(page, abrir);
