@@ -66,6 +66,14 @@ describe("sesiones en KV", () => {
     await deleteSession(kv as any, id);
     expect(await getSession(kv as any, id)).toBeNull();
   });
+
+  it("sesiones con id viejo de 32 caracteres siguen válidas y se borran", async () => {
+    const viejo = "a".repeat(32);
+    await kv.put(`session:${viejo}`, "u1");
+    expect(await getSession(kv as any, viejo)).toBe("u1");
+    await deleteSession(kv as any, viejo);
+    expect(await getSession(kv as any, viejo)).toBeNull();
+  });
 });
 
 describe("GET /api/auth/logout", () => {
@@ -94,6 +102,14 @@ describe("GET /api/auth/logout", () => {
     expect((await res).headers.get("Location")).toBe("/");
     expect(await getSession(kv as any, id)).toBeNull();
     expect(cookies.delete).toHaveBeenCalledWith("session", { path: "/" });
+  });
+
+  it("logout borra una sesión con id viejo de 32 caracteres", async () => {
+    const viejo = "a".repeat(32);
+    await kv.put(`session:${viejo}`, "u1");
+    const { res } = llamar(viejo);
+    expect((await res).headers.get("Location")).toBe("/");
+    expect(await getSession(kv as any, viejo)).toBeNull();
   });
 
   it("sin cookie igual redirige a / y no toca KV", async () => {
