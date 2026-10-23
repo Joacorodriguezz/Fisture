@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiCtx, kvEnMemoria, silenciarConsola } from "../../helpers/ctx";
 import { createSession, deleteSession, getSession } from "../../../src/lib/auth/session";
 import { GET as logout } from "../../../src/pages/api/auth/logout";
@@ -15,8 +15,32 @@ describe("sesiones en KV", () => {
     expect(put).toHaveBeenCalledWith(`session:${id}`, "u1", { expirationTtl: 2_592_000 });
   });
 
-  it("el id de sesión tiene 32 caracteres alfanuméricos en minúscula", async () => {
-    expect(await createSession(kv as any, "u1")).toMatch(/^[a-z0-9]{32}$/);
+  it("el id de sesión tiene al menos 43 caracteres base64url", async () => {
+    const id = await createSession(kv as any, "u1");
+    expect(id.length).toBeGreaterThanOrEqual(43);
+    expect(id).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it("1000 ids de sesión generados son todos distintos", async () => {
+    const ids = new Set<string>();
+    for (let i = 0; i < 1000; i++) {
+      ids.add(await createSession(kv as any, "u1"));
+    }
+    expect(ids.size).toBe(1000);
+  });
+
+  describe("aleatoriedad criptográfica", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("createSession no usa Math.random y sí usa crypto.getRandomValues", async () => {
+      const mathRandom = vi.spyOn(Math, "random");
+      const getRandomValues = vi.spyOn(crypto, "getRandomValues");
+      await createSession(kv as any, "u1");
+      expect(mathRandom).not.toHaveBeenCalled();
+      expect(getRandomValues).toHaveBeenCalled();
+    });
   });
 
   it("getSession devuelve el usuario y null si no existe", async () => {
