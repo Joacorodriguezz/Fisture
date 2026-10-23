@@ -41,6 +41,18 @@ describe("sesiones en KV", () => {
       expect(mathRandom).not.toHaveBeenCalled();
       expect(getRandomValues).toHaveBeenCalled();
     });
+
+    it("el id es base64url sin relleno aunque los bytes den + y /", async () => {
+      // 0xFB 0xFF produce '+' y '/' en base64 estándar: el id debe usar '-' y '_'.
+      vi.spyOn(crypto, "getRandomValues").mockImplementation(((arr: Uint8Array) => {
+        for (let i = 0; i < arr.length; i++) arr[i] = i % 2 === 0 ? 0xfb : 0xff;
+        return arr;
+      }) as any);
+      const id = await createSession(kv as any, "u1");
+      expect(id).toHaveLength(43);
+      expect(id).toMatch(/[-_]/);
+      expect(id).not.toMatch(/[+/=]/);
+    });
   });
 
   it("getSession devuelve el usuario y null si no existe", async () => {
