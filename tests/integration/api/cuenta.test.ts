@@ -1,4 +1,4 @@
-// DELETE /api/cuenta contra D1 real de Miniflare (docs/14-borrado-de-cuenta-tdd.md, casos C1 a C13).
+// DELETE /api/cuenta contra D1 real de Miniflare (docs/14-borrado-de-cuenta-tdd.md, casos C1 a C14).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { useTestDb } from "../../helpers/use-test-db";

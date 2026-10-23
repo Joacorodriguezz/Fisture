@@ -125,6 +125,7 @@ Se loguea `account_deleted` con `provider` y la cantidad de filas borradas por t
 | C11 | `Origin` de otro sitio | `403`, no se borra nada |
 | C12 | Los logs de la operación | Sin email, nombre, `userId` ni token |
 | C13 | Falla el `DELETE` en D1 | `500` uniforme (`withApi`), no se revoca nada, la sesión sigue |
+| C14 | Falla `KV.delete` después del `DELETE` en D1 | `200`, se borra la cookie, se revoca el grant y se loguea `session_cleanup_failed` sin datos personales |
 
 ## 5. Estrategia de tests (test primero)
 

@@ -45,7 +45,7 @@ describe("logs de DELETE /api/cuenta", () => {
 
   const sinDatosPersonales = () => {
     const todo = lineas.join("\n");
-    for (const dato of ["ana@example.test", "Ana", "user-1", "rt-secreto", "test-token"]) {
+    for (const dato of ["ana@example.test", "Ana", "user-1", "rt-secreto", "test-token", "KV caído"]) {
       expect(todo, dato).not.toContain(dato);
     }
   };
