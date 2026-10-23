@@ -33,3 +33,10 @@ test("noindex solo en login (páginas personales o de acceso)", async ({ page })
   await page.goto("/hoy");
   await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
 });
+
+test("noindex en /configuracion con sesión", async ({ page }, info) => {
+  await page.context().addCookies([{ name: "session", value: `e2e-${info.project.name}-preferences-${info.retry}`, url: BASE, httpOnly: true }]);
+  await page.goto("/configuracion");
+  await expect(page).toHaveURL(`${BASE}/configuracion`);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /^noindex/);
+});
