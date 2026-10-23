@@ -1,12 +1,14 @@
 const SESSION_TTL = 60 * 60 * 24 * 30; // 30 días
 
+// 32 bytes de aleatoriedad criptográfica codificados en base64url sin
+// relleno (43 caracteres). Math.random no sirve: no es seguro para credenciales.
 function generateSessionId(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < 32; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
   }
-  return result;
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 export async function createSession(
