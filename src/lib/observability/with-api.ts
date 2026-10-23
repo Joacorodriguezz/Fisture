@@ -44,7 +44,8 @@ export function withApi(handler: APIRoute, options: WithApiOptions = {}): APIRou
     }
 
     const status = response.status;
-    const userId = (locals as { user?: { id: string } }).user?.id;
+    const { user, omitirUserIdEnLog } = locals as { user?: { id: string }; omitirUserIdEnLog?: boolean };
+    const userId = omitirUserIdEnLog ? undefined : user?.id;
     const fields = { status, durationMs: Date.now() - inicio, ...(userId ? { userId } : {}), ...(error ? { err: error } : {}) };
 
     if (status >= 500) logger.error("request", fields);

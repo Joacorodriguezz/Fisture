@@ -82,8 +82,11 @@ import { CONTACTO_EMAIL } from "../lib/legal";
 
     <h2>6. Cuánto tiempo los conservamos</h2>
     <p>
-      Guardamos tus datos mientras tengas una cuenta. La sesión expira sola con el tiempo. Cuando pedís el borrado de la
-      cuenta, eliminamos tus datos personales y tus credenciales de la base de datos.
+      Guardamos tus datos mientras tengas una cuenta. La sesión expira sola con el tiempo. Cuando eliminás tu cuenta
+      desde Configuración, borramos en el acto tus datos personales, tus credenciales, los equipos que seguís, tus
+      preferencias y el registro de partidos sincronizados de la base de datos activa. No hay período de gracia. Por
+      las copias de recuperación automáticas de nuestro proveedor de base de datos (Cloudflare), esos datos pueden
+      permanecer en ellas hasta 7 días, sin uso alguno, y después se eliminan solos.
     </p>
 
     <h2>7. Tus derechos y cómo ejercerlos</h2>
@@ -97,9 +100,14 @@ import { CONTACTO_EMAIL } from "../lib/legal";
         <a href="https://account.live.com/consent/Manage">account.live.com/consent/Manage</a>.
       </li>
       <li>
-        <b>Acceder, corregir o borrar tus datos:</b> escribinos a
+        <b>Borrar tu cuenta y tus datos:</b> desde Configuración, en "Eliminar mi cuenta", confirmando con tu email. Si
+        te registraste con Google, además revocamos el acceso de Fisture a tu cuenta; con Microsoft, revocalo vos desde
+        el enlace de arriba. Los eventos que ya están en tu calendario quedan ahí: podés eliminarlos vos.
+      </li>
+      <li>
+        <b>Acceder o corregir tus datos:</b> escribinos a
         <a href={`mailto:${CONTACTO_EMAIL}`}>{CONTACTO_EMAIL}</a> desde el email con el que te registraste y lo
-        resolvemos. Al borrar tu cuenta, los eventos que ya están en tu calendario quedan ahí: podés eliminarlos vos.
+        resolvemos. Por ese mismo medio también podés pedir el borrado si no podés entrar a la app.
       </li>
     </ul>
     <p>
