@@ -18,6 +18,9 @@ export const DELETE: APIRoute = withApi(async ({ request, cookies, locals }) => 
   const user = locals.user;
   if (!user) return json({ error: "Unauthorized" }, 401);
 
+  // El usuario va a dejar de existir: ningún log de este request debe llevar su userId (D9)
+  locals.omitirUserIdEnLog = true;
+
   const env = locals.runtime.env;
   if (!esMismoOrigen(request, env)) return json({ error: "Origen no permitido" }, 403);
   if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) {
@@ -39,9 +42,8 @@ export const DELETE: APIRoute = withApi(async ({ request, cookies, locals }) => 
   // Después de D1 (D5): si esto falla el usuario ya está borrado y el token no quedó guardado en ningún lado
   await revocarAcceso(env, { provider: user.provider, refreshToken: user.refreshToken }, locals.logger);
 
-  // Ni el email ni el userId van al log (D9): withApi agrega el userId del request si hay usuario
+  // Ni el email ni el userId van al log (D9)
   locals.logger?.info("account_deleted", { provider: user.provider, rows: filas });
-  delete locals.user;
 
   return json({ ok: true });
 });
