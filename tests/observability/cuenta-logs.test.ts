@@ -25,11 +25,12 @@ describe("logs de DELETE /api/cuenta", () => {
     }
   });
 
-  const borrar = async () => {
+  const borrar = async (kvFalla = false) => {
     const { user } = await seedApp(t.db);
     await t.db.update(users).set({ refreshToken: "rt-secreto" }).where(eq(users.id, user.id));
     const completo = (await t.db.query.users.findFirst({ where: eq(users.id, user.id) }))!;
     const kv = kvEnMemoria();
+    if (kvFalla) kv.delete = async () => { throw new Error("KV caído"); };
     return DELETE(
       apiCtx({
         url: "https://fisture.test/api/cuenta",
@@ -66,6 +67,16 @@ describe("logs de DELETE /api/cuenta", () => {
 
     const aviso = lineas.map((l) => JSON.parse(l)).find((r) => r.msg === "account_revoke_failed");
     expect(aviso).toMatchObject({ provider: "google", status: 503 });
+    sinDatosPersonales();
+  });
+
+  it("si algo lanza después del DELETE, el 500 tampoco loguea el userId", async () => {
+    revocar.mockResolvedValue(undefined);
+    expect((await borrar(true)).status).toBe(500);
+
+    const registros = lineas.map((l) => JSON.parse(l));
+    expect(registros.find((r) => r.msg === "request")).toMatchObject({ status: 500 });
+    expect(registros.some((r) => "userId" in r)).toBe(false);
     sinDatosPersonales();
   });
 });
