@@ -116,6 +116,20 @@ describe("DELETE /api/cuenta", () => {
     expect(cookies.delete).toHaveBeenCalledWith("session", { path: "/" });
   });
 
+  it("C14: si KV falla tras borrar en D1, responde 200, borra la cookie y revoca igual", async () => {
+    const user = (await t.db.query.users.findFirst({ where: eq(users.id, "user-1") }))!;
+    kv.delete = async () => {
+      throw new Error("KV caído");
+    };
+
+    const res = await llamar({ user });
+
+    expect(res.status).toBe(200);
+    expect((await filasDe("user-1")).users).toBe(0);
+    expect(cookies.delete).toHaveBeenCalledWith("session", { path: "/" });
+    expect(revocar).toHaveBeenCalledWith("rt-secreto");
+  });
+
   it("C10: el mismo email vuelve a registrarse como cuenta nueva y limpia", async () => {
     await llamar();
     validar.mockResolvedValue({ accessToken: () => "at-2", refreshToken: () => "rt-2", accessTokenExpiresAt: () => new Date("2027-01-01") });

@@ -70,12 +70,13 @@ describe("logs de DELETE /api/cuenta", () => {
     sinDatosPersonales();
   });
 
-  it("si algo lanza después del DELETE, el 500 tampoco loguea el userId", async () => {
+  it("si KV falla después del DELETE, responde 200, avisa sin datos personales y no loguea el userId", async () => {
     revocar.mockResolvedValue(undefined);
-    expect((await borrar(true)).status).toBe(500);
+    expect((await borrar(true)).status).toBe(200);
 
     const registros = lineas.map((l) => JSON.parse(l));
-    expect(registros.find((r) => r.msg === "request")).toMatchObject({ status: 500 });
+    expect(registros.find((r) => r.msg === "session_cleanup_failed")).toMatchObject({ provider: "google" });
+    expect(registros.find((r) => r.msg === "request")).toMatchObject({ status: 200 });
     expect(registros.some((r) => "userId" in r)).toBe(false);
     sinDatosPersonales();
   });
