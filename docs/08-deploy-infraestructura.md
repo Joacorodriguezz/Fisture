@@ -71,7 +71,7 @@ crons = ["0 9 * * *"]
 
 # Environment Variables
 [vars]
-APP_URL = "https://fisture.pages.dev"
+APP_URL = "https://fisture.com"
 ENVIRONMENT = "production"
 ```
 
@@ -154,7 +154,7 @@ wrangler secret put ADMIN_SECRET
 3. Verificar `GET https://<dominio>/api/health`. Devuelve 503 (`sync: fail`) hasta que haya un sync exitoso registrado: lanzar uno con `POST /api/admin/sync` (Bearer `ADMIN_SECRET`).
 4. Logs en vivo: `npx wrangler pages deployment tail`; histórico en el dashboard (Workers & Pages → proyecto → Logs).
 5. Monitor externo recomendado (UptimeRobot, Better Stack, Cloudflare Health Checks) sobre `/api/health` con aviso por mail o Telegram.
-6. **Cron en Pages:** Pages no ejecuta Cron Triggers. El sync diario lo dispara `.github/workflows/sync-cron.yml` (9:00 UTC), que llama a `POST /api/admin/sync`. Requiere los secrets de GitHub `PUBLIC_APP_URL` (ej. `https://fisture.pages.dev`, sin barra final) y `ADMIN_SECRET` (el mismo de Cloudflare). También se puede lanzar a mano desde Actions → Sync diario → Run workflow. Si deja de correr, `/api/health` pasa a `degraded` a las 26 h y a `fail` a las 50 h.
+6. **Cron en Pages:** Pages no ejecuta Cron Triggers. El sync diario lo dispara `.github/workflows/sync-cron.yml` (9:00 UTC), que llama a `POST /api/admin/sync`. Requiere los secrets de GitHub `PUBLIC_APP_URL` (ej. `https://fisture.com`, sin barra final) y `ADMIN_SECRET` (el mismo de Cloudflare). También se puede lanzar a mano desde Actions → Sync diario → Run workflow. Si deja de correr, `/api/health` pasa a `degraded` a las 26 h y a `fail` a las 50 h.
 
 Detalle del diseño: `docs/10-observabilidad-tdd.md`.
 
@@ -321,8 +321,8 @@ wrangler kv:namespace create KV
 
 1. Verificar redirect URIs en Google Cloud Console / Azure
 2. Deben ser:
-   - `https://fisture.pages.dev/api/auth/callback/google`
-   - `https://fisture.pages.dev/api/auth/callback/microsoft`
+   - `https://fisture.com/api/auth/callback/google`
+   - `https://fisture.com/api/auth/callback/microsoft`
 
 ### Error: Cron job not running
 
@@ -331,7 +331,7 @@ wrangler kv:namespace create KV
 wrangler pages deployment tail
 
 # Ejecutar manualmente
-curl -X POST https://fisture.pages.dev/api/admin/sync \
+curl -X POST https://fisture.com/api/admin/sync \
   -H "Authorization: Bearer $ADMIN_SECRET"
 ```
 
