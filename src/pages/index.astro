@@ -10,6 +10,9 @@ if (Astro.locals.user) {
   return Astro.redirect("/ligas");
 }
 
+// Tras borrar la cuenta, DELETE /api/cuenta lleva acá con ?cuenta=eliminada
+const cuentaEliminada = Astro.url.searchParams.get("cuenta") === "eliminada";
+
 const pasos = [
   {
     numero: "01",
@@ -31,6 +34,11 @@ const pasos = [
 
 <Layout title="FISTURE - Tus partidos en tu calendario">
   <div style="display:flex;flex-direction:column;gap:48px">
+    {cuentaEliminada && (
+      <p role="status" style="margin:0;padding:14px 16px;border:2px solid var(--tinta);font:600 15px/22px var(--font-texto)">
+        Tu cuenta se eliminó y tus datos se borraron. Los eventos que ya estaban en tu calendario siguen ahí.
+      </p>
+    )}
     <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:32px">
       <div style="display:flex;flex-direction:column;align-items:flex-start;gap:20px;max-width:720px">
         <Volanta tono="rojo">Fixture sync</Volanta>

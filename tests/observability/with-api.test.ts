@@ -115,4 +115,25 @@ describe("withApi", () => {
     const dentro = lineas.find((l) => l.data.msg === "dentro del handler");
     expect(dentro?.data.requestId).toBeTruthy();
   });
+
+  it("omitirUserIdEnLog evita el userId en el log de request y en el de excepción", async () => {
+    const { logger, lineas } = capturar();
+    const c = ctx();
+    c.locals.user = { id: "u1" };
+    await withApi(async ({ locals }) => {
+      (locals as any).omitirUserIdEnLog = true;
+      return new Response("x");
+    }, { logger })(c);
+
+    const c2 = ctx();
+    c2.locals.user = { id: "u1" };
+    await withApi(async ({ locals }) => {
+      (locals as any).omitirUserIdEnLog = true;
+      throw new Error("boom");
+    }, { logger })(c2);
+
+    expect(lineas).toHaveLength(2);
+    expect(lineas[1].level).toBe("error");
+    for (const l of lineas) expect(l.data).not.toHaveProperty("userId");
+  });
 });
