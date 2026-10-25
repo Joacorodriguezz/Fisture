@@ -32,5 +32,7 @@ declare namespace App {
     // Los pone withApi en las rutas de /api
     requestId?: string;
     logger?: import("./lib/observability/logger").Logger;
+    // Si es true, withApi no agrega el userId a los logs del request (p. ej. cuenta ya borrada)
+    omitirUserIdEnLog?: boolean;
   }
 }

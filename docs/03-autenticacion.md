@@ -399,6 +399,19 @@ export const POST: APIRoute = async ({ cookies, redirect, locals }) => {
 }
 ```
 
+## Borrado de cuenta
+
+El usuario elimina su cuenta desde Configuración ("Zona de peligro", isla `EliminarCuenta.tsx`). Diseño completo: `docs/14-borrado-de-cuenta-tdd.md`.
+
+`DELETE /api/cuenta` (con sesión, envuelto en `withApi`) con cuerpo `{ "confirmar": "<email>" }`:
+
+1. Valida sesión (401), `Origin` contra `PUBLIC_APP_URL` (403, `esMismoOrigen` en `lib/auth/guards.ts`), `Content-Type: application/json` (415) y que `confirmar` coincida con el email, sin distinguir mayúsculas (400).
+2. `deleteAccount` (`lib/db/account.ts`): un `DB.batch` cuenta las filas dependientes y ejecuta `DELETE FROM users`; el `ON DELETE CASCADE` se lleva `user_teams`, `user_preferences` y `calendar_syncs`. Es atómico.
+3. Borra la sesión actual de KV y la cookie. Las demás sesiones del usuario quedan huérfanas en KV, pero el middleware ya no encuentra al usuario y vencen a los 30 días.
+4. `revocarAcceso` (`lib/auth/revoke.ts`), best-effort y después de D1: Google revoca el grant con el refresh token (`google.revokeToken`); Microsoft no tiene endpoint público, así que el diálogo le indica revocar en `account.live.com/consent/Manage`. Un error se loguea como `account_revoke_failed` (provider y status) y no falla la request.
+
+No se borran los eventos ya creados en el calendario del usuario. El log `account_deleted` lleva `provider` y las filas borradas por tabla, sin email ni `userId`.
+
 ## Refresh de Tokens OAuth
 
 Los tokens de acceso expiran (~1 hora). Necesitamos refrescarlos para usar Calendar APIs.
