@@ -1,16 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { withApi } from "../../src/lib/observability/with-api";
 import { createLogger } from "../../src/lib/observability/logger";
+import { apiCtx } from "../helpers/ctx";
 
-function ctx(over: Record<string, unknown> = {}, headers: Record<string, string> = {}) {
-  const url = new URL("https://fisture.test/api/partidos?limit=5");
-  return {
-    request: new Request(url, { method: "GET", headers }),
-    url,
-    locals: { runtime: { env: { ENVIRONMENT: "production" } } } as Record<string, any>,
-    ...over,
-  } as any;
-}
+const ctx = (over: Record<string, unknown> = {}, headers: Record<string, string> = {}) => apiCtx({ over, headers });
 
 function capturar() {
   const lineas: { level: string; data: Record<string, any> }[] = [];

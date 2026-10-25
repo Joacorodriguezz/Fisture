@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decidirAcceso, loginHref, safeNext } from "../../src/lib/auth/guards";
+import { decidirAcceso, loginHref, safeNext } from "../../../src/lib/auth/guards";
 
 describe("decidirAcceso: navegación sin sesión", () => {
   const paginasPublicas = [
@@ -16,29 +16,29 @@ describe("decidirAcceso: navegación sin sesión", () => {
     "/privacidad",
     "/terminos",
   ];
-  for (const ruta of paginasPublicas) {
-    it(`permite ${ruta} sin sesión`, () => {
-      expect(decidirAcceso(ruta, false)).toBe("permitir");
-    });
-  }
+  it.each(paginasPublicas)("permite %s sin sesión", (ruta) => {
+    expect(decidirAcceso(ruta, false)).toBe("permitir");
+  });
 
   it("/configuracion pide login sin sesión (y deja pasar con sesión)", () => {
     expect(decidirAcceso("/configuracion", false)).toBe("login");
     expect(decidirAcceso("/configuracion", true)).toBe("permitir");
   });
 
-  it("APIs personales o de escritura responden 401 sin sesión", () => {
-    for (const ruta of ["/api/equipos", "/api/equipos/42", "/api/partidos", "/api/preferencias", "/api/calendario/sync", "/api/calendario/download"]) {
+  it.each(["/api/equipos", "/api/equipos/42", "/api/partidos", "/api/preferencias", "/api/calendario/sync", "/api/calendario/download"])(
+    "API personal %s responde 401 sin sesión y permite con sesión",
+    (ruta) => {
       expect(decidirAcceso(ruta, false)).toBe("no_autorizado");
       expect(decidirAcceso(ruta, true)).toBe("permitir");
     }
-  });
+  );
 
-  it("APIs públicas o con auth propia no se bloquean", () => {
-    for (const ruta of ["/api/health", "/api/auth/login/google", "/api/auth/callback/google", "/api/admin/status", "/api/equipos/buscar"]) {
+  it.each(["/api/health", "/api/auth/login/google", "/api/auth/callback/google", "/api/admin/status", "/api/equipos/buscar"])(
+    "API pública o con auth propia %s no se bloquea sin sesión",
+    (ruta) => {
       expect(decidirAcceso(ruta, false)).toBe("permitir");
     }
-  });
+  );
 
   it("no confunde prefijos parecidos", () => {
     expect(decidirAcceso("/api/healthcheck", false)).toBe("no_autorizado");

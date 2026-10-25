@@ -2,8 +2,14 @@ import { useState } from "react";
 import { syncView, toSyncStatus, type SyncStatus } from "../../lib/sync-ui";
 import { irALogin } from "../../lib/auth/client";
 
+interface Aviso {
+  code: string;
+  count: number;
+  items: { title: string; start: string; end: string }[];
+}
+
 interface SyncResponse {
-  results?: { matchId: string; success: boolean; error?: string }[];
+  results?: { matchId: string; success: boolean; error?: string; warnings?: Aviso[] }[];
   error?: string;
 }
 
@@ -17,6 +23,8 @@ interface Props {
   permitirQuitar?: boolean;
   // Visitante sin sesión: agregar al calendario pide iniciar sesión
   anonimo?: boolean;
+  // Versión compacta para filas de lista en mobile
+  compacto?: boolean;
 }
 
 export default function SincronizarPartido({
@@ -26,10 +34,13 @@ export default function SincronizarPartido({
   grande = false,
   permitirQuitar = false,
   anonimo = false,
+  compacto = false,
 }: Props) {
   const [estado, setEstado] = useState<SyncStatus>(toSyncStatus(status));
   const [error, setError] = useState<string | null>(errorMessage);
   const [quitando, setQuitando] = useState(false);
+  // Títulos de eventos propios del usuario que se superponen con el partido (solo se muestran, no se guardan)
+  const [solapados, setSolapados] = useState<string[]>([]);
 
   const vista = syncView(estado, error);
 
@@ -52,6 +63,8 @@ export default function SincronizarPartido({
 
       if (res.ok && resultado?.success) {
         setEstado("synced");
+        const choque = resultado.warnings?.find((w) => w.code === "overlap");
+        setSolapados(choque ? choque.items.map((i) => i.title) : []);
       } else {
         setEstado("failed");
         setError(resultado?.error || data.error || "Error al sincronizar");
@@ -71,6 +84,7 @@ export default function SincronizarPartido({
       if (!res.ok) throw new Error(data.error || "No se pudo quitar del calendario");
       setEstado("none");
       setError(null);
+      setSolapados([]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo quitar del calendario");
     } finally {
@@ -78,7 +92,7 @@ export default function SincronizarPartido({
     }
   }
 
-  const clase = `tb-boton ${vista.variante !== "secundario" ? `tb-boton--${vista.variante}` : ""}`;
+  const clase = `tb-boton ${compacto ? "tb-boton--compacto " : ""}${vista.variante !== "secundario" ? `tb-boton--${vista.variante}` : ""}`;
   const mostrarMotivo = estado === "failed" || estado === "needs_update";
 
   return (
@@ -92,7 +106,7 @@ export default function SincronizarPartido({
     >
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
         <button type="button" className={clase} disabled={vista.disabled} onClick={agregar}>
-          {grande ? vista.labelLargo : vista.label}
+          {anonimo && estado === "none" ? (compacto ? "Iniciá sesión" : "Iniciá sesión para agregar") : grande ? vista.labelLargo : vista.label}
         </button>
         {permitirQuitar && estado === "synced" && (
           <button type="button" className="tb-boton" disabled={quitando} onClick={quitar}>
@@ -103,7 +117,7 @@ export default function SincronizarPartido({
       {vista.estado && (
         <span
           style={{
-            font: "700 12px/16px var(--font-rotulo)",
+            font: compacto ? "700 12px/14px var(--font-rotulo)" : "700 13px/16px var(--font-rotulo)",
             letterSpacing: ".04em",
             textTransform: "uppercase",
             color: vista.estadoColor,
@@ -117,11 +131,24 @@ export default function SincronizarPartido({
           style={{
             font: "400 14px/19px var(--font-texto)",
             color: "var(--tinta-suave)",
-            maxWidth: 320,
+            maxWidth: compacto ? 140 : 320,
             textAlign: grande ? "left" : "right",
           }}
         >
           {vista.motivo}
+        </span>
+      )}
+      {solapados.length > 0 && (
+        <span
+          role="status"
+          style={{
+            font: "400 14px/19px var(--font-texto)",
+            color: "var(--tinta-suave)",
+            maxWidth: 320,
+            textAlign: grande ? "left" : "right",
+          }}
+        >
+          Se superpone con: {solapados.join(", ")}
         </span>
       )}
       {error && estado !== "failed" && <span className="tb-error">{error}</span>}

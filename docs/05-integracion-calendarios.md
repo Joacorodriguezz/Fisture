@@ -1,5 +1,7 @@
 # Integración de Calendarios - FISTURE
 
+> **Nota:** el código de este documento es el diseño inicial y quedó desactualizado. La implementación vigente está en `src/lib/calendar/` (`sync-service.ts`, `clients.ts`, `google.ts`, `microsoft.ts`, `ics-match.ts`). El comportamiento ante eventos que ya existen, reprogramaciones, postergados y cancelados (idempotencia, estados `detached` y `cancelled`, reconciliación diaria) está en [`docs/11-calendario-casos-borde-tdd.md`](11-calendario-casos-borde-tdd.md).
+
 ## Providers Soportados
 
 | Provider | Método | Sync Automático |

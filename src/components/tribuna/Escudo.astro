@@ -17,8 +17,8 @@ const iniciales = (sigla || nombre).slice(0, 3).toUpperCase();
   style={`flex:none;width:${size}px;height:${size}px;background:var(--crema-sobre-oscuro);border:2px solid var(--tinta);display:flex;align-items:center;justify-content:center;padding:${pad}px;overflow:hidden`}
 >
   {src ? (
-    <img src={src} alt={nombre} loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:contain;display:block" />
+    <img src={src} alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:contain;display:block" />
   ) : (
-    <span style="font:400 18px/1 var(--font-titular);color:var(--tinta)">{iniciales}</span>
+    <span aria-hidden="true" style="font:400 18px/1 var(--font-titular);color:var(--on-amarillo)">{iniciales}</span>
   )}
 </span>

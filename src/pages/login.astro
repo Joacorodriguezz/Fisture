@@ -37,8 +37,8 @@ const opciones = [
 ];
 ---
 
-<Layout title="Iniciar Sesión - FISTURE" showNavbar={false}>
-  <div style="max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:20px;padding:24px 0">
+<Layout title="Iniciar sesión - FISTURE" showNavbar={false}>
+  <div class="lg-col" style="max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:20px;padding:24px 0">
     <a href={next ?? "/"} class="tb-volver">← Volver</a>
     <Volanta tono="tinta">Iniciá sesión</Volanta>
     <Titular nivel="1">ENTRÁ A LA CANCHA</Titular>
@@ -55,11 +55,11 @@ const opciones = [
       <span>Permiso para crear y editar eventos en tu calendario. Lo usamos solo para los partidos que vos elijas.</span>
     </div>
 
-    <p style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
+    <p class="lg-legal" style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
       Al continuar aceptás las <a href="/terminos">Condiciones del Servicio</a> y la <a href="/privacidad">Política de Privacidad</a>.
     </p>
 
-    <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
+    <div class="lg-opciones" style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
       {opciones.map((o) => (
         <a href={o.href} class="tb-opcion">
           <span style="display:flex;flex-direction:column;gap:2px">
@@ -70,9 +70,5 @@ const opciones = [
         </a>
       ))}
     </div>
-
-    <p style="margin:0;font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
-      Al continuar, aceptás los términos de servicio. Pedimos permiso solo para crear y editar los eventos de Fisture.
-    </p>
   </div>
 </Layout>

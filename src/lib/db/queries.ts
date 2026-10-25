@@ -8,6 +8,7 @@ import {
   calendarSyncs,
 } from "../../../drizzle/schema";
 import type { Database } from "./index";
+import { diaISO } from "../format";
 
 const awayTeams = alias(teams, "away_team");
 
@@ -144,7 +145,7 @@ export async function getAutoSyncMatchIds(db: Database, userId: string, limit: n
   return rows
     .filter((r) => {
       const state = states.get(r.match.id);
-      return !state || state.status !== "synced";
+      return !state || !["synced", "detached", "cancelled"].includes(state.status);
     })
     .slice(0, limit)
     .map((r) => r.match.id);
@@ -165,6 +166,22 @@ export async function getMatchesInRange(db: Database, desde: Date, hasta: Date) 
     .innerJoin(leagues, eq(matches.leagueId, leagues.id))
     .where(and(gte(matches.dateTime, desde), lt(matches.dateTime, hasta), eq(leagues.isActive, true)))
     .orderBy(asc(matches.dateTime));
+}
+
+// Cantidad de partidos por día (AAAA-MM-DD en Buenos Aires) dentro de un rango, para la tira de días de Hoy
+export async function getMatchCountsByDay(db: Database, desde: Date, hasta: Date) {
+  const rows = await db
+    .select({ dateTime: matches.dateTime })
+    .from(matches)
+    .innerJoin(leagues, eq(matches.leagueId, leagues.id))
+    .where(and(gte(matches.dateTime, desde), lt(matches.dateTime, hasta), eq(leagues.isActive, true)));
+
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const dia = diaISO(r.dateTime);
+    counts.set(dia, (counts.get(dia) ?? 0) + 1);
+  }
+  return counts;
 }
 
 // Ids de los equipos que sigue el usuario

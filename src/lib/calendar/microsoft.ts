@@ -1,5 +1,8 @@
 // Microsoft Graph Calendar API integration
 
+import { throwIfNotOk } from "./errors";
+import { matchTitle, MAX_OVERLAPS, type EventState, type OverlapItem } from "./event-state";
+
 export interface MicrosoftCalendarEvent {
   subject: string;
   body?: {
@@ -19,6 +22,10 @@ export interface MicrosoftCalendarEvent {
   };
   isReminderOn: boolean;
   reminderMinutesBeforeStart: number;
+  // Graph evita POST repetidos con el mismo transactionId (reintentos)
+  transactionId?: string;
+  // Etiqueta con el matchId, para reencontrar el evento si se pierde la fila
+  singleValueExtendedProperties?: { id: string; value: string }[];
 }
 
 export interface MicrosoftCalendarResponse {
@@ -27,6 +34,9 @@ export interface MicrosoftCalendarResponse {
 }
 
 const GRAPH_API_BASE = "https://graph.microsoft.com/v1.0";
+
+// Propiedad extendida (espacio de nombres público) donde guardamos el matchId
+export const MATCH_PROPERTY_ID = "String {00020329-0000-0000-C000-000000000046} Name fisture.matchId";
 
 export async function createMicrosoftCalendarEvent(
   accessToken: string,
@@ -41,11 +51,7 @@ export async function createMicrosoftCalendarEvent(
     body: JSON.stringify(event),
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || "Failed to create Microsoft Calendar event");
-  }
-
+  await throwIfNotOk(response, "Failed to create Microsoft Calendar event");
   return response.json();
 }
 
@@ -60,12 +66,11 @@ export async function deleteMicrosoftCalendarEvent(
     },
   });
 
-  if (!response.ok && response.status !== 404) {
-    const error = await response.json();
-    throw new Error(error.error?.message || "Failed to delete Microsoft Calendar event");
-  }
+  if (response.status === 404) return;
+  await throwIfNotOk(response, "Failed to delete Microsoft Calendar event");
 }
 
+// PATCH solo con los campos que FISTURE controla: el cuerpo y el recordatorio son del usuario (D3)
 export async function updateMicrosoftCalendarEvent(
   accessToken: string,
   eventId: string,
@@ -77,15 +82,63 @@ export async function updateMicrosoftCalendarEvent(
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(event),
+    body: JSON.stringify({
+      subject: event.subject,
+      start: event.start,
+      end: event.end,
+      location: event.location,
+    }),
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || "Failed to update Microsoft Calendar event");
-  }
-
+  await throwIfNotOk(response, "Failed to update Microsoft Calendar event");
   return response.json();
+}
+
+// Id del evento que FISTURE creó para ese partido, o null si no está
+export async function findMicrosoftEventByMatch(accessToken: string, matchId: string): Promise<string | null> {
+  const filter = `singleValueExtendedProperties/Any(ep: ep/id eq '${MATCH_PROPERTY_ID}' and ep/value eq '${matchId}')`;
+  const params = new URLSearchParams({ $filter: filter, $select: "id", $top: "1" });
+  const response = await fetch(`${GRAPH_API_BASE}/me/events?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  await throwIfNotOk(response, "Failed to search Microsoft Calendar events");
+  const { value = [] } = (await response.json()) as { value?: { id: string }[] };
+  return value[0]?.id ?? null;
+}
+
+// Eventos ajenos que se superponen con el rango (no incluye el propio, cancelados ni los de todo el día)
+export async function listMicrosoftOverlaps(
+  accessToken: string,
+  from: Date,
+  to: Date,
+  ownEventId: string
+): Promise<OverlapItem[]> {
+  const params = new URLSearchParams({
+    startDateTime: from.toISOString(),
+    endDateTime: to.toISOString(),
+    $select: "id,subject,start,end,isAllDay,isCancelled",
+    $top: "10",
+  });
+  const response = await fetch(`${GRAPH_API_BASE}/me/calendarView?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}`, Prefer: 'outlook.timezone="UTC"' },
+  });
+  await throwIfNotOk(response, "Failed to list Microsoft Calendar events");
+
+  const { value = [] } = (await response.json()) as {
+    value?: {
+      id: string;
+      subject?: string;
+      isAllDay?: boolean;
+      isCancelled?: boolean;
+      start: { dateTime: string };
+      end: { dateTime: string };
+    }[];
+  };
+
+  return value
+    .filter((e) => e.id !== ownEventId && !e.isCancelled && !e.isAllDay)
+    .slice(0, MAX_OVERLAPS)
+    .map((e) => ({ title: e.subject ?? "(sin título)", start: `${e.start.dateTime}Z`, end: `${e.end.dateTime}Z` }));
 }
 
 export function formatMatchForMicrosoft(
@@ -94,7 +147,8 @@ export function formatMatchForMicrosoft(
   league: string,
   dateTime: Date,
   venue: string | null | undefined,
-  reminderMinutes: number[]
+  reminderMinutes: number[],
+  state: EventState = "scheduled"
 ): MicrosoftCalendarEvent {
   const endTime = new Date(dateTime);
   endTime.setHours(endTime.getHours() + 2);
@@ -108,18 +162,18 @@ export function formatMatchForMicrosoft(
   return {
     isReminderOn: reminder > 0,
     reminderMinutesBeforeStart: reminder,
-    subject: `${homeTeam} vs ${awayTeam}`,
+    subject: matchTitle(homeTeam, awayTeam, state),
     body: {
       contentType: "text",
       content: `${league}\n\nAgregado con FISTURE - Fixture Sync`,
     },
     start: {
       dateTime: formatDateTime(dateTime),
-      timeZone: "Argentina Standard Time",
+      timeZone: "UTC",
     },
     end: {
       dateTime: formatDateTime(endTime),
-      timeZone: "Argentina Standard Time",
+      timeZone: "UTC",
     },
     ...(venue && { location: { displayName: venue } }),
   };

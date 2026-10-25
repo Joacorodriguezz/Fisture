@@ -20,6 +20,18 @@ export function fechaLarga(date: Date): string {
   return capitalize(text.replace(",", ""));
 }
 
+// "Mié 21 de octubre" (cabecera mobile)
+export function fechaMovil(date: Date): string {
+  const dia = new Intl.DateTimeFormat(LOCALE, { weekday: "short", timeZone: TZ }).format(date).replace(".", "");
+  const resto = new Intl.DateTimeFormat(LOCALE, { day: "numeric", month: "long", timeZone: TZ }).format(date);
+  return `${capitalize(dia)} ${resto}`;
+}
+
+// "mié" (tira de días de Hoy)
+export function diaSemanaCorto(date: Date): string {
+  return new Intl.DateTimeFormat(LOCALE, { weekday: "short", timeZone: TZ }).format(date).replace(".", "");
+}
+
 // "Sáb 10/10"
 export function fechaCorta(date: Date): string {
   const dia = new Intl.DateTimeFormat(LOCALE, { weekday: "short", timeZone: TZ }).format(date);

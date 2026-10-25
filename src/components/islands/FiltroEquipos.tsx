@@ -35,6 +35,7 @@ interface Props {
 const Escudo = memo(function Escudo({ logo, nombre, sigla, size }: { logo: string | null; nombre: string; sigla: string | null; size: number }) {
   return (
     <span
+      className="fe-escudo"
       style={{
         flex: "none",
         width: size,
@@ -113,6 +114,7 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
         </div>
       )}
 
+      <div className="fe-barra">
       <input
         type="search"
         value={consulta}
@@ -140,11 +142,12 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
           </button>
         )}
       </div>
+      </div>
 
       {error && <p style={{ margin: 0, color: "var(--rojo)", font: "600 15px/20px var(--font-rotulo)" }}>{error}</p>}
 
       {modo === "navegar" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,170px),1fr))", gap: 12 }}>
+        <div className="fe-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,170px),1fr))", gap: 12 }}>
           {filtrados.map((e) => {
             const siguiendo = seguidos.has(e.id);
             return (
@@ -171,7 +174,7 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
                 </span>
                 <span
                   style={{
-                    font: "700 12px/16px var(--font-rotulo)",
+                    font: "700 13px/16px var(--font-rotulo)",
                     letterSpacing: ".06em",
                     textTransform: "uppercase",
                     color: siguiendo ? "var(--rojo)" : "var(--tinta-suave)",

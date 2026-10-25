@@ -6,13 +6,14 @@ import Bajada from "../components/tribuna/Bajada.astro";
 import BarraSeccion from "../components/tribuna/BarraSeccion.astro";
 import Escudo from "../components/tribuna/Escudo.astro";
 import SincronizarTodo from "../components/islands/SincronizarTodo";
+import HoyMovil from "../components/islands/HoyMovil";
 import SincronizarPartido from "../components/islands/SincronizarPartido";
 import { createDb } from "../lib/db";
-import { getMatchesInRange, getFollowedIds, getSyncStates } from "../lib/db/queries";
+import { getMatchesInRange, getMatchCountsByDay, getFollowedIds, getSyncStates } from "../lib/db/queries";
 import { markOutdatedEvents } from "../lib/calendar/sync-service";
-import { toSyncStatus } from "../lib/sync-ui";
+import { esAccionable, toSyncStatus } from "../lib/sync-ui";
 import { loginHref } from "../lib/auth/guards";
-import { diaISO, esDiaISO, fechaLarga, hora, rangoDelDia, sumarDias } from "../lib/format";
+import { diaISO, diaSemanaCorto, esDiaISO, fechaLarga, hora, rangoDelDia, sumarDias } from "../lib/format";
 
 // Página pública: sin sesión se ven todos los partidos del día, sin estado de calendario ni "mis equipos"
 const user = Astro.locals.user;
@@ -26,8 +27,12 @@ const dia = esDiaISO(fechaParam) ? fechaParam : hoy;
 const soloMios = !!user && Astro.url.searchParams.get("solo") === "mios";
 
 const { desde, hasta } = rangoDelDia(dia);
-const [delDia, seguidos] = await Promise.all([
+
+// Tira de días (mobile): 2 días atrás hasta 9 adelante, con la cantidad de partidos de cada uno
+const ventana = Array.from({ length: 12 }, (_, i) => sumarDias(hoy, i - 2));
+const [delDia, cuentas, seguidos] = await Promise.all([
   getMatchesInRange(db, desde, hasta),
+  getMatchCountsByDay(db, rangoDelDia(ventana[0]).desde, rangoDelDia(ventana[ventana.length - 1]).hasta),
   user ? getFollowedIds(db, user.id) : Promise.resolve(new Set<string>()),
 ]);
 
@@ -40,26 +45,88 @@ const esMio = (m: (typeof delDia)[number]) => seguidos.has(m.homeTeam.id) || seg
 const partidos = soloMios ? delDia.filter(esMio) : delDia;
 
 // Agrupar por competencia, manteniendo el orden por horario dentro de cada una
-const porLiga = new Map<string, { nombre: string; items: typeof partidos }>();
+const porLiga = new Map<string, { id: string; nombre: string; items: typeof partidos }>();
 for (const m of partidos) {
-  if (!porLiga.has(m.league.id)) porLiga.set(m.league.id, { nombre: m.league.name, items: [] });
+  if (!porLiga.has(m.league.id)) porLiga.set(m.league.id, { id: m.league.id, nombre: m.league.name, items: [] });
   porLiga.get(m.league.id)!.items.push(m);
 }
 const grupos = [...porLiga.values()].sort((a, b) => a.items[0].match.dateTime.getTime() - b.items[0].match.dateTime.getTime());
 
 // Los que todavía no están al día en el calendario. Cada partido es una llamada a la API: el lote tiene tope.
 const LOTE_MAXIMO = 25;
-const pendientes = partidos.filter((m) => toSyncStatus(estados.get(m.match.id)?.status) !== "synced").map((m) => m.match.id);
+const pendientes = partidos.filter((m) => esAccionable(toSyncStatus(estados.get(m.match.id)?.status))).map((m) => m.match.id);
 const lote = pendientes.slice(0, LOTE_MAXIMO);
 const sobran = pendientes.length - lote.length;
-const enCalendario = partidos.length - pendientes.length;
+const enCalendario = partidos.filter((m) => toSyncStatus(estados.get(m.match.id)?.status) === "synced").length;
 
 const titulo = dia === hoy ? "Hoy" : dia === sumarDias(hoy, 1) ? "Mañana" : dia === sumarDias(hoy, -1) ? "Ayer" : fechaLarga(rangoDelDia(dia).desde);
 const enlace = (fecha: string) => `/hoy?fecha=${fecha}${soloMios ? "&solo=mios" : ""}`;
 const enlaceFiltro = (mios: boolean) => `/hoy?fecha=${dia}${mios ? "&solo=mios" : ""}`;
+
+// Versión mobile: la tira de días y los grupos se arman acá y los maneja la island HoyMovil
+// El día elegido siempre está en la tira, aunque quede fuera de la ventana por defecto
+const diasTira = (ventana.includes(dia) ? ventana : [...ventana, dia].sort()).map((iso) => ({
+  iso,
+  semana: diaSemanaCorto(rangoDelDia(iso).desde),
+  numero: String(Number(iso.slice(8))),
+  cantidad: cuentas.get(iso) ?? (iso === dia ? delDia.length : 0),
+  esHoy: iso === hoy,
+  activo: iso === dia,
+  href: enlace(iso),
+}));
+const gruposMovil = grupos.map((g) => ({
+  id: g.id,
+  nombre: g.nombre,
+  items: g.items.map((m) => ({
+    id: m.match.id,
+    hora: hora(m.match.dateTime),
+    local: { nombre: m.homeTeam.name, sigla: m.homeTeam.shortName, logo: m.homeTeam.logo },
+    visitante: { nombre: m.awayTeam.name, sigla: m.awayTeam.shortName, logo: m.awayTeam.logo },
+    meta: `${m.match.round ? `${m.match.round} · ` : ""}${m.match.venue ?? "Sede a confirmar"}`,
+    mio: esMio(m),
+    status: estados.get(m.match.id)?.status ?? null,
+    errorMessage: estados.get(m.match.id)?.errorMessage ?? null,
+  })),
+}));
 ---
 
 <Layout title="Partidos del día - FISTURE" pagina={3}>
+  <div class="tb-solo-movil hm-sangrado">
+    <div class="hm-cab">
+      <Volanta tono="tinta">{fechaLarga(rangoDelDia(dia).desde)}</Volanta>
+      <div class="hm-cab__fila">
+        <Titular nivel="1">{titulo.toUpperCase()}</Titular>
+        {partidos.length > 0 && (
+          <SincronizarTodo
+            client:visible
+            anonimo={!user}
+            matchIds={lote}
+            etiqueta={!user ? "Agregar todos" : lote.length > 0 ? `Agregar todos (${lote.length})` : "Todo en tu calendario"}
+            etiquetaCargando="Agregando…"
+          />
+        )}
+      </div>
+      {partidos.length > 0 && (
+        <Bajada>
+          {`${partidos.length} ${partidos.length === 1 ? "partido" : "partidos"}`}
+          {user ? ` · ${enCalendario} en tu calendario` : " · Iniciá sesión para agregarlos a tu calendario."}
+          {user && sobran > 0 && ` · "Agregar todos" suma de a ${LOTE_MAXIMO}; quedan ${sobran} más para el próximo clic.`}
+        </Bajada>
+      )}
+    </div>
+    <HoyMovil
+      client:visible
+      dias={diasTira}
+      grupos={gruposMovil}
+      anonimo={!user}
+      soloMios={soloMios}
+      hrefTodos={enlaceFiltro(false)}
+      hrefMios={user ? enlaceFiltro(true) : loginHref(enlaceFiltro(true))}
+      sinMios={soloMios && delDia.length > 0}
+    />
+  </div>
+
+  <div class="tb-solo-escritorio">
   <div style="display:flex;flex-direction:column;gap:28px">
     <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px">
       <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
@@ -85,7 +152,7 @@ const enlaceFiltro = (mios: boolean) => `/hoy?fecha=${dia}${mios ? "&solo=mios" 
       </nav>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         <a href={enlaceFiltro(false)} aria-current={!soloMios ? "true" : undefined} class={!soloMios ? "tb-chip tb-chip--activo" : "tb-chip"}>Todos</a>
-        <a href={user ? enlaceFiltro(true) : loginHref(enlaceFiltro(true))} title={user ? undefined : "Iniciá sesión para ver tus equipos"} aria-current={soloMios ? "true" : undefined} class={soloMios ? "tb-chip tb-chip--activo" : "tb-chip"}>Mis equipos</a>
+        <a href={user ? enlaceFiltro(true) : loginHref(enlaceFiltro(true))} title={user ? undefined : "Iniciá sesión para ver tus equipos"} aria-current={soloMios ? "true" : undefined} class={soloMios ? "tb-chip tb-chip--activo" : "tb-chip"}>{user ? "Mis equipos" : "Mis equipos · con sesión"}</a>
       </div>
     </div>
 
@@ -93,7 +160,7 @@ const enlaceFiltro = (mios: boolean) => `/hoy?fecha=${dia}${mios ? "&solo=mios" 
       <Bajada>
         {partidos.length} {partidos.length === 1 ? "partido" : "partidos"}
         {user ? ` · ${enCalendario} en tu calendario` : " · Iniciá sesión para agregarlos a tu calendario."}
-        {user && sobran > 0 && ` · "Agregar todos" suma de a ${LOTE_MAXIMO}; quedan ${sobran} más para el próximo clic.`}
+        {user && sobran > 0 && ` · Se agregan ${LOTE_MAXIMO} por vez, quedan ${sobran}.`}
       </Bajada>
     )}
 
@@ -150,5 +217,6 @@ const enlaceFiltro = (mios: boolean) => `/hoy?fecha=${dia}${mios ? "&solo=mios" 
         ))}
       </div>
     )}
+  </div>
   </div>
 </Layout>

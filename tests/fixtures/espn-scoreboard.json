@@ -1,0 +1,13 @@
+{
+  "events": [
+    {
+      "id": "1", "date": "2026-10-22T00:00:00Z",
+      "season": { "year": 2026, "slug": "torneo-clausura" },
+      "status": { "type": { "name": "STATUS_SCHEDULED", "state": "pre" } },
+      "competitions": [{ "venue": { "fullName": "Monumental" }, "competitors": [
+        { "homeAway": "away", "score": "0", "team": { "id": "5", "displayName": "Boca Juniors", "abbreviation": "BOC" } },
+        { "homeAway": "home", "score": "0", "team": { "id": "16", "displayName": "River Plate", "abbreviation": "RIV" } }
+      ] }]
+    }
+  ]
+}

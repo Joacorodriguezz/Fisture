@@ -63,7 +63,7 @@ const preferencias = [
 
     <div style="display:flex;flex-direction:column">
       <BarraSeccion tono="tinta">Cuenta</BarraSeccion>
-      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding:16px 12px;border-bottom:1px solid var(--linea)">
+      <div class="cf-cuenta" style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding:16px 12px;border-bottom:1px solid var(--linea)">
         <div style="flex:none;width:56px;height:56px;background:var(--rojo-fondo);color:var(--on-rojo);display:flex;align-items:center;justify-content:center;font:400 28px/1 var(--font-titular)">
           {inicial}
         </div>
@@ -80,7 +80,7 @@ const preferencias = [
     <div style="display:flex;flex-direction:column">
       <BarraSeccion tono="tinta">Preferencias</BarraSeccion>
       {preferencias.map((p) => (
-        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px 16px;padding:16px 12px;border-bottom:1px solid var(--linea)">
+        <div class="cf-pref" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px 16px;padding:16px 12px;border-bottom:1px solid var(--linea)">
           <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:2px">
             <span style="font:700 17px/20px var(--font-rotulo);text-transform:uppercase">{p.label}</span>
             <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">{p.detalle}</span>

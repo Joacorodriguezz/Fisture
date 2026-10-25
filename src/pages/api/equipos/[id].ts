@@ -62,8 +62,11 @@ export const PATCH: APIRoute = withApi(async ({ params, request, locals }) => {
     });
   }
 
-  const body = await request.json();
-  const { autoSync } = body;
+  const body = await request.json().catch(() => null);
+  const autoSync = body && typeof body === "object" && "autoSync" in body ? body.autoSync : undefined;
+  if (typeof autoSync !== "boolean") {
+    return Response.json({ error: "autoSync must be a boolean" }, { status: 400 });
+  }
 
   const db = createDb(locals.runtime.env.DB);
 

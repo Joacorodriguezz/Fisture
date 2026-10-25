@@ -1,6 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createTestDb, type TestDb } from "../helpers/d1";
-import { createDb, type Database } from "../../src/lib/db";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useTestDb } from "../helpers/use-test-db";
+import { apiCtx } from "../helpers/ctx";
 import { failSyncRun, finishSyncRun, startSyncRun } from "../../src/lib/observability/sync-runs";
 import {
   evaluateSyncHealth,
@@ -25,14 +25,19 @@ describe("evaluateSyncHealth (puro)", () => {
   it("success reciente: ok", () => {
     expect(evaluateSyncHealth({ latest: ok, lastSuccessAt: ok.finishedAt, now: NOW })).toBe("ok");
   });
-  it("success justo en el límite de 26 h: ok; pasado el límite: degraded", () => {
+  it("success justo en el límite de 26 h: ok", () => {
     const borde = { ...ok, finishedAt: NOW - SYNC_OK_MAX_AGE_MS };
     expect(evaluateSyncHealth({ latest: borde, lastSuccessAt: borde.finishedAt, now: NOW })).toBe("ok");
+  });
+  it("success un ms pasado el límite de 26 h: degraded", () => {
+    const borde = { ...ok, finishedAt: NOW - SYNC_OK_MAX_AGE_MS };
     expect(evaluateSyncHealth({ latest: borde, lastSuccessAt: borde.finishedAt - 1, now: NOW })).toBe("degraded");
   });
-  it("success entre 26 h y 50 h: degraded; más de 50 h: fail", () => {
+  it("success entre 26 h y 50 h: degraded", () => {
     const a = NOW - 30 * H;
     expect(evaluateSyncHealth({ latest: { ...ok, finishedAt: a }, lastSuccessAt: a, now: NOW })).toBe("degraded");
+  });
+  it("success de más de 50 h: fail", () => {
     const b = NOW - SYNC_DEGRADED_MAX_AGE_MS - 1;
     expect(evaluateSyncHealth({ latest: { ...ok, finishedAt: b }, lastSuccessAt: b, now: NOW })).toBe("fail");
   });
@@ -66,8 +71,7 @@ describe("overallStatus", () => {
 });
 
 describe("getHealth y endpoints (D1)", () => {
-  let t: TestDb;
-  let db: Database;
+  const t = useTestDb();
   const kvOk = { get: async () => null } as any;
   const kvRoto = {
     get: async () => {
@@ -75,34 +79,19 @@ describe("getHealth y endpoints (D1)", () => {
     },
   } as any;
 
-  const ctxHealth = (env: any) =>
-    ({
-      request: new Request("https://fisture.test/api/health"),
-      url: new URL("https://fisture.test/api/health"),
-      locals: { runtime: { env } },
-    }) as any;
+  const ctxHealth = (env: any) => apiCtx({ url: "https://fisture.test/api/health", env });
 
   const ctxStatus = (env: any, auth?: string) =>
-    ({
-      request: new Request("https://fisture.test/api/admin/status", { headers: auth ? { Authorization: auth } : {} }),
-      url: new URL("https://fisture.test/api/admin/status"),
-      locals: { runtime: { env } },
-    }) as any;
+    apiCtx({ url: "https://fisture.test/api/admin/status", env, headers: auth ? { Authorization: auth } : {} });
 
-  beforeAll(async () => {
-    t = await createTestDb();
-    db = createDb(t.DB);
-  });
-  afterAll(async () => {
-    await t.dispose();
-  });
-  beforeEach(async () => {
-    await t.DB.prepare("DELETE FROM sync_runs").run();
+  // withApi loguea cada request con el rootLogger (console.*): se silencia para no ensuciar la salida
+  beforeEach(() => {
+    for (const metodo of ["log", "warn", "error"] as const) vi.spyOn(console, metodo).mockImplementation(() => {});
   });
 
   const syncExitoso = async (cuando: number) => {
-    const id = await startSyncRun(db, "cron", cuando);
-    await finishSyncRun(db, id, { results: [], issues: [] }, cuando + 1000);
+    const id = await startSyncRun(t.db, "cron", cuando);
+    await finishSyncRun(t.db, id, { results: [], issues: [] }, cuando + 1000);
   };
 
   it("getHealth ok con un sync reciente", async () => {
@@ -120,16 +109,34 @@ describe("getHealth y endpoints (D1)", () => {
     expect(h.status).toBe("fail");
   });
 
-  it("getHealth: D1 rota => db y sync en fail", async () => {
-    const dbRota = {
-      prepare: () => {
-        throw new Error("D1 caída");
-      },
-    } as any;
+  const dbRota = {
+    prepare: () => {
+      throw new Error("D1 caída");
+    },
+  } as any;
+
+  it("getHealth: D1 rota => db en fail y estado general fail", async () => {
     const h = await getHealth({ DB: dbRota, KV: kvOk });
     expect(h.checks.db).toBe("fail");
-    expect(h.checks.sync).toBe("fail");
     expect(h.status).toBe("fail");
+  });
+
+  it("getHealth: sin poder consultar D1 no se evalúa el sync y queda en fail", async () => {
+    const h = await getHealth({ DB: dbRota, KV: kvOk });
+    expect(h.checks.sync).toBe("fail");
+    expect(h.lastSyncAt).toBeNull();
+  });
+
+  it("getHealth: D1 sana pero la tabla de runs ilegible => solo sync en fail", async () => {
+    await syncExitoso(Date.now() - H); // con runs legibles daría ok: el fail viene de la lectura
+    const dbSinRuns = {
+      prepare: (sql: string) => {
+        if (sql.includes("sync_runs")) throw new Error("no such table: sync_runs");
+        return t.DB.prepare(sql);
+      },
+    } as any;
+    const h = await getHealth({ DB: dbSinRuns, KV: kvOk });
+    expect(h.checks).toMatchObject({ db: "ok", sync: "fail" });
   });
 
   it("GET /api/health: 200 con base sana", async () => {
@@ -146,12 +153,13 @@ describe("getHealth y endpoints (D1)", () => {
   });
 
   it("GET /api/health no expone detalles internos", async () => {
-    const id = await startSyncRun(db, "cron", Date.now() - H);
-    await failSyncRun(db, id, new Error("clave secreta de ESPN: abc"), Date.now());
+    const id = await startSyncRun(t.db, "cron", Date.now() - H);
+    await failSyncRun(t.db, id, new Error("clave secreta de ESPN: abc"), Date.now());
     const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk }));
-    const texto = JSON.stringify(await res.json());
-    expect(texto).not.toContain("abc");
-    expect(texto).not.toContain("error");
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(["checks", "lastSyncAt", "status"]);
+    expect(Object.keys(body.checks as object).sort()).toEqual(["db", "kv", "sync"]);
+    expect(JSON.stringify(body)).not.toContain("clave secreta");
   });
 
   it("GET /api/admin/status: 401 sin token o con token incorrecto", async () => {
