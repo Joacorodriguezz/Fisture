@@ -187,4 +187,8 @@ El login sigue caído mientras el contador del día esté agotado y se repite ca
 
 ## 10. Notas de implementación (desvíos respecto del diseño original)
 
-*(Vacía hasta que se apruebe el TDD y empiece la implementación. Aquí van el resultado del paso 0 y los desvíos.)*
+*(La implementación de código no empezó. Hasta entonces, se registran las medidas operativas ya aplicadas.)*
+
+- **2026-10-26, regla de WAF aplicada** (zona `fisture.com`, ruleset `Fisture custom rules`, fase `http_request_firewall_custom`): acción *Block* sobre `ip.src.asnum eq 32934` (Meta, verificado con RIPE: el prefijo `2a03:2880::/32` anuncia el ASN 32934) en las rutas que empiezan con `/api/auth/login` o `/api/auth/callback`. Las páginas públicas y `/api/health` no se tocan.
+- **Bot Fight Mode: no activado a propósito.** En el plan Free no se puede excluir con reglas (`Skip` no lo afecta), aplica a todo el dominio y puede desafiar tráfico de API. El sync diario (`POST /api/admin/sync`) y el smoke del deploy son `curl` desde GitHub Actions, así que podría bloquearlos. Si se quiere activarlo hay que probarlo antes con una ejecución manual de "Sync diario" y desactivarlo si falla.
+- Pendiente: la cuota de KV del día sigue agotada hasta las 00:00 UTC; el login no vuelve hasta entonces con esta medida sola.
