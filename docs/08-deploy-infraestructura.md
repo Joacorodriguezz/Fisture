@@ -129,6 +129,9 @@ wrangler secret put APPLE_TEAM_ID
 wrangler secret put APPLE_KEY_ID
 wrangler secret put APPLE_PRIVATE_KEY
 
+# Firma la cookie del estado del login (docs/20). Sin él el login falla cerrado y /api/health responde 503
+openssl rand -base64 32 | npx wrangler pages secret put OAUTH_STATE_SECRET --project-name fisture
+
 # API Football
 wrangler secret put RAPIDAPI_KEY
 

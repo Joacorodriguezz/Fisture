@@ -189,7 +189,13 @@ El login sigue caído mientras el contador del día esté agotado y se repite ca
 
 ## 10. Notas de implementación (desvíos respecto del diseño original)
 
-*(La implementación de código no empezó. Hasta entonces, se registran las medidas operativas ya aplicadas.)*
+*(Rama `fix/login-sin-kv`. Desvíos respecto del diseño y medidas operativas ya aplicadas.)*
+
+- **Implementado** `src/lib/auth/oauth-state.ts`, login y callback con la cookie `oauth_state_<provider>`, check `oauthState` en `/api/health` (sin el secret responde 503) y `rel="nofollow"` en los enlaces de `/login`.
+- **Desvío: el callback valida el proveedor antes de leer la cookie.** Un proveedor desconocido responde `unsupported_provider` (como antes) en lugar de `invalid_state`.
+- **Desvío: error nuevo `oauth_unavailable`** para el secret faltante. El login y el callback redirigen a `/login?error=oauth_unavailable` (mensaje en `login.astro`) en lugar de responder un 500.
+- **L13 (E2E):** el entorno local no tiene un proveedor simulado; el test de Playwright cubre el login (302 a Google con la cookie `HttpOnly`) y el rechazo del callback sin cookie. El intercambio completo del code queda cubierto por los tests de integración del callback.
+- **Pendiente de producción:** crear `OAUTH_STATE_SECRET` en Pages antes del deploy (paso 0 del §6).
 
 - **2026-10-26, regla de WAF aplicada** (zona `fisture.com`, ruleset `Fisture custom rules`, fase `http_request_firewall_custom`): acción *Block* sobre `ip.src.asnum eq 32934` (Meta, verificado con RIPE: el prefijo `2a03:2880::/32` anuncia el ASN 32934) en las rutas que empiezan con `/api/auth/login` o `/api/auth/callback`. Las páginas públicas y `/api/health` no se tocan.
 - **Bot Fight Mode: no activado a propósito.** En el plan Free no se puede excluir con reglas (`Skip` no lo afecta), aplica a todo el dominio y puede desafiar tráfico de API. El sync diario (`POST /api/admin/sync`) y el smoke del deploy son `curl` desde GitHub Actions, así que podría bloquearlos. Si se quiere activarlo hay que probarlo antes con una ejecución manual de "Sync diario" y desactivarlo si falla.
