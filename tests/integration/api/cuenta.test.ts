@@ -6,6 +6,7 @@ import { relojFijo } from "../../helpers/clock";
 import { seedApp } from "../../helpers/fixtures";
 import { apiCtx, kvEnMemoria, silenciarConsola } from "../../helpers/ctx";
 import { OAUTH_STATE_SECRET, cookieDeEstado, cookiesEnMemoria } from "../../helpers/oauth-state";
+import { createSession, getSessionUser } from "../../../src/lib/auth/session";
 import { calendarSyncs, userPreferences, userTeams, users } from "../../../drizzle/schema";
 
 const { revocar, validar } = vi.hoisted(() => ({ revocar: vi.fn(), validar: vi.fn() }));
@@ -24,6 +25,8 @@ describe("DELETE /api/cuenta", () => {
   const t = useTestDb();
   let f: Awaited<ReturnType<typeof seedApp>>;
   let kv: ReturnType<typeof kvEnMemoria>;
+  let sidUsuario1: string;
+  let sidUsuario2: string;
   let cookies: { get: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
   relojFijo();
 
@@ -31,9 +34,11 @@ describe("DELETE /api/cuenta", () => {
     silenciarConsola(vi);
     revocar.mockReset().mockResolvedValue(undefined);
     kv = kvEnMemoria();
-    cookies = { get: vi.fn(() => ({ value: "sid-1" })), delete: vi.fn() };
-    kv.datos.set("session:sid-1", "user-1");
+    cookies = { get: vi.fn(), delete: vi.fn() };
     f = await seedApp(t.db);
+    sidUsuario1 = await createSession(t.db, "user-1");
+    sidUsuario2 = await createSession(t.db, "user-2");
+    cookies.get.mockReturnValue({ value: sidUsuario1 });
     // Datos colgados de ambos usuarios
     for (const id of ["user-1", "user-2"]) {
       await t.db.insert(userTeams).values({ userId: id, teamId: "river" });
@@ -111,23 +116,20 @@ describe("DELETE /api/cuenta", () => {
     expect(await filasDe("user-2")).toEqual({ users: 1, user_teams: 1, user_preferences: 1, calendar_syncs: 1 });
   });
 
-  it("C9: borra la sesión actual en KV y la cookie", async () => {
+  it("C9: borra la cookie y las sesiones del usuario caen por cascada", async () => {
     await llamar();
-    expect(kv.datos.has("session:sid-1")).toBe(false);
+    expect(await getSessionUser(t.db, sidUsuario1)).toBeNull();
+    expect((await t.DB.prepare("SELECT COUNT(*) AS n FROM sessions WHERE user_id = 'user-1'").first<{ n: number }>())!.n).toBe(0);
     expect(cookies.delete).toHaveBeenCalledWith("session", { path: "/" });
   });
 
-  it("C14: si KV falla tras borrar en D1, responde 200, borra la cookie y revoca igual", async () => {
+  it("S12: no toca KV y deja intactas las sesiones de otros usuarios", async () => {
+    const ops = vi.spyOn(kv, "delete");
     const user = (await t.db.query.users.findFirst({ where: eq(users.id, "user-1") }))!;
-    kv.delete = async () => {
-      throw new Error("KV caído");
-    };
-
     const res = await llamar({ user });
-
     expect(res.status).toBe(200);
-    expect((await filasDe("user-1")).users).toBe(0);
-    expect(cookies.delete).toHaveBeenCalledWith("session", { path: "/" });
+    expect(ops).not.toHaveBeenCalled();
+    expect(await getSessionUser(t.db, sidUsuario2)).toMatchObject({ id: "user-2" });
     expect(revocar).toHaveBeenCalledWith("rt-secreto");
   });
 
@@ -231,7 +233,7 @@ describe("DELETE /api/cuenta", () => {
     const res = await llamar({ DB: fallida });
 
     expect(res.status).toBe(500);
-    expect(kv.datos.has("session:sid-1")).toBe(true);
+    expect(await getSessionUser(t.db, sidUsuario1)).toMatchObject({ id: "user-1" });
     expect(cookies.delete).not.toHaveBeenCalled();
     expect(revocar).not.toHaveBeenCalled();
     expect((await filasDe("user-1")).users).toBe(1);
