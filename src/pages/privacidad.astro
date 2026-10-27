@@ -11,7 +11,7 @@ import { CONTACTO_EMAIL } from "../lib/legal";
     bajada="Qué datos tuyos usa Fisture, para qué, y cómo los podés borrar."
   >
     <p>
-      Fisture (<a href="/">fisture.pages.dev</a>) es una app que agrega los partidos de los equipos que seguís a tu
+      Fisture (<a href="/">fisture.com</a>) es una app que agrega los partidos de los equipos que seguís a tu
       calendario de Google u Outlook. Esta política explica qué información tratamos para lograrlo. Si tenés dudas,
       escribinos a <a href={`mailto:${CONTACTO_EMAIL}`}>{CONTACTO_EMAIL}</a>.
     </p>
@@ -50,8 +50,12 @@ import { CONTACTO_EMAIL } from "../lib/legal";
     <h2>3. Permiso sobre tu calendario</h2>
     <p>
       Pedimos permiso para <b>crear y editar eventos</b> (Google: <code>calendar.events</code>; Microsoft:
-      <code>Calendars.ReadWrite</code>). Solo tocamos los eventos de partidos que Fisture creó. No leemos, copiamos ni
-      analizamos el resto de tus eventos.
+      <code>Calendars.ReadWrite</code>). Solo modificamos o borramos los eventos de partidos que Fisture creó.
+    </p>
+    <p>
+      Para avisarte si un partido se solapa con otro compromiso, consultamos los eventos de tu calendario en la franja
+      horaria de ese partido y te mostramos hasta tres títulos en el aviso. No los guardamos, no los registramos ni los
+      usamos para otra cosa, y no leemos el resto de tu calendario.
     </p>
     <p>
       El uso que Fisture hace de la información recibida de las APIs de Google cumple con la
@@ -82,8 +86,11 @@ import { CONTACTO_EMAIL } from "../lib/legal";
 
     <h2>6. Cuánto tiempo los conservamos</h2>
     <p>
-      Guardamos tus datos mientras tengas una cuenta. La sesión expira sola con el tiempo. Cuando pedís el borrado de la
-      cuenta, eliminamos tus datos personales y tus credenciales de la base de datos.
+      Guardamos tus datos mientras tengas una cuenta. La sesión expira sola con el tiempo. Cuando eliminás tu cuenta
+      desde Configuración, borramos en el acto tus datos personales, tus credenciales, los equipos que seguís, tus
+      preferencias y el registro de partidos sincronizados de la base de datos activa. No hay período de gracia. Por
+      las copias de recuperación automáticas de nuestro proveedor de base de datos (Cloudflare), esos datos pueden
+      permanecer en ellas hasta 7 días, sin uso alguno, y después se eliminan solos.
     </p>
 
     <h2>7. Tus derechos y cómo ejercerlos</h2>
@@ -97,9 +104,14 @@ import { CONTACTO_EMAIL } from "../lib/legal";
         <a href="https://account.live.com/consent/Manage">account.live.com/consent/Manage</a>.
       </li>
       <li>
-        <b>Acceder, corregir o borrar tus datos:</b> escribinos a
+        <b>Borrar tu cuenta y tus datos:</b> desde Configuración, en "Eliminar mi cuenta", confirmando con tu email. Si
+        te registraste con Google, además revocamos el acceso de Fisture a tu cuenta; con Microsoft, revocalo vos desde
+        el enlace de arriba. Los eventos que ya están en tu calendario quedan ahí: podés eliminarlos vos.
+      </li>
+      <li>
+        <b>Acceder o corregir tus datos:</b> escribinos a
         <a href={`mailto:${CONTACTO_EMAIL}`}>{CONTACTO_EMAIL}</a> desde el email con el que te registraste y lo
-        resolvemos. Al borrar tu cuenta, los eventos que ya están en tu calendario quedan ahí: podés eliminarlos vos.
+        resolvemos. Por ese mismo medio también podés pedir el borrado si no podés entrar a la app.
       </li>
     </ul>
     <p>

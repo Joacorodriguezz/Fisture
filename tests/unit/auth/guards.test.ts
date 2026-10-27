@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decidirAcceso, loginHref, safeNext } from "../../../src/lib/auth/guards";
+import { decidirAcceso, esMismoOrigen, loginHref, safeNext } from "../../../src/lib/auth/guards";
 
 describe("decidirAcceso: navegación sin sesión", () => {
   const paginasPublicas = [
@@ -83,6 +83,33 @@ describe("safeNext", () => {
 
   it("rechaza destinos demasiado largos", () => {
     expect(safeNext("/" + "a".repeat(600))).toBeNull();
+  });
+});
+
+describe("esMismoOrigen", () => {
+  const env = { PUBLIC_APP_URL: "https://fisture.test" };
+  const req = (origin?: string) => new Request("https://fisture.test/api/cuenta", { method: "DELETE", headers: origin ? { Origin: origin } : {} });
+
+  it("acepta el Origin de la app", () => {
+    expect(esMismoOrigen(req("https://fisture.test"), env)).toBe(true);
+  });
+
+  it("acepta una request sin Origin (no es de navegador cross-site)", () => {
+    expect(esMismoOrigen(req(), env)).toBe(true);
+  });
+
+  it("tolera una barra final en PUBLIC_APP_URL", () => {
+    expect(esMismoOrigen(req("https://fisture.test"), { PUBLIC_APP_URL: "https://fisture.test/" })).toBe(true);
+  });
+
+  it("rechaza otro sitio, otro puerto, otro esquema, subdominios y 'null'", () => {
+    for (const origen of ["https://evil.com", "https://fisture.test:8443", "http://fisture.test", "https://x.fisture.test", "https://fisture.test.evil.com", "null"]) {
+      expect(esMismoOrigen(req(origen), env), origen).toBe(false);
+    }
+  });
+
+  it("si PUBLIC_APP_URL no es una URL válida, un Origin presente se rechaza", () => {
+    expect(esMismoOrigen(req("https://fisture.test"), { PUBLIC_APP_URL: "" })).toBe(false);
   });
 });
 

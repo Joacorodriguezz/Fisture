@@ -62,7 +62,7 @@ try {
   ];
   const sessions = [];
   for (const project of ["desktop", "mobile"]) {
-    for (const scenario of ["follow", "preferences", "calendar", "logout", "navigation", "errors", "calendar-states", "responsive-menu", "responsive-today", "responsive-today-chip", "responsive-today-mine"]) {
+    for (const scenario of ["delete-account", "delete-cancel", "follow", "preferences", "calendar", "logout", "navigation", "errors", "calendar-states", "responsive-menu", "responsive-today", "responsive-today-chip", "responsive-today-mine"]) {
       for (let retry = 0; retry <= 1; retry++) {
         const id = `${project}-${scenario}-${retry}`;
         sql.push(`INSERT INTO users (id, email, name, provider, provider_id) VALUES ('${id}', '${id}@example.test', 'Persona E2E', 'google', '${id}');`);

@@ -24,7 +24,7 @@ id = "8a9fc92ed9774806833736d1bec711bb"
 
 [vars]
 ENVIRONMENT = "production"
-PUBLIC_APP_URL = "https://fisture.pages.dev"
+PUBLIC_APP_URL = "https://fisture.com"
 
 # Logs y excepciones en el dashboard de Cloudflare (y `wrangler pages deployment tail`)
 [observability]

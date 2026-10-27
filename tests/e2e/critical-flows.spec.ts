@@ -105,6 +105,43 @@ test("logout elimina la sesión del KV y rechaza reutilizarla", async ({ page },
   await expect(page).toHaveURL(/\/login\?next=%2Fconfiguracion$/);
 });
 
+test("elimina la cuenta tras confirmar con el email y la sesión deja de servir", async ({ page }, info) => {
+  await login(page, info, "delete-account");
+  const email = `${info.project.name}-delete-account-${info.retry}@example.test`;
+  await page.goto("/configuracion");
+  const abrir = page.getByRole("button", { name: "Eliminar mi cuenta", exact: true });
+  await ready(page, abrir);
+  await abrir.click();
+  const dialogo = page.getByRole("dialog", { name: "¿Eliminar tu cuenta?" });
+  await expect(dialogo).toBeVisible();
+  const eliminar = dialogo.getByRole("button", { name: "Eliminar definitivamente", exact: true });
+  await expect(eliminar).toBeDisabled();
+  await dialogo.getByLabel(/Escribí tu email para confirmar/).fill("otro@example.test");
+  await expect(eliminar).toBeDisabled();
+  await dialogo.getByLabel(/Escribí tu email para confirmar/).fill(email.toUpperCase());
+  await expect(eliminar).toBeEnabled();
+  await eliminar.click();
+  await expect(page).toHaveURL("http://127.0.0.1:4322/?cuenta=eliminada");
+  await expect(page.getByRole("status")).toContainText("Tu cuenta se eliminó");
+  // La sesión ya no abre Configuración
+  await login(page, info, "delete-account");
+  await page.goto("/configuracion");
+  await expect(page).toHaveURL(/\/login\?next=%2Fconfiguracion$/);
+});
+
+test("el diálogo de eliminar cuenta se cierra con Cancelar y no borra nada", async ({ page }, info) => {
+  await login(page, info, "delete-cancel");
+  await page.goto("/configuracion");
+  const abrir = page.getByRole("button", { name: "Eliminar mi cuenta", exact: true });
+  await ready(page, abrir);
+  await abrir.click();
+  const dialogo = page.getByRole("dialog", { name: "¿Eliminar tu cuenta?" });
+  await dialogo.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(dialogo).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1, name: "TU CUENTA" })).toBeVisible();
+});
+
 test("un fallo de auth se informa y permite reintentar sin persistir un falso fallo del partido", async ({ page }, info) => {
   await login(page, info, "errors");
   await page.goto("/partidos/superclasico");
