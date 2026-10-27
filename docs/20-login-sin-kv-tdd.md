@@ -39,7 +39,7 @@ El primero es la fuga: cualquier cliente que haga `GET /api/auth/login/google` (
 | Navegador / SO | "Unknown/Others" 2,44 mil (93 %); GoogleBot 78; Chrome 95; curl 5 |
 | IPs de origen | Prefijo `2a03:2880:f804:*::` en todo el top 10, con 38 a 195 requests cada una |
 
-Lectura: **es un crawler, no personas.** Casi nada de tráfico con navegador real, ningún 2xx, recorrido sistemático de los dos enlaces del login y muchas IPs de una misma red. El prefijo `2a03:2880::/32` corresponde, según mi conocimiento, a la red de Meta (Facebook); conviene verificarlo con `whois` o con el ASN que muestra el panel antes de bloquearlo por ASN. Los 78 de GoogleBot son una fracción menor, pero muestran que los buscadores también llegan.
+Lectura: **es un crawler, no personas.** Casi nada de tráfico con navegador real, ningún 2xx, recorrido sistemático de los dos enlaces del login y muchas IPs de una misma red. El prefijo `2a03:2880::/32` corresponde, a la red de Meta (Facebook, ASN 32934), verificado con RIPE (ver §10). Los 78 de GoogleBot son una fracción menor, pero muestran que los buscadores también llegan.
 
 Por qué sigue pasando aunque `robots.txt` ya tiene `Disallow: /api/` (se desplegó el 2026-10-25): los crawlers cachean `robots.txt` hasta 24 h y no todos lo respetan. Por eso la solución no puede depender de que los bots se porten bien.
 
@@ -72,7 +72,7 @@ El login estuvo caído desde el pico de ~00:00 (hora de Argentina) y lo seguirá
 ## 3. Decisiones
 
 **D1. El estado del login viaja en una cookie firmada, no en KV.**
-En `login` se genera `state` y `codeVerifier` como hoy y se arma un payload `{ state, codeVerifier, provider, next, exp }`. Se guarda en la cookie `oauth_state` con el formato `base64url(payload) + "." + base64url(HMAC-SHA256(payload))`. Atributos: `HttpOnly`, `Secure` en producción, `SameSite=Lax`, `Path=/api/auth`, `Max-Age=600` (los mismos 10 minutos que hoy tiene el registro en KV).
+En `login` se genera `state` y `codeVerifier` como hoy y se arma un payload `{ state, codeVerifier, provider, next, exp }`. Se guarda en la cookie `oauth_state_<provider>` (una por proveedor, para que dos intentos en paralelo no se pisen) con el formato `base64url(payload) + "." + base64url(HMAC-SHA256(payload))`. Atributos: `HttpOnly`, `Secure` en producción, `SameSite=Lax`, `Path=/api/auth`, `Max-Age=600` (los mismos 10 minutos que hoy tiene el registro en KV).
 
 Por qué funciona con OAuth: el proveedor redirige de vuelta con un `GET` de navegación de nivel superior, y `SameSite=Lax` envía la cookie en ese caso. La cookie liga el intento al **navegador que lo inició**, que es justo lo que el registro en KV no hacía (en KV cualquiera con el `state` podía consumirlo).
 
@@ -115,11 +115,11 @@ GET /api/auth/login/google
   1. secret presente? si no -> error controlado, log, sin side effects
   2. state, codeVerifier = random
   3. payload = { state, codeVerifier, provider, next: safeNext(?next), exp: ahora + 600 s }
-  4. Set-Cookie oauth_state = firmar(payload)        <- sin KV
+  4. Set-Cookie oauth_state_<provider> = firmar(payload)        <- sin KV
   5. 302 al proveedor (con state y code_challenge)
 
 GET /api/auth/callback/google?code=..&state=..
-  1. cookie oauth_state -> verificar firma, exp, state, provider
+  1. cookie oauth_state_<provider> -> verificar firma, exp, state, provider
   2. borrar la cookie
   3. intercambiar el code (con el codeVerifier del payload)
   4. crear/actualizar usuario y sesión (1 put en KV, solo aquí)
@@ -131,7 +131,7 @@ Módulo nuevo `src/lib/auth/oauth-state.ts` con `crearEstado(env, datos)` y `lee
 
 | ID | Caso | Resultado esperado |
 | --- | --- | --- |
-| L1 | `GET /login/google` | Responde 302, **no llama a `KV.put`**, setea `oauth_state` con `HttpOnly`, `SameSite=Lax`, `Path=/api/auth`, `Max-Age=600` |
+| L1 | `GET /login/google` | Responde 302, **no llama a `KV.put`**, setea `oauth_state_google` con `HttpOnly`, `SameSite=Lax`, `Path=/api/auth`, `Max-Age=600` |
 | L2 | `state` y `code_challenge` de la URL de redirección | El `state` coincide con el del payload de la cookie; el challenge corresponde al verifier |
 | L3 | **Regresión de abuso:** 100 llamadas seguidas al login | 0 escrituras en KV |
 | L4 | Callback con cookie válida | Crea la sesión (única escritura en KV), no lee `oauth:*`, borra la cookie |
@@ -144,6 +144,7 @@ Módulo nuevo `src/lib/auth/oauth-state.ts` con `crearEstado(env, datos)` y `lee
 | L11 | `next` externo (`//evil.com`) en el login | Se descarta por `safeNext`, como hoy |
 | L12 | Los logs de login y callback | Sin `state`, `codeVerifier`, cookie ni `next` completo |
 | L13 | E2E (Playwright) de login con el servidor local y proveedor simulado | Flujo completo: login → callback → sesión |
+| L14 | Dos logins seguidos, Google y Microsoft, sin completar el primero | Cada uno conserva su cookie; el callback de Google sigue válido |
 
 **Tests existentes a actualizar** porque hoy suponen el estado en KV: `tests/unit/auth/login.test.ts` (líneas del `put` con `oauth:`), `tests/integration/auth/callback.test.ts` (`seed` de `oauth:<state>`), `tests/integration/api/cuenta.test.ts` (el `kv.put("oauth:st", ...)` del caso C10) y el seed de `scripts/e2e-server.mjs` si lo usa. Es un cambio de forma de la precondición, no de lo que se verifica.
 
@@ -184,6 +185,7 @@ El login sigue caído mientras el contador del día esté agotado y se repite ca
 | **R4. Las sesiones siguen usando 1 escritura por login completado** | Acotado por un login OAuth real con el proveedor. Con unos pocos cientos de logins por día alcanza en Free; si crece, Workers Paid (D6) o sesiones firmadas en cookie (fuera de alcance) |
 | **R5. Tamaño de la cookie** | El payload mide cientos de bytes, muy por debajo del límite de 4 KB; hay un test que lo fija |
 | **R6. Un bloqueo por ASN deja afuera a un servicio legítimo** | El bloqueo es solo sobre `/api/auth/*`; las páginas públicas (y sus previews al compartir el enlace) no se tocan |
+| **R7. Dos intentos de login en paralelo** (dos pestañas, o Google y Microsoft seguidos) | Una cookie por proveedor (`oauth_state_<provider>`): solo se pisan dos intentos con el mismo proveedor, y gana el último, que es el que el usuario ve. Test L14 |
 
 ## 10. Notas de implementación (desvíos respecto del diseño original)
 
