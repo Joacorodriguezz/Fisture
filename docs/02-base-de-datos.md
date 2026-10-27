@@ -194,6 +194,19 @@ export type UserTeam = typeof userTeams.$inferSelect
 export type CalendarSync = typeof calendarSyncs.$inferSelect
 ```
 
+### Sesiones
+
+Tabla `sessions` (migración `0008_sessions.sql`, `docs/21-sesiones-en-d1-tdd.md`):
+
+| Columna | Tipo | Nota |
+| --- | --- | --- |
+| `id` | TEXT PK | SHA-256 hexadecimal del token de la cookie (el token no se guarda) |
+| `user_id` | TEXT NOT NULL | FK a `users(id)` con `ON DELETE CASCADE` |
+| `created_at` | INTEGER NOT NULL | segundos Unix |
+| `expires_at` | INTEGER NOT NULL | segundos Unix; fijo a 30 días |
+
+Índices: `sessions_user_id_idx` y `sessions_expires_at_idx`. Las vencidas se purgan dentro de `runSync`.
+
 ## Configuración de Drizzle
 
 ```typescript
