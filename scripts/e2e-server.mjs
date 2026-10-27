@@ -31,6 +31,9 @@ id = "00000000000000000000000000000001"
 ENVIRONMENT = "test"
 PUBLIC_APP_URL = "http://127.0.0.1:4322"
 ADMIN_SECRET = "local-e2e-admin"
+OAUTH_STATE_SECRET = "local-e2e-oauth-state-secret-0123456789"
+GOOGLE_CLIENT_ID = "e2e-google-id"
+GOOGLE_CLIENT_SECRET = "e2e-google-secret"
 `);
 
 function run(args) {

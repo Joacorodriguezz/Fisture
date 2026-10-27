@@ -18,6 +18,7 @@ const mensajesError: Record<string, string> = {
   invalid_state: "La sesión de inicio expiró. Volvé a intentar.",
   missing_params: "Falta información del proveedor. Volvé a intentar.",
   unsupported_provider: "Ese proveedor no está disponible por ahora.",
+  oauth_unavailable: "El inicio de sesión no está disponible por ahora. Probá de nuevo más tarde.",
   oauth_failed: "No pudimos conectar con tu cuenta. Probá de nuevo en un momento.",
 };
 const codigoError = Astro.url.searchParams.get("error");
@@ -61,7 +62,7 @@ const opciones = [
 
     <div class="lg-opciones" style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
       {opciones.map((o) => (
-        <a href={o.href} class="tb-opcion">
+        <a href={o.href} class="tb-opcion" rel="nofollow">
           <span style="display:flex;flex-direction:column;gap:2px">
             <span style="font:700 17px/20px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase">Continuar con {o.label}</span>
             <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">{o.detalle}</span>

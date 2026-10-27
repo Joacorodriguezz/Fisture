@@ -86,14 +86,14 @@ Usuario click "Login con Google"
 GET /api/auth/login/google
        │
        ├─► Generar state + codeVerifier (PKCE)
-       ├─► Guardar en KV (temporal, 10 min TTL)
+       ├─► Guardar el intento en una cookie firmada (HMAC, 10 min), sin KV
        └─► Redirect a Google OAuth
               │
               │  Usuario autoriza
               ▼
 GET /api/auth/callback/google?code=xxx&state=xxx
        │
-       ├─► Validar state desde KV
+       ├─► Validar la cookie oauth_state_<provider> (firma, vencimiento, state y proveedor)
        ├─► Intercambiar code por tokens
        ├─► Obtener perfil de usuario
        ├─► Crear/actualizar usuario en D1
@@ -105,6 +105,8 @@ GET /api/auth/callback/google?code=xxx&state=xxx
 ## API Endpoints de Auth
 
 ### Login Redirect
+
+> **Estado actual:** el ejemplo de abajo es el diseño original. Hoy el estado del intento (`state`, `codeVerifier`, `provider`, `next`) no se guarda en KV sino en la cookie `oauth_state_<provider>`, firmada con HMAC-SHA256 (`src/lib/auth/oauth-state.ts`, secret `OAUTH_STATE_SECRET`). Ver `docs/20-login-sin-kv-tdd.md`.
 
 ```typescript
 // src/pages/api/auth/login/[provider].ts

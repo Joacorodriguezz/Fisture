@@ -46,11 +46,12 @@ export function overallStatus(checks: Record<string, CheckStatus>): CheckStatus 
 export interface HealthEnv {
   DB: D1Database;
   KV?: { get(key: string): Promise<unknown> };
+  OAUTH_STATE_SECRET?: string;
 }
 
 export interface Health {
   status: CheckStatus;
-  checks: { db: CheckStatus; kv: CheckStatus; sync: CheckStatus };
+  checks: { db: CheckStatus; kv: CheckStatus; sync: CheckStatus; oauthState: CheckStatus };
   lastSyncAt: string | null;
 }
 
@@ -84,7 +85,10 @@ export async function getHealth(env: HealthEnv, now = Date.now()): Promise<Healt
     }
   }
 
-  const checks = { db, kv, sync };
+  // Sin el secret el login falla cerrado (docs/20): se detecta acá antes de que lo note un usuario
+  const oauthState: CheckStatus = env.OAUTH_STATE_SECRET ? "ok" : "fail";
+
+  const checks = { db, kv, sync, oauthState };
   return {
     status: overallStatus(checks),
     checks,
