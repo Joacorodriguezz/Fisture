@@ -8,6 +8,14 @@ import { eq } from "drizzle-orm";
 import { withApi } from "../../../../lib/observability/with-api";
 import { safeNext } from "../../../../lib/auth/guards";
 
+// Una respuesta de error del proveedor (p. ej. 403 por falta de scope) no es un perfil:
+// se corta acá para que el log muestre la causa y no un error posterior de D1
+async function obtenerPerfil<T>(url: string, accessToken: string): Promise<T> {
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!response.ok) throw new Error(`profile_fetch_failed: ${response.status}`);
+  return (await response.json()) as T;
+}
+
 export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, locals }) => {
   const { provider } = params;
   const env = locals.runtime.env;
@@ -46,10 +54,10 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
       const google = createGoogleProvider(env);
       tokens = await google.validateAuthorizationCode(code, codeVerifier);
 
-      const response = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-        headers: { Authorization: `Bearer ${tokens.accessToken()}` },
-      });
-      const profile = await response.json() as { email: string; name: string; picture?: string; id: string };
+      const profile = await obtenerPerfil<{ email: string; name: string; picture?: string; id: string }>(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        tokens.accessToken()
+      );
 
       userInfo = {
         email: profile.email,
@@ -61,19 +69,22 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
       const microsoft = createMicrosoftProvider(env);
       tokens = await microsoft.validateAuthorizationCode(code, codeVerifier);
 
-      const response = await fetch("https://graph.microsoft.com/v1.0/me", {
-        headers: { Authorization: `Bearer ${tokens.accessToken()}` },
-      });
-      const profile = await response.json() as { mail?: string; userPrincipalName: string; displayName: string; id: string };
+      const profile = await obtenerPerfil<{ mail?: string; userPrincipalName?: string; displayName: string; id: string }>(
+        "https://graph.microsoft.com/v1.0/me",
+        tokens.accessToken()
+      );
 
       userInfo = {
-        email: profile.mail || profile.userPrincipalName,
+        email: profile.mail || profile.userPrincipalName || "",
         name: profile.displayName,
         providerId: profile.id,
       };
     } else {
       return redirect("/login?error=unsupported_provider");
     }
+
+    // Sin email no hay con qué identificar al usuario
+    if (!userInfo.email) throw new Error("profile_without_email");
 
     const db = createDb(env.DB);
 
