@@ -23,6 +23,8 @@ interface Env {
   FOOTBALL_DATA_API_KEY?: string;
   PUBLIC_APP_URL: string;
   ADMIN_SECRET?: string;
+  // Firma la cookie con el estado del login OAuth (32 bytes aleatorios, secret de Pages)
+  OAUTH_STATE_SECRET?: string;
 }
 
 declare namespace App {

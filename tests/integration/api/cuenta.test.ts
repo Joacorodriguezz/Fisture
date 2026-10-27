@@ -5,6 +5,7 @@ import { useTestDb } from "../../helpers/use-test-db";
 import { relojFijo } from "../../helpers/clock";
 import { seedApp } from "../../helpers/fixtures";
 import { apiCtx, kvEnMemoria, silenciarConsola } from "../../helpers/ctx";
+import { OAUTH_STATE_SECRET, cookieDeEstado, cookiesEnMemoria } from "../../helpers/oauth-state";
 import { calendarSyncs, userPreferences, userTeams, users } from "../../../drizzle/schema";
 
 const { revocar, validar } = vi.hoisted(() => ({ revocar: vi.fn(), validar: vi.fn() }));
@@ -134,14 +135,15 @@ describe("DELETE /api/cuenta", () => {
     await llamar();
     validar.mockResolvedValue({ accessToken: () => "at-2", refreshToken: () => "rt-2", accessTokenExpiresAt: () => new Date("2027-01-01") });
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "provider-1", email: "ana@example.test", name: "Ana" })));
-    await kv.put("oauth:st", JSON.stringify({ codeVerifier: "cv", provider: "google", next: null }));
+    const estado = await cookieDeEstado({ state: "st" });
+    const cookiesLogin = cookiesEnMemoria({ [estado.nombre]: estado.valor });
 
     await callback(
       apiCtx({
         url: `${APP_URL}/api/auth/callback/google?code=c&state=st`,
         params: { provider: "google" },
-        env: { ENVIRONMENT: "test", DB: t.DB, KV: kv },
-        over: { cookies: { set: vi.fn(), delete: vi.fn() }, redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) },
+        env: { ENVIRONMENT: "test", DB: t.DB, KV: kv, OAUTH_STATE_SECRET },
+        over: { cookies: cookiesLogin, redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) },
       })
     );
 

@@ -96,9 +96,9 @@ describe("getHealth y endpoints (D1)", () => {
 
   it("getHealth ok con un sync reciente", async () => {
     await syncExitoso(Date.now() - H);
-    const h = await getHealth({ DB: t.DB, KV: kvOk });
+    const h = await getHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret" });
     expect(h.status).toBe("ok");
-    expect(h.checks).toEqual({ db: "ok", kv: "ok", sync: "ok" });
+    expect(h.checks).toEqual({ db: "ok", kv: "ok", sync: "ok", oauthState: "ok" });
     expect(h.lastSyncAt).toBeTruthy();
   });
 
@@ -116,13 +116,13 @@ describe("getHealth y endpoints (D1)", () => {
   } as any;
 
   it("getHealth: D1 rota => db en fail y estado general fail", async () => {
-    const h = await getHealth({ DB: dbRota, KV: kvOk });
+    const h = await getHealth({ DB: dbRota, KV: kvOk, OAUTH_STATE_SECRET: "secret" });
     expect(h.checks.db).toBe("fail");
     expect(h.status).toBe("fail");
   });
 
   it("getHealth: sin poder consultar D1 no se evalúa el sync y queda en fail", async () => {
-    const h = await getHealth({ DB: dbRota, KV: kvOk });
+    const h = await getHealth({ DB: dbRota, KV: kvOk, OAUTH_STATE_SECRET: "secret" });
     expect(h.checks.sync).toBe("fail");
     expect(h.lastSyncAt).toBeNull();
   });
@@ -135,47 +135,54 @@ describe("getHealth y endpoints (D1)", () => {
         return t.DB.prepare(sql);
       },
     } as any;
-    const h = await getHealth({ DB: dbSinRuns, KV: kvOk });
+    const h = await getHealth({ DB: dbSinRuns, KV: kvOk, OAUTH_STATE_SECRET: "secret" });
     expect(h.checks).toMatchObject({ db: "ok", sync: "fail" });
   });
 
   it("GET /api/health: 200 con base sana", async () => {
     await syncExitoso(Date.now() - H);
-    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk }));
+    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret" }));
     expect(res.status).toBe(200);
     expect(((await res.json()) as any).status).toBe("ok");
   });
 
   it("GET /api/health: 503 si el sync está en fail (sin runs)", async () => {
-    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk }));
+    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret" }));
     expect(res.status).toBe(503);
     expect(((await res.json()) as any).checks.sync).toBe("fail");
+  });
+
+  it("L10: sin OAUTH_STATE_SECRET el check oauthState falla y /api/health responde 503", async () => {
+    await syncExitoso(Date.now() - H);
+    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk }));
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as any).checks).toMatchObject({ db: "ok", kv: "ok", sync: "ok", oauthState: "fail" });
   });
 
   it("GET /api/health no expone detalles internos", async () => {
     const id = await startSyncRun(t.db, "cron", Date.now() - H);
     await failSyncRun(t.db, id, new Error("clave secreta de ESPN: abc"), Date.now());
-    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk }));
+    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret" }));
     const body = (await res.json()) as Record<string, unknown>;
     expect(Object.keys(body).sort()).toEqual(["checks", "lastSyncAt", "status"]);
-    expect(Object.keys(body.checks as object).sort()).toEqual(["db", "kv", "sync"]);
+    expect(Object.keys(body.checks as object).sort()).toEqual(["db", "kv", "oauthState", "sync"]);
     expect(JSON.stringify(body)).not.toContain("clave secreta");
   });
 
   it("GET /api/admin/status: 401 sin token o con token incorrecto", async () => {
-    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3" };
+    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3", OAUTH_STATE_SECRET: "secret" };
     expect((await statusGET(ctxStatus(env))).status).toBe(401);
     expect((await statusGET(ctxStatus(env, "Bearer otro"))).status).toBe(401);
   });
 
   it("GET /api/admin/status: 401 si no hay ADMIN_SECRET configurado", async () => {
-    expect((await statusGET(ctxStatus({ DB: t.DB, KV: kvOk }, "Bearer undefined"))).status).toBe(401);
+    expect((await statusGET(ctxStatus({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret" }, "Bearer undefined"))).status).toBe(401);
   });
 
   it("GET /api/admin/status: 200 con token y devuelve los runs", async () => {
     await syncExitoso(Date.now() - H);
     await syncExitoso(Date.now() - 2 * H);
-    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3" };
+    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3", OAUTH_STATE_SECRET: "secret" };
     const res = await statusGET(ctxStatus(env, "Bearer s3"));
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;

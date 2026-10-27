@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
-import { createGoogleProvider, createMicrosoftProvider } from "../../../../lib/auth/providers";
+import { createGoogleProvider, createMicrosoftProvider, isValidProvider } from "../../../../lib/auth/providers";
+import { leerEstado, nombreCookieEstado } from "../../../../lib/auth/oauth-state";
 import { createSession } from "../../../../lib/auth/session";
 import { createDb } from "../../../../lib/db";
 import { users } from "../../../../../drizzle/schema";
@@ -18,13 +19,24 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
     return redirect("/login?error=missing_params");
   }
 
-  const storedData = await env.KV.get(`oauth:${state}`);
-  if (!storedData) {
+  if (!provider || !isValidProvider(provider)) {
+    return redirect("/login?error=unsupported_provider");
+  }
+
+  if (!env.OAUTH_STATE_SECRET) {
+    locals.logger?.error("oauth_state_secret_missing", { provider });
+    return redirect("/login?error=oauth_unavailable");
+  }
+
+  const nombreCookie = nombreCookieEstado(provider);
+  const estado = await leerEstado(env.OAUTH_STATE_SECRET, cookies.get(nombreCookie)?.value, { state, provider });
+  // Se borra siempre: un intento se consume tenga éxito o no el intercambio del code
+  cookies.delete(nombreCookie, { path: "/api/auth" });
+  if (!estado) {
     return redirect("/login?error=invalid_state");
   }
 
-  const { codeVerifier, next } = JSON.parse(storedData) as { codeVerifier: string; next?: string | null };
-  await env.KV.delete(`oauth:${state}`);
+  const { codeVerifier, next } = estado;
 
   try {
     let tokens;

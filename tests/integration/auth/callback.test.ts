@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "../../helpers/use-test-db";
 import { apiCtx, kvEnMemoria, silenciarConsola } from "../../helpers/ctx";
+import { OAUTH_STATE_SECRET, cookieDeEstado, cookiesEnMemoria } from "../../helpers/oauth-state";
+import { crearEstado } from "../../../src/lib/auth/oauth-state";
 
 const { validar } = vi.hoisted(() => ({ validar: vi.fn() }));
 vi.mock("../../../src/lib/auth/providers", () => ({
@@ -22,29 +24,36 @@ const perfilGoogle = { id: "g-1", email: "ana@example.com", name: "Ana", picture
 describe("callback OAuth", () => {
   const t = useTestDb();
   let kv: ReturnType<typeof kvEnMemoria>;
-  let cookies: { set: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
+  let cookies: ReturnType<typeof cookiesEnMemoria>;
+  let lecturasEnKv: string[];
 
-  const llamar = (provider: string, query: Record<string, string>) => {
+  const llamar = (provider: string, query: Record<string, string>, extraEnv: Record<string, unknown> = {}) => {
     const url = new URL(`https://fisture.test/api/auth/callback/${provider}`);
     for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
     return GET(
       apiCtx({
         url: url.toString(),
         params: { provider },
-        env: { ENVIRONMENT: "production", DB: t.DB, KV: kv },
+        env: { ENVIRONMENT: "production", DB: t.DB, KV: kv, OAUTH_STATE_SECRET, ...extraEnv },
         over: { cookies, redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) },
       })
     );
   };
-  const conEstado = (extra: Record<string, unknown> = {}, state = "st-1") =>
-    kv.put(`oauth:${state}`, JSON.stringify({ codeVerifier: "cv", provider: "google", next: null, ...extra }));
+  // El intento de login vive en la cookie firmada del navegador, no en KV
+  const conEstado = async (extra: { provider?: string; next?: string | null } = {}, state = "st-1") => {
+    const { nombre, valor } = await cookieDeEstado({ state, ...extra });
+    cookies.valores.set(nombre, valor);
+  };
   const usuarios = async () => (await t.DB.prepare("SELECT * FROM users").all<any>()).results;
   const destino = (res: Response) => res.headers.get("Location");
 
   beforeEach(() => {
     silenciarConsola(vi);
     kv = kvEnMemoria();
-    cookies = { set: vi.fn(), delete: vi.fn() };
+    cookies = cookiesEnMemoria();
+    lecturasEnKv = [];
+    const get = kv.get;
+    kv.get = async (k: string) => (lecturasEnKv.push(k), get(k));
     validar.mockReset().mockResolvedValue(tokens());
     vi.stubGlobal("fetch", vi.fn(async () => Response.json(perfilGoogle)));
   });
@@ -61,21 +70,85 @@ describe("callback OAuth", () => {
     expect(destino(await llamar("google", { code: "c" }))).toBe("/login?error=missing_params");
   });
 
-  it("un state desconocido redirige a invalid_state y no valida el código", async () => {
-    const res = await llamar("google", { code: "c", state: "inventado" });
+  it("L5: sin cookie de estado redirige a invalid_state y no valida el código", async () => {
+    const res = await llamar("google", { code: "c", state: "st-1" });
     expect(destino(res)).toBe("/login?error=invalid_state");
     expect(validar).not.toHaveBeenCalled();
   });
 
-  it("el state es de un solo uso: el segundo intento es invalid_state", async () => {
+  it("L6: una cookie con la firma alterada redirige a invalid_state", async () => {
+    await conEstado();
+    const cookie = cookies.valores.get("oauth_state_google")!;
+    cookies.valores.set("oauth_state_google", cookie.slice(0, -2) + (cookie.endsWith("AA") ? "BB" : "AA"));
+
+    expect(destino(await llamar("google", { code: "c", state: "st-1" }))).toBe("/login?error=invalid_state");
+    expect(validar).not.toHaveBeenCalled();
+  });
+
+  it("L6: una cookie firmada con otro secret redirige a invalid_state", async () => {
+    const otra = await crearEstado("otro-secret-distinto-0123456789", { state: "st-1", codeVerifier: "cv", provider: "google", next: null });
+    cookies.valores.set("oauth_state_google", otra);
+
+    expect(destino(await llamar("google", { code: "c", state: "st-1" }))).toBe("/login?error=invalid_state");
+    expect(validar).not.toHaveBeenCalled();
+  });
+
+  it("L7: una cookie vencida redirige a invalid_state", async () => {
+    const { nombre, valor } = await cookieDeEstado({}, Date.now() - 11 * 60_000);
+    cookies.valores.set(nombre, valor);
+
+    expect(destino(await llamar("google", { code: "c", state: "st-1" }))).toBe("/login?error=invalid_state");
+    expect(validar).not.toHaveBeenCalled();
+  });
+
+  it("L8: un state distinto al de la cookie redirige a invalid_state", async () => {
+    await conEstado();
+    expect(destino(await llamar("google", { code: "c", state: "inventado" }))).toBe("/login?error=invalid_state");
+    expect(validar).not.toHaveBeenCalled();
+  });
+
+  it("L9: la cookie de Google no sirve en el callback de Microsoft", async () => {
+    await conEstado();
+    cookies.valores.set("oauth_state_microsoft", cookies.valores.get("oauth_state_google")!);
+
+    expect(destino(await llamar("microsoft", { code: "c", state: "st-1" }))).toBe("/login?error=invalid_state");
+    expect(validar).not.toHaveBeenCalled();
+  });
+
+  it("L10: sin OAUTH_STATE_SECRET redirige a oauth_unavailable sin validar el código", async () => {
+    await conEstado();
+    const res = await llamar("google", { code: "c", state: "st-1" }, { OAUTH_STATE_SECRET: undefined });
+    expect(destino(res)).toBe("/login?error=oauth_unavailable");
+    expect(validar).not.toHaveBeenCalled();
+  });
+
+  it("el intento es de un solo uso: se borra la cookie y el segundo callback es invalid_state", async () => {
     await conEstado();
     await llamar("google", { code: "c", state: "st-1" });
-    expect(kv.datos.has("oauth:st-1")).toBe(false);
+    expect(cookies.delete).toHaveBeenCalledWith("oauth_state_google", { path: "/api/auth" });
+    expect(cookies.valores.has("oauth_state_google")).toBe(false);
     expect(destino(await llamar("google", { code: "c", state: "st-1" }))).toBe("/login?error=invalid_state");
   });
 
-  it("un proveedor no soportado redirige a unsupported_provider sin abrir sesión", async () => {
+  it("la cookie también se consume si el proveedor rechaza el código", async () => {
     await conEstado();
+    validar.mockRejectedValue(new Error("invalid_grant"));
+    await llamar("google", { code: "c", state: "st-1" });
+    expect(cookies.valores.has("oauth_state_google")).toBe(false);
+  });
+
+  it("L4: no lee ni escribe el estado en KV (la única escritura es la sesión)", async () => {
+    await conEstado();
+    const put = vi.spyOn(kv, "put");
+
+    await llamar("google", { code: "c", state: "st-1" });
+
+    expect(lecturasEnKv.filter((k) => k.startsWith("oauth:"))).toEqual([]);
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(put.mock.calls[0][0]).toMatch(/^session:/);
+  });
+
+  it("un proveedor no soportado redirige a unsupported_provider sin abrir sesión", async () => {
     const res = await llamar("github", { code: "c", state: "st-1" });
     expect(destino(res)).toBe("/login?error=unsupported_provider");
     expect(cookies.set).not.toHaveBeenCalled();

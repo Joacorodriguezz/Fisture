@@ -194,11 +194,26 @@ test("calendario refleja reprogramados, detached y cancelados sin reofrecerlos e
 test("salud, auth administrativa y errores HTTP sobre el worker construido", async ({ request }) => {
   const health = await request.get("/api/health");
   expect(health.status()).toBe(200);
-  expect(await health.json()).toMatchObject({ status: "ok", checks: { db: "ok", kv: "ok", sync: "ok" } });
+  expect(await health.json()).toMatchObject({ status: "ok", checks: { db: "ok", kv: "ok", sync: "ok", oauthState: "ok" } });
   expect((await request.get("/api/admin/status")).status()).toBe(401);
   const status = await request.get("/api/admin/status", { headers: { Authorization: "Bearer local-e2e-admin" } });
   expect(status.status()).toBe(200);
   expect((await request.post("/api/admin/sync", { data: {} })).status()).toBe(401);
+});
+
+test("login OAuth: el estado va en una cookie firmada y el callback lo exige", async ({ request }) => {
+  const login = await request.get("/api/auth/login/google", { maxRedirects: 0 });
+  expect(login.status()).toBe(302);
+  expect(new URL(login.headers()["location"]).origin).toBe("https://accounts.google.com");
+  const cookie = login.headers()["set-cookie"];
+  expect(cookie).toMatch(/^oauth_state_google=/);
+  expect(cookie).toMatch(/HttpOnly/i);
+  expect(cookie).toMatch(/Path=\/api\/auth/i);
+
+  // Sin la cookie del intento (o con otro state) el callback no avanza
+  const callback = await request.get("/api/auth/callback/google?code=x&state=inventado", { maxRedirects: 0 });
+  expect(callback.status()).toBe(302);
+  expect(callback.headers()["location"]).toBe("/login?error=invalid_state");
 });
 
 // Los tests de viewport se separan por proyecto: cada uno cubre un solo comportamiento.
