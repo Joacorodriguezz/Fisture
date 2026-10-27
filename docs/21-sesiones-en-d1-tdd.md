@@ -153,8 +153,8 @@ Verde: la suite completa (`npm run check`). Refactor: borrar el prefijo `session
 
 **Coordinación con otros TDD:**
 
-- `docs/20` (estado de OAuth en cookie) es independiente y va primero: es el que resuelve el incidente.
-- `docs/16` (rate limiting) también escribe en D1. Con los volúmenes del §1.2 el presupuesto de escrituras alcanza para ambos con holgura, pero la suma se revisa al implementar.
+- `docs/20` (estado de OAuth en cookie, PR #33) es independiente y va primero: es el que resuelve el incidente.
+- `docs/16` (rate limiting, aún sin publicar) también escribe en D1. Con los volúmenes del §1.2 el presupuesto de escrituras alcanza para ambos con holgura, pero la suma se revisa al implementar.
 - Los cambios a `src/pages/api/cuenta.ts` y `session.ts` se rebasan sobre lo que haya en `development` (el cifrado de tokens, `docs/15`, también los toca).
 
 ## 7. Plan de implementación
