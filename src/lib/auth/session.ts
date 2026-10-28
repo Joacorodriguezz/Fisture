@@ -60,14 +60,14 @@ export async function deleteUserSessions(db: Database, userId: string): Promise<
 
 // Higiene del sync diario: las vencidas ya no autentican. Devuelve cuántas borró (hasta `tope`).
 export async function purgeExpiredSessions(db: Database, ahora: Date = new Date(), tope = PURGE_TOPE): Promise<number> {
-  const vencidas = await db
+  // Subconsulta en vez de una lista de ids: D1 admite hasta 100 parámetros por consulta
+  const vencidas = db
     .select({ id: sessions.id })
     .from(sessions)
     .where(lt(sessions.expiresAt, enSegundos(ahora)))
     .limit(tope);
-  if (vencidas.length === 0) return 0;
-  await db.delete(sessions).where(inArray(sessions.id, vencidas.map((s) => s.id)));
-  return vencidas.length;
+  const borradas = await db.delete(sessions).where(inArray(sessions.id, vencidas)).returning({ id: sessions.id });
+  return borradas.length;
 }
 
 // Para /api/admin/status (docs/21 Q2): solo conteos, nunca ids ni usuarios

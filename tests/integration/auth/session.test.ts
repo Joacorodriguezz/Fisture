@@ -136,6 +136,34 @@ describe("sesiones en D1", () => {
       expect(await filas()).toHaveLength(2);
     });
 
+    // D1 admite hasta 100 parámetros por consulta: la purga no puede usar uno por id
+    it.each([101, 500])("purga %i vencidas sin exceder el límite de parámetros de D1", async (n) => {
+      const vencidas = Array.from({ length: n }, (_, i) =>
+        t.DB.prepare("INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, 'user-1', 0, ?)").bind(
+          `vencida-${String(i).padStart(3, "0")}`,
+          segundos() - 10,
+        ),
+      );
+      await t.DB.batch(vencidas);
+      await insertar("vigente", segundos() + 10);
+
+      expect(await purgeExpiredSessions(t.db)).toBe(n);
+      expect((await filas()).map((f) => f.id)).toEqual(["vigente"]);
+    });
+
+    it("con más vencidas que el tope borra solo el tope", async () => {
+      const vencidas = Array.from({ length: 501 }, (_, i) =>
+        t.DB.prepare("INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, 'user-1', 0, ?)").bind(
+          `vencida-${String(i).padStart(3, "0")}`,
+          segundos() - 10,
+        ),
+      );
+      await t.DB.batch(vencidas);
+
+      expect(await purgeExpiredSessions(t.db)).toBe(500);
+      expect(await filas()).toHaveLength(1);
+    });
+
     it("no falla sin filas", async () => {
       expect(await purgeExpiredSessions(t.db)).toBe(0);
     });
