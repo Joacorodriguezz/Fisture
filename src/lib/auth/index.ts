@@ -11,4 +11,5 @@ export {
   deleteSession,
   deleteUserSessions,
   purgeExpiredSessions,
+  countSessions,
 } from "./session";

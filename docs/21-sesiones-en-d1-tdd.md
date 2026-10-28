@@ -136,6 +136,7 @@ La cookie `session` no cambia: mismo nombre, mismo valor, mismos atributos. El n
 | S15 | La migración sobre una base con datos (0001 a 0007) | Aplica sin tocar `users` ni el resto; la tabla queda vacía |
 | S16 | Logs de login, logout y limpieza | Sin token, hash ni `user_id` con la sesión |
 | S17 | E2E (Playwright) con las sesiones sembradas en D1 | Todos los escenarios actuales siguen pasando |
+| S18 | `countSessions` y `GET /api/admin/status` (Q2) | Devuelve `{ vigentes, vencidas }`, sin ids ni usuarios |
 
 **Tests existentes a actualizar** porque hoy asumen sesiones en KV: `tests/unit/auth/session.test.ts`, `tests/integration/auth/callback.test.ts`, `tests/integration/api/cuenta.test.ts` (C9 y C14), `tests/observability/cuenta-logs.test.ts` (el caso de fallo de KV deja de existir) y `tests/helpers/ctx.ts` (el uso de `kvEnMemoria` para sesiones). Cambia la precondición, no lo que se verifica.
 
@@ -188,7 +189,7 @@ Verde: la suite completa (`npm run check`). Refactor: borrar el prefijo `session
 
 ## 10. Notas de implementación (desvíos respecto del diseño original)
 
-Respuestas a las preguntas abiertas: **Q1** se aceptan las sesiones perdidas al desplegar (D7, sin lectura doble); **Q2** no se expone el conteo en `/api/admin/status` (el log `sessions_purged` y `/api/health` alcanzan para el MVP; se agrega después si hace falta); **Q3** "cerrar sesión en todos los dispositivos" queda para después (solo existe `deleteUserSessions`).
+Respuestas a las preguntas abiertas: **Q1** se aceptan las sesiones perdidas al desplegar (D7, sin lectura doble); **Q2** sí: `/api/admin/status` devuelve `sessions: { vigentes, vencidas }` (`countSessions`, una consulta, solo conteos; caso S18); **Q3** "cerrar sesión en todos los dispositivos" queda para después (solo existe `deleteUserSessions`).
 
 Desvíos:
 

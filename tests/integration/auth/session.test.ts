@@ -1,9 +1,10 @@
-// Sesiones en D1 (docs/21-sesiones-en-d1-tdd.md, casos S1 a S7, S13 y S15) contra D1 real de Miniflare.
+// Sesiones en D1 (docs/21-sesiones-en-d1-tdd.md, casos S1 a S7, S13, S15 y S18) contra D1 real de Miniflare.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "../../helpers/use-test-db";
 import { relojFijo } from "../../helpers/clock";
 import { seedApp } from "../../helpers/fixtures";
 import {
+  countSessions,
   createSession,
   deleteSession,
   deleteUserSessions,
@@ -138,6 +139,16 @@ describe("sesiones en D1", () => {
     it("no falla sin filas", async () => {
       expect(await purgeExpiredSessions(t.db)).toBe(0);
     });
+  });
+
+  it("S18: countSessions separa vigentes y vencidas", async () => {
+    expect(await countSessions(t.db)).toEqual({ vigentes: 0, vencidas: 0 });
+
+    await createSession(t.db, "user-1");
+    await createSession(t.db, "user-1");
+    await createSession(t.db, "user-1", new Date(ahora.getTime() - 31 * DIA * 1000));
+
+    expect(await countSessions(t.db)).toEqual({ vigentes: 2, vencidas: 1 });
   });
 
   it("S15: la tabla existe vacía tras las migraciones y no toca users", async () => {

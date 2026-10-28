@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, lt } from "drizzle-orm";
+import { and, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import type { Database } from "../db";
 import { sessions, users, type User } from "../../../drizzle/schema";
 
@@ -68,4 +68,16 @@ export async function purgeExpiredSessions(db: Database, ahora: Date = new Date(
   if (vencidas.length === 0) return 0;
   await db.delete(sessions).where(inArray(sessions.id, vencidas.map((s) => s.id)));
   return vencidas.length;
+}
+
+// Para /api/admin/status (docs/21 Q2): solo conteos, nunca ids ni usuarios
+export async function countSessions(db: Database, ahora: Date = new Date()): Promise<{ vigentes: number; vencidas: number }> {
+  const corte = enSegundos(ahora);
+  const [fila] = await db
+    .select({
+      vigentes: sql<number>`coalesce(sum(case when ${sessions.expiresAt} > ${corte} then 1 else 0 end), 0)`,
+      vencidas: sql<number>`coalesce(sum(case when ${sessions.expiresAt} <= ${corte} then 1 else 0 end), 0)`,
+    })
+    .from(sessions);
+  return { vigentes: Number(fila?.vigentes ?? 0), vencidas: Number(fila?.vencidas ?? 0) };
 }
