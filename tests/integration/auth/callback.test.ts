@@ -216,6 +216,39 @@ describe("callback OAuth", () => {
     expect((await usuarios())[0].email).toBe("beto@example.com");
   });
 
+  // Antes, el JSON de error se usaba como perfil y el login fallaba con un D1_TYPE_ERROR
+  // (email undefined) que escondía la causa real
+  const logs = () =>
+    [console.log, console.warn, console.error]
+      .flatMap((m) => vi.mocked(m).mock.calls.flat())
+      .map(String)
+      .join("\n");
+
+  it.each(["google", "microsoft"])("si %s no devuelve el perfil falla con oauth_failed y loguea el status", async (provider) => {
+    await conEstado({ provider });
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { code: "Authorization_RequestDenied" } }, { status: 403 })));
+
+    const res = await llamar(provider, { code: "c", state: "st-1" });
+
+    expect(destino(res)).toBe("/login?error=oauth_failed");
+    expect(await usuarios()).toHaveLength(0);
+    expect(cookies.set).not.toHaveBeenCalled();
+    expect(logs()).toContain("profile_fetch_failed: 403");
+    expect(logs()).not.toContain("D1_TYPE_ERROR");
+  });
+
+  it("Microsoft sin mail ni userPrincipalName falla con oauth_failed, sin usuario", async () => {
+    await conEstado({ provider: "microsoft" });
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "m-1", displayName: "Beto" })));
+
+    const res = await llamar("microsoft", { code: "c", state: "st-1" });
+
+    expect(destino(res)).toBe("/login?error=oauth_failed");
+    expect(await usuarios()).toHaveLength(0);
+    expect(logs()).toContain("profile_without_email");
+    expect(logs()).not.toContain("D1_TYPE_ERROR");
+  });
+
   it("respeta un next interno guardado al iniciar el login", async () => {
     await conEstado({ next: "/equipos/12?lado=local" });
     expect(destino(await llamar("google", { code: "c", state: "st-1" }))).toBe("/equipos/12?lado=local");
