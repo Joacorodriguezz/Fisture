@@ -121,7 +121,7 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
       user = newUser;
     }
 
-    const sessionId = await createSession(env.KV, user.id);
+    const sessionId = await createSession(db, user.id);
 
     cookies.set("session", sessionId, {
       path: "/",

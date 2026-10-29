@@ -2,7 +2,6 @@ import type { APIRoute } from "astro";
 import { deleteAccount } from "../../lib/db/account";
 import { esMismoOrigen } from "../../lib/auth/guards";
 import { revocarAcceso } from "../../lib/auth/revoke";
-import { deleteSession } from "../../lib/auth/session";
 import { withApi } from "../../lib/observability/with-api";
 
 function json(body: unknown, status = 200) {
@@ -35,16 +34,7 @@ export const DELETE: APIRoute = withApi(async ({ request, cookies, locals }) => 
 
   const filas = await deleteAccount(env.DB, user.id);
 
-  const sessionId = cookies.get("session")?.value;
-  // D1 ya confirmó el borrado: la limpieza de la sesión es best-effort y no corta la cookie ni la revocación
-  if (sessionId) {
-    try {
-      await deleteSession(env.KV, sessionId);
-    } catch {
-      // Sin el error ni el id de sesión (el mensaje puede incluirlo); la sesión vence sola por TTL
-      locals.logger?.warn("session_cleanup_failed", { provider: user.provider });
-    }
-  }
+  // Las sesiones del usuario cayeron por cascada junto con el resto de sus filas (docs/21 D3)
   cookies.delete("session", { path: "/" });
 
   // Después de D1 (D5): si esto falla el usuario ya está borrado y el token no quedó guardado en ningún lado

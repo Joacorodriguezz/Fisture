@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createDb } from "../../../src/lib/db";
 import { useTestDb } from "../../helpers/use-test-db";
 import { apiCtx, kvEnMemoria, silenciarConsola } from "../../helpers/ctx";
 import { OAUTH_STATE_SECRET, cookieDeEstado, cookiesEnMemoria } from "../../helpers/oauth-state";
 import { crearEstado } from "../../../src/lib/auth/oauth-state";
+import { getSessionUser } from "../../../src/lib/auth/session";
 
 const { validar } = vi.hoisted(() => ({ validar: vi.fn() }));
 vi.mock("../../../src/lib/auth/providers", () => ({
@@ -137,15 +139,14 @@ describe("callback OAuth", () => {
     expect(cookies.valores.has("oauth_state_google")).toBe(false);
   });
 
-  it("L4: no lee ni escribe el estado en KV (la única escritura es la sesión)", async () => {
+  it("L4 y S10: el login no lee ni escribe nada en KV (ni estado ni sesión)", async () => {
     await conEstado();
     const put = vi.spyOn(kv, "put");
 
     await llamar("google", { code: "c", state: "st-1" });
 
-    expect(lecturasEnKv.filter((k) => k.startsWith("oauth:"))).toEqual([]);
-    expect(put).toHaveBeenCalledTimes(1);
-    expect(put.mock.calls[0][0]).toMatch(/^session:/);
+    expect(lecturasEnKv).toEqual([]);
+    expect(put).not.toHaveBeenCalled();
   });
 
   it("un proveedor no soportado redirige a unsupported_provider sin abrir sesión", async () => {
@@ -172,14 +173,15 @@ describe("callback OAuth", () => {
     ]);
   });
 
-  it("usuario nuevo: abre una sesión en KV y fija la cookie segura", async () => {
+  it("usuario nuevo: abre una sesión en D1 y fija la cookie segura", async () => {
     await conEstado();
     await llamar("google", { code: "c", state: "st-1" });
 
     const [u] = await usuarios();
     const [nombre, sessionId, opciones] = cookies.set.mock.calls[0];
     expect(nombre).toBe("session");
-    expect(kv.datos.get(`session:${sessionId}`)).toBe(u.id);
+    expect((await getSessionUser(createDb(t.DB), sessionId))?.id).toBe(u.id);
+    expect((await t.DB.prepare("SELECT id FROM sessions").all<{ id: string }>()).results.map((f) => f.id)).not.toContain(sessionId);
     expect(opciones).toMatchObject({ httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 2_592_000 });
   });
 
@@ -266,6 +268,6 @@ describe("callback OAuth", () => {
     expect(destino(res)).toBe("/login?error=oauth_failed");
     expect(await usuarios()).toHaveLength(0);
     expect(cookies.set).not.toHaveBeenCalled();
-    expect([...kv.datos.keys()].filter((k) => k.startsWith("session:"))).toEqual([]);
+    expect((await t.DB.prepare("SELECT COUNT(*) AS n FROM sessions").first<{ n: number }>())!.n).toBe(0);
   });
 });

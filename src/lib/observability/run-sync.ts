@@ -2,6 +2,7 @@
 // y chequeos de consistencia. Lo usan el cron (functions/scheduled.ts) y POST /api/admin/sync.
 import { createDb } from "../db";
 import { syncAllLeagues, syncSingleLeague, type SyncEnv, type SyncResult } from "../data-providers/sync";
+import { purgeExpiredSessions } from "../auth/session";
 import { reconcileCalendars } from "../calendar/sync-service";
 import { checkConsistency } from "./consistency";
 import { rootLogger, type Logger } from "./logger";
@@ -92,6 +93,13 @@ export async function runSync(env: RunSyncEnv, trigger: SyncTrigger, options: Ru
     for (const issue of issues) {
       const nivel = issue.severity === "error" ? "error" : "warn";
       logger[nivel]("consistency_issue", { ...issue });
+    }
+
+    // Higiene: las sesiones vencidas ya no autentican (docs/21 D6). Solo conteos en el log, nunca ids.
+    try {
+      logger.info("sessions_purged", { count: await purgeExpiredSessions(db) });
+    } catch (err) {
+      logger.warn("sessions_purge_failed", { err });
     }
 
     try {
