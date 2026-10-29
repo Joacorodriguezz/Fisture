@@ -1,10 +1,11 @@
-// Build real de Astro en Pages local; D1/KV y sesiones viven en un directorio nuevo por corrida.
+// Build real de Astro en Pages local; D1/KV (con las sesiones en D1) viven en un directorio nuevo por corrida.
 import { spawn, execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:net";
+import { createHash } from "node:crypto";
 import { connectHeadlessInspector } from "./e2e-inspector.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -69,7 +70,7 @@ try {
       for (let retry = 0; retry <= 1; retry++) {
         const id = `${project}-${scenario}-${retry}`;
         sql.push(`INSERT INTO users (id, email, name, provider, provider_id) VALUES ('${id}', '${id}@example.test', 'Persona E2E', 'google', '${id}');`);
-        sessions.push({ key: `session:e2e-${id}`, value: id });
+        sessions.push(id);
         if (["calendar", "navigation", "errors", "calendar-states", "responsive-today", "responsive-today-chip", "responsive-today-mine"].includes(scenario)) {
           sql.push(`INSERT INTO user_teams (id, user_id, team_id, auto_sync) VALUES ('follow-${id}', '${id}', 'river', 0);`);
         }
@@ -84,12 +85,16 @@ try {
       }
     }
   }
+  // Las sesiones viven en D1 con el hash del token de la cookie (docs/21): cookie `e2e-<id>`
+  const creada = Math.floor(now / 1000);
+  for (const id of sessions) {
+    const hash = createHash("sha256").update(`e2e-${id}`).digest("hex");
+    sql.push(`INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES ('${hash}', '${id}', ${creada}, ${creada + 30 * 86400});`);
+  }
   writeFileSync(join(taskDir, "seed.sql"), sql.join("\n"));
-  writeFileSync(join(taskDir, "sessions.json"), JSON.stringify(sessions));
   run(["d1", "execute", "fisture-e2e", "--local", "--persist-to", storage, "--file", join(taskDir, "seed.sql")]);
   // Verifica que el ledger de migraciones no reaplique migraciones históricas sobre datos existentes.
   run(["d1", "migrations", "apply", "fisture-e2e", "--local", "--persist-to", storage]);
-  run(["kv:bulk", "put", join(taskDir, "sessions.json"), "--binding", "KV", "--local", "--persist-to", storage]);
   const inspectorPort = await new Promise((resolve, reject) => {
     const server = createServer();
     server.on("error", reject);

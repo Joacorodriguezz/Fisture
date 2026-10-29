@@ -12,14 +12,16 @@ export interface FilasBorradas {
 // ven el mismo estado y, si algo falla, no se borra nada.
 export async function deleteAccount(DB: D1Database, userId: string): Promise<FilasBorradas> {
   const contar = (tabla: string) => DB.prepare(`SELECT COUNT(*) AS n FROM ${tabla} WHERE user_id = ?1`).bind(userId);
-  const [equipos, prefs, syncs, borrado] = await DB.batch<{ n: number }>([
+  // `meta.changes` de D1 incluye las filas borradas en cascada (sessions), por eso users se cuenta aparte
+  const [usuarios, equipos, prefs, syncs] = await DB.batch<{ n: number }>([
+    DB.prepare("SELECT COUNT(*) AS n FROM users WHERE id = ?1").bind(userId),
     contar("user_teams"),
     contar("user_preferences"),
     contar("calendar_syncs"),
     DB.prepare("DELETE FROM users WHERE id = ?1").bind(userId),
   ]);
   return {
-    users: borrado.meta.changes ?? 0,
+    users: usuarios.results[0]?.n ?? 0,
     userTeams: equipos.results[0]?.n ?? 0,
     userPreferences: prefs.results[0]?.n ?? 0,
     calendarSyncs: syncs.results[0]?.n ?? 0,

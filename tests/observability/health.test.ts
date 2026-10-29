@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "../helpers/use-test-db";
 import { apiCtx } from "../helpers/ctx";
+import { seedApp } from "../helpers/fixtures";
+import { createSession } from "../../src/lib/auth/session";
 import { failSyncRun, finishSyncRun, startSyncRun } from "../../src/lib/observability/sync-runs";
 import {
   evaluateSyncHealth,
@@ -189,5 +191,16 @@ describe("getHealth y endpoints (D1)", () => {
     expect(body.runs).toHaveLength(2);
     expect(body.runs[0]).toMatchObject({ status: "success", trigger: "cron" });
     expect(body.health.status).toBe("ok");
+  });
+
+  it("S18: GET /api/admin/status incluye el conteo de sesiones, sin ids", async () => {
+    await syncExitoso(Date.now() - H);
+    await seedApp(t.db);
+    await createSession(t.db, "user-1");
+    await createSession(t.db, "user-1", new Date(Date.now() - 31 * 24 * H));
+    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3", OAUTH_STATE_SECRET: "secret" };
+    const res = await statusGET(ctxStatus(env, "Bearer s3"));
+    const body = (await res.json()) as any;
+    expect(body.sessions).toEqual({ vigentes: 1, vencidas: 1 });
   });
 });

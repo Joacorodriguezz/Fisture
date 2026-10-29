@@ -136,6 +136,7 @@ La cookie `session` no cambia: mismo nombre, mismo valor, mismos atributos. El n
 | S15 | La migración sobre una base con datos (0001 a 0007) | Aplica sin tocar `users` ni el resto; la tabla queda vacía |
 | S16 | Logs de login, logout y limpieza | Sin token, hash ni `user_id` con la sesión |
 | S17 | E2E (Playwright) con las sesiones sembradas en D1 | Todos los escenarios actuales siguen pasando |
+| S18 | `countSessions` y `GET /api/admin/status` (Q2) | Devuelve `{ vigentes, vencidas }`, sin ids ni usuarios |
 
 **Tests existentes a actualizar** porque hoy asumen sesiones en KV: `tests/unit/auth/session.test.ts`, `tests/integration/auth/callback.test.ts`, `tests/integration/api/cuenta.test.ts` (C9 y C14), `tests/observability/cuenta-logs.test.ts` (el caso de fallo de KV deja de existir) y `tests/helpers/ctx.ts` (el uso de `kvEnMemoria` para sesiones). Cambia la precondición, no lo que se verifica.
 
@@ -188,4 +189,12 @@ Verde: la suite completa (`npm run check`). Refactor: borrar el prefijo `session
 
 ## 10. Notas de implementación (desvíos respecto del diseño original)
 
-*(Vacía hasta que se apruebe el TDD y empiece la implementación.)*
+Respuestas a las preguntas abiertas: **Q1** se aceptan las sesiones perdidas al desplegar (D7, sin lectura doble); **Q2** sí: `/api/admin/status` devuelve `sessions: { vigentes, vencidas }` (`countSessions`, una consulta, solo conteos; caso S18); **Q3** "cerrar sesión en todos los dispositivos" queda para después (solo existe `deleteUserSessions`).
+
+Desvíos:
+
+- **Migración `0008_sessions.sql`** a mano, como las anteriores; el número no chocó con `docs/16` (todavía sin publicar).
+- **`deleteAccount` (`src/lib/db/account.ts`)**: `meta.changes` de D1 cuenta también las filas borradas en cascada, así que con `sessions` el log `account_deleted` informaba `users: 2`. Ahora `users` se cuenta con un `SELECT COUNT(*)` dentro del mismo batch.
+- **Tests**: `tests/unit/auth/session.test.ts` (KV) se reemplazó por `tests/integration/auth/session.test.ts` (S1 a S7, S13, S14, S15, contra D1 de Miniflare) y `tests/integration/auth/logout-middleware.test.ts` (S8, S9, S11). S10, S12 y S16 viven en los tests existentes de callback, `cuenta` y `cuenta-logs`; S13 también en `run-sync.test.ts`. El caso C14 (KV falla tras borrar) dejó de existir. `tests/helpers/ctx.ts` conserva `kvEnMemoria` porque otros tests lo usan para la caché.
+- **Hash en tests**: la prueba de unicidad genera 200 tokens, no 1000 (cada uno es un `INSERT` a Miniflare y tardaba 8 s).
+- **E2E (S17)**: `scripts/e2e-server.mjs` siembra `sessions` en D1 con `sha256("e2e-<id>")`; las cookies de los specs no cambian. Se verificó a mano contra el servidor local (200 con cookie sembrada, 401 con cookie falsa o ausente); la suite Playwright completa queda para el CI.

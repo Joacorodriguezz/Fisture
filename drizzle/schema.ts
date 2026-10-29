@@ -241,3 +241,25 @@ export const syncRuns = sqliteTable(
 );
 
 export type SyncRun = typeof syncRuns.$inferSelect;
+
+// ============================================
+// SESIONES
+// ============================================
+
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(), // SHA-256 hex del token de la cookie (docs/21 D1)
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at").notNull(), // segundos Unix
+    expiresAt: integer("expires_at").notNull(), // segundos Unix
+  },
+  (table) => ({
+    userIdx: index("sessions_user_id_idx").on(table.userId),
+    expiresIdx: index("sessions_expires_at_idx").on(table.expiresAt),
+  })
+);
+
+export type Session = typeof sessions.$inferSelect;

@@ -61,7 +61,7 @@ describe("login OAuth: inicio del flujo", () => {
     expect(destino.searchParams.get("code_challenge")).toBeTruthy();
   });
 
-  it("Microsoft redirige pidiendo Calendars.ReadWrite y offline_access", async () => {
+  it("Microsoft redirige pidiendo Calendars.ReadWrite, offline_access y User.Read", async () => {
     const res = await llamar("microsoft");
     const destino = new URL(res.headers.get("Location")!);
 
@@ -69,6 +69,8 @@ describe("login OAuth: inicio del flujo", () => {
     expect(destino.searchParams.get("redirect_uri")).toBe("https://fisture.test/api/auth/callback/microsoft");
     expect(destino.searchParams.get("scope")).toContain("Calendars.ReadWrite");
     expect(destino.searchParams.get("scope")).toContain("offline_access");
+    // Sin User.Read, Graph responde 403 en /me y el callback no obtiene el perfil
+    expect(destino.searchParams.get("scope")?.split(" ")).toContain("User.Read");
   });
 
   it("L1: responde 302, no escribe en KV y deja el estado en una cookie HttpOnly", async () => {

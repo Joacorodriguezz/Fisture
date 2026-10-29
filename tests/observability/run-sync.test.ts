@@ -117,6 +117,28 @@ describe("runSync", () => {
     expect(run.issues.map((i) => i.code)).toContain("empty_league");
   });
 
+  it("S13: purga las sesiones vencidas, conserva las vigentes y loguea solo el conteo", async () => {
+    await t.DB.prepare("INSERT INTO users (id, email, provider, provider_id) VALUES ('u1', 'a@example.test', 'google', 'p1')").run();
+    const ahora = Math.floor(Date.now() / 1000);
+    for (const [id, exp] of [["vencida", ahora - 60], ["vigente", ahora + 60]] as const) {
+      await t.DB.prepare("INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, 'u1', 0, ?)").bind(id, exp).run();
+    }
+
+    await runSync(env, "cron", { deps: deps(), logger });
+
+    const { results } = await t.DB.prepare("SELECT id FROM sessions").all<{ id: string }>();
+    expect(results.map((r) => r.id)).toEqual(["vigente"]);
+    const evento = lineas.find((l) => l.data.msg === "sessions_purged");
+    expect(evento?.data).toMatchObject({ count: 1 });
+    expect(JSON.stringify(evento?.data)).not.toContain("vencida");
+  });
+
+  it("S13: sin sesiones vencidas no falla y registra 0", async () => {
+    const r = await runSync(env, "cron", { deps: deps(), logger });
+    expect(r.status).toBe("success");
+    expect(lineas.find((l) => l.data.msg === "sessions_purged")?.data).toMatchObject({ count: 0 });
+  });
+
   it("sin KV no revienta", async () => {
     const r = await runSync({ DB: t.DB }, "cron", { deps: deps(), logger });
     expect(r.status).toBe("success");

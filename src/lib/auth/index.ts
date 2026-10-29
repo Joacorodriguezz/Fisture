@@ -7,6 +7,9 @@ export {
 
 export {
   createSession,
-  getSession,
+  getSessionUser,
   deleteSession,
+  deleteUserSessions,
+  purgeExpiredSessions,
+  countSessions,
 } from "./session";

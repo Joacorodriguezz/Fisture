@@ -6,7 +6,7 @@
 |------------|------------|-------|
 | OAuth Library | **Arctic** | Ligera, funciona en Workers |
 | Session Tokens | **Oslo** | Crypto utilities para Workers |
-| Session Storage | **Cloudflare KV** | Edge, sin cold starts |
+| Session Storage | **Cloudflare D1** (tabla `sessions`) | Revocable, atómica con el borrado de cuenta; ver `docs/21` |
 | Cookies | HTTP-only, Secure | Seguridad estándar |
 
 ### ¿Por qué no NextAuth/Auth.js?
@@ -98,7 +98,7 @@ GET /api/auth/callback/google?code=xxx&state=xxx
        ├─► Obtener perfil de usuario
        ├─► Crear/actualizar usuario en D1
        ├─► Guardar tokens OAuth en D1 (para Calendar API)
-       ├─► Crear session en KV
+       ├─► Crear session en D1 (guarda sha256 del token)
        └─► Set cookie + Redirect a /equipos
 ```
 
@@ -298,6 +298,8 @@ export const GET: APIRoute = async ({ params, url, redirect, cookies, locals }) 
 
 ## Manejo de Sesión
 
+> **Estado actual:** las sesiones viven en la tabla `sessions` de D1, no en KV (`docs/21-sesiones-en-d1-tdd.md`). La cookie `session` no cambió (mismo nombre, atributos y 30 días), pero su valor es un token de 32 bytes aleatorios (43 caracteres base64url) y la base guarda solo `sha256(token)` en hexadecimal. API en `src/lib/auth/session.ts`: `createSession(db, userId)` (devuelve el token), `getSessionUser(db, token)` (una consulta con JOIN a `users`, filtra por `expires_at`), `deleteSession`, `deleteUserSessions` (habilitada, sin UI) y `purgeExpiredSessions`. La expiración es fija a 30 días y no se renueva por request. `runSync` borra las vencidas (hasta 500 por corrida) y loguea `sessions_purged` con el conteo. El código de abajo es el diseño original con KV.
+
 ```typescript
 // src/lib/auth/session.ts
 import { generateRandomString } from "oslo/crypto"
@@ -409,7 +411,7 @@ El usuario elimina su cuenta desde Configuración ("Zona de peligro", isla `Elim
 
 1. Valida sesión (401), `Origin` contra `PUBLIC_APP_URL` (403, `esMismoOrigen` en `lib/auth/guards.ts`), `Content-Type: application/json` (415) y que `confirmar` coincida con el email, sin distinguir mayúsculas (400).
 2. `deleteAccount` (`lib/db/account.ts`): un `DB.batch` cuenta las filas dependientes y ejecuta `DELETE FROM users`; el `ON DELETE CASCADE` se lleva `user_teams`, `user_preferences` y `calendar_syncs`. Es atómico.
-3. Borra la sesión actual de KV y la cookie. Las demás sesiones del usuario quedan huérfanas en KV, pero el middleware ya no encuentra al usuario y vencen a los 30 días.
+3. Borra la cookie. Todas las sesiones del usuario caen por `ON DELETE CASCADE` dentro del mismo `DELETE FROM users` (ya no hay paso de KV ni `session_cleanup_failed`).
 4. `revocarAcceso` (`lib/auth/revoke.ts`), best-effort y después de D1: Google revoca el grant con el refresh token (`google.revokeToken`); Microsoft no tiene endpoint público, así que el diálogo le indica revocar en `account.live.com/consent/Manage`. Un error se loguea como `account_revoke_failed` (provider y status) y no falla la request.
 
 No se borran los eventos ya creados en el calendario del usuario. El log `account_deleted` lleva `provider` y las filas borradas por tabla, sin email ni `userId`.

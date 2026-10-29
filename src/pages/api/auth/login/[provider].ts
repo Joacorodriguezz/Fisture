@@ -59,6 +59,8 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
       "openid",
       "email",
       "profile",
+      // Lo exige Graph para leer /me en el callback (sin él responde 403)
+      "User.Read",
       "Calendars.ReadWrite",
       "offline_access",
     ]);
