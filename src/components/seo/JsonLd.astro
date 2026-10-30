@@ -1,0 +1,13 @@
+---
+// JsonLd.astro: datos estructurados (schema.org) para buscadores y motores de IA.
+// serializarJsonLd escapa "<", así que set:html no puede cerrar la etiqueta.
+import { serializarJsonLd } from "../../lib/seo";
+
+interface Props {
+  datos: unknown[];
+}
+
+const { datos } = Astro.props;
+---
+
+{datos.map((d) => <script type="application/ld+json" set:html={serializarJsonLd(d)} />)}

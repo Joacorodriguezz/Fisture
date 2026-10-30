@@ -6,6 +6,7 @@ import {
   userTeams,
   leagues,
   calendarSyncs,
+  leagueTeams,
 } from "../../../drizzle/schema";
 import type { Database } from "./index";
 import { diaISO } from "../format";
@@ -187,4 +188,39 @@ export async function getMatchCountsByDay(db: Database, desde: Date, hasta: Date
 // Ids de los equipos que sigue el usuario
 export async function getFollowedIds(db: Database, userId: string): Promise<Set<string>> {
   return new Set(await getFollowedTeamIds(db, userId));
+}
+
+// Ligas activas, para llms.txt y el sitemap
+export function getLigasPublicas(db: Database) {
+  return db
+    .select({ id: leagues.id, name: leagues.name, country: leagues.country })
+    .from(leagues)
+    .where(eq(leagues.isActive, true))
+    .orderBy(asc(leagues.name));
+}
+
+// Páginas públicas dinámicas para el sitemap: ligas activas, sus equipos y los partidos
+// de los próximos días (los pasados se dejan de listar; la página sigue existiendo).
+// Sin fechas de modificación: las páginas de equipo y de partido dependen de varias tablas (ver sitemap.xml.ts).
+export async function getPaginasPublicas(db: Database, ahora: Date = new Date(), dias = 60) {
+  const hasta = new Date(ahora.getTime() + dias * 24 * 60 * 60 * 1000);
+
+  const ligas = await getLigasPublicas(db);
+
+  const equipos = await db
+    .selectDistinct({ id: teams.id })
+    .from(leagueTeams)
+    .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
+    .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))
+    .where(eq(leagues.isActive, true))
+    .orderBy(asc(teams.id));
+
+  const partidos = await db
+    .select({ id: matches.id })
+    .from(matches)
+    .innerJoin(leagues, eq(matches.leagueId, leagues.id))
+    .where(and(gte(matches.dateTime, ahora), lt(matches.dateTime, hasta), eq(leagues.isActive, true)))
+    .orderBy(asc(matches.dateTime));
+
+  return { ligas, equipos, partidos };
 }
