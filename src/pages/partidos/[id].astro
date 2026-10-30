@@ -9,6 +9,7 @@ import { createDb } from "../../lib/db";
 import { getMatchDetail, getSyncStates } from "../../lib/db/queries";
 import { getPreferences } from "../../lib/db/preferences";
 import { fechaCorta, fechaLarga, hora, horaFin, providerLabel } from "../../lib/format";
+import { jsonLdMigas, jsonLdPartido } from "../../lib/seo";
 
 // Página pública: el estado en el calendario y los avisos solo aplican con sesión
 const user = Astro.locals.user;
@@ -30,9 +31,20 @@ const avisosTxt = avisos.length ? `${avisos.join(" y ")} antes` : "Sin avisos";
 
 const venue = match.venue ?? "Sede a confirmar";
 const fin = horaFin(match.dateTime);
+
+const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
+const descripcion = `${homeTeam.name} vs ${awayTeam.name} por ${league.name}: ${fechaLarga(match.dateTime)} a las ${hora(match.dateTime)} (hora argentina)${match.venue ? ` en ${match.venue}` : ""}. Agregalo a tu calendario con recordatorios.`;
+const jsonLd = [
+  jsonLdPartido(appUrl, { match, homeTeam, awayTeam, league }),
+  jsonLdMigas(appUrl, [
+    { nombre: "Ligas", ruta: "/ligas" },
+    { nombre: league.name, ruta: `/ligas/${league.id}` },
+    { nombre: `${homeTeam.name} vs ${awayTeam.name}`, ruta: `/partidos/${match.id}` },
+  ]),
+];
 ---
 
-<Layout title={`${homeTeam.name} vs ${awayTeam.name} - FISTURE`} pagina={6}>
+<Layout title={`${homeTeam.name} vs ${awayTeam.name} - FISTURE`} pagina={6} descripcion={descripcion} jsonLd={jsonLd}>
   <div style="display:flex;flex-direction:column;gap:28px">
     <a href="/partidos" class="tb-volver">← Partidos</a>
 

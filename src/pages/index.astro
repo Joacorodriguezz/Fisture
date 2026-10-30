@@ -5,6 +5,7 @@ import Titular from "../components/tribuna/Titular.astro";
 import Bajada from "../components/tribuna/Bajada.astro";
 import Boton from "../components/tribuna/Boton.astro";
 import Sello from "../components/tribuna/Sello.astro";
+import { jsonLdSitio } from "../lib/seo";
 
 if (Astro.locals.user) {
   return Astro.redirect("/ligas");
@@ -32,7 +33,11 @@ const pasos = [
 ];
 ---
 
-<Layout title="FISTURE - Tus partidos en tu calendario">
+<Layout
+  title="FISTURE - Tus partidos en tu calendario"
+  descripcion="Fixture de fútbol en tu Google Calendar u Outlook: Liga Profesional, Premier League, La Liga, Libertadores y más. Los horarios se actualizan solos y tenés recordatorios antes de cada partido."
+  jsonLd={[jsonLdSitio(Astro.locals.runtime.env.PUBLIC_APP_URL)]}
+>
   <div style="display:flex;flex-direction:column;gap:48px">
     {cuentaEliminada && (
       <p role="status" style="margin:0;padding:14px 16px;border:2px solid var(--tinta);font:600 15px/22px var(--font-texto)">

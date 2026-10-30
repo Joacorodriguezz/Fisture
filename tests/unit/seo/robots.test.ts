@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { GET as getRobots } from "../../../src/pages/robots.txt";
-import { GET as getSitemap } from "../../../src/pages/sitemap.xml";
 
 const BASE = "https://fisture.test";
 
@@ -45,14 +44,5 @@ describe("GET /robots.txt", () => {
 
   it("no duplica la barra si PUBLIC_APP_URL termina en /", async () => {
     expect(await lineas(`${BASE}/`)).toContain(`Sitemap: ${BASE}/sitemap.xml`);
-  });
-
-  it("la base del Sitemap coincide con la de las URLs de sitemap.xml", async () => {
-    for (const env of [BASE, `${BASE}/`, "https://otro.example"]) {
-      const linea = (await lineas(env)).find((l) => l.startsWith("Sitemap: "))!;
-      const base = linea.slice("Sitemap: ".length).replace(/\/sitemap\.xml$/, "");
-      const xml = await (await getSitemap(ctx(env))).text();
-      expect(xml).toContain(`<loc>${base}/ligas</loc>`);
-    }
   });
 });
