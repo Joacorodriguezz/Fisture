@@ -12,8 +12,9 @@ const MAX_URLS_SITEMAP = 50_000;
 // Los datos cambian una vez por día (sync de las 9:00 UTC): con una hora de caché alcanza
 const CACHE_SITEMAP = "public, max-age=3600";
 
-const entrada = (loc: string, lastmod?: Date | null) =>
-  `  <url><loc>${escaparXml(loc)}</loc>${lastmod ? `<lastmod>${lastmod.toISOString().slice(0, 10)}</lastmod>` : ""}</url>`;
+// Sin lastmod: la página de un partido también cambia con los datos de sus equipos y de la liga, y no hay
+// una fecha fiable que los cubra (leagues no tiene updatedAt). Google ignora un lastmod impreciso.
+const entrada = (loc: string) => `  <url><loc>${escaparXml(loc)}</loc></url>`;
 
 export async function GET({ locals }: APIContext): Promise<Response> {
   const env = locals.runtime.env;
@@ -25,7 +26,7 @@ export async function GET({ locals }: APIContext): Promise<Response> {
     ...PAGINAS_PUBLICAS.map((ruta) => entrada(`${base}${ruta}`)),
     ...ligas.map((l) => entrada(`${base}${rutaPublica("ligas", l.id)}`)),
     ...equipos.map((e) => entrada(`${base}${rutaPublica("equipos", e.id)}`)),
-    ...partidos.map((p) => entrada(`${base}${rutaPublica("partidos", p.id)}`, p.updatedAt)),
+    ...partidos.map((p) => entrada(`${base}${rutaPublica("partidos", p.id)}`)),
   ]
     .slice(0, MAX_URLS_SITEMAP)
     .join("\n");

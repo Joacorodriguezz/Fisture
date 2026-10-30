@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { useTestDb } from "../../helpers/use-test-db";
 import { seedApp } from "../../helpers/fixtures";
 import { relojFijo, AHORA, DIA_MS } from "../../helpers/clock";
-import { leagues, matches } from "../../../drizzle/schema";
+import { leagues, matches, teams } from "../../../drizzle/schema";
 import { GET as getSitemap } from "../../../src/pages/sitemap.xml";
 import { GET as getLlms } from "../../../src/pages/llms.txt";
 import { GET as getRobots } from "../../../src/pages/robots.txt";
@@ -48,10 +48,16 @@ describe("sitemap.xml y llms.txt", () => {
     it("lista ligas activas, sus equipos y los partidos próximos", async () => {
       const xml = await (await getSitemap(ctx())).text();
       expect(xml).toContain(`<loc>${BASE}/ligas/test-league</loc>`);
-      // Equipos sin lastmod (la fila de teams no refleja cuándo cambia su fixture); partidos con lastmod
+      // Sin lastmod: ninguna fila refleja por sí sola cuándo cambia la página
       expect(xml).toContain(`<url><loc>${BASE}/equipos/river</loc></url>`);
       expect(xml).toContain(`<url><loc>${BASE}/equipos/boca</loc></url>`);
-      expect(xml).toMatch(new RegExp(`<loc>${BASE}/partidos/superclasico</loc><lastmod>\\d{4}-\\d{2}-\\d{2}</lastmod>`));
+      expect(xml).toContain(`<url><loc>${BASE}/partidos/superclasico</loc></url>`);
+    });
+
+    it("no publica lastmod: renombrar un equipo cambia la página del partido pero no la fila de matches", async () => {
+      await t.db.update(teams).set({ name: "River Plate (renombrado)", updatedAt: new Date(AHORA.getTime() + DIA_MS) }).where(eq(teams.id, "river"));
+      const xml = await (await getSitemap(ctx())).text();
+      expect(xml).not.toContain("<lastmod>");
     });
 
     it("no lista partidos pasados ni lo de ligas inactivas", async () => {

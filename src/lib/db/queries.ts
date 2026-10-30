@@ -201,7 +201,7 @@ export function getLigasPublicas(db: Database) {
 
 // Páginas públicas dinámicas para el sitemap: ligas activas, sus equipos y los partidos
 // de los próximos días (los pasados se dejan de listar; la página sigue existiendo).
-// Los equipos van sin fecha: su página cambia con los partidos, no con la fila de teams.
+// Sin fechas de modificación: las páginas de equipo y de partido dependen de varias tablas (ver sitemap.xml.ts).
 export async function getPaginasPublicas(db: Database, ahora: Date = new Date(), dias = 60) {
   const hasta = new Date(ahora.getTime() + dias * 24 * 60 * 60 * 1000);
 
@@ -216,7 +216,7 @@ export async function getPaginasPublicas(db: Database, ahora: Date = new Date(),
     .orderBy(asc(teams.id));
 
   const partidos = await db
-    .select({ id: matches.id, updatedAt: matches.updatedAt })
+    .select({ id: matches.id })
     .from(matches)
     .innerJoin(leagues, eq(matches.leagueId, leagues.id))
     .where(and(gte(matches.dateTime, ahora), lt(matches.dateTime, hasta), eq(leagues.isActive, true)))
