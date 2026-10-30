@@ -6,6 +6,7 @@ import { getPreferences } from "../lib/db/preferences";
 import { fechaLarga, fechaMovil, primerNombre } from "../lib/format";
 import { loginHref } from "../lib/auth/guards";
 import { urlCanonica } from "../lib/seo";
+import { SCRIPT_TEMA } from "../lib/security-headers";
 import "../styles/global.css";
 import "../styles/tribuna90.css";
 
@@ -88,9 +89,7 @@ const fechaCorta = fechaMovil(new Date());
       rel="stylesheet"
     />
     {!user && (
-      <script is:inline>
-        try { if (matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.dataset.theme = "nocturna"; } catch (e) {}
-      </script>
+      <script is:inline set:html={SCRIPT_TEMA} />
     )}
   </head>
   <body class="tb-app">

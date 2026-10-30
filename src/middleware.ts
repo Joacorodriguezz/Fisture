@@ -33,6 +33,6 @@ const sesion = defineMiddleware(
 );
 
 // Va primero para envolver toda respuesta, incluidas las redirecciones y los 401 de `sesion`
-const seguridad = defineMiddleware(async (_context, next) => conHeadersDeSeguridad(await next()));
+const seguridad = defineMiddleware(async (_context, next) => conHeadersDeSeguridad(await next(), !import.meta.env.DEV));
 
 export const onRequest = sequence(seguridad, sesion);
