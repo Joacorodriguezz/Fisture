@@ -34,7 +34,7 @@
     "@astrojs/tailwind": "^6.0.0",
     "arctic": "^3.7.0",
     "astro": "^5.0.0",
-    "drizzle-orm": "^0.36.0",
+    "drizzle-orm": "^0.45.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -46,7 +46,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitest/coverage-v8": "^3.2.7",
-    "drizzle-kit": "^0.28.0",
+    "drizzle-kit": "^0.31.11",
     "miniflare": "^3.20250718.3",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.7.0",
