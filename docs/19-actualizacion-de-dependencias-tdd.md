@@ -108,4 +108,10 @@ Verde: la suite completa (`npm run check`) y `npm audit` con el objetivo del §2
 
 ## 8. Notas de implementación
 
-*(Vacía hasta que se apruebe el TDD y empiece la implementación.)*
+### Etapa 1: `drizzle-orm` 0.45 y `drizzle-kit` 0.31 (rama `chore/actualiza-drizzle`)
+
+- **Versiones:** `drizzle-orm` 0.36 → 0.45.4 y `drizzle-kit` 0.28 → 0.31.11. `npm audit` baja de 22 a 21 vulnerabilidades: sale el alto de drizzle (GHSA-gpj5-g38j-94v9). Lo que queda corresponde a las etapas 2 y 3.
+- **Desvío en el test del §4.** El criterio "`db:generate` no produce migraciones nuevas" ya no se cumplía **antes** de subir nada: `drizzle/migrations/meta` solo tiene el snapshot de la 0000 (el journal la registra como `0000_spotty_blacklash`) y las migraciones 0001 a 0008 se escribieron a mano. Por eso `drizzle-kit generate` produce una 0001 con todo lo agregado después (`league_teams`, `sessions`, `sync_runs`, `user_preferences`, columnas de `calendar_syncs`). Si se aplicara, fallaría con tablas duplicadas.
+- **Test que lo reemplaza:** `tests/integration/db/esquema-drizzle.test.ts` genera el esquema completo desde `drizzle/schema.ts` en un directorio vacío y lo compara con `tests/integration/db/__snapshots__/esquema-drizzle.sql`. El snapshot se generó con 0.28 en un commit previo a la subida y pasa sin cambios con 0.31: el SQL es idéntico.
+- 0.31 no pide actualizar el formato de los snapshots existentes (`drizzle-kit up` no hace falta).
+- **Pendiente (fuera de esta etapa):** **no usar `npm run db:generate`** para las próximas migraciones hasta realinear el snapshot de drizzle con la 0008. Mientras tanto, seguir escribiendo las migraciones a mano como hasta ahora.
