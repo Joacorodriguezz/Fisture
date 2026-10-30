@@ -25,11 +25,19 @@ describe("sitemap.xml y llms.txt", () => {
   });
 
   describe("GET /sitemap.xml", () => {
-    it("responde 200 con XML", async () => {
+    it("responde 200 con XML y caché de una hora", async () => {
       const res = await getSitemap(ctx());
       expect(res.status).toBe(200);
-      expect(res.headers.get("Content-Type")).toBe("application/xml");
+      expect(res.headers.get("Content-Type")).toBe("application/xml; charset=utf-8");
+      expect(res.headers.get("Cache-Control")).toBe("public, max-age=3600");
       expect(await res.text()).toContain('<?xml version="1.0" encoding="UTF-8"?>');
+    });
+
+    it("codifica los ids como la canónica y escapa el XML", async () => {
+      await t.db.insert(leagues).values({ id: "liga&co's", externalId: "test:rara", name: "Rara", country: "Argentina", season: 2026 });
+      const xml = await (await getSitemap(ctx())).text();
+      expect(xml).toContain(`<loc>${BASE}/ligas/liga%26co&#39;s</loc>`);
+      expect(xml).not.toMatch(/&(?!#\d+;)/);
     });
 
     it("lista las páginas públicas fijas", async () => {
@@ -40,9 +48,10 @@ describe("sitemap.xml y llms.txt", () => {
     it("lista ligas activas, sus equipos y los partidos próximos", async () => {
       const xml = await (await getSitemap(ctx())).text();
       expect(xml).toContain(`<loc>${BASE}/ligas/test-league</loc>`);
-      expect(xml).toMatch(new RegExp(`<loc>${BASE}/equipos/river</loc><lastmod>\\d{4}-\\d{2}-\\d{2}</lastmod>`));
-      expect(xml).toContain(`<loc>${BASE}/equipos/boca</loc>`);
-      expect(xml).toContain(`<loc>${BASE}/partidos/superclasico</loc>`);
+      // Equipos sin lastmod (la fila de teams no refleja cuándo cambia su fixture); partidos con lastmod
+      expect(xml).toContain(`<url><loc>${BASE}/equipos/river</loc></url>`);
+      expect(xml).toContain(`<url><loc>${BASE}/equipos/boca</loc></url>`);
+      expect(xml).toMatch(new RegExp(`<loc>${BASE}/partidos/superclasico</loc><lastmod>\\d{4}-\\d{2}-\\d{2}</lastmod>`));
     });
 
     it("no lista partidos pasados ni lo de ligas inactivas", async () => {
@@ -76,11 +85,18 @@ describe("sitemap.xml y llms.txt", () => {
     it("resume el sitio en markdown con las ligas activas y URLs absolutas", async () => {
       const res = await getLlms(ctx());
       expect(res.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
+      expect(res.headers.get("Cache-Control")).toBe("public, max-age=3600");
       const texto = await res.text();
       expect(texto.startsWith("# FISTURE\n\n> ")).toBe(true);
       expect(texto).toContain(`- [Liga de prueba](${BASE}/ligas/test-league) (Argentina)`);
       expect(texto).toContain(`(${BASE}/hoy)`);
       expect(texto).not.toContain("/configuracion");
+    });
+
+    it("escapa el markdown del nombre y codifica el id de la liga", async () => {
+      await t.db.insert(leagues).values({ id: "copa 1", externalId: "test:copa", name: "Copa [A] *B*", country: "Sudamérica", season: 2026 });
+      const texto = await (await getLlms(ctx())).text();
+      expect(texto).toContain(`- [Copa \\[A\\] \\*B\\*](${BASE}/ligas/copa%201) (Sudamérica)`);
     });
   });
 

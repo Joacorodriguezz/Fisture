@@ -7,7 +7,7 @@ import FiltroEquipos from "../../components/islands/FiltroEquipos";
 import { createDb } from "../../lib/db";
 import { asc, eq } from "drizzle-orm";
 import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
-import { jsonLdLiga, jsonLdMigas } from "../../lib/seo";
+import { jsonLdLiga, jsonLdMigas, rutaPublica } from "../../lib/seo";
 
 // Página pública: sin sesión nadie "sigue" ningún equipo
 const user = Astro.locals.user;
@@ -53,12 +53,15 @@ const items = equiposLiga.map((t) => ({
 const cantidadSeguidos = items.filter((i) => i.siguiendo).length;
 
 const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
-const descripcion = `Fixture de ${liga.name} (${liga.country}): los ${equiposLiga.length} equipos y sus próximos partidos con día y hora. Sincronizalos con Google Calendar u Outlook.`;
+// El país solo si no está en el nombre ("Liga Profesional Argentina (Argentina)") y la cantidad solo si hay equipos
+const pais = liga.name.includes(liga.country) ? "" : ` (${liga.country})`;
+const equiposTxt = equiposLiga.length > 0 ? `los ${equiposLiga.length} equipos y sus próximos partidos` : "los próximos partidos";
+const descripcion = `Fixture de ${liga.name}${pais}: ${equiposTxt} con día y hora. Sincronizalos con Google Calendar u Outlook.`;
 const jsonLd = [
   jsonLdLiga(appUrl, liga, equiposLiga),
   jsonLdMigas(appUrl, [
     { nombre: "Ligas", ruta: "/ligas" },
-    { nombre: liga.name, ruta: `/ligas/${liga.id}` },
+    { nombre: liga.name, ruta: rutaPublica("ligas", liga.id) },
   ]),
 ];
 ---

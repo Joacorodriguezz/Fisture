@@ -190,19 +190,25 @@ export async function getFollowedIds(db: Database, userId: string): Promise<Set<
   return new Set(await getFollowedTeamIds(db, userId));
 }
 
-// Páginas públicas dinámicas para el sitemap y llms.txt: ligas activas, sus equipos y los partidos
-// de los próximos días (los pasados se dejan de listar; la página sigue existiendo)
-export async function getPaginasPublicas(db: Database, ahora: Date = new Date(), dias = 60) {
-  const hasta = new Date(ahora.getTime() + dias * 24 * 60 * 60 * 1000);
-
-  const ligas = await db
+// Ligas activas, para llms.txt y el sitemap
+export function getLigasPublicas(db: Database) {
+  return db
     .select({ id: leagues.id, name: leagues.name, country: leagues.country })
     .from(leagues)
     .where(eq(leagues.isActive, true))
     .orderBy(asc(leagues.name));
+}
+
+// Páginas públicas dinámicas para el sitemap: ligas activas, sus equipos y los partidos
+// de los próximos días (los pasados se dejan de listar; la página sigue existiendo).
+// Los equipos van sin fecha: su página cambia con los partidos, no con la fila de teams.
+export async function getPaginasPublicas(db: Database, ahora: Date = new Date(), dias = 60) {
+  const hasta = new Date(ahora.getTime() + dias * 24 * 60 * 60 * 1000);
+
+  const ligas = await getLigasPublicas(db);
 
   const equipos = await db
-    .selectDistinct({ id: teams.id, updatedAt: teams.updatedAt })
+    .selectDistinct({ id: teams.id })
     .from(leagueTeams)
     .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
     .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))

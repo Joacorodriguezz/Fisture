@@ -13,7 +13,7 @@ import { and, eq } from "drizzle-orm";
 import { leagues, teams, userTeams } from "../../../drizzle/schema";
 import { fechaCorta, hora } from "../../lib/format";
 import { loginHref } from "../../lib/auth/guards";
-import { jsonLdEquipo, jsonLdMigas } from "../../lib/seo";
+import { jsonLdEquipo, jsonLdMigas, rutaPublica } from "../../lib/seo";
 
 // Página pública: seguir al equipo y el estado de sync solo aplican con sesión
 const user = Astro.locals.user;
@@ -56,13 +56,18 @@ const estados = user
 
 const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
 const proximo = todos[0];
-const descripcion = `Fixture de ${team.name}${liga ? ` (${liga.name})` : ""}: próximos partidos con día, hora y estadio.${proximo ? ` Próximo: ${proximo.homeTeam.name} vs ${proximo.awayTeam.name}, ${fechaCorta(proximo.match.dateTime)} ${hora(proximo.match.dateTime)}.` : ""} Sincronizalos con tu calendario.`;
+// Lo distintivo (equipo, liga y próximo partido) va primero: el Layout recorta lo que pase de ~160
+const descripcion = `Fixture de ${team.name}${liga ? ` (${liga.name})` : ""}: ${
+  proximo
+    ? `próximo partido ${proximo.homeTeam.name} vs ${proximo.awayTeam.name}, ${fechaCorta(proximo.match.dateTime)} a las ${hora(proximo.match.dateTime)}.`
+    : "sus próximos partidos con día y hora."
+} Sincronizalo con tu calendario.`;
 const jsonLd = [
   jsonLdEquipo(appUrl, team, liga),
   jsonLdMigas(appUrl, [
     { nombre: "Ligas", ruta: "/ligas" },
-    ...(liga ? [{ nombre: liga.name, ruta: `/ligas/${liga.id}` }] : []),
-    { nombre: team.name, ruta: `/equipos/${team.id}` },
+    ...(liga ? [{ nombre: liga.name, ruta: rutaPublica("ligas", liga.id) }] : []),
+    { nombre: team.name, ruta: rutaPublica("equipos", team.id) },
   ]),
 ];
 

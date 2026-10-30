@@ -53,7 +53,18 @@ test("datos estructurados: sitio en la home, SportsEvent en el partido", async (
   expect(evento["@type"]).toBe("SportsEvent");
   expect(evento.url).toBe(`${BASE}/partidos/superclasico`);
   expect(migas["@type"]).toBe("BreadcrumbList");
-  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /vs .* por /);
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /vs .* por .*: [a-zé]+ \d+ de /);
+  expect(evento.performer).toHaveLength(2);
+});
+
+test("descripciones de hasta 160 caracteres, sin undefined ni null", async ({ page }) => {
+  for (const ruta of ["/", "/partidos/superclasico", "/equipos/river", "/ligas/e2e-league", "/partidos/neutral-match"]) {
+    await page.goto(ruta);
+    const descripcion = (await page.locator('meta[name="description"]').getAttribute("content")) ?? "";
+    expect(descripcion.length, ruta).toBeGreaterThan(50);
+    expect(descripcion.length, ruta).toBeLessThanOrEqual(160);
+    expect(descripcion, ruta).not.toMatch(/undefined|null/);
+  }
 });
 
 test("datos estructurados en liga y equipo, y sin JSON-LD en el resto", async ({ page }) => {

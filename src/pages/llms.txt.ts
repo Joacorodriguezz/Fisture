@@ -1,14 +1,14 @@
 import type { APIContext } from "astro";
-import { baseUrl } from "../lib/seo";
+import { baseUrl, escaparMarkdown, rutaPublica } from "../lib/seo";
 import { createDb } from "../lib/db";
-import { getPaginasPublicas } from "../lib/db/queries";
+import { getLigasPublicas } from "../lib/db/queries";
 
 // Resumen del sitio para asistentes y buscadores con IA (formato llmstxt.org): qué es FISTURE,
 // qué páginas consultar y qué ligas cubre. Se arma con las ligas activas de la base.
 export async function GET({ locals }: APIContext): Promise<Response> {
   const env = locals.runtime.env;
   const base = baseUrl(env.PUBLIC_APP_URL);
-  const { ligas } = await getPaginasPublicas(createDb(env.DB));
+  const ligas = await getLigasPublicas(createDb(env.DB));
 
   const texto = `# FISTURE
 
@@ -26,12 +26,13 @@ Los horarios se muestran en hora de Argentina (UTC-3). Los datos de partidos se 
 
 ## Ligas y copas
 
-${ligas.map((l) => `- [${l.name}](${base}/ligas/${encodeURIComponent(l.id)}) (${l.country})`).join("\n")}
+${ligas.map((l) => `- [${escaparMarkdown(l.name)}](${base}${rutaPublica("ligas", l.id)}) (${escaparMarkdown(l.country)})`).join("\n")}
 
 ## Optional
 
 - [Política de privacidad](${base}/privacidad)
 - [Términos y condiciones](${base}/terminos)
 `;
-  return new Response(texto, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  // Las ligas cambian con el sync diario: una hora de caché evita ir a D1 en cada pedido
+  return new Response(texto, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
 }
