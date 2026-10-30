@@ -6,6 +6,7 @@ import { getPreferences } from "../lib/db/preferences";
 import { fechaLarga, fechaMovil, primerNombre } from "../lib/format";
 import { loginHref } from "../lib/auth/guards";
 import { urlCanonica } from "../lib/seo";
+import { SCRIPT_TEMA } from "../lib/security-headers";
 import "../styles/global.css";
 import "../styles/tribuna90.css";
 
@@ -82,22 +83,13 @@ const fechaCorta = fechaMovil(new Date());
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Sin el truco media="print" + onload: la CSP no permite handlers inline. display=swap evita el texto invisible -->
     <link
       href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap"
       rel="stylesheet"
-      media="print"
-      onload="this.media='all'"
     />
-    <noscript>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,600;1,700&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap"
-        rel="stylesheet"
-      />
-    </noscript>
     {!user && (
-      <script is:inline>
-        try { if (matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.dataset.theme = "nocturna"; } catch (e) {}
-      </script>
+      <script is:inline set:html={SCRIPT_TEMA} />
     )}
   </head>
   <body class="tb-app">
