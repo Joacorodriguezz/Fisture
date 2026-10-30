@@ -53,7 +53,7 @@ test("datos estructurados: sitio en la home, SportsEvent en el partido", async (
   expect(evento["@type"]).toBe("SportsEvent");
   expect(evento.url).toBe(`${BASE}/partidos/superclasico`);
   expect(migas["@type"]).toBe("BreadcrumbList");
-  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /vs .* por .*: [a-zé]+ \d+ de /);
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /vs .* por .*: [a-zéá]+ \d+ de /);
   expect(evento.performer).toHaveLength(2);
 });
 
