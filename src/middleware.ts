@@ -1,11 +1,12 @@
-import { defineMiddleware } from "astro:middleware";
+import { defineMiddleware, sequence } from "astro:middleware";
 import { getSessionUser } from "./lib/auth/session";
 import { decidirAcceso, loginHref } from "./lib/auth/guards";
 import { createDb } from "./lib/db";
+import { conHeadersDeSeguridad } from "./lib/security-headers";
 
 // La web se navega sin sesión. El middleware solo carga el usuario (si hay) y aplica
 // las reglas de lib/auth/guards.ts a las pocas rutas que sí exigen cuenta.
-export const onRequest = defineMiddleware(
+const sesion = defineMiddleware(
   async ({ locals, cookies, url, redirect }, next) => {
     const env = locals.runtime.env;
 
@@ -30,3 +31,8 @@ export const onRequest = defineMiddleware(
     }
   }
 );
+
+// Va primero para envolver toda respuesta, incluidas las redirecciones y los 401 de `sesion`
+const seguridad = defineMiddleware(async (_context, next) => conHeadersDeSeguridad(await next()));
+
+export const onRequest = sequence(seguridad, sesion);

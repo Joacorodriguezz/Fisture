@@ -171,6 +171,15 @@ El proyecto `fisture` de Pages **no tiene Git conectado**, así que mergear a `m
 
 `ENVIRONMENT` y `PUBLIC_APP_URL` salen de `wrangler.toml` (`[vars]`). Los secrets de la app (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ADMIN_SECRET`, `FOOTBALL_DATA_API_KEY`, etc.) se cargan con `npx wrangler pages secret put <NOMBRE> --project-name fisture`.
 
+### 6.3 Headers de seguridad
+
+Toda respuesta del Worker pasa por `src/lib/security-headers.ts` (primer middleware de `src/middleware.ts`): `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` y `Permissions-Policy`, y en el HTML además la `Content-Security-Policy`. Los assets estáticos (`/_astro/*`, favicon) no pasan por el Worker y llevan los headers fijos desde `public/_headers`: si se cambia uno, cambiar los dos.
+
+- `script-src 'self'` sin `'unsafe-inline'`: cada `<script>` inline (el del tema en el layout, la definición de `<astro-island>`) se autoriza con su hash SHA-256, calculado sobre el HTML de cada respuesta. Un script inline nuevo no necesita tocar la CSP; un **handler inline** (`onclick=`, `onload=`) o un script de otro dominio sí quedan bloqueados.
+- `style-src` admite `'unsafe-inline'` porque los componentes usan atributos `style=""`.
+- Agregar un recurso externo nuevo (fuente, script, `fetch` a otro dominio) exige sumar su origen en `construirCsp`.
+- Después del deploy: revisar `https://securityheaders.com/?q=fisture.com` y la consola del navegador (no debe haber violaciones de CSP). HSTS se activa en Cloudflare (SSL/TLS → Edge Certificates), no acá.
+
 ### 7. Configurar Dominio (Opcional)
 
 1. Pages → tu proyecto → Custom domains
