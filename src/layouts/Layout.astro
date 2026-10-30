@@ -1,11 +1,12 @@
 ---
 import Cabecera from "../components/tribuna/Cabecera.astro";
 import Folio from "../components/tribuna/Folio.astro";
+import JsonLd from "../components/seo/JsonLd.astro";
 import { createDb } from "../lib/db";
 import { getPreferences } from "../lib/db/preferences";
 import { fechaLarga, fechaMovil, primerNombre } from "../lib/format";
 import { loginHref } from "../lib/auth/guards";
-import { urlCanonica } from "../lib/seo";
+import { recortarDescripcion, urlCanonica } from "../lib/seo";
 import { SCRIPT_TEMA } from "../lib/security-headers";
 import "../styles/global.css";
 import "../styles/tribuna90.css";
@@ -20,6 +21,8 @@ interface Props {
   descripcion?: string;
   // Páginas personales o de login: no indexar
   noindex?: boolean;
+  // Datos estructurados de schema.org (lib/seo.ts: jsonLdPartido, jsonLdEquipo, ...)
+  jsonLd?: unknown[];
 }
 
 const {
@@ -27,9 +30,13 @@ const {
   volanta = "Tus partidos en tu calendario",
   showNavbar = true,
   pagina = 1,
-  descripcion = "Sincronizá los partidos de tus equipos y ligas de fútbol con tu calendario personal.",
+  descripcion: descripcionCompleta = "Sincronizá los partidos de tus equipos y ligas de fútbol con tu calendario personal.",
   noindex = false,
+  jsonLd = [],
 } = Astro.props;
+
+// Las descripciones con nombres de equipos y ligas pueden quedar largas: se recortan a ~160 caracteres
+const descripcion = recortarDescripcion(descripcionCompleta);
 
 // URL absoluta de la página (sin query ni barra final), a partir de PUBLIC_APP_URL
 const canonical = urlCanonica(Astro.locals.runtime.env.PUBLIC_APP_URL, Astro.url.pathname);
@@ -79,8 +86,11 @@ const fechaCorta = fechaMovil(new Date());
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonical} />
     <meta property="og:locale" content="es_AR" />
+    <meta property="og:site_name" content="FISTURE" />
     <meta name="twitter:card" content="summary" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="Resumen para modelos de lenguaje" />
+    {jsonLd.length > 0 && <JsonLd datos={jsonLd} />}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Sin el truco media="print" + onload: la CSP no permite handlers inline. display=swap evita el texto invisible -->
