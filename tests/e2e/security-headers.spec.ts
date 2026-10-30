@@ -5,11 +5,12 @@ test.beforeEach(async ({ context }) => {
   await context.route(/https?:\/\//, (route) => new URL(route.request().url()).hostname === "127.0.0.1" ? route.continue() : route.abort());
 });
 
-// Hashes (como los calcula el navegador) de los scripts inline que quedaron en el DOM
+// Hashes (como los calcula el navegador) de los scripts inline ejecutables que quedaron en el DOM.
+// Los bloques de datos (JSON-LD) no se ejecutan, así que la CSP no los autoriza ni los necesita.
 async function hashesInline(page: Page): Promise<string[]> {
   return page.evaluate(() =>
     Promise.all(
-      [...document.querySelectorAll("script:not([src])")].map(async (s) => {
+      [...document.querySelectorAll('script:not([src]):not([type="application/ld+json"])')].map(async (s) => {
         const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s.textContent ?? ""));
         return `sha256-${btoa(String.fromCharCode(...new Uint8Array(digest)))}`;
       })

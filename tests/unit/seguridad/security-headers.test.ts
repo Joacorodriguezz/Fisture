@@ -65,6 +65,16 @@ describe("conHeadersDeSeguridad", () => {
     expect(res.headers.get("Content-Security-Policy")).not.toContain(sha256(inyectado));
   });
 
+  it("un bloque JSON-LD no suma hashes: la CSP queda igual a la lista fija", async () => {
+    const jsonLd = '{"@context":"https://schema.org","@type":"SportsEvent","name":"River - Boca"}';
+    const res = await conHeadersDeSeguridad(
+      new Response(`<script type="application/ld+json">${jsonLd}</script><p>Partido</p>`, { headers: { "Content-Type": "text/html" } })
+    );
+    const csp = res.headers.get("Content-Security-Policy");
+    expect(csp).toBe(await cspDeLaApp());
+    expect(csp).not.toContain(sha256(jsonLd));
+  });
+
   it("no espera el cuerpo: el HTML sigue saliendo en streaming", async () => {
     let cerrar!: () => void;
     const cuerpo = new ReadableStream<Uint8Array>({
