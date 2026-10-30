@@ -27,7 +27,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html", "lcov", "json-summary"],
       include: [
-        "src/lib/format.ts", "src/lib/seo.ts", "src/lib/auth/{guards,session,tokens,revoke}.ts", "src/lib/sync-ui.ts",
+        "src/lib/format.ts", "src/lib/seo.ts", "src/lib/security-headers.ts", "src/lib/auth/{guards,session,tokens,revoke}.ts", "src/lib/sync-ui.ts",
         "src/lib/calendar/*.ts",
         "src/lib/db/{account,preferences,queries}.ts", "src/lib/data-providers/{espn,sync}.ts",
         "src/lib/observability/*.ts",
