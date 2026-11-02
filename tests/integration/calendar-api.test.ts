@@ -111,6 +111,23 @@ describe("API del calendario con servicio, clientes y D1 reales", () => {
       expect(await filasSync()).toHaveLength(1);
     });
 
+    it("si D1 falla al borrar la fila responde 500 sin exponer el SQL ni sus parámetros", async () => {
+      const [fila] = await filasSync();
+      await t.DB.prepare(
+        "CREATE TRIGGER falla_borrado BEFORE DELETE ON calendar_syncs BEGIN SELECT RAISE(ABORT, 'falla simulada de D1'); END"
+      ).run();
+      try {
+        const res = await quitar("superclasico");
+        expect(res.status).toBe(500);
+        const body = await res.text();
+        expect(body).toContain("falla simulada de D1");
+        expect(body).not.toContain("Failed query");
+        expect(body).not.toContain(fila.id);
+      } finally {
+        await t.DB.prepare("DROP TRIGGER falla_borrado").run();
+      }
+    });
+
     it("el reintento tras un borrado fallido elimina el evento", async () => {
       http.failures.push({ method: "DELETE", status: 503, message: "Try later", match: /\/events\// });
       await quitar("superclasico");

@@ -6,7 +6,7 @@ import { and, asc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { calendarSyncs, matches, users, userTeams } from "../../../drizzle/schema";
 import { getValidAccessToken } from "../auth/tokens";
 import type { Database } from "../db";
-import { rootLogger } from "../observability/logger";
+import { mensajeDeError, rootLogger } from "../observability/logger";
 import { getMatchDetail, getAutoSyncMatchIds } from "../db/queries";
 import { getPreferences } from "../db/preferences";
 import { getClient, type CalendarClient, type MatchDetail } from "./clients";
@@ -187,7 +187,7 @@ export async function syncMatches(
         break;
       }
 
-      const message = error instanceof Error ? error.message : "Error desconocido";
+      const message = mensajeDeError(error, "Error desconocido");
       rootLogger.error("calendar_match_sync_failed", { matchId, code, message });
 
       await saveState(db, user.id, user.provider, matchId, {

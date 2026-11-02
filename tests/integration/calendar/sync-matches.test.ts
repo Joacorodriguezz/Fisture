@@ -7,6 +7,8 @@ import { syncMatches } from "../../../src/lib/calendar/sync-service";
 import { CalendarApiError } from "../../../src/lib/calendar/errors";
 import { rootLogger } from "../../../src/lib/observability/logger";
 import { ENV_VACIO } from "../../helpers/fixtures";
+import { eq } from "drizzle-orm";
+import { users } from "../../../drizzle/schema";
 
 describe("syncMatches", () => {
   // syncMatches usa new Date() para decidir si un partido ya se jugó: se fija un día antes de T0
@@ -297,6 +299,36 @@ describe("syncMatches", () => {
       });
       expect(r).toMatchObject({ success: false, code: "auth" });
       expect((await fila(t, "m1")).status).toBe("needs_update");
+    });
+
+    // drizzle-orm >= 0.44 envuelve los errores de D1 en DrizzleQueryError, cuyo mensaje trae el SQL
+    // y los parámetros: si falla guardar un token renovado, el token no debe salir de la consulta.
+    it("si D1 falla al guardar el token renovado, el token no llega al estado, a la respuesta ni a los logs", async () => {
+      const secreto = "ya29.token-renovado-secreto";
+      const logs = [vi.spyOn(rootLogger, "info"), vi.spyOn(rootLogger, "warn"), vi.spyOn(rootLogger, "error")];
+      await t.DB.prepare(
+        "CREATE TRIGGER falla_tokens BEFORE UPDATE OF access_token ON users BEGIN SELECT RAISE(ABORT, 'falla simulada de D1'); END"
+      ).run();
+      try {
+        const [r] = await syncMatches(db, env, await usuario(db), ["m1"], {
+          mode: "manual",
+          deps: {
+            client: falso.client,
+            // Lo mismo que hace getValidAccessToken después de renovar el token
+            getToken: async (_env, tokenDb, user) => {
+              await tokenDb.update(users).set({ accessToken: secreto, refreshToken: secreto }).where(eq(users.id, user.id));
+              return secreto;
+            },
+          },
+        });
+        expect(r).toMatchObject({ success: false });
+        expect(r.error).toContain("falla simulada de D1");
+        expect(JSON.stringify(r)).not.toContain(secreto);
+        expect(JSON.stringify(await filas(t))).not.toContain(secreto);
+        expect(JSON.stringify(logs.map((spy) => spy.mock.calls))).not.toContain(secreto);
+      } finally {
+        await t.DB.prepare("DROP TRIGGER falla_tokens").run();
+      }
     });
 
     it("429 corta el bucle sin marcar failed", async () => {

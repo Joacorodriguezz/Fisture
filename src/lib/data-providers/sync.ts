@@ -8,6 +8,7 @@
 import { and, eq, notInArray } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { createDb, type Database } from "../db";
+import { mensajeDeError } from "../observability/logger";
 import { teams, matches, leagues, leagueTeams } from "../../../drizzle/schema";
 import {
   createEspnClient,
@@ -215,7 +216,7 @@ async function syncLeague(db: Database, provider: DataProvider, config: LeagueCo
     // 5. Partidos
     await syncPartidos(db, config, ligaId, fixture.matches, equipoIds, result);
   } catch (error) {
-    result.errors.push(error instanceof Error ? error.message : "Error desconocido");
+    result.errors.push(mensajeDeError(error, "Error desconocido"));
   }
 
   return result;

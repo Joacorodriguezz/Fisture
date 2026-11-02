@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createLogger, defaultLevel, redact, serializeError } from "../../src/lib/observability/logger";
+import { DrizzleQueryError } from "drizzle-orm";
+import { createLogger, defaultLevel, mensajeDeError, redact, serializeError } from "../../src/lib/observability/logger";
 
 function capturar(opts: Parameters<typeof createLogger>[0] = {}) {
   const lineas: { level: string; data: Record<string, unknown> }[] = [];
@@ -126,5 +127,39 @@ describe("redact / serializeError", () => {
   it("serializeError conserva la causa", () => {
     const e = new Error("externo", { cause: new Error("interno") });
     expect((serializeError(e).cause as any).message).toBe("interno");
+  });
+
+  // drizzle-orm >= 0.44: el mensaje y el stack de DrizzleQueryError traen los parámetros de la consulta
+  it("serializeError de un DrizzleQueryError conserva el SQL y la causa pero no los parámetros", () => {
+    const e = new DrizzleQueryError(
+      'update "users" set "access_token" = ? where "users"."id" = ?',
+      ["ya29.secreto", "u1"],
+      new Error("D1_ERROR: falla")
+    );
+    const s = serializeError(e);
+    expect(JSON.stringify(s)).not.toContain("ya29.secreto");
+    expect(s).toMatchObject({
+      message: 'Failed query: update "users" set "access_token" = ? where "users"."id" = ?',
+      query: 'update "users" set "access_token" = ? where "users"."id" = ?',
+      cause: { message: "D1_ERROR: falla" },
+    });
+    expect(s.stack).toContain("Failed query");
+  });
+});
+
+describe("mensajeDeError", () => {
+  it("de un DrizzleQueryError devuelve el mensaje de la causa (el error de D1), sin SQL ni parámetros", () => {
+    const e = new DrizzleQueryError("select ?", ["secreto"], new Error("D1_ERROR: no such table: x"));
+    expect(mensajeDeError(e)).toBe("D1_ERROR: no such table: x");
+  });
+
+  it("de un DrizzleQueryError sin causa devuelve un mensaje genérico", () => {
+    expect(mensajeDeError(new DrizzleQueryError("select ?", ["secreto"]))).toBe("Falló una consulta a la base de datos");
+  });
+
+  it("de un Error devuelve su mensaje, y de otra cosa el fallback o su texto", () => {
+    expect(mensajeDeError(new Error("boom"))).toBe("boom");
+    expect(mensajeDeError("texto")).toBe("texto");
+    expect(mensajeDeError(undefined, "Error desconocido")).toBe("Error desconocido");
   });
 });
