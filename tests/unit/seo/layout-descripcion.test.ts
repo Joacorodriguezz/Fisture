@@ -12,7 +12,8 @@ describe("escape de descripcion en Layout.astro", () => {
   it("usa descripcion solo como valor de atributo, sin HTML crudo", () => {
     expect(layout).toContain('<meta name="description" content={descripcion} />');
     expect(layout).toContain('<meta property="og:description" content={descripcion} />');
-    expect(layout).not.toContain("set:html");
+    // El único set:html es el script fijo del tema (constante de lib/security-headers.ts, ver la CSP)
+    expect(layout.replace("<script is:inline set:html={SCRIPT_TEMA} />", "")).not.toContain("set:html");
   });
 
   it("el atributo no se rompe con comillas ni con &", () => {

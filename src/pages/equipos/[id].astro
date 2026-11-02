@@ -13,6 +13,7 @@ import { and, eq } from "drizzle-orm";
 import { leagues, teams, userTeams } from "../../../drizzle/schema";
 import { fechaCorta, hora } from "../../lib/format";
 import { loginHref } from "../../lib/auth/guards";
+import { jsonLdEquipo, jsonLdMigas, rutaPublica } from "../../lib/seo";
 
 // Página pública: seguir al equipo y el estado de sync solo aplican con sesión
 const user = Astro.locals.user;
@@ -53,6 +54,23 @@ const estados = user
   ? await getSyncStates(db, user.id, partidos.map((m) => m.match.id))
   : new Map<string, { status: string; errorMessage: string | null }>();
 
+const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
+const proximo = todos[0];
+// Lo distintivo (equipo, liga y próximo partido) va primero: el Layout recorta lo que pase de ~160
+const descripcion = `Fixture de ${team.name}${liga ? ` (${liga.name})` : ""}: ${
+  proximo
+    ? `próximo partido ${proximo.homeTeam.name} vs ${proximo.awayTeam.name}, ${fechaCorta(proximo.match.dateTime)} a las ${hora(proximo.match.dateTime)}.`
+    : "sus próximos partidos con día y hora."
+} Sincronizalo con tu calendario.`;
+const jsonLd = [
+  jsonLdEquipo(appUrl, team, liga),
+  jsonLdMigas(appUrl, [
+    { nombre: "Ligas", ruta: "/ligas" },
+    ...(liga ? [{ nombre: liga.name, ruta: rutaPublica("ligas", liga.id) }] : []),
+    { nombre: team.name, ruta: rutaPublica("equipos", team.id) },
+  ]),
+];
+
 const filtros = [
   { valor: "todos", label: "Todos" },
   { valor: "local", label: "Local" },
@@ -60,7 +78,7 @@ const filtros = [
 ];
 ---
 
-<Layout title={`${team.name} - FISTURE`} pagina={3}>
+<Layout title={`Fixture de ${team.name} - FISTURE`} pagina={3} descripcion={descripcion} jsonLd={jsonLd}>
   <div style="display:flex;flex-direction:column;gap:32px">
     <div class="eq-mig" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;font:700 14px/18px var(--font-rotulo);color:var(--tinta-suave)">
       <a href="/ligas" style="color:var(--tinta);text-decoration:none;letter-spacing:.06em;text-transform:uppercase">Ligas</a>
