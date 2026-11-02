@@ -4,6 +4,7 @@ import type { Database } from "../db";
 import { syncRuns } from "../../../drizzle/schema";
 import type { SyncResult } from "../data-providers/sync";
 import type { ConsistencyIssue, SyncRunStatus, SyncTrigger } from "./types";
+import { mensajeDeError } from "./logger";
 
 export const RETENTION_DAYS = 30;
 const MAX_ERRORES_POR_COMPETENCIA = 10;
@@ -65,7 +66,7 @@ export async function finishSyncRun(
 }
 
 export async function failSyncRun(db: Database, id: string, error: unknown, now = Date.now()): Promise<void> {
-  const mensaje = truncar(error instanceof Error ? error.message : String(error));
+  const mensaje = truncar(mensajeDeError(error));
   const [run] = await db.select({ startedAt: syncRuns.startedAt }).from(syncRuns).where(eq(syncRuns.id, id));
   await db
     .update(syncRuns)

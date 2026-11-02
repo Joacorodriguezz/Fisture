@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { sql } from "drizzle-orm";
 import { useTestDb } from "../helpers/use-test-db";
 import {
   computeRunStatus,
@@ -92,6 +93,15 @@ describe("sync_runs (D1)", () => {
     const [run] = await getLatestRuns(t.db, 1);
     expect(run).toMatchObject({ status: "failed", durationMs: 1_500 });
     expect(run.error!.length).toBeLessThanOrEqual(500);
+  });
+
+  it("failSyncRun con un error de D1 guarda la causa y no los parámetros de la consulta", async () => {
+    const id = await startSyncRun(t.db, "cron", 1_000);
+    const error = await t.db.run(sql`select * from tabla_inexistente where x = ${"valor-privado"}`).catch((e: unknown) => e);
+    await failSyncRun(t.db, id, error, 2_500);
+    const [run] = await getLatestRuns(t.db, 1);
+    expect(run.error).toContain("no such table");
+    expect(run.error).not.toContain("valor-privado");
   });
 
   it("al iniciar un run se purgan los de más de la retención", async () => {
