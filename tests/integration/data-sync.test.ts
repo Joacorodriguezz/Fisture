@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 import scoreboard from "../fixtures/espn-scoreboard.json";
 import { useTestDb } from "../helpers/use-test-db";
 import { AHORA, DIA_MS, relojFijo } from "../helpers/clock";
-import { syncSingleLeague } from "../../src/lib/data-providers/sync";
+import { syncLote, syncSingleLeague } from "../../src/lib/data-providers/sync";
+import { LEAGUES_CONFIG, lotesDeSync } from "../../src/lib/data-providers";
 import { leagues, teams, matches, leagueTeams } from "../../drizzle/schema";
 
 describe("ingesta ESPN a D1", () => {
@@ -73,6 +74,88 @@ describe("ingesta ESPN a D1", () => {
 
     it("una liga desconocida informa el error", async () => {
       expect((await sync("unknown")).errors).not.toHaveLength(0);
+    });
+  });
+
+  describe("copas no destacadas (docs/22)", () => {
+    // Un cruce de un equipo conocido contra un amateur y otro entre dos amateurs
+    const conAmateurs = () => {
+      const base = data.events[0];
+      const cruce = (id: string, local: [string, string], visitante: [string, string]) => ({
+        ...structuredClone(base),
+        id,
+        season: { year: AHORA.getUTCFullYear(), slug: "round-of-32" },
+        competitions: [{ venue: { fullName: "Cancha" }, competitors: [
+          { homeAway: "home", score: "0", team: { id: local[0], displayName: local[1], abbreviation: local[1].slice(0, 3) } },
+          { homeAway: "away", score: "0", team: { id: visitante[0], displayName: visitante[1], abbreviation: visitante[1].slice(0, 3) } },
+        ] }],
+      });
+      data.events = [cruce("c1", ["16", "River Plate"], ["900", "Club Amateur"]), cruce("c2", ["901", "Otro Amateur"], ["902", "Tercer Amateur"])];
+    };
+
+    it("solo guarda los partidos de equipos de competencias destacadas, con su rival", async () => {
+      await sync();
+      conAmateurs();
+
+      expect(await sync("arg.copa")).toMatchObject({ teamsCreated: 1, matchesCreated: 1, errors: [] });
+      const [copa] = await t.db.select().from(leagues).where(eq(leagues.externalId, "arg.copa"));
+      expect(copa).toMatchObject({ isFeatured: false, isActive: true });
+      expect(await t.db.select().from(matches).where(eq(matches.leagueId, copa.id))).toEqual([
+        expect.objectContaining({ externalId: "espn:c1", round: "Dieciseisavos de final" }),
+      ]);
+      const participantes = await t.db.select().from(leagueTeams).where(eq(leagueTeams.leagueId, copa.id));
+      expect(participantes).toHaveLength(2);
+    });
+
+    it("sin equipos conocidos no carga nada", async () => {
+      conAmateurs();
+      expect(await sync("arg.copa")).toMatchObject({ teamsCreated: 0, matchesCreated: 0, errors: [] });
+      expect(await t.db.select().from(teams)).toHaveLength(0);
+    });
+
+    it("las ligas y copas internacionales destacadas se marcan como destacadas", async () => {
+      await sync();
+      await sync("conmebol.libertadores");
+      expect((await t.db.select().from(leagues)).map((l) => l.isFeatured)).toEqual([true, true]);
+    });
+  });
+
+  describe("liga de origen", () => {
+    it("un equipo que entró por una copa adopta su liga cuando esa liga se sincroniza", async () => {
+      await sync("conmebol.libertadores");
+      expect((await t.db.select().from(teams)).map((e) => e.country)).toEqual([null, null]);
+
+      expect(await sync("arg.1")).toMatchObject({ teamsCreated: 0, teamsUpdated: 2, errors: [] });
+      const [liga] = await t.db.select().from(leagues).where(eq(leagues.externalId, "arg.1"));
+      expect(await t.db.select().from(teams)).toEqual([
+        expect.objectContaining({ leagueId: liga.id, country: "Argentina" }),
+        expect.objectContaining({ leagueId: liga.id, country: "Argentina" }),
+      ]);
+
+      // Ya adoptada, una segunda pasada no vuelve a escribir
+      expect(await sync("arg.1")).toMatchObject({ teamsUpdated: 0 });
+    });
+  });
+
+  describe("sync por lotes (docs/22 D4)", () => {
+    it("cada lote informa el siguiente y el último cierra con null", async () => {
+      const total = lotesDeSync().length;
+      const primero = await syncLote({ DB: t.DB }, 0);
+      expect(primero).toMatchObject({ lote: 0, totalLotes: total, siguienteLote: 1 });
+      expect(primero.results.map((r) => r.league)).toEqual(LEAGUES_CONFIG.slice(0, 5).map((l) => l.name));
+    });
+
+    it("el último lote desactiva las competencias que ya no están configuradas", async () => {
+      await t.db.insert(leagues).values({ externalId: "vieja.1", name: "Liga vieja", country: "X", season: 2020, source: "espn" });
+      const total = lotesDeSync().length;
+
+      expect(await syncLote({ DB: t.DB }, total - 1)).toMatchObject({ siguienteLote: null });
+      const [vieja] = await t.db.select().from(leagues).where(eq(leagues.externalId, "vieja.1"));
+      expect(vieja.isActive).toBe(false);
+    });
+
+    it.each([-1, 1.5, 999])("un lote inexistente (%s) es un error", async (lote) => {
+      await expect(syncLote({ DB: t.DB }, lote)).rejects.toThrow(RangeError);
     });
   });
 });

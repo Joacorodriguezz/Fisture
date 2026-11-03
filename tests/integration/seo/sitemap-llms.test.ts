@@ -70,6 +70,14 @@ describe("sitemap.xml y llms.txt", () => {
       expect(xml).not.toContain("/equipos/river");
     });
 
+    it("no lista las copas no destacadas ni a sus equipos, pero sí sus partidos", async () => {
+      await t.db.update(leagues).set({ isFeatured: false }).where(eq(leagues.id, "test-league"));
+      const xml = await (await getSitemap(ctx())).text();
+      expect(xml).not.toContain("/ligas/test-league");
+      expect(xml).not.toContain("/equipos/river");
+      expect(xml).toContain("/partidos/superclasico");
+    });
+
     it("no lista páginas personales ni de login", async () => {
       const xml = await (await getSitemap(ctx())).text();
       expect(xml).not.toContain("/configuracion");

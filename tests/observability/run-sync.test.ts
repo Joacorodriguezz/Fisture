@@ -87,6 +87,21 @@ describe("runSync", () => {
     expect(r.results.map((x) => x.league)).toEqual(["arg.1"]);
   });
 
+  it("con lote sincroniza ese lote e informa el siguiente", async () => {
+    const all = vi.fn(async () => [res("x")]);
+    const lote = vi.fn(async (_e: unknown, n: number) => ({ lote: n, totalLotes: 9, siguienteLote: n + 1, results: [res("Liga A")] }));
+    const r = await runSync(env, "admin", { lote: 2, deps: { ...deps({ syncAllLeagues: all }), syncLote: lote }, logger });
+    expect(all).not.toHaveBeenCalled();
+    expect(lote.mock.calls[0][1]).toBe(2);
+    expect(r).toMatchObject({ status: "success", lote: { lote: 2, totalLotes: 9, siguienteLote: 3 } });
+    expect(r.results.map((x) => x.league)).toEqual(["Liga A"]);
+  });
+
+  it("sin lote no informa lote", async () => {
+    const r = await runSync(env, "admin", { deps: deps(), logger });
+    expect(r).not.toHaveProperty("lote");
+  });
+
   it("el calendario solo se sincroniza si se pide (cron)", async () => {
     const cal = vi.fn(async () => {});
     await runSync(env, "admin", { deps: deps({ calendarAutoSync: cal }), logger });
