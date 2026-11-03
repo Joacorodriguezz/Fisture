@@ -8,6 +8,7 @@ import { fechaLarga, fechaMovil, primerNombre } from "../lib/format";
 import { loginHref } from "../lib/auth/guards";
 import { recortarDescripcion, urlCanonica } from "../lib/seo";
 import { SCRIPT_TEMA } from "../lib/security-headers";
+import { CONTACTO_EMAIL } from "../lib/legal";
 import "../styles/global.css";
 import "../styles/tribuna90.css";
 
@@ -40,6 +41,8 @@ const descripcion = recortarDescripcion(descripcionCompleta);
 
 // URL absoluta de la página (sin query ni barra final), a partir de PUBLIC_APP_URL
 const canonical = urlCanonica(Astro.locals.runtime.env.PUBLIC_APP_URL, Astro.url.pathname);
+// WhatsApp, X e Instagram exigen una URL absoluta para la imagen de vista previa
+const ogImagen = urlCanonica(Astro.locals.runtime.env.PUBLIC_APP_URL, "/og-image.png");
 
 const user = Astro.locals.user;
 const prefs = user
@@ -87,8 +90,17 @@ const fechaCorta = fechaMovil(new Date());
     <meta property="og:url" content={canonical} />
     <meta property="og:locale" content="es_AR" />
     <meta property="og:site_name" content="FISTURE" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content={ogImagen} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="FISTURE: todos tus partidos en tu calendario" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={ogImagen} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#b91309" />
     <link rel="alternate" type="text/plain" href="/llms.txt" title="Resumen para modelos de lenguaje" />
     {jsonLd.length > 0 && <JsonLd datos={jsonLd} />}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -113,7 +125,7 @@ const fechaCorta = fechaMovil(new Date());
     </main>
     <footer class="tb-footer">
       <span style="font:400 20px/1 var(--font-titular);transform:skewX(-8deg)">FISTURE</span>
-      <span><a href="/privacidad" class="tb-footer__enlace">Privacidad</a> · <a href="/terminos" class="tb-footer__enlace">Condiciones</a></span>
+      <span><a href="/ayuda" class="tb-footer__enlace">Ayuda</a> · <a href={`mailto:${CONTACTO_EMAIL}`} class="tb-footer__enlace">Contacto</a> · <a href="/privacidad" class="tb-footer__enlace">Privacidad</a> · <a href="/terminos" class="tb-footer__enlace">Condiciones</a></span>
     </footer>
   </body>
 </html>
