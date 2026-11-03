@@ -126,4 +126,36 @@ describe("checkConsistency", () => {
     await partido("m2", { date: AHORA_S - 5 * HORA });
     expect((await codigos()).sort()).toEqual(["match_same_team", "stale_scheduled"]);
   });
+
+  // docs/18: las identidades OAuth deben cubrir a cada usuario y a su proveedor de calendario activo
+  describe("identidades OAuth", () => {
+    // La liga vacía que siembra el beforeEach no es de este bloque
+    const hallazgos = async () => (await checkConsistency(t.db, AHORA_MS)).filter((i) => i.code.endsWith("_identity"));
+    const usuario = (id: string, provider = "google") =>
+      t.DB.prepare("INSERT INTO users (id, email, provider, provider_id) VALUES (?1, ?1 || '@x.com', ?2, 'p-' || ?1)").bind(id, provider).run();
+    const identidad = (id: string, userId: string, provider: string) =>
+      t.DB.prepare("INSERT INTO oauth_identities (id, user_id, provider, provider_id) VALUES (?, ?, ?, ?)").bind(id, userId, provider, `p-${id}`).run();
+
+    it("user_without_identity: usuario sin ninguna identidad (ventana entre migrar y desplegar)", async () => {
+      await usuario("sin");
+      await usuario("con");
+      await identidad("con", "con", "google");
+      const issues = await hallazgos();
+      expect(issues).toEqual([{ code: "user_without_identity", severity: "warn", count: 1, sample: ["sin"] }]);
+    });
+
+    it("provider_without_identity: users.provider apunta a una identidad que no existe", async () => {
+      await usuario("raro", "microsoft");
+      await identidad("raro-g", "raro", "google");
+      const issues = await hallazgos();
+      expect(issues).toEqual([{ code: "provider_without_identity", severity: "warn", count: 1, sample: ["raro"] }]);
+    });
+
+    it("un usuario con su identidad activa y otra vinculada no genera hallazgos", async () => {
+      await usuario("ok", "google");
+      await identidad("ok", "ok", "google");
+      await identidad("ok-ms", "ok", "microsoft");
+      expect(await hallazgos()).toEqual([]);
+    });
+  });
 });
