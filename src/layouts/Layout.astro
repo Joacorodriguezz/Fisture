@@ -40,6 +40,8 @@ const {
 const descripcion = recortarDescripcion(descripcionCompleta);
 
 // URL absoluta de la página (sin query ni barra final), a partir de PUBLIC_APP_URL
+// Staging (docs/26): nada se indexa y una franja avisa que no es producción
+const esStaging = Astro.locals.runtime.env.ENVIRONMENT === "staging";
 const canonical = urlCanonica(Astro.locals.runtime.env.PUBLIC_APP_URL, Astro.url.pathname);
 // WhatsApp, X e Instagram exigen una URL absoluta para la imagen de vista previa
 const ogImagen = urlCanonica(Astro.locals.runtime.env.PUBLIC_APP_URL, "/og-image.png");
@@ -82,7 +84,7 @@ const fechaCorta = fechaMovil(new Date());
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
     <meta name="description" content={descripcion} />
-    {noindex && <meta name="robots" content="noindex" />}
+    {(noindex || esStaging) && <meta name="robots" content="noindex" />}
     <link rel="canonical" href={canonical} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={descripcion} />
@@ -116,6 +118,11 @@ const fechaCorta = fechaMovil(new Date());
   </head>
   <body class="tb-app">
     <a class="tb-saltar" href="#contenido">Saltar al contenido</a>
+    {esStaging && (
+      <div role="note" style="background:var(--tinta);color:var(--papel);text-align:center;padding:6px 16px;font:700 13px/18px var(--font-rotulo);letter-spacing:.08em;text-transform:uppercase">
+        Staging · rama development · datos de prueba
+      </div>
+    )}
     <Cabecera volanta={volanta} numero={numero} numeroHref={user ? "/configuracion" : undefined} fecha={fecha} fechaMovil={fechaCorta} secciones={secciones} accion={accion} usuario={user ? { nombre: primerNombre(user.name, user.email), detalle: user.email } : undefined} />
     <main class="tb-main" id="contenido" tabindex="-1">
       <slot />

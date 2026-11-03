@@ -46,3 +46,12 @@ describe("GET /robots.txt", () => {
     expect(await lineas(`${BASE}/`)).toContain(`Sitemap: ${BASE}/sitemap.xml`);
   });
 });
+
+describe("GET /robots.txt en staging (docs/26)", () => {
+  it("bloquea todo el sitio y no publica el sitemap", async () => {
+    const res = await getRobots({ ...ctx(), locals: { runtime: { env: { PUBLIC_APP_URL: BASE, ENVIRONMENT: "staging" } } } });
+    const texto = await res.text();
+    expect(texto.split("\n")).toEqual(["User-agent: *", "Disallow: /", ""]);
+    expect(texto).not.toContain("Sitemap");
+  });
+});

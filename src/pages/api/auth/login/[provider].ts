@@ -35,7 +35,8 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
     {
       path: "/api/auth",
       httpOnly: true,
-      secure: env.ENVIRONMENT === "production",
+      // Staging también se sirve por HTTPS (docs/26)
+      secure: env.ENVIRONMENT === "production" || env.ENVIRONMENT === "staging",
       sameSite: "lax",
       maxAge: OAUTH_STATE_TTL_SEGUNDOS,
     }

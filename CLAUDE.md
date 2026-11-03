@@ -111,7 +111,7 @@ Hook `commit-msg` (`.githooks/`) valida tipo, longitud, puntuación y línea en 
 
 ```
 main         → producción (lo despliega .github/workflows/deploy.yml en Cloudflare Pages)
-development  → integración / staging (rama por defecto del repo)
+development  → integración / staging en development.fisture.pages.dev (rama por defecto del repo)
 feat/* fix/* chore/* docs/* ci/*  → trabajo diario, salen de development
 ```
 
@@ -119,7 +119,7 @@ feat/* fix/* chore/* docs/* ci/*  → trabajo diario, salen de development
 - **Features y fixes**: rama desde `development` → PR a `development` → **Squash and merge** (un commit por feature).
 - **Release**: PR `development` → `main` con **Create a merge commit** (único método permitido en `main`; evita que ambas ramas diverjan). Al mergear, `deploy.yml` corre la suite completa, aplica las migraciones de D1, despliega el artefacto probado y hace un smoke de solo lectura contra `PUBLIC_APP_URL`.
 - **Hotfix urgente**: `fix/*` desde `main` → PR a `main`, y después PR de `main` → `development` para no perder el arreglo.
-- No hay preview deployments: Cloudflare Pages no tiene Git conectado, así que ni los PRs ni `development` se despliegan. Solo `main` llega a Cloudflare, vía `deploy.yml`.
+- Staging: cada push a `development` se despliega con `staging.yml` en https://development.fisture.pages.dev (preview de Pages, D1 `fisture-staging` y KV propios vía `[env.preview]` de `wrangler.toml`, sin indexar). Los PRs no tienen preview. Producción es solo `main`, vía `deploy.yml`. Detalle: `docs/26-staging-tdd.md`.
 - CI (`.github/workflows/ci.yml`): llama a la suite reutilizable (`test-suite.yml`: typecheck, cobertura, build y E2E) en cada PR y push a `development`; el job `build` exige su resultado y debe pasar para poder mergear. Detalle en `docs/13-testing-y-release.md`.
 - Nombres de rama: `tipo/descripcion-corta` en minúsculas y con guiones. Commits en formato Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `ci:`).
 - Al crear PRs, apuntar a `development` salvo que sea un release o hotfix.
