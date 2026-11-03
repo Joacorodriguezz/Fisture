@@ -15,13 +15,15 @@ describe("evaluateCalendarHealth (puro)", () => {
   it("sin runs de calendarios: ok (el disparo ya lo vigila el check de ligas)", () => {
     expect(evaluateCalendarHealth({ latest: null, lastSuccessAt: null, now: NOW })).toBe("ok");
   });
-  it("success reciente: ok; entre 26 y 50 h: degraded; más de 50 h: fail", () => {
+  it("success reciente: ok; con más de 26 h: degraded, y nunca fail por viejo que sea (I3)", () => {
     expect(evaluateCalendarHealth({ latest: run("success", H), lastSuccessAt: NOW - H, now: NOW })).toBe("ok");
     expect(evaluateCalendarHealth({ latest: run("success", SYNC_OK_MAX_AGE_MS + 1), lastSuccessAt: NOW - SYNC_OK_MAX_AGE_MS - 1, now: NOW })).toBe("degraded");
-    expect(evaluateCalendarHealth({ latest: run("success", SYNC_DEGRADED_MAX_AGE_MS + 1), lastSuccessAt: NOW - SYNC_DEGRADED_MAX_AGE_MS - 1, now: NOW })).toBe("fail");
+    expect(evaluateCalendarHealth({ latest: run("success", SYNC_DEGRADED_MAX_AGE_MS + 1), lastSuccessAt: NOW - SYNC_DEGRADED_MAX_AGE_MS - 1, now: NOW })).toBe("degraded");
+    expect(evaluateCalendarHealth({ latest: run("success", 30 * 24 * H), lastSuccessAt: NOW - 30 * 24 * H, now: NOW })).toBe("degraded");
   });
-  it("último run failed: fail; partial (barrido incompleto): degraded", () => {
-    expect(evaluateCalendarHealth({ latest: run("failed", H), lastSuccessAt: NOW - 2 * H, now: NOW })).toBe("fail");
+  it("último run failed o partial: degraded; un fallo de calendarios no puede dar 503 ni frenar un deploy (I3)", () => {
+    expect(evaluateCalendarHealth({ latest: run("failed", H), lastSuccessAt: NOW - 2 * H, now: NOW })).toBe("degraded");
+    expect(evaluateCalendarHealth({ latest: { status: "running", startedAt: NOW - 60 * H, finishedAt: null }, lastSuccessAt: null, now: NOW })).toBe("degraded");
     expect(evaluateCalendarHealth({ latest: run("partial", H), lastSuccessAt: NOW - 2 * H, now: NOW })).toBe("degraded");
   });
 });
@@ -44,20 +46,20 @@ describe("getHealth con runs de calendarios (D1)", () => {
     expect(h.lastCalendarSyncAt).toBeNull();
   });
 
-  it("un run de calendarios fallido no tapa ni rompe el check de ligas, pero el estado general falla", async () => {
+  it("un run de calendarios fallido no tapa ni rompe el check de ligas, y el estado general queda degraded (no fail)", async () => {
     await ligasOk(Date.now() - 2 * H);
     await calendarios(Date.now() - H, "failed");
     const h = await getHealth(env());
     expect(h.checks.sync).toBe("ok");
-    expect(h.checks.calendars).toBe("fail");
-    expect(h.status).toBe("fail");
+    expect(h.checks.calendars).toBe("degraded");
+    expect(h.status).toBe("degraded");
   });
 
   it("un run de ligas exitoso no tapa que los calendarios llevan días sin procesarse", async () => {
     await ligasOk(Date.now() - H);
     await calendarios(Date.now() - 60 * H, "success");
     const h = await getHealth(env());
-    expect(h.checks).toMatchObject({ sync: "ok", calendars: "fail" });
+    expect(h.checks).toMatchObject({ sync: "ok", calendars: "degraded" });
     expect(h.lastCalendarSyncAt).toEqual(expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/));
   });
 

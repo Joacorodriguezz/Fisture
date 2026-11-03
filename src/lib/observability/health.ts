@@ -37,12 +37,17 @@ export function evaluateSyncHealth({ latest, lastSuccessAt, now }: SyncHealthInp
 }
 
 // Calendarios: mismas reglas de frescura que las ligas (el barrido corre en el mismo workflow diario),
-// salvo que sin ningún run todavía no se alarma: aún no hay nada que medir y, si el disparo no
-// corriera, ya fallaría el check de ligas. Un barrido incompleto (quedaron usuarios sin atender) se
-// registra como partial y muestra degraded.
+// con dos diferencias:
+//  - sin ningún run todavía no se alarma: aún no hay nada que medir y, si el disparo no corriera, ya
+//    fallaría el check de ligas;
+//  - como máximo degraded. Un fallo de calendarios no tumba la app: con `fail`, /api/health respondería
+//    503 y production-smoke bloquearía deploys, incluido el que lo arregla (docs/17 I3).
+// Un lote sin progreso, un barrido que llegó al tope de lotes con usuarios pendientes (el workflow
+// registra un run partial, M2) o un último run fallido muestran degraded.
 export function evaluateCalendarHealth(input: SyncHealthInput): CheckStatus {
   if (!input.latest) return "ok";
-  return evaluateSyncHealth(input);
+  const estado = evaluateSyncHealth(input);
+  return estado === "fail" ? "degraded" : estado;
 }
 
 export function overallStatus(checks: Record<string, CheckStatus>): CheckStatus {
@@ -69,7 +74,7 @@ export async function getHealth(env: HealthEnv, now = Date.now()): Promise<Healt
   let db: CheckStatus = "ok";
   let kv: CheckStatus = "ok";
   let sync: CheckStatus = "fail";
-  let calendars: CheckStatus = "fail";
+  let calendars: CheckStatus = "degraded";
   let lastSuccessAt: number | null = null;
   let lastCalendarAt: number | null = null;
 
@@ -98,7 +103,7 @@ export async function getHealth(env: HealthEnv, now = Date.now()): Promise<Healt
       calendars = evaluateCalendarHealth({ latest: latestCal ?? null, lastSuccessAt: lastCalendarAt, now });
     } catch {
       sync = "fail";
-      calendars = "fail";
+      calendars = "degraded";
     }
   }
 
