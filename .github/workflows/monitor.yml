@@ -1,0 +1,57 @@
+name: Monitor de salud
+
+# Consulta GET /api/health cada 30 minutos y abre un issue (que GitHub avisa por email)
+# ante 503, timeout o "degraded" en dos chequeos seguidos. Lo cierra solo cuando vuelve a "ok".
+# Complementa (no reemplaza) un monitor externo como UptimeRobot: si GitHub Actions se cae,
+# esto tampoco avisa. GitHub desactiva los schedule de repos sin actividad en 60 días.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Consultar /api/health
+        id: salud
+        env:
+          APP_URL: ${{ secrets.PUBLIC_APP_URL }}
+        run: |
+          estado="sin-respuesta"
+          for intento in 1 2; do
+            if cuerpo="$(curl --silent --show-error --max-time 20 "${APP_URL%/}/api/health")"; then
+              estado="$(echo "$cuerpo" | jq -r '.status // "invalido"' 2>/dev/null || echo invalido)"
+            fi
+            [ "$estado" = "ok" ] && break
+            # Un "degraded" o una falla aislada se confirma un rato después
+            [ "$intento" = 1 ] && sleep 120
+          done
+          echo "Estado: $estado ${cuerpo:-}"
+          echo "estado=$estado" >> "$GITHUB_OUTPUT"
+          echo "cuerpo=${cuerpo:-}" >> "$GITHUB_OUTPUT"
+
+      - name: Avisar
+        if: steps.salud.outputs.estado != 'ok'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/scripts/incidente.sh abrir "Producción no está ok" \
+            "GET /api/health respondió \`${{ steps.salud.outputs.estado }}\` dos veces seguidas: \`${{ steps.salud.outputs.cuerpo }}\`. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Pasos: docs/23-runbook-de-incidentes.md."
+
+      - name: Cerrar el aviso si volvió a ok
+        if: steps.salud.outputs.estado == 'ok'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/scripts/incidente.sh cerrar "Producción no está ok" "GET /api/health volvió a ok."
