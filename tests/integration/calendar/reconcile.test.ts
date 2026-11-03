@@ -4,8 +4,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, type TestDb } from "../../helpers/d1";
 import { clienteFalso, fila, getToken, insertarSync, sembrar, setMatch, T0 } from "../../helpers/calendar";
 import { createDb, type Database } from "../../../src/lib/db";
-import { reconcileCalendarBatch, type ReconcileOptions } from "../../../src/lib/calendar/reconcile";
-import { contarD1, Presupuesto } from "../../../src/lib/calendar/presupuesto";
+import { PARTIDOS_POR_TURNO, reconcileCalendarBatch, type ReconcileOptions } from "../../../src/lib/calendar/reconcile";
+import { contarD1, Presupuesto, PRESUPUESTO_SUBREQUESTS, RESERVA_REGISTRO } from "../../../src/lib/calendar/presupuesto";
+import { sql } from "drizzle-orm";
 import { CalendarApiError } from "../../../src/lib/calendar/errors";
 import { ENV_VACIO } from "../../helpers/fixtures";
 
@@ -191,38 +192,81 @@ describe("reconcileCalendarBatch", () => {
   });
 
   describe("tope por turno (C-06)", () => {
-    it("un usuario con muchos partidos pendientes se atiende por tandas de matchesPerUser y no monopoliza", async () => {
-      await sembrar(t, Array.from({ length: 25 }, (_, i) => `p${i}`));
-      for (let i = 0; i < 25; i++) await insertarSync(t, { id: `s${i}`, match: `p${i}` });
-      await reprogramar(...Array.from({ length: 25 }, (_, i) => `p${i}`));
-      const r = await lote({ matchesPerUser: 10 });
-      expect(r).toMatchObject({ usuarios: 1, eventosOk: 10 });
-      expect(falso.llamadas.update).toBe(10);
+    // Con la D1 instrumentada y el presupuesto real: lo que se mide es lo que gasta Workers
+    const conPresupuesto = (opciones: ReconcileOptions = {}, getTokenFn: typeof getToken = getToken) => {
+      const p = new Presupuesto(PRESUPUESTO_SUBREQUESTS, RESERVA_REGISTRO);
+      const resumen = reconcileCalendarBatch(ENV_VACIO, createDb(contarD1(t.DB, p)), { client: falso.client, getToken: getTokenFn }, { now: AHORA, presupuesto: p, ...opciones });
+      return { p, resumen };
+    };
+    const muchos = async (n: number, tabla = "u1") => {
+      const ids = Array.from({ length: n }, (_, i) => `p${i}`);
+      await sembrar(t, ids);
+      for (const id of ids) await insertarSync(t, { id: `s-${id}`, match: id, user: tabla });
+      await reprogramar(...ids);
+      return ids;
+    };
+
+    it("un usuario con muchos partidos pendientes se atiende por tandas de PARTIDOS_POR_TURNO, entra en el lote y no monopoliza", async () => {
+      await muchos(25);
+      const { p, resumen } = conPresupuesto({ marcarDesactualizados: true });
+      const r = await resumen;
+      expect(r).toMatchObject({ usuarios: 1, eventosOk: PARTIDOS_POR_TURNO, cortadoPorPresupuesto: false });
+      expect(falso.llamadas.update).toBe(PARTIDOS_POR_TURNO);
+      expect(p.usado).toBeLessThanOrEqual(PRESUPUESTO_SUBREQUESTS);
       // Se marcó como atendido: en el mismo barrido no vuelve; en el siguiente sigue con los demás
-      expect((await lote({ matchesPerUser: 10, marcarDesactualizados: false })).usuarios).toBe(0);
-      const siguiente = await lote({ matchesPerUser: 10, now: new Date(MS + 3_600_000), marcarDesactualizados: false });
-      expect(siguiente.eventosOk).toBe(10);
+      expect((await conPresupuesto().resumen).usuarios).toBe(0);
+      const siguiente = await conPresupuesto({ now: new Date(MS + 3_600_000) }).resumen;
+      expect(siguiente.eventosOk).toBe(PARTIDOS_POR_TURNO);
+    });
+
+    it("el peor caso de un turno entra en un lote: token que se renueva, un 401 con otra renovación y altas con adopción", async () => {
+      await muchos(PARTIDOS_POR_TURNO);
+      // Renovar cuesta lo que cuesta de verdad: una consulta de identidad, la llamada y la doble escritura
+      let renovaciones = 0;
+      const tokenCaro: typeof getToken = async (_e: unknown, db: Database, _u: unknown, o?: { alRenovar?: () => void }) => {
+        renovaciones++;
+        o?.alRenovar?.();
+        for (let i = 0; i < 3; i++) await db.run(sql`select 1`);
+        return "t";
+      };
+      let rechazado = false;
+      falso.fallos.update = () => (rechazado ? null : ((rechazado = true), new CalendarApiError("unauthorized", 401)));
+      const { p, resumen } = conPresupuesto({ marcarDesactualizados: true }, tokenCaro as never);
+      const r = await resumen;
+      expect(renovaciones).toBe(2); // la primera y la forzada por el 401
+      expect(r).toMatchObject({ usuarios: 1, eventosOk: PARTIDOS_POR_TURNO, cortadoPorPresupuesto: false });
+      expect(p.usado).toBeLessThanOrEqual(PRESUPUESTO_SUBREQUESTS);
+    });
+
+    it("las correcciones (needs_update) van antes que los failed que se reintentan, aunque estos sean más próximos", async () => {
+      const ids = await muchos(PARTIDOS_POR_TURNO + 2);
+      // Los primeros PARTIDOS_POR_TURNO fallan siempre y son los más próximos; el último es una corrección nueva
+      await t.DB.prepare("UPDATE calendar_syncs SET status = 'failed'").run();
+      await t.DB.prepare("UPDATE calendar_syncs SET status = 'needs_update' WHERE match_id = ?").bind(ids.at(-1)).run();
+      await setMatch(t, ids.at(-1)!, { dateTime: T0 + 999_999 });
+      await lote({ matchesPerUser: 2, marcarDesactualizados: false });
+      expect((await fila(t, ids.at(-1)!)).status).toBe("synced");
     });
   });
 
   describe("presupuesto de subrequests (B5, C-05, C-11)", () => {
-    it("C-05: si se agota en medio de un usuario, no se lo marca como atendido y el próximo lote sigue", async () => {
-      await sembrar(t, ["m1", "m2", "m3", "m4", "m5", "m6"]);
-      for (const m of ["m1", "m2", "m3", "m4", "m5", "m6"]) await insertarSync(t, { id: `s-${m}`, match: m });
-      await reprogramar("m1", "m2", "m3", "m4", "m5", "m6");
-      const p = new Presupuesto(24);
+    it("C-05: si se agota en medio de un usuario con progreso, se lo marca atendido para que rote y el resto sigue en el próximo barrido", async () => {
+      const ids = ["m1", "m2", "m3", "m4", "m5", "m6"];
+      await sembrar(t, ids);
+      for (const m of ids) await insertarSync(t, { id: `s-${m}`, match: m });
+      await reprogramar(...ids);
+      const p = new Presupuesto(36);
       const dbContada = createDb(contarD1(t.DB, p));
-      const r = await reconcileCalendarBatch(ENV_VACIO, dbContada, { client: falso.client, getToken }, { now: AHORA, presupuesto: p, marcarDesactualizados: true });
-      expect(r.cortadoPorPresupuesto).toBe(true);
-      expect(r.quedan).toBe(true);
+      const r = await reconcileCalendarBatch(ENV_VACIO, dbContada, { client: falso.client, getToken }, { now: AHORA, presupuesto: p, marcarDesactualizados: true, matchesPerUser: 6 });
+      expect(r).toMatchObject({ cortadoPorPresupuesto: true, quedan: true, usuarios: 1 });
       expect(falso.llamadas.update).toBeGreaterThan(0);
       expect(falso.llamadas.update).toBeLessThan(6);
-      expect(await columna("u1", "calendar_reconciled_at")).toBeNull();
-      // Con otro presupuesto el lote termina el trabajo del mismo usuario
-      const r2 = await lote({ marcarDesactualizados: false });
+      expect(r.eventosOk).toBe(falso.llamadas.update);
+      expect(await columna("u1", "calendar_reconciled_at")).toBe(MS);
+      // En el barrido siguiente se retoma lo que faltó
+      const r2 = await lote({ now: new Date(MS + 3_600_000), matchesPerUser: 6, marcarDesactualizados: false });
       expect(r2.cortadoPorPresupuesto).toBe(false);
       expect(falso.llamadas.update).toBe(6);
-      expect(await columna("u1", "calendar_reconciled_at")).toBe(MS);
     });
 
     it("sin lugar ni para empezar con un usuario, el lote lo informa y no toca a nadie", async () => {

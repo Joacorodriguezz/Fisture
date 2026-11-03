@@ -12,11 +12,22 @@ import type { Database } from "../db";
 import { getAutoSyncMatchIds } from "../db/queries";
 import { mensajeDeError, rootLogger } from "../observability/logger";
 import type { ResumenCalendarios } from "../observability/sync-runs";
-import { COSTO_FIJO_USUARIO, COSTO_MAX_PARTIDO, PRESUPUESTO_SUBREQUESTS, RESERVA_REGISTRO, Presupuesto } from "./presupuesto";
+import {
+  COSTO_FIJO_USUARIO,
+  COSTO_MAX_PARTIDO,
+  COSTO_RENOVACION_401,
+  COSTO_TOKEN_USUARIO,
+  PRESUPUESTO_SUBREQUESTS,
+  RESERVA_REGISTRO,
+  Presupuesto,
+} from "./presupuesto";
 import { HORAS_PARTIDO_JUGADO, markOutdatedEvents, syncMatches, type SyncDeps, type SyncResult } from "./sync-service";
 
-// Tope de partidos por turno: un usuario con 80 pendientes no consume el presupuesto de todos
-export const PARTIDOS_POR_TURNO = 10;
+// Tope de partidos por turno: un usuario con 80 pendientes no consume el presupuesto de todos. Con el
+// presupuesto de 45 (menos 3 de reserva), el costo fijo de un usuario (8), su token (4), el peor caso de
+// un partido (5) y la reserva para un 401 (6), cuatro partidos entran incluso en el primer lote del
+// barrido, que además gasta 5 en detectar eventos desactualizados y elegir candidatos.
+export const PARTIDOS_POR_TURNO = 4;
 // Usuarios que se traen por lote. El presupuesto corta antes en la práctica (~3 a 5 usuarios).
 export const USUARIOS_POR_LOTE = 10;
 
@@ -48,7 +59,9 @@ async function pendingMatchIds(db: Database, userId: string, now: Date, limit: n
         gte(matches.dateTime, limiteJugado)
       )
     )
-    .orderBy(asc(matches.dateTime))
+    // Primero las correcciones nuevas: un evento que falla siempre (failed) se reintenta a diario y, si fuera
+    // por fecha, ocuparía todos los turnos de ese usuario
+    .orderBy(sql`${calendarSyncs.status} = 'failed'`, asc(matches.dateTime))
     .limit(limit);
   return rows.map((r) => r.matchId);
 }
@@ -125,7 +138,8 @@ export async function reconcileCalendarBatch(
   resumen.quedan = lista.length >= limite;
 
   for (const user of lista) {
-    if (!presupuesto.alcanza(COSTO_FIJO_USUARIO + COSTO_MAX_PARTIDO)) {
+    // Lugar para el costo fijo, el token y al menos un partido con su posible reintento tras un 401
+    if (!presupuesto.alcanza(COSTO_FIJO_USUARIO + COSTO_TOKEN_USUARIO + COSTO_MAX_PARTIDO + COSTO_RENOVACION_401)) {
       resumen.cortadoPorPresupuesto = true;
       resumen.quedan = true;
       break;
@@ -139,13 +153,14 @@ export async function reconcileCalendarBatch(
 
       const results: SyncResult[] = ids.length === 0 ? [] : await syncMatches(db, env, user, ids, { mode: "auto", deps, presupuesto });
 
-      if (results.length < ids.length) {
-        // Sin presupuesto en medio del usuario: no cuenta como atendido, el próximo lote sigue
+      // Sin presupuesto en medio del usuario: lo que se alcanzó a procesar es progreso. Si hubo alguno se lo
+      // marca atendido para que rote (el resto sigue en su próximo turno); si no hubo ninguno no se lo marca y
+      // el lote lo informa como sin progreso.
+      const cortado = results.length < ids.length;
+      if (cortado) {
         resumen.cortadoPorPresupuesto = true;
         resumen.quedan = true;
-        resumen.eventosOk += results.filter((r) => r.success).length;
-        resumen.eventosFallidos += results.filter((r) => !r.success).length;
-        break;
+        if (results.length === 0) break;
       }
 
       resumen.usuarios++;
@@ -165,6 +180,7 @@ export async function reconcileCalendarBatch(
           total: results.length,
         });
       }
+      if (cortado) break;
     } catch (error) {
       // Un usuario que falla no bloquea a los demás ni se reintenta en este barrido
       resumen.usuarios++;
