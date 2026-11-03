@@ -4,7 +4,7 @@ import { createDb } from "../lib/db";
 import { getPaginasPublicas } from "../lib/db/queries";
 
 // Solo páginas públicas: sin sesión, sin login y sin la API
-const PAGINAS_PUBLICAS = ["/", "/ligas", "/partidos", "/calendario", "/hoy", "/equipos/buscar", "/privacidad", "/terminos"];
+const PAGINAS_PUBLICAS = ["/", "/ligas", "/partidos", "/calendario", "/hoy", "/equipos/buscar", "/ayuda", "/privacidad", "/terminos"];
 
 // Límite del protocolo por archivo; si se llega, quedan afuera los partidos más lejanos
 const MAX_URLS_SITEMAP = 50_000;

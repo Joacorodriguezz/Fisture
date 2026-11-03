@@ -1,0 +1,88 @@
+---
+import Layout from "../layouts/Layout.astro";
+import LegalDoc from "../components/LegalDoc.astro";
+import { CONTACTO_EMAIL } from "../lib/legal";
+import { LEAGUES_CONFIG } from "../lib/data-providers/types";
+
+// Preguntas frecuentes: lo que más se pregunta antes de dar permisos y después de agregar partidos.
+// Las competencias salen de la configuración del sync, así la respuesta no queda vieja.
+const ligas = LEAGUES_CONFIG.filter((l) => l.tipo === "liga").map((l) => l.name);
+const copasDestacadas = LEAGUES_CONFIG.filter((l) => l.tipo === "copa" && l.destacada).map((l) => l.name);
+
+const preguntas: { pregunta: string; respuesta: string }[] = [
+  {
+    pregunta: "¿Qué permisos pide Fisture y por qué?",
+    respuesta:
+      "Te pide permiso para crear, actualizar y borrar eventos en tu calendario de Google (calendar.events) u Outlook (Calendars.ReadWrite). Sin ese permiso no podría agregar los partidos ni corregirlos cuando cambia el horario. No lee tus mails ni tus contactos. Para avisarte si un partido se superpone con algo que ya tenés agendado mira si hay eventos a esa hora, pero no guarda sus títulos.",
+  },
+  {
+    pregunta: "¿Cómo se actualizan los horarios?",
+    respuesta:
+      "Una vez por día (a las 6 de Argentina) Fisture trae los fixtures de todas las competencias. Si un partido cambió de día, de hora o de sede, el evento de tu calendario se corrige solo. Si se posterga o se suspende, el evento lo indica; si se cancela, se quita.",
+  },
+  {
+    pregunta: "¿Qué pasa si borro un evento de mi calendario?",
+    respuesta:
+      "Fisture lo toma como una decisión tuya y no lo vuelve a crear. Si te arrepentís, volvé a agregarlo desde la página del partido.",
+  },
+  {
+    pregunta: "¿Qué ligas y copas hay?",
+    respuesta: `Ligas: ${ligas.join(", ")}. Copas internacionales: ${copasDestacadas.join(", ")}. Además, en el fixture de cada equipo aparecen sus copas nacionales y supercopas (Copa Argentina, FA Cup, Copa del Rey, Copa do Brasil, Recopa, Mundial de Clubes y más), aunque no figuren en la lista de ligas.`,
+  },
+  {
+    pregunta: "¿Cómo sigo a mi equipo?",
+    respuesta:
+      "Entrá a Ligas, elegí la liga de tu equipo (o buscalo por nombre) y tocá «Seguir equipo». Con el auto-sync activado, cada partido nuevo se agrega solo a tu calendario.",
+  },
+  {
+    pregunta: "¿Cómo desconecto mi calendario?",
+    respuesta:
+      "Desde tu cuenta de Google (myaccount.google.com/permissions) o de Microsoft (account.live.com/consent/Manage) quitá el acceso de FISTURE. Los eventos que ya estaban quedan en tu calendario; los podés borrar a mano.",
+  },
+  {
+    pregunta: "¿Cómo borro mi cuenta?",
+    respuesta:
+      "En Configuración → Eliminar cuenta. Se borran en el momento tu cuenta, tus equipos y los permisos guardados. Los eventos que ya están en tu calendario no se tocan.",
+  },
+  {
+    pregunta: "¿Cuánto cuesta?",
+    respuesta: "Nada. Fisture es gratis y no te pide tarjeta.",
+  },
+  {
+    pregunta: "Un partido no aparece o el horario está mal",
+    respuesta: `Los cruces de copa aparecen cuando se conocen los dos equipos. Si igual falta algo o un horario no coincide con el oficial, escribinos a ${CONTACTO_EMAIL} con el equipo y la competencia.`,
+  },
+];
+
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: preguntas.map((p) => ({
+      "@type": "Question",
+      name: p.pregunta,
+      acceptedAnswer: { "@type": "Answer", text: p.respuesta },
+    })),
+  },
+];
+---
+
+<Layout
+  title="Preguntas frecuentes - FISTURE"
+  descripcion="Qué permisos pide Fisture, cómo se actualizan los horarios, qué ligas y copas hay y cómo desconectar tu calendario o borrar tu cuenta."
+  jsonLd={jsonLd}
+>
+  <LegalDoc volanta="Ayuda" titulo="PREGUNTAS FRECUENTES" bajada="Lo que conviene saber antes de conectar tu calendario.">
+    {preguntas.map((p) => (
+      <>
+        <h2>{p.pregunta}</h2>
+        <p>{p.respuesta}</p>
+      </>
+    ))}
+    <h2>¿Otra duda?</h2>
+    <p>
+      Escribinos a <a href={`mailto:${CONTACTO_EMAIL}`}>{CONTACTO_EMAIL}</a>. Cómo tratamos tus datos está en la
+      <a href="/privacidad">Política de Privacidad</a>.
+    </p>
+  </LegalDoc>
+</Layout>
