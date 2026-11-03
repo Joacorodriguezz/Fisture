@@ -1,9 +1,9 @@
 // Historial de ejecuciones del sync (tabla sync_runs). Alimenta /api/health y /api/admin/status.
-import { desc, lt, eq } from "drizzle-orm";
+import { and, desc, lt, eq } from "drizzle-orm";
 import type { Database } from "../db";
 import { syncRuns } from "../../../drizzle/schema";
 import type { SyncResult } from "../data-providers/sync";
-import type { ConsistencyIssue, SyncRunStatus, SyncTrigger } from "./types";
+import type { ConsistencyIssue, SyncKind, SyncRunStatus, SyncTrigger } from "./types";
 import { mensajeDeError } from "./logger";
 
 export const RETENTION_DAYS = 30;
@@ -13,13 +13,29 @@ const MAX_LARGO_ERROR = 500;
 export interface ParsedSyncRun {
   id: string;
   trigger: SyncTrigger;
+  kind: SyncKind;
   startedAt: number;
   finishedAt: number | null;
   status: SyncRunStatus;
   durationMs: number | null;
+  // En los runs de calendarios es un solo elemento: ResumenCalendarios
   results: SyncResult[];
   issues: ConsistencyIssue[];
   error: string | null;
+}
+
+// Resumen de un lote de reconciliación de calendarios (solo conteos, sin ids ni correos)
+export interface ResumenCalendarios {
+  usuarios: number;
+  eventosOk: number;
+  eventosFallidos: number;
+  // Usuarios que perdieron el acceso a su calendario en este lote (docs/17 B4)
+  sinAcceso: number;
+  cortadoPorPresupuesto: boolean;
+  // Quedan usuarios por atender en este barrido
+  quedan: boolean;
+  // Consultas D1 y llamadas al calendario gastadas (tope: 50 en Workers Free)
+  subrequests: number;
 }
 
 const truncar = (s: string) => (s.length > MAX_LARGO_ERROR ? s.slice(0, MAX_LARGO_ERROR) : s);
@@ -32,11 +48,44 @@ export function computeRunStatus(results: SyncResult[], issues: ConsistencyIssue
   return "success";
 }
 
+async function purgarViejos(db: Database, now: number): Promise<void> {
+  // Retención: sin job aparte, se limpia al registrar cada run
+  await db.delete(syncRuns).where(lt(syncRuns.startedAt, now - RETENTION_DAYS * 24 * 3_600_000));
+}
+
 export async function startSyncRun(db: Database, trigger: SyncTrigger, now = Date.now()): Promise<string> {
   const id = crypto.randomUUID();
   await db.insert(syncRuns).values({ id, trigger, startedAt: now, status: "running" });
-  // Retención: sin job aparte, se limpia al iniciar cada run
-  await db.delete(syncRuns).where(lt(syncRuns.startedAt, now - RETENTION_DAYS * 24 * 3_600_000));
+  await purgarViejos(db, now);
+  return id;
+}
+
+// Cada lote de calendarios cuenta contra las 50 subrequests de la invocación: se registra de una vez,
+// ya terminado (un INSERT y la purga), en lugar de iniciar y cerrar el run (4 consultas).
+export async function registrarRunCalendarios(
+  db: Database,
+  data: {
+    trigger: SyncTrigger;
+    startedAt: number;
+    finishedAt: number;
+    status: Exclude<SyncRunStatus, "running">;
+    resumen: ResumenCalendarios;
+    error?: unknown;
+  }
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await db.insert(syncRuns).values({
+    id,
+    trigger: data.trigger,
+    kind: "calendars",
+    startedAt: data.startedAt,
+    finishedAt: data.finishedAt,
+    durationMs: data.finishedAt - data.startedAt,
+    status: data.status,
+    results: JSON.stringify([data.resumen]),
+    error: data.error === undefined ? null : truncar(mensajeDeError(data.error)),
+  });
+  await purgarViejos(db, data.startedAt);
   return id;
 }
 
@@ -74,11 +123,17 @@ export async function failSyncRun(db: Database, id: string, error: unknown, now 
     .where(eq(syncRuns.id, id));
 }
 
-export async function getLatestRuns(db: Database, limit = 20): Promise<ParsedSyncRun[]> {
-  const rows = await db.select().from(syncRuns).orderBy(desc(syncRuns.startedAt)).limit(limit);
+export async function getLatestRuns(db: Database, limit = 20, kind?: SyncKind): Promise<ParsedSyncRun[]> {
+  const rows = await db
+    .select()
+    .from(syncRuns)
+    .where(kind ? eq(syncRuns.kind, kind) : undefined)
+    .orderBy(desc(syncRuns.startedAt))
+    .limit(limit);
   return rows.map((r) => ({
     id: r.id,
     trigger: r.trigger as SyncTrigger,
+    kind: r.kind as SyncKind,
     startedAt: r.startedAt,
     finishedAt: r.finishedAt,
     status: r.status as SyncRunStatus,
@@ -89,11 +144,11 @@ export async function getLatestRuns(db: Database, limit = 20): Promise<ParsedSyn
   }));
 }
 
-export async function getLastSuccessAt(db: Database): Promise<number | null> {
+export async function getLastSuccessAt(db: Database, kind: SyncKind = "leagues"): Promise<number | null> {
   const [row] = await db
     .select({ finishedAt: syncRuns.finishedAt })
     .from(syncRuns)
-    .where(eq(syncRuns.status, "success"))
+    .where(and(eq(syncRuns.status, "success"), eq(syncRuns.kind, kind)))
     .orderBy(desc(syncRuns.startedAt))
     .limit(1);
   return row?.finishedAt ?? null;
