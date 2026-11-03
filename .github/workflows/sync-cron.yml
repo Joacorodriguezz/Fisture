@@ -11,11 +11,14 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Disparar sync en producción, lote por lote
         env:
           APP_URL: ${{ secrets.PUBLIC_APP_URL }}
@@ -47,3 +50,18 @@ jobs:
             echo "FALLIDOS=$fallidos" >> "$GITHUB_ENV"
             exit 1
           fi
+
+      - name: Avisar por issue si falló
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/scripts/incidente.sh abrir "Falla el sync diario" \
+            "El sync diario falló (lotes:${FALLIDOS:- sin dato}). Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Revisar GET /api/admin/status y docs/23-runbook-de-incidentes.md."
+
+      - name: Cerrar el aviso si volvió a andar
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/scripts/incidente.sh cerrar "Falla el sync diario" "El sync volvió a completarse: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
