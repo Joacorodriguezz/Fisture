@@ -5,7 +5,7 @@ import { syncAllLeagues, syncLote, syncSingleLeague, type LoteResult, type SyncE
 import { purgeExpiredSessions } from "../auth/session";
 import { reconcileCalendars } from "../calendar/sync-service";
 import { checkConsistency } from "./consistency";
-import { rootLogger, type Logger } from "./logger";
+import { mensajeDeError, rootLogger, type Logger } from "./logger";
 import { failSyncRun, finishSyncRun, startSyncRun } from "./sync-runs";
 import type { ConsistencyIssue, SyncRunStatus, SyncTrigger } from "./types";
 
@@ -138,7 +138,7 @@ export async function runSync(env: RunSyncEnv, trigger: SyncTrigger, options: Ru
       status: "failed",
       results: [],
       issues: [],
-      error: err instanceof Error ? err.message : String(err),
+      error: mensajeDeError(err),
     };
   }
 }

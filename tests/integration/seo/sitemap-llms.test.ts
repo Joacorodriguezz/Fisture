@@ -11,7 +11,7 @@ import { GET as getRobots } from "../../../src/pages/robots.txt";
 import { getPaginasPublicas } from "../../../src/lib/db/queries";
 
 const BASE = "https://fisture.test";
-const RUTAS = ["/", "/ligas", "/partidos", "/calendario", "/hoy", "/equipos/buscar", "/privacidad", "/terminos"];
+const RUTAS = ["/", "/ligas", "/partidos", "/calendario", "/hoy", "/equipos/buscar", "/ayuda", "/privacidad", "/terminos"];
 
 describe("sitemap.xml y llms.txt", () => {
   const t = useTestDb();

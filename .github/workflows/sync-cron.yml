@@ -23,33 +23,7 @@ jobs:
         env:
           APP_URL: ${{ secrets.PUBLIC_APP_URL }}
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
-        run: |
-          lote=0
-          total=20 # tope hasta conocer el real (lo informa cada respuesta)
-          fallidos=""
-          while [ -n "$lote" ]; do
-            if ! respuesta="$(curl --fail-with-body --silent --show-error \
-                --max-time 120 --retry 2 --retry-delay 10 \
-                -X POST "${APP_URL%/}/api/admin/sync" \
-                -H "Content-Type: application/json" \
-                -H "Authorization: Bearer $ADMIN_SECRET" \
-                -d "{\"lote\": $lote}")"; then
-              echo "::error::Lote $lote falló: $respuesta"
-              fallidos="$fallidos $lote"
-              # Un lote fallido no frena a los demás. Un 400 es un lote fuera de rango: no hay más.
-              if echo "$respuesta" | grep -q "lote debe ser"; then break; fi
-              lote=$((lote + 1))
-              if [ "$lote" -ge "$total" ]; then lote=""; fi
-              continue
-            fi
-            total="$(echo "$respuesta" | jq -r '.totalLotes')"
-            echo "Lote $lote/$((total - 1)): $(echo "$respuesta" | jq -c '{status, competencias: [.results[] | {league, partidos: (.matchesCreated + .matchesUpdated), errores: (.errors | length)}]}')"
-            lote="$(echo "$respuesta" | jq -r '.siguienteLote // empty')"
-          done
-          if [ -n "$fallidos" ]; then
-            echo "FALLIDOS=$fallidos" >> "$GITHUB_ENV"
-            exit 1
-          fi
+        run: bash .github/scripts/sync-por-lotes.sh
 
       - name: Avisar por issue si falló
         if: failure()

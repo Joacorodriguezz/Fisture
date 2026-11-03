@@ -54,7 +54,7 @@ drizzle/
 - Cada sync (cron o `POST /api/admin/sync`) pasa por `runSync` y queda en la tabla `sync_runs`, con chequeos de consistencia.
 - En producción (Workers Free, 50 subrequests por invocación) el sync diario va por lotes de 5 competencias: `{"lote": n}` hasta que `siguienteLote` sea `null` (`docs/22`).
 - Competencias: solo las destacadas (ligas, Champions, Europa, Conference, Libertadores, Sudamericana) se listan; las copas nacionales y supercopas aparecen en el fixture de cada equipo (`leagues.is_featured`, `docs/22`).
-- `GET /api/health` (público): 200 ok/degraded, 503 fail. `GET /api/admin/status` (Bearer `ADMIN_SECRET`): salud + últimos 20 runs + conteo de sesiones vigentes y vencidas.
+- `GET /api/health` (público): 200 ok/degraded, 503 fail. `GET /api/admin/status` (Bearer `ADMIN_SECRET`): salud, últimos 20 runs, conteo de sesiones vigentes y vencidas, y métricas de producto agregadas sin ids (`lib/observability/metricas.ts`).
 - Alertas: `sync-cron.yml` (sync fallido) y `monitor.yml` (`/api/health` cada 30 min) abren un issue con la etiqueta `incidente` (GitHub avisa por email) y lo cierran al recuperarse. Pasos a seguir: `docs/23-runbook-de-incidentes.md`.
 - Ver logs en vivo: `npx wrangler pages deployment tail`. Diseño completo: `docs/10-observabilidad-tdd.md`.
 
@@ -111,7 +111,7 @@ Hook `commit-msg` (`.githooks/`) valida tipo, longitud, puntuación y línea en 
 
 ```
 main         → producción (lo despliega .github/workflows/deploy.yml en Cloudflare Pages)
-development  → integración / staging (rama por defecto del repo)
+development  → integración / staging en development.fisture.pages.dev (rama por defecto del repo)
 feat/* fix/* chore/* docs/* ci/*  → trabajo diario, salen de development
 ```
 
@@ -119,7 +119,7 @@ feat/* fix/* chore/* docs/* ci/*  → trabajo diario, salen de development
 - **Features y fixes**: rama desde `development` → PR a `development` → **Squash and merge** (un commit por feature).
 - **Release**: PR `development` → `main` con **Create a merge commit** (único método permitido en `main`; evita que ambas ramas diverjan). Al mergear, `deploy.yml` corre la suite completa, aplica las migraciones de D1, despliega el artefacto probado y hace un smoke de solo lectura contra `PUBLIC_APP_URL`.
 - **Hotfix urgente**: `fix/*` desde `main` → PR a `main`, y después PR de `main` → `development` para no perder el arreglo.
-- No hay preview deployments: Cloudflare Pages no tiene Git conectado, así que ni los PRs ni `development` se despliegan. Solo `main` llega a Cloudflare, vía `deploy.yml`.
+- Staging: cada push a `development` se despliega con `staging.yml` en https://development.fisture.pages.dev (preview de Pages, D1 `fisture-staging` y KV propios vía `[env.preview]` de `wrangler.toml`, sin indexar). Los PRs no tienen preview. Producción es solo `main`, vía `deploy.yml`. Detalle: `docs/26-staging-tdd.md`.
 - CI (`.github/workflows/ci.yml`): llama a la suite reutilizable (`test-suite.yml`: typecheck, cobertura, build y E2E) en cada PR y push a `development`; el job `build` exige su resultado y debe pasar para poder mergear. Detalle en `docs/13-testing-y-release.md`.
 - Nombres de rama: `tipo/descripcion-corta` en minúsculas y con guiones. Commits en formato Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `ci:`).
 - Al crear PRs, apuntar a `development` salvo que sea un release o hotfix.

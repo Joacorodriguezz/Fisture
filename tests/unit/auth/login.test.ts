@@ -88,6 +88,14 @@ describe("login OAuth: inicio del flujo", () => {
     });
   });
 
+  it.each([
+    ["staging", true],
+    ["test", false],
+  ])("la cookie del estado es Secure según el entorno (%s → %s)", async (entorno, segura) => {
+    await llamar("google", { ENVIRONMENT: entorno });
+    expect(cookies.opciones.get("oauth_state_google")).toMatchObject({ secure: segura });
+  });
+
   it("L2: el state y el code_challenge enviados al proveedor corresponden a la cookie", async () => {
     const res = await llamar("google");
     const destino = new URL(res.headers.get("Location")!);

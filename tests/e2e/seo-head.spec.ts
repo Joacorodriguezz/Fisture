@@ -22,8 +22,18 @@ test("meta description por defecto y Open Graph/Twitter", async ({ page }) => {
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Ligas - FISTURE");
   await expect(page.locator('meta[property="og:type"]')).toHaveAttribute("content", "website");
   await expect(page.locator('meta[property="og:locale"]')).toHaveAttribute("content", "es_AR");
-  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute("content", "summary");
-  await expect(page.locator('meta[property="og:image"]')).toHaveCount(0);
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute("content", "summary_large_image");
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", `${BASE}/og-image.png`);
+});
+
+test("imagen para compartir, íconos y manifest existen", async ({ page }) => {
+  for (const ruta of ["/og-image.png", "/apple-touch-icon.png", "/favicon-32.png", "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png"]) {
+    const res = await page.request.get(ruta);
+    expect(res.status(), ruta).toBe(200);
+    expect(res.headers()["content-type"], ruta).toContain("image/png");
+  }
+  const manifest = await (await page.request.get("/site.webmanifest")).json();
+  expect(manifest).toMatchObject({ short_name: "FISTURE", start_url: "/hoy" });
 });
 
 test("noindex solo en login (páginas personales o de acceso)", async ({ page }) => {
@@ -87,4 +97,14 @@ test("llms.txt y sitemap con páginas dinámicas", async ({ request }) => {
   const sitemap = await (await request.get("/sitemap.xml")).text();
   expect(sitemap).toContain(`<loc>${BASE}/ligas/e2e-league</loc>`);
   expect(sitemap).toContain(`<loc>${BASE}/equipos/river</loc>`);
+});
+
+test("ayuda: preguntas frecuentes con FAQPage y enlazada desde el pie", async ({ page }) => {
+  await page.goto("/ligas");
+  await page.getByRole("contentinfo").getByRole("link", { name: "Ayuda", exact: true }).click();
+  await expect(page).toHaveURL(/\/ayuda$/);
+  await expect(page.getByRole("heading", { name: "¿Qué permisos pide Fisture y por qué?" })).toBeVisible();
+  const [faq] = await jsonLd(page);
+  expect(faq["@type"]).toBe("FAQPage");
+  expect(faq.mainEntity.length).toBeGreaterThan(5);
 });

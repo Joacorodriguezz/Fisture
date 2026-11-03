@@ -29,3 +29,25 @@ PUBLIC_APP_URL = "https://fisture.com"
 # Logs y excepciones en el dashboard de Cloudflare (y `wrangler pages deployment tail`)
 [observability]
 enabled = true
+
+# Staging (docs/26): deploys de preview de Pages (rama "development").
+# Pages usa esta sección para todo deploy que no es de producción. Las claves no se heredan:
+# bindings, vars y observability se repiten acá. La base y el KV son otros: staging nunca toca producción.
+[env.preview]
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "fisture-staging"
+database_id = "4cfee6a5-856e-455b-a7ba-f99148a45364"
+migrations_dir = "drizzle/migrations"
+
+[[env.preview.kv_namespaces]]
+binding = "KV"
+id = "eb9880ef072042d8b93e46a6ca9e49d7"
+
+[env.preview.vars]
+ENVIRONMENT = "staging"
+PUBLIC_APP_URL = "https://development.fisture.pages.dev"
+
+[env.preview.observability]
+enabled = true

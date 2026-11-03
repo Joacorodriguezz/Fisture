@@ -154,6 +154,8 @@ cada uno: `docs/23-runbook-de-incidentes.md` §5.
 | `FOOTBALL_DATA_API_KEY`, `API_FOOTBALL_KEY` | Pages (secret), opcionales | Proveedores alternativos, hoy fuera de `LEAGUES_CONFIG` | Nada |
 | `PUBLIC_APP_URL` | `wrangler.toml` `[vars]` **y** GitHub Actions | URL pública (`https://fisture.com`) para OAuth, SEO, smoke, sync y monitor | Redirects y smoke rotos |
 | `ENVIRONMENT` | `wrangler.toml` `[vars]` | Nivel de logs | Logs en nivel por defecto |
+| Staging (`--env preview`): `OAUTH_STATE_SECRET`, `ADMIN_SECRET` y, cuando existan, `GOOGLE_*`/`MICROSOFT_*` de los clientes de staging | Pages (secret, entorno preview) | Lo mismo que en producción, pero para `development.fisture.pages.dev` (docs/26). Se aplican en el próximo deploy | Staging sin login o sin sync |
+| `STAGING_ADMIN_SECRET` | GitHub Actions | Sync de staging en `staging.yml`. Tiene que ser igual al `ADMIN_SECRET` de preview | El sync de staging responde 401 |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions | `deploy.yml` (Pages y D1). Alcance mínimo: *Cloudflare Pages: Edit* y *D1: Edit* de esta cuenta | No hay deploy |
 
 **Desarrollo y producción separados.** Usar un cliente OAuth de Google y una app de Entra ID para desarrollo

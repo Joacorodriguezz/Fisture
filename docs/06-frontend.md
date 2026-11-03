@@ -578,3 +578,9 @@ export default defineConfig({
 npm create astro@latest
 npx astro add cloudflare tailwind react
 ```
+
+## Identidad visual
+
+Los PNG de `public/` (favicon-32, apple-touch-icon, icon-192/512, icon-maskable-512, logo-120 para las consolas de
+Google y Microsoft, y og-image de 1200x630) se generan con `node scripts/generar-identidad.mjs public`, que dibuja
+el diseño en Chromium con las tipografías de la marca. Para cambiarlos se edita ese script, no las imágenes.

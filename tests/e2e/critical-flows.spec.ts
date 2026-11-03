@@ -17,7 +17,7 @@ test.beforeEach(async ({ context }) => {
 });
 
 test("páginas públicas y redirección sin sesión", async ({ page }) => {
-  for (const path of ["/", "/privacidad", "/terminos", "/hoy", "/ligas", "/ligas/e2e-league", "/equipos/buscar", "/equipos/river", "/partidos", "/partidos/superclasico", "/calendario"]) {
+  for (const path of ["/", "/ayuda", "/privacidad", "/terminos", "/hoy", "/ligas", "/ligas/e2e-league", "/equipos/buscar", "/equipos/river", "/partidos", "/partidos/superclasico", "/calendario"]) {
     const response = await page.goto(path);
     expect(response?.status()).toBe(200);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -365,7 +365,7 @@ test.describe("Hoy: escritorio", () => {
 });
 
 test("las pantallas principales no desbordan el viewport", async ({ page }) => {
-  for (const path of ["/", "/login", "/ligas", "/equipos/buscar", "/equipos/river", "/partidos/superclasico", "/calendario", "/hoy"]) {
+  for (const path of ["/", "/ayuda", "/login", "/ligas", "/equipos/buscar", "/equipos/river", "/partidos/superclasico", "/calendario", "/hoy"]) {
     await page.goto(path);
     const sizes = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
     expect(sizes.content, path).toBeLessThanOrEqual(sizes.viewport + 1);
