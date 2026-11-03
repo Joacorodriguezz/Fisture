@@ -5,7 +5,7 @@ import Titular from "../../components/tribuna/Titular.astro";
 import Boton from "../../components/tribuna/Boton.astro";
 import Escudo from "../../components/tribuna/Escudo.astro";
 import { createDb } from "../../lib/db";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 
 // Página pública: sin sesión no hay "tus equipos"
@@ -13,7 +13,12 @@ const user = Astro.locals.user;
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
-const allLeagues = await db.select().from(leagues).where(eq(leagues.isActive, true)).orderBy(asc(leagues.name));
+// Solo las destacadas: las copas nacionales y supercopas aparecen en el fixture de cada equipo (docs/22)
+const allLeagues = await db
+  .select()
+  .from(leagues)
+  .where(and(eq(leagues.isActive, true), eq(leagues.isFeatured, true)))
+  .orderBy(asc(leagues.name));
 // Un equipo aparece en todas las competencias que juega (su liga y las copas)
 const allTeams = await db
   .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo, leagueId: leagueTeams.leagueId })

@@ -190,12 +190,12 @@ export async function getFollowedIds(db: Database, userId: string): Promise<Set<
   return new Set(await getFollowedTeamIds(db, userId));
 }
 
-// Ligas activas, para llms.txt y el sitemap
+// Ligas activas y destacadas, para llms.txt y el sitemap
 export function getLigasPublicas(db: Database) {
   return db
     .select({ id: leagues.id, name: leagues.name, country: leagues.country })
     .from(leagues)
-    .where(eq(leagues.isActive, true))
+    .where(and(eq(leagues.isActive, true), eq(leagues.isFeatured, true)))
     .orderBy(asc(leagues.name));
 }
 
@@ -212,7 +212,7 @@ export async function getPaginasPublicas(db: Database, ahora: Date = new Date(),
     .from(leagueTeams)
     .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
     .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))
-    .where(eq(leagues.isActive, true))
+    .where(and(eq(leagues.isActive, true), eq(leagues.isFeatured, true)))
     .orderBy(asc(teams.id));
 
   const partidos = await db
