@@ -1,6 +1,6 @@
 # TDD: Vinculación segura de cuentas OAuth
 
-> Technical Design Document. Estado: **propuesto, pendiente de revisión**. Fecha: 2026-10-22. Rama de implementación: `feat/vinculacion-de-cuentas`, desde `development`, **después** de `feat/borrado-de-cuenta` (TDD 14) y de `feat/cifrado-de-tokens` (TDD 15); ver §8.
+> Technical Design Document. Estado: **implementado (2026-11-03)**; desvíos en el §12. Fecha del diseño: 2026-10-22. Rama de implementación: `feat/vinculacion-de-cuentas`, desde `development`, **después** de `feat/borrado-de-cuenta` (TDD 14) y de `feat/cifrado-de-tokens` (TDD 15); ver §8.
 >
 > Este documento registra **qué problema hay hoy, qué decidimos y por qué**. El código y los tests se escriben después de que se apruebe, siguiendo el orden del §9. El análisis del §1 se hizo leyendo el código de `origin/development`; lo que no se pudo confirmar sin una cuenta real está marcado **a verificar** y se resuelve en el spike del paso 0.
 
@@ -332,7 +332,38 @@ Cada paso es un commit dentro de `feat/vinculacion-de-cuentas`; el PR a `develop
 
 ## 12. Notas de implementación
 
-*(Vacío. Se completa al terminar con los desvíos respecto del diseño y el resultado del spike del paso 0.)*
+Implementado el 2026-11-03 en `feat/vinculacion-de-cuentas`, aprobado el TDD tal como estaba. Desvíos y decisiones:
+
+**Spike del paso 0 (no se pudo hacer).** Requiere cuentas reales (Google, Microsoft personal y un tenant propio de Entra). Se aplicó lo que el propio TDD recomienda y la opción que falla cerrado:
+
+- Microsoft se trata **siempre como no verificado**: `MICROSOFT_XMS_EDOV_CONFIABLE = false` en `src/lib/auth/identity.ts` (D2). El claim `xms_edov` no se pide ni se usa. V-07 queda como test de que **no** se auto-vincula aunque llegue `xms_edov = true`; para activarlo, tras el spike, basta cambiar la constante (`emailVerificado` ya soporta `confiarXmsEdov`) y pedir el claim en el manifest.
+- Se asume `id` de Graph `/me` == `oid` (D1). Si el ID token trae un `oid` distinto al `id` de Graph el login falla cerrado (`oauth_failed`). El `tid` se lee del ID token y es solo informativo.
+- La identidad de Google sale del ID token decodificado con `decodeIdToken` de Arctic (suficiente para leer los claims, pregunta (e)); ya no se llama a `userinfo` v2. El ID token llega directo del endpoint de tokens de Google por TLS, de ahí que no se verifique la firma (igual que antes con el access token).
+- El backfill marca `email_verified = 1` para usuarios `google` (supuesto del TDD sin confirmar con una cuenta real).
+
+**TDD 15 (cifrado de tokens) no está implementado.** Se implementó esto de forma independiente: los tokens se guardan en claro, tanto en `oauth_identities` como en `users.*`. El backfill copia las columnas tal cual (`INSERT ... SELECT`), así que cuando se implemente el 15 deberá cifrar también `oauth_identities` con AAD `<id>:<columna>` (la identidad principal tiene `id = users.id`). Las secciones de V-22 y D9 que hablan de "descifrar con el helper de lectura de 15" no aplican todavía: la revocación usa el token leído directamente.
+
+**Migración.** `drizzle/migrations/0010_oauth_identities.sql` está escrita a mano, como las 0001 a 0008: `drizzle-kit generate` produciría una migración sin el backfill ni el `UPDATE`, y el snapshot de drizzle-kit quedó en la 0000 (ver `tests/integration/db/esquema-drizzle.test.ts`). `drizzle/schema.ts` y el snapshot de ese test sí se actualizaron. Es solo aditiva. Además de lo previsto normaliza `users.email` (`lower(trim(email))`) y crea el índice único `users_email_lower_idx`: si dos usuarios difieren solo en mayúsculas, el `UPDATE` o el índice fallan y la migración aborta sin crear nada (test incluido). Antes de desplegar hay que probarla con el export de producción, como pide el §10.
+
+**Estado del intento de vincular en la cookie firmada, no en KV.** El §3.2 guardaba `{ codeVerifier, provider, intent, userId }` en KV; desde docs/20 el estado vive en la cookie firmada `oauth_state_<provider>`, así que `intent: "link"` y `userId` van ahí (`oauth-state.ts`). Un `intent` desconocido o un `link` sin `userId` se trata como login. Se extrajo `iniciarAutorizacion` (`src/lib/auth/iniciar.ts`) para compartir la construcción entre login y vincular. `POST /api/auth/vincular/[provider]` responde con redirect 303.
+
+**Sesiones en D1 (docs/21).** El middleware sigue cargando solo `users`; no carga identidades (`§7`, fila de `middleware.ts`, no se hizo): Configuración consulta `oauth_identities` directamente y solo lee `provider`, nunca tokens.
+
+**Códigos de error nuevos.** Se agregó `proveedor_en_uso` (el usuario ya tiene otra cuenta del mismo proveedor vinculada; el índice `UNIQUE (user_id, provider)` lo impone). Los errores de conflicto llevan `&proveedor=<google|microsoft>` (`/login?error=email_en_uso&proveedor=google`) y solo se reflejan si el valor es un proveedor conocido (`src/lib/auth/mensajes.ts`). Los de vinculación vuelven a `/configuracion`; `vinculo_sesion` sin sesión va a `/login`. Si un login automático se toparía con el índice por proveedor (la cuenta ya tiene otra identidad del mismo proveedor), se responde `email_en_uso`.
+
+**V-17 (pre-secuestro): decisión abierta (3) resuelta fallando cerrado.** No se renombra el email de la cuenta no verificada (`@sin-verificar.invalid`). Hacerlo contradice V-04 (no se puede distinguir a un usuario Microsoft legítimo, que hoy son todos `email_verified = 0`, de un atacante) y deja huérfanos. Resultado: la dueña real recibe `email_en_uso` y no hereda ninguna cuenta ajena (el test V-17 verifica eso), pero no puede registrarse con ese email hasta que se resuelva a mano. Si el dueño decide la liberación automática, es una feature aparte.
+
+**Decisiones abiertas del §11, resueltas por la opción segura.** (1) Auto-vincular con ambos lados verificados: implementado tal como está en D3.1 (no hay flag; hoy solo Google puede estar verificado, así que en la práctica el auto-vínculo exige que la cuenta existente sea de Google y el login nuevo también, es decir, nunca vincula dos proveedores distintos hasta confirmar `xms_edov`). (2) El mensaje de `email_en_uso` nombra el proveedor de la cuenta existente. (4) **No se puede cambiar el calendario activo** en este release (no objetivo del §2): no existe el `PATCH` del paso 7. Consecuencia: la identidad activa nunca se puede desvincular (`identidad_activa`, 409), no solo "sin reemplazo".
+
+**Actualización de datos del login.** Un reingreso actualiza tokens, `email`, `email_verified`, `tenant_id` y `last_login_at` de la identidad; `users.*` (tokens, nombre e imagen) solo si esa identidad es la del proveedor activo. Si el proveedor no reenvía el refresh token se conserva el anterior (D10).
+
+**Chequeos de consistencia.** Se agregaron `user_without_identity` y `provider_without_identity` (severidad `warn`). No se agregó el de identidades huérfanas: la FK con `ON DELETE CASCADE` lo hace imposible en D1 y no se puede sembrar para probarlo.
+
+**Borrado de cuenta (V-22).** `DELETE /api/cuenta` lee los accesos de todas las identidades antes del `DELETE FROM users` y revoca cada uno después; sin identidades usa `users.refresh_token` (usuario legado).
+
+**No hecho.** El release N+1 (paso 10: eliminar fallback, doble escritura y columnas viejas). Tampoco se agregó el test E2E de Playwright de la pantalla `email_en_uso` y de Configuración con identidades sembradas (ese E2E no tiene sesión sembrada); la lógica de mensajes está cubierta por tests unitarios (`mensajes.test.ts`) y la de vinculación por integración. `npm run test:e2e` no se corrió en esta implementación.
+
+**Tests.** `tests/integration/auth/vinculacion.test.ts` (V-01 a V-17 y V-20, más vincular), `vincular.test.ts`, `tests/integration/api/identidades.test.ts` (V-21), `tests/integration/migracion-identidades.test.ts` (V-18 y V-19), `tests/unit/auth/identity.test.ts`, `mensajes.test.ts`, ampliaciones en `callback.test.ts`, `tokens.test.ts`, `oauth-state.test.ts`, `cuenta.test.ts` y `consistency.test.ts`. El callback existente se reescribió: los tests que fijaban el comportamiento vulnerable (reingreso por email, y el orden mail/UPN como identidad) pasaron a probar identidad por `(provider, provider_id)` y el mail solo como email de contacto. Variables de entorno nuevas: ninguna.
 
 ## Fuentes
 
