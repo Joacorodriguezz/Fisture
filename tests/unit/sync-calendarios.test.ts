@@ -43,12 +43,22 @@ describe("sincronizarCalendarios", () => {
     expect(o.esperar).toHaveBeenCalledWith(7);
   });
 
-  it("al llegar al máximo de lotes con usuarios pendientes corta sin error: sigue en el próximo sync", async () => {
-    const fetchImpl = vi.fn(async () => lote({ siguiente: true }));
+  it("al llegar al máximo de lotes con usuarios pendientes corta sin error y deja registrado el barrido incompleto", async () => {
+    const fetchImpl = vi.fn(async () => lote({ siguiente: true, corte: 111 }));
     const r = await sincronizarCalendarios(opciones(fetchImpl, { maxLotes: 3 }));
-    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(fetchImpl).toHaveBeenCalledTimes(4); // 3 lotes y el aviso de incompleto
+    expect(cuerpo(fetchImpl.mock.calls[3])).toEqual({ calendarios: true, corte: 111, incompleto: true });
     expect(r).toMatchObject({ completo: false, lotes: 3 });
     expect(r.error).toBeUndefined();
+  });
+
+  it("si no puede registrar el barrido incompleto lo avisa pero no falla el sync", async () => {
+    const respuestas = [lote({ siguiente: true })];
+    const fetchImpl = vi.fn(async () => respuestas.shift() ?? new Response("down", { status: 500 }));
+    const o = opciones(fetchImpl, { maxLotes: 1, reintentos: 0 });
+    const r = await sincronizarCalendarios(o);
+    expect(r.error).toBeUndefined();
+    expect(o.log).toHaveBeenCalledWith(expect.stringContaining("No se pudo registrar"));
   });
 
   it("un lote sin progreso (ni un usuario atendido y con 'siguiente') es un error: no se repite sin fin", async () => {

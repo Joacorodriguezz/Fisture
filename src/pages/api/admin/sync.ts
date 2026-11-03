@@ -19,13 +19,17 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
     lote?: unknown;
     calendarios?: unknown;
     corte?: unknown;
+    incompleto?: unknown;
   };
 
   if (body.calendarios === true) {
     if (body.corte !== undefined && (typeof body.corte !== "number" || !Number.isInteger(body.corte) || body.corte <= 0)) {
       return Response.json({ success: false, error: "corte debe ser un entero positivo (epoch en ms)" }, { status: 400 });
     }
-    const lote = await runCalendarBatch(env, { corte: body.corte, logger: locals.logger });
+    if (body.incompleto === true && body.corte === undefined) {
+      return Response.json({ success: false, error: "incompleto exige el corte del barrido" }, { status: 400 });
+    }
+    const lote = await runCalendarBatch(env, { corte: body.corte, incompleto: body.incompleto === true, logger: locals.logger });
     if (lote.status === "failed") {
       return Response.json({ success: false, kind: "calendars", runId: lote.runId, error: lote.error }, { status: 500 });
     }

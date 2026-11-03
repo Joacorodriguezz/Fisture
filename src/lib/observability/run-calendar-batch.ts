@@ -16,6 +16,9 @@ export interface CalendarBatchOptions {
   trigger?: SyncTrigger;
   logger?: Logger;
   deps?: SyncDeps;
+  // El workflow llegó al tope de lotes con usuarios pendientes: no hace trabajo, solo deja un run partial
+  // (degraded en /api/health) para que no quede únicamente en el log del workflow
+  incompleto?: boolean;
   // Para los tests
   now?: () => number;
   presupuesto?: number;
@@ -59,14 +62,19 @@ export async function runCalendarBatch(
   let error: unknown;
 
   try {
-    resumen = await reconcileCalendarBatch(env as unknown as Env, db, options.deps, {
-      now: new Date(startedAt),
-      corte,
-      presupuesto,
-      marcarDesactualizados: options.corte === undefined,
-    });
-    // Sin presupuesto ni para un usuario: no avanza. Es lo único que el lote mismo considera anormal.
-    if (resumen.cortadoPorPresupuesto && resumen.usuarios === 0) status = "partial";
+    if (options.incompleto) {
+      resumen = { ...RESUMEN_VACIO, quedan: true };
+      status = "partial";
+    } else {
+      resumen = await reconcileCalendarBatch(env as unknown as Env, db, options.deps, {
+        now: new Date(startedAt),
+        corte,
+        presupuesto,
+        marcarDesactualizados: options.corte === undefined,
+      });
+      // Sin presupuesto ni para atender un solo evento: no avanza. Cortarse con progreso es normal.
+      if (resumen.cortadoPorPresupuesto && resumen.usuarios === 0) status = "partial";
+    }
   } catch (err) {
     error = err;
     status = "failed";
@@ -87,7 +95,7 @@ export async function runCalendarBatch(
     runId,
     status,
     corte,
-    siguiente: status !== "failed" && resumen.quedan,
+    siguiente: status !== "failed" && !options.incompleto && resumen.quedan,
     resumen: { ...resumen, subrequests: presupuesto.usado },
     ...(error === undefined ? {} : { error: mensajeDeError(error) }),
   };

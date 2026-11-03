@@ -56,6 +56,16 @@ describe("runCalendarBatch", () => {
     expect(r).toMatchObject({ status: "partial", siguiente: true, resumen: { usuarios: 0, cortadoPorPresupuesto: true } });
   });
 
+  it("B1: un usuario cortado por presupuesto a mitad de turno pero con progreso es success y pide seguir (no 'sin progreso')", async () => {
+    await sembrar(t as never, ["m1", "m2", "m3", "m4"]);
+    for (const m of ["m1", "m2", "m3", "m4"]) await insertarSync(t as never, { id: `z-${m}`, match: m, user: "u1" });
+    for (const m of ["m1", "m2", "m3", "m4"]) await setMatch(t as never, m, { dateTime: T0 + 60 });
+    const r = await correr({ presupuesto: 33 });
+    expect(r.resumen).toMatchObject({ cortadoPorPresupuesto: true, quedan: true, usuarios: 1 });
+    expect(r.resumen.eventosOk).toBeGreaterThan(0);
+    expect(r).toMatchObject({ status: "success", siguiente: true });
+  });
+
   it("usa como máximo 50 subrequests: consultas D1 más llamadas al calendario", async () => {
     for (let i = 0; i < 12; i++) {
       await t.DB.prepare("INSERT INTO users (id, email, name, provider, provider_id) VALUES (?, ?, ?, 'google', ?)").bind(`x${i}`, `x${i}@x`, `x${i}`, `gx${i}`).run();

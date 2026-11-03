@@ -3,7 +3,8 @@
 // y responde `siguiente: true` mientras queden. El primer lote devuelve un `corte` que se reenvía en
 // los demás: es un barrido, y cada usuario se atiende una sola vez por barrido.
 // Lo usa .github/workflows/sync-cron.yml. Sale con 1 si un lote falla o no avanza; si se alcanza el
-// máximo de lotes con usuarios pendientes sigue en el próximo sync (los menos atendidos van primero).
+// máximo de lotes con usuarios pendientes registra un run partial (degraded en /api/health) y sigue en el
+// próximo sync (los menos atendidos van primero).
 import { pathToFileURL } from "node:url";
 
 const esperarReal = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -28,14 +29,14 @@ export async function sincronizarCalendarios({
   const resultado = { lotes: 0, usuarios: 0, eventosOk: 0, eventosFallidos: 0, sinAcceso: 0, completo: false };
 
   // Un lote, con reintentos ante errores de red o 5xx. Un 401 no se reintenta.
-  async function pedir(corte) {
+  async function pedir(corte, extra = {}) {
     let ultimo = "";
     for (let intento = 0; intento <= reintentos; intento++) {
       try {
         const respuesta = await fetchImpl(url, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminSecret}` },
-          body: JSON.stringify(corte === undefined ? { calendarios: true } : { calendarios: true, corte }),
+          body: JSON.stringify(corte === undefined ? { calendarios: true } : { calendarios: true, corte, ...extra }),
           signal: AbortSignal.timeout(timeoutMs),
         });
         const texto = await respuesta.text();
@@ -90,7 +91,10 @@ export async function sincronizarCalendarios({
     await esperar(pausaMs);
   }
 
+  // Que no quede solo en el log del workflow: se registra un run partial, que /api/health muestra como degraded
   log(`::warning::Barrido de calendarios incompleto tras ${maxLotes} lotes: sigue en el próximo sync (los menos atendidos primero)`);
+  const { fatal } = await pedir(corte, { incompleto: true });
+  if (fatal) log(`::warning::No se pudo registrar el barrido incompleto: ${fatal}`);
   return resultado;
 }
 
