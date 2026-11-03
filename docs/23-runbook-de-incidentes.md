@@ -7,15 +7,15 @@ con una sesión de `npx wrangler login` (o `CLOUDFLARE_API_TOKEN` en el entorno)
 ## 0. Primeros cinco minutos
 
 1. `curl -s https://fisture.com/api/health` → `ok`, `degraded` o `fail` (503), con el detalle por chequeo
-   (`db`, `kv`, `sync`, `oauthState`).
+   (`db`, `kv`, `sync` para las ligas, `calendars` y `oauthState`).
 2. Detalle del sync: `curl -s -H "Authorization: Bearer $ADMIN_SECRET" https://fisture.com/api/admin/status`
    (salud + últimos 20 runs con sus errores).
 3. Logs en vivo: `npx wrangler pages deployment tail --project-name fisture` (JSON; filtrar por `requestId`
    si el usuario lo tiene del header `x-request-id`).
 4. ¿Coincide con un deploy? Ver la última corrida de **Deploy a producción** en GitHub Actions.
 
-Avisos automáticos: `monitor.yml` (cada 30 min) y `sync-cron.yml` abren un issue con la etiqueta `incidente`
-y lo cierran al recuperarse. Comentar en ese issue lo que se va haciendo: queda como registro.
+Avisos automáticos: `monitor.yml` (cada 30 min), `sync-cron.yml` (ligas y calendarios) y `keepalive.yml`
+(semanal) abren un issue con la etiqueta `incidente` y lo cierran al recuperarse. Comentar en ese issue lo que se va haciendo: queda como registro.
 
 ## 1. Volver al deployment anterior (rollback de código)
 
@@ -67,6 +67,9 @@ npx wrangler d1 time-travel restore fisture-db --timestamp=2026-11-03T12:00:00Z
 - GitHub → Actions → **Sync diario** → *Run workflow* (recorre todos los lotes, docs/22 D4).
 - Una competencia: `curl -X POST https://fisture.com/api/admin/sync -H "Authorization: Bearer $ADMIN_SECRET" -H "Content-Type: application/json" -d '{"leagueId":"arg.1"}'`.
 - Un lote: igual con `-d '{"lote":0}'`; la respuesta trae `siguienteLote`.
+- Un lote de calendarios: `-d '{"calendarios":true}'`; la respuesta trae `corte` y `siguiente`. Para seguir el barrido
+  se repite con `"corte": <el corte devuelto>` mientras `siguiente` sea `true`. Desde la terminal:
+  `APP_URL=https://fisture.com ADMIN_SECRET=... node scripts/sync-calendarios.mjs` (docs/17).
 - Sin `Content-Type: application/json` la protección CSRF de Astro responde 403.
 
 ## 5. Revocar y rotar un secret
@@ -171,6 +174,23 @@ que fija el `mail`). La pantalla no dice con qué proveedor está la otra cuenta
    y pedirle que vuelva a entrar con su proveedor: se le crea una cuenta nueva. Si `email_verified = 1` o hay
    actividad, **no se libera**: se le explica que entre con el proveedor original y vincule el otro desde Configuración.
 4. Dejar anotado el caso (sin el email) en el issue de incidente si hay indicios de abuso.
+
+### Calendarios de usuarios sin acceso
+
+`metricas.calendariosSinAcceso` en `/api/admin/status` cuenta los usuarios en `reauth_required`: el proveedor
+rechazó su token (401) o no hay token. Salen de la cola del sync hasta que vuelven a iniciar sesión (el login
+los reactiva). No es un fallo del sistema y no cambia el estado de `/api/health`. Un número que crece de golpe
+suele indicar un problema de credenciales de la app (cliente OAuth revocado o secret rotado): revisar §5.
+
+### Los workflows programados dejaron de correr
+
+GitHub desactiva los `schedule` tras 60 días sin actividad en el repo y no avisa. `keepalive.yml` (lunes) los
+vuelve a habilitar con la API y abre un issue `incidente` si encontró alguno desactivado o si `sync-cron.yml`
+lleva más de 72 h sin terminar bien. Si aun así dejaron de correr (por ejemplo, también se desactivó
+`keepalive.yml`): GitHub → Actions → elegir el workflow → **Enable workflow**, y lanzar **Sync diario** a mano.
+Cualquier commit, PR o deploy reinicia el plazo de 60 días. El respaldo que no depende de GitHub es un monitor
+externo gratuito (por ejemplo UptimeRobot) sobre `https://fisture.com/api/health` con una palabra clave
+(`"status":"ok"`) o alerta ante 503: es una decisión del dueño (docs/17 §12).
 
 ## 7. A quién avisar
 

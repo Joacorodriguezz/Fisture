@@ -7,7 +7,7 @@ name: Keepalive de workflows
 #    sin terminar bien, una señal independiente de la app (el monitor mira /api/health).
 # Límite conocido: si el repo queda sin actividad y GitHub desactiva también este workflow, nada lo
 # reactiva. Un deploy, un PR o cualquier commit reinician el plazo; el respaldo independiente de GitHub
-# es un monitor externo sobre /api/health (docs/23 §5).
+# es un monitor externo sobre /api/health (docs/23 §6).
 on:
   schedule:
     - cron: "0 12 * * 1" # lunes 12:00 UTC

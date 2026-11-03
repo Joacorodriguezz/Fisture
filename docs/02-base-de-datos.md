@@ -440,3 +440,9 @@ CREATE INDEX IF NOT EXISTS idx_teams_name ON teams(name);
 Para FISTURE, estos límites son más que suficientes:
 - ~5000 partidos × ~1KB = ~5MB
 - ~1000 usuarios × ~100 queries/día = 100,000 lecturas
+
+## Columnas del sync confiable (migración 0010, docs/17)
+
+- `sync_runs.kind` (`leagues` por defecto | `calendars`): separa los runs de ligas de los de calendarios. Índice `(kind, started_at)`.
+- `users.calendar_reconciled_at` (epoch ms, NULL = nunca atendido): ordena la rotación del sync de calendarios, el menos atendido primero.
+- `users.calendar_auth_status` (`ok` | `reauth_required`): con `reauth_required` el calendario perdió acceso y el sync lo salta hasta que el usuario vuelva a iniciar sesión.

@@ -1,10 +1,12 @@
 # TDD: Sync diario confiable (disparo, cobertura de usuarios y alertas)
 
-> Technical Design Document. Estado: **propuesto, pendiente de revisión**. Fecha: 2026-10-22. Rama del documento: `docs/tdd-sync-confiable`, desde `development`. La implementación no empieza hasta que el dueño apruebe este TDD.
+> Technical Design Document. Estado: **implementado (2026-11-03), con el alcance y los desvíos del §12**. Fecha: 2026-10-22. Rama del documento: `docs/tdd-sync-confiable`, desde `development`. El dueño aprobó el TDD.
 >
 > Este documento registra **qué problemas hay hoy, qué decidimos y por qué**. El código y los tests se escriben después, siguiendo el orden del §9. Todo lo que no pudimos confirmar está marcado como **a verificar** y tiene un spike en el §9 (paso 0).
 >
 > **Nota 2026-11-03.** Parte de este TDD quedó cubierta por otros cambios: el sync diario por lotes para entrar en las 50 subrequests de Workers Free (`docs/22` D4) y los avisos por issue cuando falla el sync o `/api/health` (`sync-cron.yml`, `monitor.yml`). Sigue pendiente lo demás: disparo autorreparable, la reconciliación de calendarios (hoy no corre en producción, `docs/22` D7) y la columna `kind` en `sync_runs`.
+>
+> **Nota 2026-11-03 (implementación).** Lo pendiente se implementó dentro de Workers Free, sin el Worker `fisture-cron` de D1 ni Workers Paid: la reconciliación de calendarios por lotes y presupuesto de subrequests desde `sync-cron.yml`, `sync_runs.kind` con la salud separada, un keepalive para el disparo y el borrado de `functions/scheduled.ts`. Los desvíos y lo que queda fuera están en el §12.
 
 ## 1. Contexto y problema
 
@@ -368,4 +370,42 @@ Cada paso termina en verde (`npm run check`) y es un commit atómico (formato Co
 
 ## 12. Notas de implementación
 
-> Vacía al inicio. Al terminar, se completa con los desvíos respecto del diseño, los resultados de los spikes S1 a S7 (con los números medidos que reemplazan a las estimaciones del §4.1) y los umbrales finales de salud.
+Implementado el 2026-11-03 en la rama `feat/sync-confiable`. La cuenta sigue en Workers Free (50 subrequests por invocación), así que se tomó la opción más barata del propio TDD: GitHub Actions sigue siendo el disparador y el trabajo se parte en lotes que caben en una invocación. Es lo que `docs/22` D4 ya hacía para las ligas.
+
+### Qué se implementó y dónde
+
+| Tema | Implementación |
+| --- | --- |
+| B2, reconciliación en producción | `POST /api/admin/sync` acepta `{"calendarios": true, "corte": ms}` (`run-calendar-batch.ts`). El job `calendarios` de `sync-cron.yml` corre `scripts/sync-calendarios.mjs` después de las ligas y encadena lotes hasta `siguiente: false` (un barrido). |
+| B3, rotación justa | `reconcileCalendarBatch` (`calendar/reconcile.ts`) ordena por `users.calendar_reconciled_at` ascendente, `NULL` primero, desempate por `id`. Se marca atendido a todo usuario atendido, haya andado o no. El `corte` del barrido evita repetir a nadie dentro del mismo barrido. Sin cursor aparte (D4). |
+| B4, auth revocada | Un 401 o la falta de token (`classifyCalendarError` = `auth`) pasa al usuario a `calendar_auth_status = 'reauth_required'`: sale de la cola y sus filas no pasan a `failed`. El callback OAuth lo devuelve a `ok` y lo pone primero en la cola. `metricas.calendariosSinAcceso` lo cuenta. |
+| B5, tope por subrequests | `calendar/presupuesto.ts`: la D1 (`contarD1`) y el cliente de calendario (`contarCliente`) suman cada consulta y cada llamada. Presupuesto de 45 (50 menos margen), con 3 reservadas para registrar el run. Un lote no empieza un usuario sin lugar para su costo fijo (6) más un partido (8), ni un partido sin lugar para su peor caso (8). Reemplaza `CRON_MAX_USERS`; `CRON_MATCHES_PER_USER` quedó como `PARTIDOS_POR_TURNO` (10). |
+| B6, salud separada | `sync_runs.kind` (migración 0010). `checks.sync` mide solo ligas; `checks.calendars` mide los runs de calendarios con las mismas reglas de frescura (26 h degraded, 50 h fail). `/api/admin/status` trae `runs` (ligas) y `runsCalendarios`. |
+| B1, disparo autorreparable | `keepalive.yml` (semanal) con `scripts/keepalive.mjs`: vuelve a habilitar con la API los workflows programados y abre un issue si alguno estaba desactivado o si `sync-cron.yml` lleva más de 72 h sin un run exitoso. |
+| Código muerto | Se borró `functions/scheduled.ts` y la opción `calendarAutoSync` de `runSync`, que solo él usaba. |
+
+### Desvíos respecto del diseño del TDD
+
+- **No se construyó el Worker `fisture-cron` (D1, D2, D3, §8)** ni sus ticks de 15 minutos, porque exigen Workers Paid y recursos nuevos. El disparo sigue siendo un `schedule` de GitHub, con el keepalive como mitigación. Sigue siendo la opción a evaluar cuando se pase a Paid (`docs/24` §3).
+- **Sin candado en D1 ni `calendar_retry_after` (D3, D4.5).** No hay ticks concurrentes: un barrido por workflow, y dos barridos simultáneos son inocuos (cada usuario se marca atendido y el segundo lo salta si cae después del corte). Un usuario con error transitorio o `rate_limit` se marca atendido y vuelve a su turno en el próximo barrido; no hay backoff ni tope de 3 turnos.
+- **La cola solo incluye usuarios con trabajo real.** El TDD ordenaba también a los de auto-sync sin pendientes (C-04). Se ajustó la consulta de candidatos para que un usuario con todo sincronizado no gaste lugar ni subrequests: hace falta un evento `needs_update`/`failed` sin jugar, o un partido futuro de un equipo con auto-sync sin alta.
+- **`kind` sin columna `trigger` nueva.** Los runs de calendarios se registran de una vez (`registrarRunCalendarios`: un INSERT y la purga) en lugar de iniciar y cerrar el run, para gastar 2 consultas y no 4 del presupuesto. Todo lote registra su run, incluso el vacío que cierra el barrido (al menos uno por día), para que la frescura tenga un dato. Las alertas son los issues `incidente` del workflow, no un vigía aparte (D7): `sync-cron.yml`, `monitor.yml` y `keepalive.yml` ya cubren los casos.
+- **Un run de calendarios es `partial` solo si un lote no alcanza para atender ni a un usuario** (sin progreso); un 401 de un usuario no degrada el sistema. Un barrido que llega al máximo de lotes (40) sin terminar corta con `::warning::` y sigue al día siguiente por orden de antigüedad.
+- **Sin runs de calendarios, `checks.calendars` es `ok`** (el TDD no definía este caso). Evita un falso 503 entre el deploy y el primer barrido; si el disparo no corre, ya falla el check de ligas.
+- **Migración 0010 a mano**: `npm run db:generate` produce una migración contra el snapshot viejo (0000), que repite lo ya aplicado. Se tomaron de su salida las cinco sentencias nuevas, como en las migraciones 0001 a 0009. No hay `users.calendar_retry_after` ni tabla de candado (ver arriba).
+- **El smoke del deploy (D8, B9) no se cambió**: sigue exigiendo `checks.sync` en `ok` o `degraded`. No mira `checks.calendars`.
+
+### Costo medido y capacidad (reemplaza la estimación del §4.1 para este esquema)
+
+Medido con la D1 de tests: un lote que atiende a 3 usuarios con un evento cada uno gasta 28 consultas D1 y 3 llamadas al calendario (31 con el presupuesto; 7 de ellas son fijas del primer lote: marcar desactualizados, candidatos y registrar el run). Es decir, unos 8 a 9 subrequests por usuario con un evento, y de 3 a 4 usuarios por lote. Con 40 lotes por barrido y 15 s de pausa (unos 12 minutos), el workflow atiende unos **120 a 160 usuarios con trabajo por día**; hay más margen porque la mayoría no tiene trabajo cada día. Palancas, de menor a mayor costo: un segundo `schedule` diario solo de calendarios, subir `maxLotes`, y pasar a Workers Paid (1.000 subrequests: ~100 usuarios por lote). La señal para actuar es el `::warning::` de barrido incompleto en el log de `sync-cron.yml` varios días seguidos.
+
+### Casos del §5 cubiertos
+
+C-01 a C-09 y C-11, C-12 en `tests/integration/calendar/reconcile.test.ts` y `tests/observability/run-calendar-batch.test.ts` (C-10 no aplica: los candidatos salen de la tabla `users`); C-08 también en `callback.test.ts`; A-01, A-02, A-04 y A-05 como reglas de frescura en `health.test.ts` y `health-calendarios.test.ts` (A-04 y A-05 se reducen a la frescura del último run de calendarios); A-09 en `health.test.ts`. T-xx, S-01, S-05 y A-03, A-06 a A-08, A-10 no aplican: eran del Worker, del vigía o del cambio del smoke que no se hicieron.
+
+### Pendiente y a verificar
+
+- **Keepalive: no se pudo verificar desde el código** que `PUT .../actions/workflows/{id}/enable` sobre un workflow activo reinicie el plazo de 60 días. Sí reactiva uno desactivado por inactividad, mientras el propio `keepalive.yml` siga activo. Si GitHub desactiva todos a la vez, nada los reactiva: el respaldo independiente es un monitor externo sobre `/api/health` (UptimeRobot u otro, gratuito), **a decisión del dueño** (docs/23 §6). Para comprobarlo: lanzar `keepalive.yml` a mano con *Run workflow* y ver que termina en verde.
+- **Spikes S1 a S5 y S7 no se hicieron** (eran del Worker). **S6**: `functions/scheduled.ts` se borró sin más; Pages ya no tiene un directorio `functions/`.
+- **Despliegue**: la migración 0010 corre sola en `deploy.yml`. No hay variables ni secrets nuevos (se usan `PUBLIC_APP_URL` y `ADMIN_SECRET` del workflow y los OAuth de Pages). Después del release conviene lanzar **Sync diario** a mano una vez (Actions → *Run workflow*) y mirar `runsCalendarios` en `/api/admin/status`. El token del workflow `keepalive.yml` usa `actions: write`: no requiere un secret.
+- **Fuera de alcance, sin cambios**: avisar al usuario cuando su calendario pasa a `reauth_required` (§11) y la Queue de Cloudflare (§6).

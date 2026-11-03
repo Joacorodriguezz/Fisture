@@ -92,6 +92,8 @@ Cloudflare Edge (Buenos Aires)  ← Server más cercano
 ```
 
 ### 2. Sincronización Diaria (Cron)
+> Diagrama de la propuesta original. Hoy el disparo es `.github/workflows/sync-cron.yml` (Pages no ejecuta Cron
+> Triggers), que llama a `POST /api/admin/sync` por lotes de competencias y de usuarios (docs/17, docs/22 D4).
 ```
 Cloudflare Cron (9:00 UTC)
        │
@@ -197,9 +199,6 @@ fisture/
 │   ├── schema.ts                 # Definición de tablas
 │   ├── migrations/               # Migraciones SQL
 │   └── seed.ts                   # Datos iniciales (ligas)
-│
-├── functions/
-│   └── scheduled.ts              # Cron handler (sync diario)
 │
 ├── public/
 │   ├── favicon.svg

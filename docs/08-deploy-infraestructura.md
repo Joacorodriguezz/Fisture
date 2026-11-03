@@ -181,7 +181,7 @@ del cliente de producción, que es lo que revisa la verificación de Google.
 3. Verificar `GET https://<dominio>/api/health`. Devuelve 503 (`sync: fail`) hasta que haya un sync exitoso registrado: lanzar uno con `POST /api/admin/sync` (Bearer `ADMIN_SECRET`).
 4. Logs en vivo: `npx wrangler pages deployment tail`; histórico en el dashboard (Workers & Pages → proyecto → Logs).
 5. Monitor externo recomendado (UptimeRobot, Better Stack, Cloudflare Health Checks) sobre `/api/health` con aviso por mail o Telegram.
-6. **Cron en Pages:** Pages no ejecuta Cron Triggers. El sync diario lo dispara `.github/workflows/sync-cron.yml` (9:00 UTC), que llama a `POST /api/admin/sync`. Requiere los secrets de GitHub `PUBLIC_APP_URL` (ej. `https://fisture.com`, sin barra final) y `ADMIN_SECRET` (el mismo de Cloudflare). También se puede lanzar a mano desde Actions → Sync diario → Run workflow. Si deja de correr, `/api/health` pasa a `degraded` a las 26 h y a `fail` a las 50 h.
+6. **Cron en Pages:** Pages no ejecuta Cron Triggers. El sync diario lo dispara `.github/workflows/sync-cron.yml` (9:00 UTC), que llama a `POST /api/admin/sync`. Requiere los secrets de GitHub `PUBLIC_APP_URL` (ej. `https://fisture.com`, sin barra final) y `ADMIN_SECRET` (el mismo de Cloudflare). También se puede lanzar a mano desde Actions → Sync diario → Run workflow. Si deja de correr, `/api/health` pasa a `degraded` a las 26 h y a `fail` a las 50 h. Desde docs/17 el mismo workflow reconcilia los calendarios en un job aparte (`calendarios`, lotes de usuarios) y `keepalive.yml` (semanal) mantiene habilitados los workflows programados, que GitHub desactiva tras 60 días sin actividad.
 
 Detalle del diseño: `docs/10-observabilidad-tdd.md`.
 

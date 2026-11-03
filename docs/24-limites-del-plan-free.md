@@ -13,6 +13,7 @@ Revisarla en cada release que cambie el patrón de consultas. Lo medido sale de 
 - Escrituras por activo: ~5 por día (sesión, seguir equipos, estados de `calendar_syncs`).
 - Sync diario: ~9 invocaciones (docs/22 D4), ~45.000 filas leídas y ~2.000 escritas en un día normal
   (solo escribe lo que cambia); el primer sync después de sumar competencias escribe ~20.000.
+- Reconciliación de calendarios (docs/17): hasta 40 invocaciones por día más (una por lote de ~3 a 4 usuarios con trabajo, 45 subrequests cada una). Sumadas a las ~9 del sync de ligas siguen muy por debajo de las 100.000 requests diarias.
 - Bots y crawlers: se suman ~3.000 requests/día (sitemap con ~1.500 URLs, más buscadores e IA).
 
 ## 2. Tabla

@@ -169,7 +169,7 @@ Un evento "Cancelado" en el calendario sigue ocupando espacio y recordando al us
 No se sabe la fecha nueva, así que moverlo sería inventar un dato. El prefijo `[POSTERGADO]` avisa sin borrar. Cuando el proveedor publica la fecha nueva, B4 lo corrige.
 
 **D12. Reconciliación para todos los usuarios con eventos desactualizados (G7, G8).**
-`runCalendarAutoSync` pasó a llamarse `reconcileCalendars`:
+`runCalendarAutoSync` pasó a llamarse `reconcileCalendars`. **Actualización (docs/17):** hoy es `reconcileCalendarBatch` (`calendar/reconcile.ts`), por lotes con presupuesto de subrequests; `CRON_MAX_USERS` ya no existe y el orden es por `users.calendar_reconciled_at` (el menos atendido primero), no por cantidad de pendientes. Lo que sigue describe el diseño original:
 1. `markOutdatedEvents` sin `userId` (una sola pasada set-based para todos). Se llama al terminar el sync de datos y no solo al ver una página.
 2. Candidatos: usuarios con `needs_update` **o** con auto-sync, ordenados por cantidad de `needs_update` descendente, con `ORDER BY` explícito y límite `CRON_MAX_USERS` (G8).
 3. Por usuario, primero los `needs_update`/`failed` y después las altas nuevas, dentro de `CRON_MATCHES_PER_USER`. Una corrección vale más que una alta.
@@ -353,7 +353,7 @@ Cada paso es un commit (Conventional Commits) en `feat/calendario-casos-borde`; 
 
 | Tema | Decisión / riesgo |
 | --- | --- |
-| Presupuesto de subrequests | Cada actualización cuesta 1 llamada más la renovación de token; adoptar tras `409` suma un `GET`. Los límites actuales (`CRON_MAX_USERS = 20`, `CRON_MATCHES_PER_USER = 10`) se mantienen; la prioridad de D12 evita gastarlo en altas mientras haya correcciones pendientes |
+| Presupuesto de subrequests | Cada actualización cuesta 1 llamada más la renovación de token; adoptar tras `409` suma un `GET`. Los límites originales (`CRON_MAX_USERS = 20`, `CRON_MATCHES_PER_USER = 10`; el primero se reemplazó por el presupuesto de docs/17, el segundo sigue como `PARTIDOS_POR_TURNO`); la prioridad de D12 evita gastarlo en altas mientras haya correcciones pendientes |
 | Alternancia de horarios del proveedor | Una oscilación entre dos horas genera una actualización por corrida. Aceptable por ahora (cron diario); ver debounce en §12 |
 | Eventos huérfanos al deduplicar | Se aceptan (§7). Se informa en las notas del release |
 | Evento `cancelled` de Google con el mismo id | Se asume que se puede restaurar con `PATCH`; lo confirma el spike del paso 0 |
