@@ -22,8 +22,8 @@ const pasos = [
   },
   {
     numero: "02",
-    titulo: "Múltiples ligas",
-    texto: "Liga Profesional, Premier League, La Liga, Serie A, Bundesliga, Ligue 1 y las copas de Sudamérica.",
+    titulo: "Ligas y copas",
+    texto: "Liga Profesional, Brasileirão, Premier League, La Liga, Serie A, Bundesliga y Ligue 1, con Libertadores, Champions y las copas nacionales de cada equipo.",
   },
   {
     numero: "03",
@@ -71,6 +71,15 @@ const pasos = [
           </div>
         ))}
       </div>
+    </div>
+
+    <div style="max-width:720px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;border-left:4px solid var(--tinta);padding-left:16px">
+      <span style="font:700 14px/18px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase">¿Por qué pide acceso a mi calendario?</span>
+      <p style="margin:0;font:400 16px/24px var(--font-texto);color:var(--tinta-suave)">
+        Para crear los eventos de tus partidos y corregirlos si cambia el horario. Fisture solo toca los eventos que
+        crea: no lee tus mails ni tus contactos, y podés quitar el acceso cuando quieras.
+      </p>
+      <a href="/ayuda" style="font:700 14px/18px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--rojo)">Preguntas frecuentes →</a>
     </div>
   </div>
 </Layout>
