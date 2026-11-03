@@ -1,6 +1,6 @@
 # TDD: Login sin escrituras en KV
 
-> Technical Design Document. Estado: **propuesto, pendiente de revisión** (diagnóstico confirmado con Analytics, ver §1.1). Fecha: 2026-10-26. Rama de implementación: `fix/login-sin-kv`, desde `development` (o desde `main` si se trata como hotfix, ver §8).
+> Technical Design Document. Estado: **implementado** (PR #35, en producción desde el release #36 del 2026-10-27; diagnóstico confirmado con Analytics, ver §1.1). Fecha: 2026-10-26. Rama de implementación: `fix/login-sin-kv`, desde `development` (o desde `main` si se trata como hotfix, ver §8).
 >
 > Este documento registra **qué problema hay hoy, qué decidimos y por qué**. El código y los tests se escriben después de que se apruebe, siguiendo el orden del §7. Complementa a `docs/16-rate-limiting-y-origen-tdd.md` (R3), que reduce el abuso del login pero no elimina su costo en KV.
 
