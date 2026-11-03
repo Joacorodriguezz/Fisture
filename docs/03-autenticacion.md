@@ -410,7 +410,7 @@ Implementado según `docs/18-vinculacion-de-cuentas-tdd.md`. **El ejemplo de "Ca
 - La identidad de un login es `(provider, provider_id)` (tabla `oauth_identities`): `sub` del ID token de Google y `oid` (id de Graph) de Microsoft. El email **nunca** identifica a nadie por sí solo (defensa contra el ataque "nOAuth").
 - Los tokens son por identidad. `users.provider` es el proveedor de calendario activo y no lo cambia el login. `users.access_token`, `refresh_token`, `token_expires_at` y `provider_id` se siguen escribiendo (doble escritura) hasta el release N+1.
 - Email verificado: Google solo con `email_verified === true` del ID token; Microsoft **siempre sin verificar** hasta confirmar `xms_edov` (`MICROSOFT_XMS_EDOV_CONFIABLE` en `identity.ts`).
-- Un login con una identidad nueva y un email que ya tiene cuenta se vincula solo si **ambos** lados están verificados; si no, `/login?error=email_en_uso`. Vincular a mano: `POST /api/auth/vincular/[provider]` desde Configuración (sesión + Origin). Desvincular: `DELETE /api/auth/identidades/[provider]` (no la última ni la del calendario activo).
+- Un login con una identidad nueva y un email que ya tiene cuenta da `/login?error=email_en_uso` (genérico, sin nombrar el proveedor de la otra cuenta). Solo se vincula solo si `AUTO_VINCULAR_EMAIL_VERIFICADO=true` (apagado por defecto) y **ambos** lados están verificados. Vincular a mano: `POST /api/auth/vincular/[provider]` desde Configuración (sesión + Origin). Desvincular: `DELETE /api/auth/identidades/[provider]` (no la última ni la del calendario activo).
 - El intento de vincular viaja en la cookie de estado firmada (`intent: "link"` + `userId`), no en KV.
 
 ## Borrado de cuenta

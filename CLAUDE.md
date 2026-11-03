@@ -89,7 +89,8 @@ Hook `commit-msg` (`.githooks/`) valida tipo, longitud, puntuación y línea en 
 ## Autenticación y cuentas
 
 - La identidad de un login es `(provider, provider_id)` (`oauth_identities`), nunca el email (`docs/18-vinculacion-de-cuentas-tdd.md`). Los tokens son por identidad; `users.provider` es el calendario activo y el login no lo cambia.
-- Un login nuevo solo se une a una cuenta existente por email si Google verificó el email y la cuenta también está verificada. Microsoft se trata siempre como no verificado. En cualquier otro caso: `email_en_uso` y se vincula a mano desde Configuración (`POST /api/auth/vincular/[provider]`).
+- Un login nuevo con el email de una cuenta existente da `email_en_uso` (mensaje genérico, sin revelar el proveedor de la otra cuenta) y se vincula a mano desde Configuración (`POST /api/auth/vincular/[provider]`). El auto-vínculo con ambos lados verificados existe pero está apagado (`AUTO_VINCULAR_EMAIL_VERIFICADO`). Microsoft se trata siempre como no verificado.
+- Antes de un release con la migración 0010: `npm run db:check-emails` (docs/23 §6).
 - `users.access_token`, `refresh_token`, `token_expires_at` y `provider_id` están deprecadas (doble escritura hasta el release N+1). Nunca leer tokens de `users` sin pasar por `getValidAccessToken`.
 
 ## Calendario
