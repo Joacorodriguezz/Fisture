@@ -75,6 +75,22 @@ describe("ingesta ESPN a D1", () => {
     it("una liga desconocida informa el error", async () => {
       expect((await sync("unknown")).errors).not.toHaveLength(0);
     });
+
+    // drizzle-orm >= 0.44 envuelve los errores de D1: el resultado (que va a sync_runs y a /admin)
+    // muestra el error de D1, no el SQL con todos los valores de la fila.
+    it("si D1 falla, el error informado es el de D1 y no el SQL con sus parámetros", async () => {
+      await t.DB.prepare(
+        "CREATE TRIGGER falla_ligas BEFORE INSERT ON leagues BEGIN SELECT RAISE(ABORT, 'falla simulada de D1'); END"
+      ).run();
+      try {
+        const { errors } = await sync();
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toContain("falla simulada de D1");
+        expect(errors[0]).not.toContain("Failed query");
+      } finally {
+        await t.DB.prepare("DROP TRIGGER falla_ligas").run();
+      }
+    });
   });
 
   describe("copas no destacadas (docs/22)", () => {

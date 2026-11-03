@@ -5,6 +5,7 @@ import {
   removeMatchFromCalendar,
 } from "../../../lib/calendar/sync-service";
 import { withApi } from "../../../lib/observability/with-api";
+import { mensajeDeError } from "../../../lib/observability/logger";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -52,7 +53,7 @@ export const DELETE: APIRoute = withApi(async ({ url, locals }) => {
     await removeMatchFromCalendar(db, env, user, matchId);
     return json({ success: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Error desconocido";
+    const message = mensajeDeError(error, "Error desconocido");
     return json({ success: false, error: message }, 500);
   }
 });

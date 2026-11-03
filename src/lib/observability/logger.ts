@@ -1,5 +1,6 @@
 // Logger estructurado: una línea JSON por evento (Cloudflare indexa los campos para buscar/filtrar).
 // Nunca loguear datos personales ni credenciales: las claves sensibles se enmascaran automáticamente.
+import { DrizzleQueryError } from "drizzle-orm";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 export type LogFields = Record<string, unknown>;
@@ -28,7 +29,34 @@ export function defaultLevel(env?: string): LogLevel {
   return env === "production" || env === undefined ? "info" : "debug";
 }
 
+// drizzle-orm >= 0.44 envuelve los errores del driver (D1) en DrizzleQueryError, cuyo mensaje y stack
+// son "Failed query: <sql>\nparams: <valores>". Los valores pueden ser tokens o datos personales,
+// así que nunca se usan tal cual: el SQL (parametrizado) sí se conserva y el error real queda en `cause`.
+const MENSAJE_DB_SIN_CAUSA = "Falló una consulta a la base de datos";
+
+// Mensaje apto para mostrar al usuario o guardar en la base. Sin `fallback`, lo que no es Error se pasa a texto.
+export function mensajeDeError(error: unknown, fallback?: string): string {
+  if (error instanceof DrizzleQueryError) {
+    return error.cause instanceof Error ? error.cause.message : MENSAJE_DB_SIN_CAUSA;
+  }
+  if (error instanceof Error) return error.message;
+  return fallback ?? String(error);
+}
+
 export function serializeError(err: Error): Record<string, unknown> {
+  if (err instanceof DrizzleQueryError) {
+    const message = `Failed query: ${err.query}`;
+    const out: Record<string, unknown> = {
+      name: "DrizzleQueryError",
+      message,
+      query: err.query,
+      stack: err.stack?.replace(err.message, message),
+    };
+    if (err.cause !== undefined) {
+      out.cause = err.cause instanceof Error ? serializeError(err.cause) : redact(err.cause);
+    }
+    return out;
+  }
   const out: Record<string, unknown> = { name: err.name, message: err.message, stack: err.stack };
   if (err.cause !== undefined) {
     out.cause = err.cause instanceof Error ? serializeError(err.cause) : redact(err.cause);
