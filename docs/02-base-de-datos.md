@@ -441,7 +441,7 @@ Para FISTURE, estos límites son más que suficientes:
 - ~5000 partidos × ~1KB = ~5MB
 - ~1000 usuarios × ~100 queries/día = 100,000 lecturas
 
-## Columnas del sync confiable (migración 0010, docs/17)
+## Columnas del sync confiable (migración 0011, docs/17)
 
 - `sync_runs.kind` (`leagues` por defecto | `calendars`): separa los runs de ligas de los de calendarios. Índice `(kind, started_at)`.
 - `users.calendar_reconciled_at` (epoch ms, NULL = nunca atendido): ordena la rotación del sync de calendarios, el menos atendido primero.
