@@ -27,7 +27,6 @@ describe("runSync", () => {
   const deps = (over: Partial<RunSyncDeps> = {}): RunSyncDeps => ({
     syncAllLeagues: async () => [res("Liga A"), res("Liga B")],
     syncSingleLeague: async (_e, id) => res(id),
-    calendarAutoSync: async () => {},
     ...over,
   });
 
@@ -100,28 +99,6 @@ describe("runSync", () => {
   it("sin lote no informa lote", async () => {
     const r = await runSync(env, "admin", { deps: deps(), logger });
     expect(r).not.toHaveProperty("lote");
-  });
-
-  it("el calendario solo se sincroniza si se pide (cron)", async () => {
-    const cal = vi.fn(async () => {});
-    await runSync(env, "admin", { deps: deps({ calendarAutoSync: cal }), logger });
-    expect(cal).not.toHaveBeenCalled();
-    await runSync(env, "cron", { calendarAutoSync: true, deps: deps({ calendarAutoSync: cal }), logger });
-    expect(cal).toHaveBeenCalledTimes(1);
-  });
-
-  it("un fallo del calendario queda como issue y no tumba el sync", async () => {
-    const r = await runSync(env, "cron", {
-      calendarAutoSync: true,
-      deps: deps({
-        calendarAutoSync: async () => {
-          throw new Error("Google 503");
-        },
-      }),
-      logger,
-    });
-    expect(r.status).toBe("partial");
-    expect(r.issues.find((i) => i.code === "calendar_autosync_failed")).toMatchObject({ severity: "error" });
   });
 
   it("los hallazgos de consistencia se guardan en el run", async () => {
