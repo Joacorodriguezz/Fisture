@@ -75,6 +75,9 @@ describe("migración 0010 (identidades OAuth)", () => {
     expect(await filas("SELECT id, user_id FROM sessions")).toEqual([{ id: "h1", user_id: "u1" }]);
   });
 
+  // Ojo: el helper aplica las sentencias una por una, así que esto prueba que la migración FALLA con colisiones,
+  // no que wrangler la revierta completa. En producción el pre-chequeo es obligatorio (docs/23 §6,
+  // scripts/check-email-collisions.mjs) justamente para no depender de eso.
   it("aborta de forma explícita si dos usuarios difieren solo en mayúsculas", async () => {
     await insertarUsuario("u1", "ana@example.com", "google", "g-1");
     await insertarUsuario("u2", "Ana@Example.com", "microsoft", "m-1");
