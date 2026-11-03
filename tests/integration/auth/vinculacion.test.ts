@@ -299,6 +299,26 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
       expect(await usuarios()).toHaveLength(0);
     });
 
+    // Cuenta personal (MSA): Graph devuelve el CID de 16 hex y el ID token v2 el oid con prefijo de ceros
+    it("Microsoft personal: el oid 00000000-0000-0000-... coincide con el CID de Graph y el login entra", async () => {
+      microsoft({ id: "a1b2c3d4e5f60718" }, { oid: "00000000-0000-0000-a1b2-c3d4e5f60718", tid: "9188040d-6c67-4c5b-b112-36a304b66dad" });
+      expect(destino(await llamar("microsoft"))).toBe("/ligas");
+      expect(await identidades()).toMatchObject([{ provider: "microsoft", provider_id: "a1b2c3d4e5f60718" }]);
+    });
+
+    it("Microsoft personal: un usuario existente reingresa a su misma cuenta", async () => {
+      await sembrar({ id: "beto", email: "beto@corp.com", provider: "microsoft", providerId: "a1b2c3d4e5f60718", verificado: false });
+      microsoft({ id: "a1b2c3d4e5f60718" }, { oid: "00000000-0000-0000-a1b2-c3d4e5f60718" });
+      expect(destino(await llamar("microsoft"))).toBe("/ligas");
+      expect(await usuarios()).toHaveLength(1);
+      expect(await sesiones()).toBe(1);
+    });
+
+    it("Microsoft de trabajo: el oid en mayúsculas coincide con el id de Graph", async () => {
+      microsoft({ id: "aaaaaaaa-2222-3333-4444-555555555555" }, { oid: "AAAAAAAA-2222-3333-4444-555555555555" });
+      expect(destino(await llamar("microsoft"))).toBe("/ligas");
+    });
+
     it("Microsoft con la respuesta de Graph en error falla con oauth_failed", async () => {
       validar.mockResolvedValue(tokensFalsos({ idToken: { oid: "m-1" } }));
       vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: {} }, { status: 403 })));

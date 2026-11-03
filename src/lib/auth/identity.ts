@@ -27,6 +27,17 @@ export function emailVerificado(
   return (opciones.confiarXmsEdov ?? MICROSOFT_XMS_EDOV_CONFIABLE) && claims.xms_edov === true;
 }
 
+// ¿El oid del ID token es la misma cuenta que el id de Graph /me? En cuentas de trabajo son el mismo GUID.
+// En cuentas personales (MSA) Graph devuelve el CID de 16 hex y el oid v2 es 00000000-0000-0000-<CID partido
+// en 4-12>. Se compara sin guiones y en minúsculas; nunca por sufijo sobre un GUID que no sea de MSA.
+const PREFIJO_OID_MSA = "00000000-0000-0000-";
+export function oidCoincide(oid: string, graphId: string): boolean {
+  const esperado = graphId.toLowerCase().replace(/-/g, "");
+  const minusculas = oid.toLowerCase();
+  const normalizado = minusculas.startsWith(PREFIJO_OID_MSA) ? minusculas.slice(PREFIJO_OID_MSA.length) : minusculas;
+  return normalizado.replace(/-/g, "") === esperado;
+}
+
 export type DecisionVinculo = "login" | "crear" | "vincular" | "conflicto";
 
 // D3.1: se une sola únicamente si ambos lados están verificados por su proveedor

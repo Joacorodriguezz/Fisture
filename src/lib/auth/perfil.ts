@@ -1,7 +1,7 @@
 // Intercambia el code por tokens y arma la identidad que informa el proveedor (docs/18 §3.2, paso 2).
 import { decodeIdToken } from "arctic";
 import { createGoogleProvider, createMicrosoftProvider } from "./providers";
-import { emailVerificado, normalizarEmail, type PerfilIdentidad, type Proveedor, type TokensProveedor } from "./identity";
+import { emailVerificado, normalizarEmail, oidCoincide, type PerfilIdentidad, type Proveedor, type TokensProveedor } from "./identity";
 
 export interface ResultadoProveedor {
   perfil: PerfilIdentidad;
@@ -79,7 +79,7 @@ export async function obtenerIdentidad(env: Env, provider: Proveedor, code: stri
   } catch {
     /* el tid es solo informativo */
   }
-  if (claims.oid !== undefined && claims.oid !== providerId) throw new Error("oid_mismatch");
+  if (claims.oid !== undefined && !(typeof claims.oid === "string" && oidCoincide(claims.oid, providerId))) throw new Error("oid_mismatch");
 
   return {
     tokens: leerTokens(tokens),
