@@ -173,6 +173,9 @@ export async function registrarLogin(db: Database, identidad: OAuthIdentity, usu
     .update(users)
     .set({
       ...cargaTokens(tokens, usuario.refreshToken),
+      // Tokens nuevos del calendario activo: vuelve a tener acceso y reentra primero en la cola del sync (docs/17 B4)
+      calendarAuthStatus: "ok",
+      calendarReconciledAt: null,
       ...(perfil.name ? { name: perfil.name } : {}),
       ...(perfil.image ? { image: perfil.image } : {}),
     })
