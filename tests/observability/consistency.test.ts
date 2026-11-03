@@ -11,9 +11,9 @@ const HORA = 3600;
 describe("checkConsistency", () => {
   const t = useTestDb();
 
-  const liga = (id: string, activa = 1) =>
-    t.DB.prepare("INSERT INTO leagues (id, name, country, external_id, season, is_active) VALUES (?, ?, 'AR', ?, 2026, ?)")
-      .bind(id, `Liga ${id}`, `ext-${id}`, activa)
+  const liga = (id: string, activa = 1, destacada = 1) =>
+    t.DB.prepare("INSERT INTO leagues (id, name, country, external_id, season, is_active, is_featured) VALUES (?, ?, 'AR', ?, 2026, ?, ?)")
+      .bind(id, `Liga ${id}`, `ext-${id}`, activa, destacada)
       .run();
   const equipo = (id: string, leagueId = "l1") =>
     t.DB.prepare("INSERT INTO teams (id, external_id, name, league_id) VALUES (?, ?, ?, ?)")
@@ -98,9 +98,10 @@ describe("checkConsistency", () => {
     expect(issues).toEqual([{ code: "duplicate_match", severity: "error", count: 1, sample: [expect.any(String)] }]);
   });
 
-  it("empty_league: competencia activa sin partidos (las inactivas se ignoran)", async () => {
+  it("empty_league: competencia activa sin partidos (las inactivas y las no destacadas se ignoran)", async () => {
     await liga("vacia");
     await liga("inactiva", 0);
+    await liga("copa-sin-cruces", 1, 0);
     await partido("m1");
     const issues = await checkConsistency(t.db, AHORA_MS);
     expect(issues).toEqual([{ code: "empty_league", severity: "warn", count: 1, sample: ["vacia"] }]);

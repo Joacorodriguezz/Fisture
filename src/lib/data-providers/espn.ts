@@ -61,12 +61,57 @@ const ETAPAS: Record<string, string> = {
   quarterfinals: "Cuartos de final",
   semifinals: "Semifinales",
   final: "Final",
+  finals: "Final",
   "torneo-apertura": "Apertura",
   "torneo-clausura": "Clausura",
+  // Copas nacionales y clasificatorias
+  "preliminary-round": "Ronda preliminar",
+  "qualifying-round": "Ronda previa",
+  "qualifying-play-in": "Repechaje",
+  "first-round": "Primera ronda",
+  "second-round": "Segunda ronda",
+  "third-round": "Tercera ronda",
+  "fourth-round": "Cuarta ronda",
+  "fifth-round": "Quinta ronda",
+  "sixth-round": "Sexta ronda",
+  "seventh-round": "Séptima ronda",
+  "eighth-round": "Octava ronda",
+  "round-of-64": "Treintaidosavos de final",
+  "round-of-32": "Dieciseisavos de final",
+  "playoff-round": "Playoff",
+  playoff: "Playoff",
+  // Campeonatos estaduales de Brasil
+  "regular-season": "Fase regular",
+  "temporada-regular": "Fase regular",
+  "relegation-stage": "Fase por la permanencia",
+  relegation: "Permanencia",
+  "taca-guanabara": "Taça Guanabara",
 };
 
 // Etapas donde cada equipo juega varias fechas: se numera la fecha
-const ETAPAS_CON_FECHAS = new Set(["league-phase", "group-stage", "torneo-apertura", "torneo-clausura"]);
+const ETAPAS_CON_FECHAS = new Set([
+  "league-phase",
+  "group-stage",
+  "torneo-apertura",
+  "torneo-clausura",
+  "regular-season",
+  "temporada-regular",
+  "relegation-stage",
+  "taca-guanabara",
+]);
+
+// Prefijos de torneo dentro del slug ("taca-rio---semifinals"); el resto se arma con mayúsculas iniciales
+const TORNEOS: Record<string, string> = {
+  apertura: "Apertura",
+  clausura: "Clausura",
+  "taca-guanabara": "Taça Guanabara",
+  "taca-rio": "Taça Rio",
+  "carioca-championship": "Campeonato Carioca",
+  "trofeu-inconfidencia": "Troféu Inconfidência",
+  playoffs: "Playoffs",
+  farroupilha: "Farroupilha",
+  gaucho: "Gauchão",
+};
 
 // Equipos que ESPN usa mientras la llave no está definida
 function esPlaceholder(team: EspnTeam | undefined): boolean {
@@ -86,11 +131,16 @@ function mapStatus(status: EspnEvent["status"]): ProviderMatch["status"] {
   return "scheduled";
 }
 
-// Separa el prefijo de torneo argentino ("apertura---round-of-16" → Apertura + round-of-16)
-function partirEtapa(slug: string): { torneo: string | null; etapa: string } {
-  const m = slug.match(/^(apertura|clausura)---(.+)$/);
-  if (m) return { torneo: m[1] === "apertura" ? "Apertura" : "Clausura", etapa: m[2] };
-  return { torneo: null, etapa: slug };
+// Separa el prefijo de torneo ("apertura---round-of-16" → Apertura + round-of-16). Un prefijo que
+// empieza con el año es el nombre de la competencia ("2025-argentine-trofeo-de-campeones---final"): se omite.
+export function partirEtapa(slug: string): { torneo: string | null; etapa: string } {
+  const m = slug.match(/^(.+?)---(.+)$/);
+  if (!m) return { torneo: null, etapa: slug };
+  const [, prefijo, etapa] = m;
+  if (/^\d{4}/.test(prefijo)) return { torneo: null, etapa };
+  const torneo =
+    TORNEOS[prefijo] ?? prefijo.split("-").map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+  return { torneo, etapa };
 }
 
 // Temporadas que hay que pedir para tener la temporada en curso completa.

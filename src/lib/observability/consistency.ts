@@ -68,7 +68,8 @@ export async function checkConsistency(db: Database, now = Date.now()): Promise<
       code: "empty_league",
       severity: "warn",
       id: sql`l.id`,
-      from: sql`leagues l WHERE l.is_active = 1 AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.league_id = l.id)`,
+      // Una copa no destacada puede no tener partidos de equipos conocidos todavía (FA Cup antes de la 3.ª ronda)
+      from: sql`leagues l WHERE l.is_active = 1 AND l.is_featured = 1 AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.league_id = l.id)`,
     },
   ];
 
