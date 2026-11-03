@@ -10,12 +10,18 @@ import type { CalendarClient } from "./clients";
 export const PRESUPUESTO_SUBREQUESTS = 45;
 // Se reserva para registrar el run al final: el INSERT y la purga de runs viejos
 export const RESERVA_REGISTRO = 3;
-// Peor caso de un partido: detalle, fila existente, guardar estado (3 consultas), renovar el token
-// (1 consulta y 1 fetch) y crear el evento (hasta 2 fetch: alta y adopción tras un 409)
-export const COSTO_MAX_PARTIDO = 8;
-// Costo fijo de atender a un usuario: pendientes, equipos con auto-sync, sus partidos, sus estados,
-// preferencias y marcarlo como atendido. Para empezar hace falta lugar para al menos un partido.
-export const COSTO_FIJO_USUARIO = 6;
+// Peor caso de un partido con el token ya en mano: detalle, fila existente, guardar estado (3 consultas)
+// y crear el evento (hasta 2 fetch: alta y adopción tras un 409). Se obtiene una vez por usuario.
+export const COSTO_MAX_PARTIDO = 5;
+// Costo fijo de atender a un usuario: pendientes, equipos con auto-sync, sus partidos, sus estados
+// (hasta 3 consultas de 80 ids), preferencias y marcarlo como atendido.
+export const COSTO_FIJO_USUARIO = 8;
+// Obtener el token una vez por usuario, renovándolo: buscar la identidad (1 consulta), la llamada al
+// proveedor (1 fetch) y la doble escritura de docs/18 D6 (identidad y users: 2 sentencias)
+export const COSTO_TOKEN_USUARIO = 4;
+// Un 401 fuerza otra renovación (lo mismo que obtener el token) y repetir la llamada (hasta 2 fetch). Se
+// reserva hasta que ocurre, para no quedar sin lugar para el reintento.
+export const COSTO_RENOVACION_401 = COSTO_TOKEN_USUARIO + 2;
 
 export class Presupuesto {
   private gastado = 0;

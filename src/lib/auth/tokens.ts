@@ -11,14 +11,24 @@ const CALENDAR_SCOPES = {
   microsoft: ["Calendars.ReadWrite", "offline_access"],
 };
 
+export interface OpcionesToken {
+  // Renovar aunque el token parezca vigente: el proveedor lo rechazó con un 401 (docs/17 I2)
+  forzarRenovacion?: boolean;
+  // Se llama justo antes de la llamada de red que renueva (el sync por lotes la suma a su presupuesto)
+  alRenovar?: () => void;
+}
+
 // Devuelve un access token vigente para la API de calendario.
 // Los tokens salen de la identidad del proveedor de calendario activo (users.provider, docs/18 D4);
 // si el usuario todavía no tiene identidad (legado, D6) se usan los de users.*.
-// Si el token venció y hay refresh token, lo renueva y guarda el nuevo.
+// Si el token venció y hay refresh token, lo renueva y guarda el nuevo. Además actualiza `user` en
+// memoria: quien siga usándolo (p. ej. una segunda renovación, con el refresh token rotado de
+// Microsoft) no parte de tokens viejos.
 export async function getValidAccessToken(
   env: Env,
   db: Database,
-  user: DbUser
+  user: DbUser,
+  opciones: OpcionesToken = {}
 ): Promise<string> {
   const identidad = await buscarIdentidadDeUsuario(db, user.id, user.provider as Proveedor);
   const fuente = identidad ?? user;
@@ -29,11 +39,13 @@ export async function getValidAccessToken(
 
   const expiresAt = fuente.tokenExpiresAt;
   const stillValid = !expiresAt || expiresAt > Date.now() + 60_000;
-  if (stillValid) return fuente.accessToken;
+  if (stillValid && !opciones.forzarRenovacion) return fuente.accessToken;
 
   if (!fuente.refreshToken) {
     throw new Error("Calendar permission expired. Volvé a iniciar sesión.");
   }
+
+  opciones.alRenovar?.();
 
   let tokens;
   if (user.provider === "google") {
@@ -62,6 +74,7 @@ export async function getValidAccessToken(
   } else {
     await actualizarUsuario;
   }
+  Object.assign(user, nuevos);
 
   return accessToken;
 }

@@ -290,17 +290,17 @@ describe("reconcileCalendarBatch", () => {
       falso.fallos.update = () => null;
       const r2 = await lote({ now: new Date(MS + 86_400_000), marcarDesactualizados: false });
       expect(r2.usuarios).toBe(0);
-      expect(falso.llamadas.update).toBe(2);
+      expect(falso.llamadas.update).toBe(4); // por usuario: la llamada y el reintento tras renovar (docs/17 I2)
     });
 
     it("un error de autenticación de un usuario no frena a los demás", async () => {
       await pendiente("u1");
       await pendiente("u2");
       await reprogramar("m1");
-      let primera = true;
+      let rechazos = 0;
       falso.fallos.update = () => {
-        if (!primera) return null;
-        primera = false;
+        if (rechazos >= 2) return null; // la llamada y el reintento de u1
+        rechazos++;
         return new CalendarApiError("unauthorized", 401);
       };
       await lote();

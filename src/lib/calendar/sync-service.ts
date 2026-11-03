@@ -10,9 +10,10 @@ import { mensajeDeError, rootLogger } from "../observability/logger";
 import { getMatchDetail } from "../db/queries";
 import { getPreferences } from "../db/preferences";
 import { getClient, type CalendarClient, type MatchDetail } from "./clients";
-import { classifyCalendarError, type CalendarErrorClass } from "./errors";
+import { CalendarApiError, classifyCalendarError, type CalendarErrorClass } from "./errors";
 import { eventState, type OverlapItem } from "./event-state";
-import { COSTO_MAX_PARTIDO, contarCliente, type Presupuesto } from "./presupuesto";
+import { COSTO_MAX_PARTIDO, COSTO_RENOVACION_401, contarCliente, type Presupuesto } from "./presupuesto";
+import type { OpcionesToken } from "../auth/tokens";
 
 type DbUser = typeof users.$inferSelect;
 
@@ -37,7 +38,7 @@ export type SyncMode = "manual" | "auto";
 // Dependencias inyectables (los tests reemplazan el proveedor real y el token)
 export interface SyncDeps {
   client?: CalendarClient;
-  getToken?: (env: Env, db: Database, user: DbUser) => Promise<string>;
+  getToken?: (env: Env, db: Database, user: DbUser, opciones?: OpcionesToken) => Promise<string>;
 }
 
 export interface SyncOptions {
@@ -89,6 +90,30 @@ function upToDate(existing: SyncRow | undefined, snap: Snapshot): boolean {
   );
 }
 
+// Ante un 401 pide un token nuevo y repite la llamada una vez. `renovar` devuelve undefined si ya se
+// renovó antes en esta invocación (la renovación no sirvió: es un problema de acceso, no de token).
+function conRenovacionAnte401(client: CalendarClient, renovar: () => Promise<string | undefined>): CalendarClient {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const reintentable = <A extends any[], R>(fn: (token: string, ...args: A) => Promise<R>) =>
+    async (token: string, ...args: A): Promise<R> => {
+      try {
+        return await fn(token, ...args);
+      } catch (error) {
+        if (error instanceof CalendarApiError && classifyCalendarError(error) === "auth") {
+          const nuevo = await renovar();
+          if (nuevo) return fn(nuevo, ...args);
+        }
+        throw error;
+      }
+    };
+  return {
+    create: (token, match, prefs, ctx) => reintentable(client.create.bind(client))(token, match, prefs, ctx),
+    update: (token, eventId, match, prefs) => reintentable(client.update.bind(client))(token, eventId, match, prefs),
+    remove: (token, eventId) => reintentable(client.remove.bind(client))(token, eventId),
+    overlaps: (token, match, ownEventId) => client.overlaps(token, match, ownEventId),
+  };
+}
+
 // Crea o actualiza el evento de cada partido en el calendario del usuario
 export async function syncMatches(
   db: Database,
@@ -102,20 +127,34 @@ export async function syncMatches(
   const prefs = await getPreferences(db, user.id);
   const { presupuesto } = options;
   const clienteBase = options.deps?.client ?? getClient(user.provider);
-  const client = presupuesto ? contarCliente(clienteBase, presupuesto) : clienteBase;
   const tokenBase = options.deps?.getToken ?? getValidAccessToken;
-  // Renovar un token vencido es otra llamada de red (la consulta que lo guarda ya la cuenta la D1)
-  const getToken: NonNullable<SyncDeps["getToken"]> = presupuesto
-    ? async (e, d, u) => {
-        if (u.tokenExpiresAt && u.tokenExpiresAt <= Date.now() + 60_000) presupuesto.gastar();
-        return tokenBase(e, d, u);
-      }
-    : tokenBase;
+
+  // El token se obtiene una vez por invocación y se reutiliza (docs/17 I1): pedirlo por partido
+  // renovaba un token vencido en cada uno, con el refresh token ya rotado. Renovar es una llamada de red
+  // (la consulta que lo guarda ya la cuenta la D1 instrumentada).
+  let token: string | undefined;
+  let renovadoPorRechazo = false;
+  const obtenerToken = async (forzar = false): Promise<string> => {
+    if (!forzar && token) return token;
+    token = await tokenBase(env, db, user, {
+      forzarRenovacion: forzar,
+      alRenovar: presupuesto ? () => presupuesto.gastar() : undefined,
+    });
+    return token;
+  };
+  // Un 401 con un token que parecía vigente: se renueva y se reintenta una sola vez por invocación
+  // (docs/17 I2). Reintentar es seguro: alta, cambio y baja son idempotentes. Solo el 401 reintenta.
+  const renovarTrasRechazo = async (): Promise<string | undefined> => {
+    if (renovadoPorRechazo) return undefined;
+    renovadoPorRechazo = true;
+    return obtenerToken(true);
+  };
+  const client = conRenovacionAnte401(presupuesto ? contarCliente(clienteBase, presupuesto) : clienteBase, renovarTrasRechazo);
   const results: SyncResult[] = [];
 
   for (let i = 0; i < ids.length; i++) {
     // Sin lugar para otro partido: se frena acá y el resto queda para el próximo lote
-    if (presupuesto && !presupuesto.alcanza(COSTO_MAX_PARTIDO)) break;
+    if (presupuesto && !presupuesto.alcanza(COSTO_MAX_PARTIDO + (renovadoPorRechazo ? 0 : COSTO_RENOVACION_401))) break;
     const matchId = ids[i];
     try {
       const match = await getMatchDetail(db, matchId);
@@ -140,11 +179,11 @@ export async function syncMatches(
       }
 
       if (snap.state === "cancelled") {
-        results.push(await cancelEvent(db, env, user, matchId, existing, snap, client, getToken));
+        results.push(await cancelEvent(db, user, matchId, existing, snap, client, obtenerToken));
         continue;
       }
 
-      const token = await getToken(env, db, user);
+      const token = await obtenerToken();
 
       let externalEventId: string;
       if (existing?.externalEventId) {
@@ -210,25 +249,30 @@ export async function syncMatches(
     }
   }
 
+  // Un alta o cambio a mano que funcionó prueba que el calendario volvió a tener acceso (docs/17 M5)
+  if (mode === "manual" && user.calendarAuthStatus === "reauth_required" && results.some((r) => r.success)) {
+    await db.update(users).set({ calendarAuthStatus: "ok" }).where(eq(users.id, user.id));
+    user.calendarAuthStatus = "ok";
+  }
+
   return results;
 }
 
 // Partido cancelado: se quita el evento y la fila queda cancelled (D10)
 async function cancelEvent(
   db: Database,
-  env: Env,
   user: DbUser,
   matchId: string,
   existing: SyncRow | undefined,
   snap: Snapshot,
   client: CalendarClient,
-  getToken: NonNullable<SyncDeps["getToken"]>
+  obtenerToken: () => Promise<string>
 ): Promise<SyncResult> {
   if (existing?.status === "cancelled") return { matchId, success: true };
   if (!existing) return { matchId, success: false, error: "El partido está cancelado" };
 
   if (existing.externalEventId) {
-    const token = await getToken(env, db, user);
+    const token = await obtenerToken();
     try {
       await client.remove(token, existing.externalEventId);
     } catch (error) {
