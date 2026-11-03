@@ -329,4 +329,90 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
       expect(cookies.set).not.toHaveBeenCalled();
     });
   });
+
+  describe("vincular desde Configuración (intent = link)", () => {
+    const vincular = (provider: string, estado: { userId?: string } = { userId: "ana" }, user: { id: string } | null = { id: "ana" }) => llamar(provider, { intent: "link", ...estado }, user ?? undefined);
+
+    it("V-08: vincula Microsoft aunque el email difiera y la cuenta no esté verificada; no cambia el proveedor activo ni los tokens", async () => {
+      await sembrar({ ...ana, verificado: false });
+      microsoft({ id: "m-5", mail: "otro@corp.com" }, { oid: "m-5" }, { access: "at-ms", refresh: "rt-ms" });
+
+      const res = await vincular("microsoft");
+
+      expect(destino(res)).toBe("/configuracion?vinculado=microsoft");
+      expect(await identidades()).toMatchObject([
+        { id: "ana", provider: "google", access_token: "at-ana" },
+        { user_id: "ana", provider: "microsoft", provider_id: "m-5", email: "otro@corp.com", access_token: "at-ms", refresh_token: "rt-ms" },
+      ]);
+      expect(await usuarios()).toMatchObject([{ id: "ana", email: "ana@example.com", provider: "google", provider_id: "g-1", access_token: "at-ana" }]);
+      // Ya tenía sesión: el vínculo no abre otra
+      expect(cookies.set).not.toHaveBeenCalled();
+      expect(await sesiones()).toBe(0);
+    });
+
+    it("V-09: una identidad que ya es de otro usuario da identidad_en_uso y no fusiona nada", async () => {
+      await sembrar(ana);
+      await sembrar({ id: "beto", email: "beto@corp.com", provider: "microsoft", providerId: "m-1", verificado: false, access: "at-beto" });
+      microsoft({ id: "m-1" }, { oid: "m-1" }, { access: "at-nuevo" });
+
+      const res = await vincular("microsoft");
+
+      expect(destino(res)).toBe("/configuracion?error=identidad_en_uso&proveedor=microsoft");
+      expect(await identidades()).toHaveLength(2);
+      expect(await identidades()).toMatchObject([{ id: "ana" }, { id: "beto", user_id: "beto", access_token: "at-beto" }]);
+      expect(await usuarios()).toHaveLength(2);
+    });
+
+    it("una identidad que ya es de este usuario solo actualiza sus tokens", async () => {
+      await sembrar(ana);
+      google({}, { access: "at-nuevo" });
+      expect(destino(await vincular("google"))).toBe("/configuracion?vinculado=google");
+      expect(await identidades()).toMatchObject([{ id: "ana", access_token: "at-nuevo" }]);
+    });
+
+    it("ya tiene otra cuenta del mismo proveedor vinculada: proveedor_en_uso", async () => {
+      await sembrar(ana);
+      google({ sub: "g-otra" });
+      expect(destino(await vincular("google"))).toBe("/configuracion?error=proveedor_en_uso&proveedor=google");
+      expect(await identidades()).toHaveLength(1);
+    });
+
+    it("V-10: sin sesión vigente da vinculo_sesion y no vincula", async () => {
+      await sembrar(ana);
+      microsoft({ id: "m-5" }, { oid: "m-5" });
+      expect(destino(await vincular("microsoft", { userId: "ana" }, null))).toBe("/login?error=vinculo_sesion");
+      expect(await identidades()).toHaveLength(1);
+    });
+
+    it("V-10: con la sesión de otro usuario da vinculo_sesion y no vincula", async () => {
+      await sembrar(ana);
+      await sembrar({ id: "beto", email: "beto@corp.com", provider: "microsoft", providerId: "m-1", verificado: false });
+      microsoft({ id: "m-5" }, { oid: "m-5" });
+      expect(destino(await vincular("microsoft", { userId: "ana" }, { id: "beto" }))).toBe("/configuracion?error=vinculo_sesion");
+      expect(await identidades()).toHaveLength(2);
+    });
+
+    it("V-10: el state es de un solo uso", async () => {
+      await sembrar(ana);
+      microsoft({ id: "m-5" }, { oid: "m-5" });
+      await vincular("microsoft");
+      const segundo = await GET(
+        apiCtx({
+          url: "https://fisture.test/api/auth/callback/microsoft?code=c&state=st-1",
+          params: { provider: "microsoft" },
+          user: { id: "ana" },
+          env: { ENVIRONMENT: "production", DB: t.DB, OAUTH_STATE_SECRET },
+          over: { cookies, redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) },
+        })
+      );
+      expect(destino(segundo)).toBe("/login?error=invalid_state");
+    });
+
+    it("un login normal nunca vincula aunque el usuario tenga sesión", async () => {
+      await sembrar(ana);
+      microsoft({ id: "m-5", mail: "ana@example.com" }, { oid: "m-5" });
+      expect(destino(await llamar("microsoft", {}, { id: "ana" }))).toMatch(/^\/login\?error=email_en_uso/);
+      expect(await identidades()).toHaveLength(1);
+    });
+  });
 });
