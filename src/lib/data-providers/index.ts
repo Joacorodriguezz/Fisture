@@ -12,7 +12,7 @@ export type {
   TipoCompetencia,
   Region,
 } from "./types";
-export { LEAGUES_CONFIG, getLeaguesBySource } from "./types";
+export { LEAGUES_CONFIG, COMPETENCIAS_POR_LOTE, getLeaguesBySource, lotesDeSync } from "./types";
 export { createEspnClient } from "./espn";
 export { createFootballDataClient } from "./football-data";
 export { createPromiedosClient } from "./promiedos";

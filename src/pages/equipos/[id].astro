@@ -10,9 +10,10 @@ import SincronizarPartido from "../../components/islands/SincronizarPartido";
 import { createDb } from "../../lib/db";
 import { getTeamUpcomingMatches, getSyncStates } from "../../lib/db/queries";
 import { and, eq } from "drizzle-orm";
-import { leagues, teams, userTeams } from "../../../drizzle/schema";
+import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 import { fechaCorta, hora } from "../../lib/format";
 import { loginHref } from "../../lib/auth/guards";
+import { jsonLdEquipo, jsonLdMigas, rutaPublica } from "../../lib/seo";
 
 // Página pública: seguir al equipo y el estado de sync solo aplican con sesión
 const user = Astro.locals.user;
@@ -30,6 +31,20 @@ if (!team) {
 }
 
 const liga = await db.query.leagues.findFirst({ where: eq(leagues.id, team.leagueId) });
+
+// Todo lo que juega en la temporada: su liga, las copas internacionales y las nacionales (docs/22)
+const competencias = (
+  await db
+    .select({ id: leagues.id, name: leagues.name, isFeatured: leagues.isFeatured })
+    .from(leagueTeams)
+    .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))
+    .where(and(eq(leagueTeams.teamId, id), eq(leagues.isActive, true)))
+).sort((a, b) => {
+  if (a.id === team.leagueId) return -1;
+  if (b.id === team.leagueId) return 1;
+  if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
+  return a.name.localeCompare(b.name, "es");
+});
 
 const seguimiento = user
   ? await db.query.userTeams.findFirst({
@@ -53,6 +68,23 @@ const estados = user
   ? await getSyncStates(db, user.id, partidos.map((m) => m.match.id))
   : new Map<string, { status: string; errorMessage: string | null }>();
 
+const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
+const proximo = todos[0];
+// Lo distintivo (equipo, liga y próximo partido) va primero: el Layout recorta lo que pase de ~160
+const descripcion = `Fixture de ${team.name}${liga ? ` (${liga.name})` : ""}: ${
+  proximo
+    ? `próximo partido ${proximo.homeTeam.name} vs ${proximo.awayTeam.name}, ${fechaCorta(proximo.match.dateTime)} a las ${hora(proximo.match.dateTime)}.`
+    : "sus próximos partidos con día y hora."
+} Sincronizalo con tu calendario.`;
+const jsonLd = [
+  jsonLdEquipo(appUrl, team, liga),
+  jsonLdMigas(appUrl, [
+    { nombre: "Ligas", ruta: "/ligas" },
+    ...(liga ? [{ nombre: liga.name, ruta: rutaPublica("ligas", liga.id) }] : []),
+    { nombre: team.name, ruta: rutaPublica("equipos", team.id) },
+  ]),
+];
+
 const filtros = [
   { valor: "todos", label: "Todos" },
   { valor: "local", label: "Local" },
@@ -60,7 +92,7 @@ const filtros = [
 ];
 ---
 
-<Layout title={`${team.name} - FISTURE`} pagina={3}>
+<Layout title={`Fixture de ${team.name} - FISTURE`} pagina={3} descripcion={descripcion} jsonLd={jsonLd}>
   <div style="display:flex;flex-direction:column;gap:32px">
     <div class="eq-mig" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;font:700 14px/18px var(--font-rotulo);color:var(--tinta-suave)">
       <a href="/ligas" style="color:var(--tinta);text-decoration:none;letter-spacing:.06em;text-transform:uppercase">Ligas</a>
@@ -81,6 +113,11 @@ const filtros = [
       <div class="eq-titulo" style="flex:1;min-width:280px;display:flex;flex-direction:column;align-items:flex-start;gap:12px">
         <Volanta tono="rojo">{liga?.name ?? "Liga"}</Volanta>
         <Titular nivel="1">{team.name}</Titular>
+        {competencias.length > 1 && (
+          <p class="eq-competencias" style="margin:0;font:600 14px/20px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">
+            Juega {competencias.map((c) => c.name).join(" · ")}
+          </p>
+        )}
         <div class="eq-acciones" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
           <SeguimientoEquipo
             client:load
@@ -134,7 +171,7 @@ const filtros = [
                   <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
                     <span style="font:700 17px/20px var(--font-rotulo);text-transform:uppercase">vs {rival.name}</span>
                     <span style="font:500 13px/17px var(--font-rotulo);color:var(--tinta-suave)">
-                      {esLocal ? "Local" : "Visitante"} · {m.match.venue ?? "Sede a confirmar"}
+                      {m.league.name} · {esLocal ? "Local" : "Visitante"} · {m.match.venue ?? "Sede a confirmar"}
                     </span>
                   </div>
                 </div>

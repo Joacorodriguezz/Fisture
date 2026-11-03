@@ -139,6 +139,28 @@ wrangler secret put RAPIDAPI_KEY
 wrangler secret put ADMIN_SECRET
 ```
 
+### 5.1 Inventario de credenciales (sin valores)
+
+Fuente de verdad: `npx wrangler pages secret list --project-name fisture` y GitHub → Settings → Secrets and
+variables → Actions. Ningún valor va en `.dev.vars` commiteado (`.dev.vars` está en `.gitignore`). Cómo rotar
+cada uno: `docs/23-runbook-de-incidentes.md` §5.
+
+| Nombre | Dónde | Para qué | Si falta |
+| --- | --- | --- | --- |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Pages (secret) | OAuth y Google Calendar | No hay login con Google |
+| `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | Pages (secret) | OAuth y Outlook. **El secret vence** (6–24 meses): anotar la fecha en Entra ID | No hay login con Microsoft |
+| `OAUTH_STATE_SECRET` | Pages (secret) | Firma la cookie del estado del login (docs/20) | El login falla cerrado; `/api/health` 503 |
+| `ADMIN_SECRET` | Pages (secret) **y** GitHub Actions | `POST /api/admin/sync`, `GET /api/admin/status` | El sync diario responde 401 |
+| `FOOTBALL_DATA_API_KEY`, `API_FOOTBALL_KEY` | Pages (secret), opcionales | Proveedores alternativos, hoy fuera de `LEAGUES_CONFIG` | Nada |
+| `PUBLIC_APP_URL` | `wrangler.toml` `[vars]` **y** GitHub Actions | URL pública (`https://fisture.com`) para OAuth, SEO, smoke, sync y monitor | Redirects y smoke rotos |
+| `ENVIRONMENT` | `wrangler.toml` `[vars]` | Nivel de logs | Logs en nivel por defecto |
+| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions | `deploy.yml` (Pages y D1). Alcance mínimo: *Cloudflare Pages: Edit* y *D1: Edit* de esta cuenta | No hay deploy |
+
+**Desarrollo y producción separados.** Usar un cliente OAuth de Google y una app de Entra ID para desarrollo
+(redirect `http://localhost:4321/api/auth/callback/*`, credenciales en `.dev.vars`) y otros para producción (solo
+`https://fisture.com/api/auth/callback/*`, credenciales solo en Pages). Así se pueden quitar las URIs de localhost
+del cliente de producción, que es lo que revisa la verificación de Google.
+
 ### 6. Conectar con GitHub
 
 1. Ir a https://dash.cloudflare.com
@@ -170,6 +192,17 @@ El proyecto `fisture` de Pages **no tiene Git conectado**, así que mergear a `m
 - `PUBLIC_APP_URL` y `ADMIN_SECRET` (los usa el workflow del cron de sync).
 
 `ENVIRONMENT` y `PUBLIC_APP_URL` salen de `wrangler.toml` (`[vars]`). Los secrets de la app (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ADMIN_SECRET`, `FOOTBALL_DATA_API_KEY`, etc.) se cargan con `npx wrangler pages secret put <NOMBRE> --project-name fisture`.
+
+### 6.3 Headers de seguridad
+
+Toda respuesta del Worker pasa por `src/lib/security-headers.ts` (primer middleware de `src/middleware.ts`): `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` y `Permissions-Policy`, más la `Content-Security-Policy` (en `astro dev` no va la CSP: el dev toolbar escribe un script inline distinto en cada página). Los assets estáticos (`/_astro/*`, favicon) no pasan por el Worker y llevan los headers fijos desde `public/_headers`: si se cambia uno, cambiar los dos.
+
+- `script-src 'self'` sin `'unsafe-inline'`: solo se autorizan por hash SHA-256 los scripts inline de una lista fija (`SCRIPTS_INLINE`: el del tema y los que Astro escribe para hidratar islands). No se hashea el HTML de la respuesta, así que un `<script>` inyectado queda bloqueado, y el HTML sigue saliendo en streaming.
+- Los `<script>` de componentes salen siempre como archivo en `/_astro` (`assetsInlineLimit` en `astro.config.mjs`) y entran por `'self'`. Un `<script is:inline>` nuevo **sí** hay que sumarlo a `SCRIPTS_INLINE` (e insertarlo con `set:html` desde la constante, como `SCRIPT_TEMA`); el E2E `security-headers.spec.ts` falla si queda alguno sin autorizar. Un handler inline (`onclick=`, `onload=`) o un script de otro dominio quedan bloqueados.
+- Si una página pasa a `prerender = true`, se sirve como asset estático y no lleva CSP.
+- `style-src` admite `'unsafe-inline'` porque los componentes usan atributos `style=""`.
+- Agregar un recurso externo nuevo (fuente, script, `fetch` a otro dominio) exige sumar su origen en `construirCsp`.
+- Después del deploy: revisar `https://securityheaders.com/?q=fisture.com` y la consola del navegador (no debe haber violaciones de CSP). HSTS se activa en Cloudflare (SSL/TLS → Edge Certificates), no acá.
 
 ### 7. Configurar Dominio (Opcional)
 

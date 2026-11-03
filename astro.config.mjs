@@ -17,6 +17,11 @@ export default defineConfig({
     tailwind(),
   ],
   vite: {
+    build: {
+      // Los <script> de componentes nunca se inlinean: la CSP solo autoriza por hash una lista fija
+      // de scripts inline (src/lib/security-headers.ts); como archivo en /_astro entran por 'self'
+      assetsInlineLimit: (archivo) => (archivo.endsWith(".js") ? false : undefined),
+    },
     resolve: {
       // React 19 usa MessageChannel en react-dom/server.browser, que Workers no tiene:
       // en producción se usa la build "edge" (solo en el build, el dev server la rompe)

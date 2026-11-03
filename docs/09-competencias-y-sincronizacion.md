@@ -5,15 +5,23 @@
 Fuente única: **ESPN** (API pública, sin API key). Configuración en
 `src/lib/data-providers/types.ts` (`LEAGUES_CONFIG`). El `externalId` de cada competencia es el slug de ESPN.
 
-| Región | Competencias |
-| --- | --- |
-| Europa (ligas) | Premier League `eng.1`, La Liga `esp.1`, Serie A `ita.1`, Bundesliga `ger.1`, Ligue 1 `fra.1` |
-| Argentina | Liga Profesional `arg.1` |
-| Europa (clubes) | Champions `uefa.champions`, Europa League `uefa.europa`, Conference League `uefa.europa.conf`, Supercopa `uefa.super_cup` |
-| Sudamérica (clubes) | Libertadores `conmebol.libertadores`, Sudamericana `conmebol.sudamericana`, Recopa `conmebol.recopa` |
+Hay dos clases de competencias (docs/22):
 
-Para agregar una competencia: sumar una entrada a `LEAGUES_CONFIG` (slug de ESPN). El orden importa:
-las ligas van antes que las copas para que cada equipo quede asociado a su liga de origen.
+- **Destacadas**: se listan en `/ligas`, en los filtros, en la búsqueda, el sitemap y `llms.txt`, con todos sus participantes.
+- **No destacadas**: no se listan. Solo se guardan los partidos en los que juega algún equipo de una competencia
+  destacada (y su rival), y aparecen en el fixture de ese equipo, en `/hoy`, `/partidos`, el `.ics` y el calendario.
+
+| Clase | Competencias |
+| --- | --- |
+| Ligas (destacadas) | Premier League `eng.1`, La Liga `esp.1`, Serie A `ita.1`, Bundesliga `ger.1`, Ligue 1 `fra.1`, Liga Profesional `arg.1`, Brasileirão `bra.1` |
+| Copas destacadas | Champions `uefa.champions`, Europa League `uefa.europa`, Conference `uefa.europa.conf`, Libertadores `conmebol.libertadores`, Sudamericana `conmebol.sudamericana` |
+| Internacionales no destacadas | Clasificatorias UEFA (`*_qual`), Supercopa de la UEFA, Recopa, Mundial de Clubes `fifa.cwc`, Copa Intercontinental |
+| Copas nacionales (no destacadas) | FA Cup, Carabao Cup, Community Shield, Copa del Rey, Supercopa de España, Coppa Italia, Supercopa de Italia, DFB-Pokal, Supercopa de Alemania, promociones de Bundesliga y Ligue 1, Coupe de France, Trophée des Champions, Copa Argentina, Supercopa Argentina, Supercopa Internacional, Trofeo de Campeones, Copa do Brasil, Supercopa do Brasil, Copa do Nordeste y estaduales (Paulista, Carioca, Mineiro, Gaúcho) |
+
+Para agregar una competencia: sumar una entrada a `LEAGUES_CONFIG` (slug de ESPN) con `liga`, `copaDestacada` o
+`copa`. El orden importa: ligas, después copas destacadas y al final el resto, para que cada equipo quede asociado
+a su liga de origen y las copas no destacadas ya conozcan a los equipos. Un equipo que entró por una copa (sin
+país) adopta su liga cuando esa liga se sincroniza.
 
 ## Cómo funciona
 
@@ -55,8 +63,10 @@ npx wrangler d1 execute fisture-db --remote --file=drizzle/migrations/0003_leagu
 - Sync completo: cron diario (`functions/scheduled.ts`) o `POST /api/admin/sync` con `Authorization: Bearer $ADMIN_SECRET`.
   Hay que enviar `Content-Type: application/json` (cuerpo `{}`): sin él, la protección CSRF de Astro responde 403.
 - Una sola competencia: `POST /api/admin/sync` con `{"leagueId": "eng.1"}`.
-- Un sync completo hace ~130 consultas/subrequests (10 por competencia). Workers Free admite 50 por
-  invocación: en ese plan hay que sincronizar competencia por competencia.
+- Por lotes (lo que usa `sync-cron.yml`): `POST /api/admin/sync` con `{"lote": 0}`; la respuesta trae
+  `siguienteLote` (`null` en el último, que además desactiva las competencias que salieron de la configuración).
+  Workers Free admite 50 subrequests por invocación y un sync completo de ~43 competencias no entra: cada lote
+  son 5 competencias (docs/22 D4).
 
 ## Verificación de punta a punta
 

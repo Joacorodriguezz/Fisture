@@ -5,7 +5,13 @@ import { seedApp } from "../../helpers/fixtures";
 import { apiCtx, kvEnMemoria, silenciarConsola } from "../../helpers/ctx";
 import { createSession } from "../../../src/lib/auth/session";
 
-vi.mock("astro:middleware", () => ({ defineMiddleware: (fn: unknown) => fn }));
+type Mw = (ctx: unknown, next: () => Promise<Response>) => Promise<Response>;
+vi.mock("astro:middleware", () => ({
+  defineMiddleware: (fn: unknown) => fn,
+  // Encadena como Astro: cada middleware recibe como `next` al siguiente
+  sequence: (...fns: Mw[]) => (ctx: unknown, next: () => Promise<Response>) =>
+    fns.reduceRight<() => Promise<Response>>((sig, fn) => () => fn(ctx, sig), next)(),
+}));
 
 import { onRequest } from "../../../src/middleware";
 import { GET as logout } from "../../../src/pages/api/auth/logout";
@@ -70,6 +76,15 @@ describe("middleware y logout con sesiones en D1", () => {
     const r = await pasar(vencida, "/");
     expect(r.locals.user).toBeUndefined();
     expect(r.cookies.delete).toHaveBeenCalledWith("session", { path: "/" });
+  });
+
+  it("agrega los headers de seguridad, también a las redirecciones", async () => {
+    const { res } = await pasar(undefined, "/ligas");
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+
+    const r = await pasar(undefined, "/configuracion");
+    expect(r.res.status).toBe(302);
+    expect(r.res.headers.get("X-Frame-Options")).toBe("DENY");
   });
 
   it("S11: logout borra la fila y la cookie, con 0 operaciones de KV", async () => {

@@ -38,3 +38,4 @@ drizzle/meta/
 coverage/
 playwright-report/
 test-results/
+.esquema-*/

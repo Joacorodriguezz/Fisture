@@ -153,6 +153,14 @@ test("un fallo de auth se informa y permite reintentar sin persistir un falso fa
   await expect(page.getByRole("button", { name: "Agregar al calendario", exact: true })).toBeVisible();
 });
 
+test("las copas no destacadas no se listan pero aparecen en el equipo", async ({ page }) => {
+  await page.goto("/ligas");
+  await expect(page.getByText("Liga E2E", { exact: true })).toBeVisible();
+  await expect(page.getByText("Copa E2E", { exact: true })).toHaveCount(0);
+  await page.goto("/equipos/river");
+  await expect(page.getByText("Juega Liga E2E · Copa E2E", { exact: true })).toBeVisible();
+});
+
 test("las acciones personales piden login y conservan un retorno seguro", async ({ page }) => {
   await page.goto("/equipos/river");
   const follow = page.getByRole("button", { name: "Seguir equipo", exact: true });

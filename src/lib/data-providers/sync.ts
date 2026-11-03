@@ -14,6 +14,7 @@ import {
   createFootballDataClient,
   createPromiedosClient,
   LEAGUES_CONFIG,
+  lotesDeSync,
   type DataProvider,
   type LeagueConfig,
   type ProviderMatch,
@@ -83,6 +84,30 @@ export async function syncAllLeagues(env: SyncEnv): Promise<SyncResult[]> {
   return results;
 }
 
+export interface LoteResult {
+  lote: number;
+  totalLotes: number;
+  // null en el último lote: no queda nada por sincronizar
+  siguienteLote: number | null;
+  results: SyncResult[];
+}
+
+// Sincroniza un lote de competencias (docs/22 D4): en Workers Free una invocación no alcanza para
+// todas. Los lotes siguen el orden de LEAGUES_CONFIG, así las ligas se cargan antes que las copas.
+// El último lote desactiva las competencias que ya no están en la configuración.
+export async function syncLote(env: SyncEnv, lote: number): Promise<LoteResult> {
+  const lotes = lotesDeSync();
+  if (!Number.isInteger(lote) || lote < 0 || lote >= lotes.length) {
+    throw new RangeError(`Lote inexistente: ${lote} (hay ${lotes.length})`);
+  }
+
+  const results = await syncLeagues(env, lotes[lote]);
+  const esUltimo = lote === lotes.length - 1;
+  if (esUltimo) await desactivarLigasObsoletas(createDb(env.DB));
+
+  return { lote, totalLotes: lotes.length, siguienteLote: esUltimo ? null : lote + 1, results };
+}
+
 export async function syncSingleLeague(env: SyncEnv, leagueExternalId: string): Promise<SyncResult> {
   const config = LEAGUES_CONFIG.find((l) => l.externalId === leagueExternalId);
 
@@ -129,6 +154,19 @@ async function desactivarLigasObsoletas(db: Database): Promise<void> {
   await db.update(leagues).set({ isActive: false }).where(notInArray(leagues.externalId, activas));
 }
 
+// Equipos (externalId) que participan de alguna competencia destacada activa de la fuente.
+// Una copa no destacada solo guarda los partidos de estos equipos: así la FA Cup no carga
+// cientos de partidos entre clubes amateurs que nadie puede seguir.
+async function equiposConocidos(db: Database, source: string): Promise<Set<string>> {
+  const filas = await db
+    .selectDistinct({ externalId: teams.externalId })
+    .from(leagueTeams)
+    .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))
+    .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
+    .where(and(eq(leagues.isFeatured, true), eq(leagues.isActive, true), eq(teams.source, source)));
+  return new Set(filas.map((f) => f.externalId));
+}
+
 // Temporada a la que pertenece hoy una competencia (la europea arranca en agosto)
 function temporadaActual(config: LeagueConfig, ahora = new Date()): number {
   const anio = ahora.getUTCFullYear();
@@ -163,6 +201,7 @@ async function syncLeague(db: Database, provider: DataProvider, config: LeagueCo
         source: config.source,
         season: temporadaActual(config),
         isActive: true,
+        isFeatured: config.destacada,
       })
       .onConflictDoUpdate({
         target: leagues.externalId,
@@ -172,18 +211,20 @@ async function syncLeague(db: Database, provider: DataProvider, config: LeagueCo
           source: config.source,
           season: temporadaActual(config),
           isActive: true,
+          isFeatured: config.destacada,
         },
       })
       .returning({ id: leagues.id });
     const ligaId = liga.id;
 
     // 2. Fixture de la competencia (equipos + partidos)
-    const fixture = provider.getFixture
+    const completo = provider.getFixture
       ? await provider.getFixture(config.externalId)
       : {
           teams: await provider.getTeams(config.externalId),
           matches: await provider.getMatches(config.externalId, { from: desde() }),
         };
+    const fixture = config.destacada ? completo : await soloEquiposConocidos(db, config, completo);
 
     // 3. Equipos: participantes de la temporada y los que aparecen en partidos que se guardan
     const participantesExternos = new Set(fixture.participantIds ?? fixture.teams.map((t) => t.externalId));
@@ -221,6 +262,25 @@ async function syncLeague(db: Database, provider: DataProvider, config: LeagueCo
   return result;
 }
 
+// Copa no destacada: solo los partidos con al menos un equipo conocido. Participan los equipos
+// de esos partidos (incluido el rival, para poder mostrar el cruce).
+async function soloEquiposConocidos(
+  db: Database,
+  config: LeagueConfig,
+  fixture: { teams: ProviderTeam[]; matches: ProviderMatch[] }
+): Promise<{ teams: ProviderTeam[]; matches: ProviderMatch[]; participantIds: string[] }> {
+  const conocidos = await equiposConocidos(db, config.source);
+  const partidos = fixture.matches.filter(
+    (m) => conocidos.has(m.homeTeamExternalId) || conocidos.has(m.awayTeamExternalId)
+  );
+  const participantes = new Set(partidos.flatMap((m) => [m.homeTeamExternalId, m.awayTeamExternalId]));
+  return {
+    teams: fixture.teams.filter((t) => participantes.has(t.externalId)),
+    matches: partidos,
+    participantIds: [...participantes],
+  };
+}
+
 function desde(): Date {
   return new Date(Date.now() - DIAS_ATRAS * 24 * 60 * 60 * 1000);
 }
@@ -234,7 +294,14 @@ async function syncEquipos(
 ): Promise<Map<string, string>> {
   // Los IDs son globales por fuente: un equipo de la liga y de una copa es una sola fila
   const existentes = await db
-    .select({ id: teams.id, externalId: teams.externalId, name: teams.name, shortName: teams.shortName, logo: teams.logo })
+    .select({
+      id: teams.id,
+      externalId: teams.externalId,
+      name: teams.name,
+      shortName: teams.shortName,
+      logo: teams.logo,
+      country: teams.country,
+    })
     .from(teams)
     .where(eq(teams.source, config.source));
   const porExterno = new Map(existentes.map((t) => [t.externalId, t]));
@@ -264,7 +331,11 @@ async function syncEquipos(
     }
 
     ids.set(t.externalId, actual.id);
+    // Un equipo que entró por una copa (sin país) pasa a su liga cuando esa liga se sincroniza:
+    // p. ej. Flamengo, cargado por la Libertadores antes de que existiera el Brasileirão
+    const adoptaLiga = config.tipo === "liga" && actual.country === null;
     const cambio =
+      adoptaLiga ||
       actual.name !== t.name ||
       (t.shortName ?? null) !== actual.shortName ||
       (t.logo ?? null) !== actual.logo;
@@ -273,7 +344,13 @@ async function syncEquipos(
       cambios.push(
         db
           .update(teams)
-          .set({ name: t.name, shortName: t.shortName, logo: t.logo, updatedAt: new Date() })
+          .set({
+            name: t.name,
+            shortName: t.shortName,
+            logo: t.logo,
+            ...(adoptaLiga ? { leagueId: ligaId, country: config.country } : {}),
+            updatedAt: new Date(),
+          })
           .where(eq(teams.id, actual.id))
       );
     }

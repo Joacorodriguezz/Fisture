@@ -6,7 +6,7 @@ import { relojFijo } from "../../helpers/clock";
 import { seedApp } from "../../helpers/fixtures";
 import { callApi } from "../../helpers/api";
 import { silenciarConsola } from "../../helpers/ctx";
-import { teams, userTeams } from "../../../drizzle/schema";
+import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 import { POST as seguirEquipo } from "../../../src/pages/api/equipos/index";
 import { DELETE as dejar, PATCH as configurar } from "../../../src/pages/api/equipos/[id]";
 import { GET as buscar } from "../../../src/pages/api/equipos/buscar";
@@ -116,6 +116,7 @@ describe("endpoints de equipos: bordes", () => {
 
     it("con sesión marca isFollowing solo en los equipos que sigue", async () => {
       await t.db.insert(teams).values({ id: "boca-unidos", externalId: "test:boca-unidos", name: "Boca Unidos", leagueId: "test-league" });
+      await t.db.insert(leagueTeams).values({ leagueId: "test-league", teamId: "boca-unidos" });
       await seguir("boca");
       const lista = (await consultar("boca", fixtures.user)) as { id: string; isFollowing: boolean }[];
       expect(Object.fromEntries(lista.map((e) => [e.id, e.isFollowing]))).toEqual({ boca: true, "boca-unidos": false });
@@ -123,8 +124,27 @@ describe("endpoints de equipos: bordes", () => {
 
     it("limita los resultados a 20", async () => {
       // D1 admite pocas variables por consulta: se inserta de a un equipo
-      for (let i = 0; i < 25; i++) await t.db.insert(teams).values({ id: `x${i}`, externalId: `e-x${i}`, name: `Club Atlético ${i}`, leagueId: "test-league" });
+      for (let i = 0; i < 25; i++) {
+        await t.db.insert(teams).values({ id: `x${i}`, externalId: `e-x${i}`, name: `Club Atlético ${i}`, leagueId: "test-league" });
+        await t.db.insert(leagueTeams).values({ leagueId: "test-league", teamId: `x${i}` });
+      }
       expect(await consultar("atlético")).toHaveLength(20);
+    });
+
+    it("no ofrece equipos que solo juegan copas no destacadas (rivales de copas nacionales)", async () => {
+      await t.db.insert(leagues).values({ id: "copa", externalId: "test:copa", name: "Copa nacional", country: "Argentina", season: 2026, isFeatured: false });
+      await t.db.insert(teams).values({ id: "amateur", externalId: "test:amateur", name: "Juniors Amateur", leagueId: "copa" });
+      await t.db.insert(leagueTeams).values([{ leagueId: "copa", teamId: "amateur" }, { leagueId: "copa", teamId: "boca" }]);
+
+      expect((await consultar("juniors")) as { id: string }[]).toEqual([expect.objectContaining({ id: "boca" })]);
+    });
+
+    it("no ofrece equipos de competencias desactivadas", async () => {
+      await t.db.insert(leagues).values({ id: "vieja", externalId: "test:vieja", name: "Liga vieja", country: "Argentina", season: 2020, isActive: false });
+      await t.db.insert(teams).values({ id: "viejo", externalId: "test:viejo", name: "Juniors Viejo", leagueId: "vieja" });
+      await t.db.insert(leagueTeams).values({ leagueId: "vieja", teamId: "viejo" });
+
+      expect((await consultar("juniors")) as { id: string }[]).toEqual([expect.objectContaining({ id: "boca" })]);
     });
 
     // Defecto conocido: los comodines de LIKE no se escapan, así que q=%% devuelve todos los equipos.

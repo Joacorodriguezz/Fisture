@@ -52,7 +52,10 @@ drizzle/
 - Todo handler de `pages/api/**` se exporta envuelto con `withApi(...)` (`lib/observability/with-api.ts`): requestId (header `x-request-id`), log de request y captura de excepciones (500 uniforme).
 - Logs: usar `locals.logger` en handlers y `rootLogger` en servicios (`lib/observability/logger.ts`). Formato JSON; nunca `console.*` directo ni datos personales/credenciales (las claves sensibles se enmascaran).
 - Cada sync (cron o `POST /api/admin/sync`) pasa por `runSync` y queda en la tabla `sync_runs`, con chequeos de consistencia.
+- En producción (Workers Free, 50 subrequests por invocación) el sync diario va por lotes de 5 competencias: `{"lote": n}` hasta que `siguienteLote` sea `null` (`docs/22`).
+- Competencias: solo las destacadas (ligas, Champions, Europa, Conference, Libertadores, Sudamericana) se listan; las copas nacionales y supercopas aparecen en el fixture de cada equipo (`leagues.is_featured`, `docs/22`).
 - `GET /api/health` (público): 200 ok/degraded, 503 fail. `GET /api/admin/status` (Bearer `ADMIN_SECRET`): salud + últimos 20 runs + conteo de sesiones vigentes y vencidas.
+- Alertas: `sync-cron.yml` (sync fallido) y `monitor.yml` (`/api/health` cada 30 min) abren un issue con la etiqueta `incidente` (GitHub avisa por email) y lo cierran al recuperarse. Pasos a seguir: `docs/23-runbook-de-incidentes.md`.
 - Ver logs en vivo: `npx wrangler pages deployment tail`. Diseño completo: `docs/10-observabilidad-tdd.md`.
 
 ## Commits y Pull Requests
