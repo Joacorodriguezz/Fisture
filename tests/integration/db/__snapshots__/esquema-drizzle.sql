@@ -33,7 +33,8 @@ CREATE TABLE `leagues` (
 	`logo` text,
 	`season` integer NOT NULL,
 	`source` text DEFAULT 'football-data' NOT NULL,
-	`is_active` integer DEFAULT true
+	`is_active` integer DEFAULT true,
+	`is_featured` integer DEFAULT true NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `leagues_external_id_unique` ON `leagues` (`external_id`);--> statement-breakpoint

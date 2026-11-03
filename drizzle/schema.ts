@@ -37,6 +37,8 @@ export const leagues = sqliteTable("leagues", {
   season: integer("season").notNull(),
   source: text("source").notNull().default("football-data"), // 'football-data' | 'promiedos'
   isActive: integer("is_active", { mode: "boolean" }).default(true),
+  // Destacada: se lista en /ligas y en la búsqueda. Las demás copas solo aparecen en el fixture de cada equipo (docs/22)
+  isFeatured: integer("is_featured", { mode: "boolean" }).notNull().default(true),
 });
 
 export const teams = sqliteTable(
