@@ -5,7 +5,8 @@ import { AHORA, DIA_MS, relojFijo } from "../helpers/clock";
 import { ENV_VACIO, seedApp } from "../helpers/fixtures";
 import { calendarHttp } from "../helpers/calendar-http";
 import { calendarSyncs, matches, userTeams } from "../../drizzle/schema";
-import { markOutdatedEvents, removeMatchFromCalendar, reconcileCalendars, syncMatches } from "../../src/lib/calendar/sync-service";
+import { markOutdatedEvents, removeMatchFromCalendar, syncMatches } from "../../src/lib/calendar/sync-service";
+import { reconcileCalendarBatch } from "../../src/lib/calendar/reconcile";
 
 describe("servicio → cliente HTTP → D1", () => {
   const t = useTestDb();
@@ -135,37 +136,39 @@ describe("servicio → cliente HTTP → D1", () => {
     });
   });
 
-  describe("reconciliación del cron", () => {
+  describe("reconciliación por lotes", () => {
+    // corte posterior a la hora fija: cada llamada es un barrido nuevo que atiende de nuevo a todos
+    const reconciliar = () => reconcileCalendarBatch(ENV_VACIO, t.db, undefined, { marcarDesactualizados: true, corte: AHORA.getTime() + 1 });
     beforeEach(async () => {
       await sincronizar();
     });
 
     it("corrige eventos manuales aunque el usuario no tenga auto-sync", async () => {
       await t.db.update(matches).set({ venue: "Otra sede" });
-      await reconcileCalendars(ENV_VACIO, t.db);
+      await reconciliar();
       expect((await filasSync())[0]).toMatchObject({ status: "synced", syncedVenue: "Otra sede" });
     });
 
     it("si el usuario borró el evento queda detached y no se recrea", async () => {
       http.events.clear();
       await t.db.update(matches).set({ venue: "Tercera sede" });
-      await reconcileCalendars(ENV_VACIO, t.db);
+      await reconciliar();
       expect((await filasSync())[0]).toMatchObject({ status: "detached", externalEventId: null });
     });
 
     it("el auto-sync posterior no resucita un evento detached", async () => {
       http.events.clear();
       await t.db.update(matches).set({ venue: "Tercera sede" });
-      await reconcileCalendars(ENV_VACIO, t.db);
+      await reconciliar();
       await t.db.insert(userTeams).values({ userId: fixtures.user.id, teamId: "river", autoSync: true });
-      await reconcileCalendars(ENV_VACIO, t.db);
+      await reconciliar();
       expect(http.events.size).toBe(0);
     });
 
     it("un pedido manual explícito sí recrea un evento detached", async () => {
       http.events.clear();
       await t.db.update(matches).set({ venue: "Tercera sede" });
-      await reconcileCalendars(ENV_VACIO, t.db);
+      await reconciliar();
       await sincronizar();
       expect(http.events.size).toBe(1);
     });
