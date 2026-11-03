@@ -126,7 +126,8 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
     cookies.set("session", sessionId, {
       path: "/",
       httpOnly: true,
-      secure: env.ENVIRONMENT === "production",
+      // Staging también se sirve por HTTPS (docs/26)
+      secure: env.ENVIRONMENT === "production" || env.ENVIRONMENT === "staging",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 30,
     });
