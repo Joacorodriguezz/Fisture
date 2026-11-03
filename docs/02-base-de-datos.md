@@ -87,6 +87,10 @@ import { sql } from "drizzle-orm"
 // USUARIOS Y AUTH
 // ============================================
 
+// NOTA (docs/18): el schema vigente está en drizzle/schema.ts. Desde la migración 0010 existe la tabla
+// oauth_identities (una fila por cuenta de proveedor vinculada, única por (provider, provider_id) y por
+// (user_id, provider), ON DELETE CASCADE), users.email_verified y el índice único sobre lower(users.email).
+// users.provider es el proveedor de calendario activo; provider_id y los tokens de users quedan deprecados.
 export const users = sqliteTable("users", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   email: text("email").notNull().unique(),
