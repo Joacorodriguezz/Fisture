@@ -1,0 +1,88 @@
+name: Staging
+
+# Staging (docs/26): cada push a development se despliega como preview de Pages en
+# https://development.fisture.pages.dev, con su propia D1 (fisture-staging) y su propio KV
+# ([env.preview] de wrangler.toml). Producción no se toca: esa base solo la migra deploy.yml.
+# Además se resincroniza una vez por día para que los partidos no queden viejos.
+on:
+  push:
+    branches: [development]
+  schedule:
+    - cron: "30 9 * * *" # 30 min después del sync de producción
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  STAGING_URL: https://development.fisture.pages.dev
+
+jobs:
+  validate:
+    if: github.event_name != 'schedule'
+    uses: ./.github/workflows/test-suite.yml
+
+  deploy:
+    name: deploy staging
+    needs: [validate]
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # El mismo artefacto que probó la suite: la URL y los bindings se leen en runtime
+      - uses: actions/download-artifact@v4
+        with:
+          name: application
+          path: dist/
+
+      - name: Migrar D1 de staging
+        run: npx wrangler d1 migrations apply fisture-staging --remote --env preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # --branch development: deploy de preview con alias fijo development.fisture.pages.dev
+      - name: Deploy de preview
+        run: npx wrangler pages deploy dist --project-name fisture --branch development
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  sync:
+    name: sync staging
+    needs: [deploy]
+    # En el schedule no hay deploy: se sincroniza igual
+    if: always() && (needs.deploy.result == 'success' || github.event_name == 'schedule')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Sync de competencias en staging
+        env:
+          APP_URL: ${{ env.STAGING_URL }}
+          ADMIN_SECRET: ${{ secrets.STAGING_ADMIN_SECRET }}
+        run: bash .github/scripts/sync-por-lotes.sh
+
+      - name: Smoke de staging (solo lectura)
+        run: node scripts/production-smoke.mjs
+        env:
+          PUBLIC_APP_URL: ${{ env.STAGING_URL }}
+
+      - name: Resumen
+        if: always()
+        run: |
+          echo "Staging: ${{ env.STAGING_URL }}" >> "$GITHUB_STEP_SUMMARY"
