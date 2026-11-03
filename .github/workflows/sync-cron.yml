@@ -2,22 +2,48 @@ name: Sync diario
 
 # Cloudflare Pages no ejecuta Cron Triggers: este workflow dispara el sync
 # llamando a POST /api/admin/sync (queda registrado en sync_runs como "admin").
+# Workers Free admite 50 subrequests por invocación, así que se sincroniza
+# por lotes de competencias, uno por request (docs/22 D4).
 on:
   schedule:
     - cron: "0 9 * * *" # 9:00 UTC = 6:00 Argentina
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Disparar sync en producción
+      - name: Disparar sync en producción, lote por lote
         env:
           APP_URL: ${{ secrets.PUBLIC_APP_URL }}
           ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
         run: |
-          curl --fail-with-body --silent --show-error \
-            --max-time 120 --retry 2 --retry-delay 10 \
-            -X POST "${APP_URL%/}/api/admin/sync" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $ADMIN_SECRET"
+          lote=0
+          total=20 # tope hasta conocer el real (lo informa cada respuesta)
+          fallidos=""
+          while [ -n "$lote" ]; do
+            if ! respuesta="$(curl --fail-with-body --silent --show-error \
+                --max-time 120 --retry 2 --retry-delay 10 \
+                -X POST "${APP_URL%/}/api/admin/sync" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $ADMIN_SECRET" \
+                -d "{\"lote\": $lote}")"; then
+              echo "::error::Lote $lote falló: $respuesta"
+              fallidos="$fallidos $lote"
+              # Un lote fallido no frena a los demás. Un 400 es un lote fuera de rango: no hay más.
+              if echo "$respuesta" | grep -q "lote debe ser"; then break; fi
+              lote=$((lote + 1))
+              if [ "$lote" -ge "$total" ]; then lote=""; fi
+              continue
+            fi
+            total="$(echo "$respuesta" | jq -r '.totalLotes')"
+            echo "Lote $lote/$((total - 1)): $(echo "$respuesta" | jq -c '{status, competencias: [.results[] | {league, partidos: (.matchesCreated + .matchesUpdated), errores: (.errors | length)}]}')"
+            lote="$(echo "$respuesta" | jq -r '.siguienteLote // empty')"
+          done
+          if [ -n "$fallidos" ]; then
+            echo "FALLIDOS=$fallidos" >> "$GITHUB_ENV"
+            exit 1
+          fi

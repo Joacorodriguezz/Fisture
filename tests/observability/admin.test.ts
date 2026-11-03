@@ -71,6 +71,24 @@ describe("POST /api/admin/sync", () => {
     expect(runSync).toHaveBeenCalledWith(env, "admin", expect.objectContaining({ leagueId: "arg.1" }));
   });
 
+  it("pasa el lote y devuelve cuál sigue", async () => {
+    runSync.mockResolvedValue({ ...exito, lote: { lote: 0, totalLotes: 9, siguienteLote: 1 } });
+    const res = await llamar({ auth: "Bearer s3", body: { lote: 0 } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ success: true, lote: 0, totalLotes: 9, siguienteLote: 1 });
+    expect(runSync).toHaveBeenCalledWith(env, "admin", expect.objectContaining({ lote: 0 }));
+  });
+
+  it.each([["negativo", -1], ["decimal", 0.5], ["texto", "1"], ["fuera de rango", 999]])(
+    "un lote %s responde 400 y no sincroniza",
+    async (_caso, lote) => {
+      const res = await llamar({ auth: "Bearer s3", body: { lote } });
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { error: string }).error).toMatch(/lote debe ser/);
+      expect(runSync).not.toHaveBeenCalled();
+    }
+  );
+
   it.each([["JSON inválido", "{no es json"], ["cuerpo null", "null"]])("%s no impide sincronizar todo", async (_caso, body) => {
     const res = await llamar({ auth: "Bearer s3", body });
     expect(res.status).toBe(200);

@@ -1,7 +1,7 @@
 // Ejecuta el sync de competencias dejando registro: historial en sync_runs, logs estructurados
 // y chequeos de consistencia. Lo usan el cron (functions/scheduled.ts) y POST /api/admin/sync.
 import { createDb } from "../db";
-import { syncAllLeagues, syncSingleLeague, type SyncEnv, type SyncResult } from "../data-providers/sync";
+import { syncAllLeagues, syncLote, syncSingleLeague, type LoteResult, type SyncEnv, type SyncResult } from "../data-providers/sync";
 import { purgeExpiredSessions } from "../auth/session";
 import { reconcileCalendars } from "../calendar/sync-service";
 import { checkConsistency } from "./consistency";
@@ -20,17 +20,22 @@ export interface RunSyncDeps {
   syncAllLeagues: (env: SyncEnv) => Promise<SyncResult[]>;
   syncSingleLeague: (env: SyncEnv, leagueExternalId: string) => Promise<SyncResult>;
   calendarAutoSync: (env: RunSyncEnv, db: ReturnType<typeof createDb>) => Promise<void>;
+  // Opcional para no obligar a los tests existentes a declararlo
+  syncLote?: (env: SyncEnv, lote: number) => Promise<LoteResult>;
 }
 
 const depsReales: RunSyncDeps = {
   syncAllLeagues,
   syncSingleLeague,
+  syncLote,
   calendarAutoSync: (env, db) => reconcileCalendars(env as unknown as Env, db),
 };
 
 export interface RunSyncOptions {
   // Sincronizar solo una competencia (slug de ESPN)
   leagueId?: string;
+  // Sincronizar solo un lote de competencias (docs/22 D4)
+  lote?: number;
   // Llevar al día los calendarios de los usuarios (solo el cron)
   calendarAutoSync?: boolean;
   logger?: Logger;
@@ -43,6 +48,8 @@ export interface RunSyncOutcome {
   results: SyncResult[];
   issues: ConsistencyIssue[];
   error?: string;
+  // Solo al sincronizar por lotes
+  lote?: Omit<LoteResult, "results">;
 }
 
 export async function runSync(env: RunSyncEnv, trigger: SyncTrigger, options: RunSyncOptions = {}): Promise<RunSyncOutcome> {
@@ -50,12 +57,20 @@ export async function runSync(env: RunSyncEnv, trigger: SyncTrigger, options: Ru
   const db = createDb(env.DB);
   const runId = await startSyncRun(db, trigger);
   const logger = (options.logger ?? rootLogger).child({ runId, trigger });
-  logger.info("sync_started", { leagueId: options.leagueId });
+  logger.info("sync_started", { leagueId: options.leagueId, lote: options.lote });
 
   try {
-    const results = options.leagueId
-      ? [await deps.syncSingleLeague(env, options.leagueId)]
-      : await deps.syncAllLeagues(env);
+    let lote: RunSyncOutcome["lote"];
+    let results: SyncResult[];
+    if (options.leagueId) {
+      results = [await deps.syncSingleLeague(env, options.leagueId)];
+    } else if (options.lote !== undefined) {
+      const { results: delLote, ...info } = await (deps.syncLote ?? syncLote)(env, options.lote);
+      results = delLote;
+      lote = info;
+    } else {
+      results = await deps.syncAllLeagues(env);
+    }
 
     for (const r of results) {
       const campos = {
@@ -110,7 +125,7 @@ export async function runSync(env: RunSyncEnv, trigger: SyncTrigger, options: Ru
 
     const status = await finishSyncRun(db, runId, { results, issues });
     logger.info("sync_finished", { status, leagues: results.length, issueCount: issues.length });
-    return { runId, status, results, issues };
+    return { runId, status, results, issues, ...(lote ? { lote } : {}) };
   } catch (err) {
     logger.error("sync_failed", { err });
     try {
