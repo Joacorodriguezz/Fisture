@@ -51,9 +51,11 @@ describe("mantenerVivos", () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining("monitor.yml"));
   });
 
-  it("un workflow desactivado a mano también se reporta como reactivado (hay que enterarse)", async () => {
-    const { r } = await correr({ estados: { "sync-cron.yml": "disabled_manually" } });
-    expect(r.reactivados).toEqual(["sync-cron.yml"]);
+  it("M1: un workflow desactivado a mano por el dueño no se reactiva ni se reporta como incidente", async () => {
+    const { r, llamadas, log } = await correr({ estados: { "sync-cron.yml": "disabled_manually" } });
+    expect(r.reactivados).toEqual([]);
+    expect(enables(llamadas)).toEqual([`repos/${REPO}/actions/workflows/monitor.yml/enable`]);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("disabled_manually"));
   });
 
   it("sin un sync exitoso en las últimas 72 h está atrasado", async () => {

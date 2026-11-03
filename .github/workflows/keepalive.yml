@@ -2,9 +2,10 @@ name: Keepalive de workflows
 
 # GitHub desactiva los workflows con `schedule` tras 60 días sin actividad en el repo, sin avisar
 # (docs/17 B1). Una vez por semana este workflow:
-#  - vuelve a habilitar los workflows programados (sync-cron, monitor y este mismo) con la API;
-#  - abre un issue "incidente" si alguno estaba desactivado o si el sync diario lleva más de 72 h
-#    sin terminar bien, una señal independiente de la app (el monitor mira /api/health).
+#  - vuelve a habilitar con la API los workflows programados (sync-cron, monitor y este mismo) que GitHub
+#    desactivó por inactividad; uno desactivado a mano por el dueño no se toca;
+#  - abre un issue "incidente" si reactivó alguno o si el sync diario lleva más de 72 h sin terminar
+#    bien, una señal independiente de la app (el monitor mira /api/health).
 # Límite conocido: si el repo queda sin actividad y GitHub desactiva también este workflow, nada lo
 # reactiva. Un deploy, un PR o cualquier commit reinician el plazo; el respaldo independiente de GitHub
 # es un monitor externo sobre /api/health (docs/23 §6).
@@ -40,7 +41,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           bash .github/scripts/incidente.sh abrir "Los workflows programados no están corriendo" \
-            "El keepalive encontró workflows desactivados por GitHub o un sync diario atrasado (más de 72 h sin terminar bien). Los desactivados ya se reactivaron. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Revisar el log del run y docs/23-runbook-de-incidentes.md."
+            "El keepalive reactivó workflows que GitHub había desactivado por inactividad o encontró el sync diario atrasado (más de 72 h sin terminar bien). Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Revisar el log del run y docs/23-runbook-de-incidentes.md."
 
       - name: Cerrar el aviso si volvió a la normalidad
         if: success()

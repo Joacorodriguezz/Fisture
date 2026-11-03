@@ -2,9 +2,10 @@
 // GitHub desactiva los workflows con `schedule` tras 60 días sin actividad en el repo, sin avisar. Este
 // script, que corre semanal desde .github/workflows/keepalive.yml:
 //  1. vuelve a habilitar cada workflow programado (PUT .../enable, necesita `actions: write`): si GitHub
-//     ya lo había desactivado por inactividad, lo reactiva; si estaba activo la llamada es inocua;
+//     ya lo había desactivado por inactividad (`disabled_inactivity`), lo reactiva; si estaba activo la
+//     llamada es inocua; uno desactivado a mano (`disabled_manually`) no se toca;
 //  2. mira si el sync diario terminó bien en las últimas 72 h: es una señal independiente de la app.
-// Sale con 1 si reactivó algo (había un hueco que hay que conocer) o si el sync está atrasado, para que
+// Sale con 1 si reactivó algo por inactividad (había un hueco que hay que conocer) o si el sync está atrasado, para que
 // el workflow abra un issue. El propio keepalive se puede desactivar: ver docs/17 §12 y docs/23.
 import { execFile } from "node:child_process";
 import { pathToFileURL } from "node:url";
@@ -31,9 +32,13 @@ export async function mantenerVivos({
   for (const archivo of workflows) {
     const base = `repos/${repo}/actions/workflows/${archivo}`;
     const { state } = JSON.parse(await gh(["api", base]));
-    if (state !== "active") {
+    if (state === "disabled_inactivity") {
       reactivados.push(archivo);
-      log(`::warning::El workflow ${archivo} estaba en estado ${state}: se reactiva`);
+      log(`::warning::El workflow ${archivo} estaba desactivado por inactividad: se reactiva`);
+    } else if (state !== "active") {
+      // Lo desactivó una persona (disabled_manually) o el repo: no se pisa esa decisión
+      log(`::notice::El workflow ${archivo} está en estado ${state}: no se toca`);
+      continue;
     }
     try {
       await gh(["api", "-X", "PUT", `${base}/enable`]);
