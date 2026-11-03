@@ -7,13 +7,14 @@ import { OAUTH_STATE_TTL_SEGUNDOS, crearEstado, nombreCookieEstado } from "./oau
 
 export async function iniciarAutorizacion(opciones: {
   env: Env;
+  secret: string; // OAUTH_STATE_SECRET, ya verificado por quien llama
   cookies: AstroCookies;
   provider: OAuthProvider;
   next: string | null;
   intent?: "login" | "link";
   userId?: string;
 }): Promise<string> {
-  const { env, cookies, provider, next, intent, userId } = opciones;
+  const { env, secret, cookies, provider, next, intent, userId } = opciones;
   const state = generateState();
   const codeVerifier = generateCodeVerifier();
 
@@ -21,7 +22,7 @@ export async function iniciarAutorizacion(opciones: {
   // escritura en KV gasta una cuota diaria compartida por todos (docs/20-login-sin-kv-tdd.md)
   cookies.set(
     nombreCookieEstado(provider),
-    await crearEstado(env.OAUTH_STATE_SECRET, {
+    await crearEstado(secret, {
       state,
       codeVerifier,
       provider,

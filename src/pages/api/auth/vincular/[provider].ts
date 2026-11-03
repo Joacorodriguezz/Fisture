@@ -24,5 +24,5 @@ export const POST: APIRoute = withApi(async ({ params, request, redirect, cookie
     return redirect("/configuracion?error=oauth_unavailable", 303);
   }
 
-  return redirect(await iniciarAutorizacion({ env, cookies, provider, next: null, intent: "link", userId: user.id }), 303);
+  return redirect(await iniciarAutorizacion({ env, secret: env.OAUTH_STATE_SECRET, cookies, provider, next: null, intent: "link", userId: user.id }), 303);
 });

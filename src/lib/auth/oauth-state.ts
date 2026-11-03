@@ -9,6 +9,9 @@ export interface DatosEstadoOAuth {
   codeVerifier: string;
   provider: string;
   next: string | null;
+  // "link": el usuario con sesión vincula otro proveedor desde Configuración (docs/18). Por defecto "login"
+  intent?: "login" | "link";
+  userId?: string;
 }
 
 interface Payload extends DatosEstadoOAuth {
