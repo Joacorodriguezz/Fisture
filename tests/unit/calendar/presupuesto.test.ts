@@ -75,6 +75,24 @@ describe("contarD1", () => {
   });
 });
 
+describe("contarD1: el resto de la API de D1", () => {
+  it("exec cuenta una consulta; dump y withSession se delegan a la D1 real sin contar", async () => {
+    const llamadas: string[] = [];
+    const real = {
+      exec: async (sql: string) => (llamadas.push(`exec:${sql}`), { count: 1, duration: 0 }),
+      dump: async () => (llamadas.push("dump"), new ArrayBuffer(0)),
+      withSession: (constraint?: string) => (llamadas.push(`session:${constraint}`), "sesion"),
+    } as unknown as D1Database;
+    const p = new Presupuesto(50);
+    const d1 = contarD1(real, p);
+    await d1.exec("SELECT 1");
+    await d1.dump();
+    expect(d1.withSession("first-primary")).toBe("sesion");
+    expect(p.usado).toBe(1);
+    expect(llamadas).toEqual(["exec:SELECT 1", "dump", "session:first-primary"]);
+  });
+});
+
 describe("contarCliente", () => {
   const base: CalendarClient = {
     create: async () => "ev",
