@@ -17,6 +17,8 @@ export interface Metricas {
   usuariosConPartidos: number;
   eventosEnCalendarios: number;
   equiposSeguidos: number;
+  // Usuarios cuyo calendario perdió acceso y esperan volver a iniciar sesión (docs/17 B4)
+  calendariosSinAcceso: number;
 }
 
 export async function getMetricas(db: Database, ahora = Date.now()): Promise<Metricas> {
@@ -30,7 +32,8 @@ export async function getMetricas(db: Database, ahora = Date.now()): Promise<Met
       (SELECT COUNT(DISTINCT user_id) FROM user_teams) AS usuariosConEquipos,
       (SELECT COUNT(DISTINCT user_id) FROM calendar_syncs WHERE status = 'synced') AS usuariosConPartidos,
       (SELECT COUNT(*) FROM calendar_syncs WHERE status = 'synced') AS eventosEnCalendarios,
-      (SELECT COUNT(*) FROM user_teams) AS equiposSeguidos
+      (SELECT COUNT(*) FROM user_teams) AS equiposSeguidos,
+      (SELECT COUNT(*) FROM users WHERE calendar_auth_status = 'reauth_required') AS calendariosSinAcceso
   `);
   return {
     usuarios: Number(fila.usuarios),
@@ -40,5 +43,6 @@ export async function getMetricas(db: Database, ahora = Date.now()): Promise<Met
     usuariosConPartidos: Number(fila.usuariosConPartidos),
     eventosEnCalendarios: Number(fila.eventosEnCalendarios),
     equiposSeguidos: Number(fila.equiposSeguidos),
+    calendariosSinAcceso: Number(fila.calendariosSinAcceso),
   };
 }

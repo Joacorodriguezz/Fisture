@@ -3,6 +3,7 @@ import { useTestDb } from "../helpers/use-test-db";
 import { seedApp } from "../helpers/fixtures";
 import { AHORA, DIA_MS } from "../helpers/clock";
 import { calendarSyncs, userTeams, users } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
 import { getMetricas } from "../../src/lib/observability/metricas";
 
 describe("getMetricas", () => {
@@ -17,6 +18,7 @@ describe("getMetricas", () => {
       usuariosConPartidos: 0,
       eventosEnCalendarios: 0,
       equiposSeguidos: 0,
+      calendariosSinAcceso: 0,
     });
   });
 
@@ -29,6 +31,7 @@ describe("getMetricas", () => {
       { userId: user.id, teamId: "boca" },
       { userId: "viejo", teamId: "river" },
     ]);
+    await t.db.update(users).set({ calendarAuthStatus: "reauth_required" }).where(eq(users.id, "viejo"));
     await t.db.insert(calendarSyncs).values([
       { userId: user.id, matchId: "superclasico", provider: "google", status: "synced" },
       { userId: "viejo", matchId: "superclasico", provider: "google", status: "detached" },
@@ -42,6 +45,7 @@ describe("getMetricas", () => {
       usuariosConPartidos: 1,
       eventosEnCalendarios: 1,
       equiposSeguidos: 3,
+      calendariosSinAcceso: 1,
     });
   });
 });
