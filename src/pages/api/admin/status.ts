@@ -5,13 +5,20 @@ import { isAdminAuthorized, unauthorized } from "../../../lib/observability/admi
 import { createDb } from "../../../lib/db";
 import { countSessions } from "../../../lib/auth/session";
 import { withApi } from "../../../lib/observability/with-api";
+import { getMetricas } from "../../../lib/observability/metricas";
 
-// Detalle para administración: salud, últimos 20 runs del sync y conteo de sesiones (docs/21 Q2).
+// Detalle para administración: salud, últimos 20 runs del sync, conteo de sesiones (docs/21 Q2)
+// y métricas de producto agregadas (sin ids ni emails).
 export const GET: APIRoute = withApi(async ({ request, locals }) => {
   const env = locals.runtime.env;
   if (!isAdminAuthorized(request, env.ADMIN_SECRET)) return unauthorized();
 
   const db = createDb(env.DB);
-  const [health, runs, sessions] = await Promise.all([getHealth(env), getLatestRuns(db, 20), countSessions(db)]);
-  return Response.json({ health, runs, sessions }, { headers: { "Cache-Control": "no-store" } });
+  const [health, runs, sessions, metricas] = await Promise.all([
+    getHealth(env),
+    getLatestRuns(db, 20),
+    countSessions(db),
+    getMetricas(db),
+  ]);
+  return Response.json({ health, runs, sessions, metricas }, { headers: { "Cache-Control": "no-store" } });
 });

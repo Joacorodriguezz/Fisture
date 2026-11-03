@@ -191,6 +191,7 @@ describe("getHealth y endpoints (D1)", () => {
     expect(body.runs).toHaveLength(2);
     expect(body.runs[0]).toMatchObject({ status: "success", trigger: "cron" });
     expect(body.health.status).toBe("ok");
+    expect(body.metricas).toMatchObject({ usuarios: 0, eventosEnCalendarios: 0 });
   });
 
   it("S18: GET /api/admin/status incluye el conteo de sesiones, sin ids", async () => {
