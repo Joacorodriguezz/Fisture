@@ -105,6 +105,14 @@ a las 00:00 UTC (21:00 en Argentina).
 `/api/admin/status` muestra los errores por competencia. Un error de ESPN en una competencia deja el run en
 `partial` sin afectar a las demás. Si ESPN cambió un slug, corregirlo en `LEAGUES_CONFIG` (`docs/09`).
 
+Las ligas y los calendarios se miden por separado (`checks.sync` y `checks.calendars` de `/api/health`;
+`runs` y `runsCalendarios` en `/api/admin/status`). `checks.calendars` nunca pasa de `degraded` (un fallo de
+calendarios no debe dar 503 ni bloquear deploys). `degraded` significa: el último lote falló (ver su `error` en
+`runsCalendarios`), el barrido quedó incompleto (llegó al tope de 40 lotes con usuarios pendientes, o un lote no
+alcanzó para procesar ni un evento) o el último barrido exitoso tiene más de 26 h. Acción: lanzar un barrido a
+mano (§4); si el barrido queda incompleto varios días seguidos, hay más usuarios con trabajo que capacidad
+(docs/17 §12). Sin ningún run de calendarios el check está en `ok`.
+
 ### Antes del release con la migración 0010 (identidades OAuth, docs/18): paso obligatorio
 
 La migración `0010_oauth_identities.sql` normaliza `users.email` (`lower(trim(email))`) y crea un índice único
