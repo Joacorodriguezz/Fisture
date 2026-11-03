@@ -40,15 +40,17 @@ export function oidCoincide(oid: string, graphId: string): boolean {
 
 export type DecisionVinculo = "login" | "crear" | "vincular" | "conflicto";
 
-// D3.1: se une sola únicamente si ambos lados están verificados por su proveedor
+// D3.1: se une sola únicamente si ambos lados están verificados por su proveedor Y el auto-vínculo está
+// prendido (AUTO_VINCULAR_EMAIL_VERIFICADO). Apagado por defecto: docs/18 §11 pedía poder desactivarlo.
 export function decidirVinculo(entrada: {
   identidadExistente: boolean;
   identidadVerificada: boolean;
   cuenta: { emailVerified: boolean } | null;
+  autoVincular?: boolean;
 }): DecisionVinculo {
   if (entrada.identidadExistente) return "login";
   if (!entrada.cuenta) return "crear";
-  return entrada.identidadVerificada && entrada.cuenta.emailVerified ? "vincular" : "conflicto";
+  return entrada.autoVincular === true && entrada.identidadVerificada && entrada.cuenta.emailVerified ? "vincular" : "conflicto";
 }
 
 // ---------- Acceso a datos ----------

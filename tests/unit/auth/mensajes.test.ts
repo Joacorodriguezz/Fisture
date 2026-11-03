@@ -14,16 +14,12 @@ describe("nombreProveedor", () => {
 });
 
 describe("mensajeErrorAuth", () => {
-  it("email_en_uso nombra el proveedor de la cuenta existente y no la une sin confirmación", () => {
-    const m = mensajeErrorAuth("email_en_uso", "google")!;
-    expect(m).toContain("Google");
-    expect(m).toContain("Configuración");
-  });
-
-  it("email_en_uso con un proveedor desconocido no inventa un nombre ni refleja el parámetro", () => {
-    const m = mensajeErrorAuth("email_en_uso", "<script>alert(1)</script>")!;
-    expect(m).not.toContain("<script>");
-    expect(m).toContain("otro proveedor");
+  it("email_en_uso es genérico: no nombra ningún proveedor aunque llegue en la URL", () => {
+    for (const proveedor of ["google", "microsoft", "<script>alert(1)</script>", null]) {
+      const m = mensajeErrorAuth("email_en_uso", proveedor)!;
+      expect(m).not.toMatch(/Google|Microsoft|script/);
+      expect(m).toContain("Configuración");
+    }
   });
 
   it.each(["identidad_en_uso", "email_ausente", "vinculo_sesion", "proveedor_en_uso"])("%s tiene un mensaje", (codigo) => {

@@ -60,9 +60,10 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
   try {
     const { perfil, tokens } = await obtenerIdentidad(env, provider, code, codeVerifier);
     const db = createDb(env.DB);
-    const conflicto = (codigo: string, destino: string, proveedor: string) => {
+    // El proveedor de la URL es el del intento actual. Nunca el de la otra cuenta: no se revela (email_en_uso)
+    const conflicto = (codigo: string, destino: string, proveedor?: string) => {
       locals.logger?.warn("oauth_identity_conflict", { provider, code: codigo });
-      return redirect(`${destino}?error=${codigo}&proveedor=${proveedor}`);
+      return redirect(`${destino}?error=${codigo}${proveedor ? `&proveedor=${proveedor}` : ""}`);
     };
 
     // ---------- Vincular desde Configuración ----------
@@ -103,7 +104,12 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
         if (!perfil.email) return conflicto("email_ausente", "/login", provider);
 
         const cuenta = (await buscarUsuarioPorEmail(db, perfil.email)) ?? null;
-        const decision = decidirVinculo({ identidadExistente: false, identidadVerificada: perfil.emailVerified, cuenta });
+        const decision = decidirVinculo({
+          identidadExistente: false,
+          identidadVerificada: perfil.emailVerified,
+          cuenta,
+          autoVincular: env.AUTO_VINCULAR_EMAIL_VERIFICADO === "true",
+        });
 
         if (decision === "crear") {
           userId = await crearUsuarioConIdentidad(db, perfil, tokens);
@@ -112,7 +118,7 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
           await agregarIdentidad(db, userId, perfil, tokens);
         } else {
           // Hay una cuenta con ese email y no se puede unir sola: no se abre sesión ni se toca nada
-          return conflicto("email_en_uso", "/login", cuenta?.provider ?? provider);
+          return conflicto("email_en_uso", "/login");
         }
       }
     }

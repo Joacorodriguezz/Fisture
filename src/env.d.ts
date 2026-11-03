@@ -25,6 +25,8 @@ interface Env {
   ADMIN_SECRET?: string;
   // Firma la cookie con el estado del login OAuth (32 bytes aleatorios, secret de Pages)
   OAUTH_STATE_SECRET?: string;
+  // "true" prende el auto-vínculo por email con ambos lados verificados (docs/18 D3.1). Apagado por defecto
+  AUTO_VINCULAR_EMAIL_VERIFICADO?: string;
 }
 
 declare namespace App {

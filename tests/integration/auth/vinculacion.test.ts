@@ -30,7 +30,7 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
   const t = useTestDb();
   let cookies: ReturnType<typeof cookiesEnMemoria>;
 
-  const llamar = (provider: string, intent: { intent?: "login" | "link"; userId?: string } = {}, user?: { id: string }) =>
+  const llamar = (provider: string, intent: { intent?: "login" | "link"; userId?: string } = {}, user?: { id: string }, extraEnv: Record<string, unknown> = {}) =>
     cookieDeEstado({ provider, ...intent }).then(({ nombre, valor }) => {
       cookies.valores.set(nombre, valor);
       return GET(
@@ -38,11 +38,13 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
           url: `https://fisture.test/api/auth/callback/${provider}?code=c&state=st-1`,
           params: { provider },
           user,
-          env: { ENVIRONMENT: "production", DB: t.DB, OAUTH_STATE_SECRET },
+          env: { ENVIRONMENT: "production", DB: t.DB, OAUTH_STATE_SECRET, ...extraEnv },
           over: { cookies, redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) },
         })
       );
     });
+  // D3.1 está apagado por defecto (docs/18 §11): estos tests lo prenden a propósito
+  const AUTO = { AUTO_VINCULAR_EMAIL_VERIFICADO: "true" };
 
   const sembrar = async (c: Cuenta) => {
     await t.DB.batch([
@@ -93,10 +95,10 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
       expect(await identidades()).toMatchObject([{ id: "ana", access_token: "at-ana", refresh_token: "rt-ana" }]);
     });
 
-    it("V-01: el mensaje nombra el proveedor de la cuenta existente", async () => {
+    it("V-01: el error no revela con qué proveedor está la otra cuenta (ni en la URL)", async () => {
       await sembrar(ana);
       microsoft({ id: "m-evil", mail: "ana@example.com" }, { oid: "m-evil" });
-      expect(destino(await llamar("microsoft"))).toBe("/login?error=email_en_uso&proveedor=google");
+      expect(destino(await llamar("microsoft"))).toBe("/login?error=email_en_uso");
     });
 
     it("V-02: cuenta de Ana con Microsoft y otro oid con el mismo mail: no se pisan sus tokens", async () => {
@@ -209,7 +211,7 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
       await sembrar({ ...ana, provider: "microsoft", providerId: "m-ana", verificado: true });
       google({ sub: "g-9" }, { access: "at-g", refresh: "rt-g" });
 
-      const res = await llamar("google");
+      const res = await llamar("google", {}, undefined, AUTO);
 
       expect(destino(res)).toBe("/ligas");
       expect(await identidades()).toMatchObject([
@@ -221,10 +223,18 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
       expect(await sesiones()).toBe(1);
     });
 
+    it("D3.1 apagado por defecto: con ambos lados verificados igual da email_en_uso y no vincula", async () => {
+      await sembrar({ ...ana, provider: "microsoft", providerId: "m-ana", verificado: true });
+      google({ sub: "g-9" });
+      expect(destino(await llamar("google"))).toBe("/login?error=email_en_uso");
+      expect(cookies.set).not.toHaveBeenCalled();
+      expect(await identidades()).toHaveLength(1);
+    });
+
     it("V-04: Google verificado y cuenta existente Microsoft sin verificar: email_en_uso", async () => {
       await sembrar({ ...ana, provider: "microsoft", providerId: "m-ana", verificado: false });
       google();
-      expect(destino(await llamar("google"))).toBe("/login?error=email_en_uso&proveedor=microsoft");
+      expect(destino(await llamar("google"))).toBe("/login?error=email_en_uso");
       expect(cookies.set).not.toHaveBeenCalled();
       expect(await identidades()).toHaveLength(1);
     });
@@ -252,7 +262,7 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
     it("V-14: el email se compara normalizado (mayúsculas y espacios)", async () => {
       await sembrar({ ...ana, provider: "microsoft", providerId: "m-ana" });
       google({ sub: "g-9", email: "  Ana@Example.COM " });
-      expect(destino(await llamar("google"))).toBe("/ligas");
+      expect(destino(await llamar("google", {}, undefined, AUTO))).toBe("/ligas");
       expect(await identidades()).toHaveLength(2);
       expect(await usuarios()).toHaveLength(1);
     });
@@ -412,7 +422,7 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
       expect(await identidades()).toHaveLength(2);
     });
 
-    it("V-10: el state es de un solo uso", async () => {
+    it("V-10: la cookie de estado se borra al usarla y un segundo callback es invalid_state", async () => {
       await sembrar(ana);
       microsoft({ id: "m-5" }, { oid: "m-5" });
       await vincular("microsoft");

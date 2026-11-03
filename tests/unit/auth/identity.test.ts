@@ -41,7 +41,8 @@ describe("decidirVinculo (D3)", () => {
   it.each([
     ["la identidad ya existe: login", { identidadExistente: true, identidadVerificada: false, cuenta: null }, "login"],
     ["sin cuenta con ese email: crear", { identidadExistente: false, identidadVerificada: false, cuenta: null }, "crear"],
-    ["ambos lados verificados: vincular", { identidadExistente: false, identidadVerificada: true, cuenta: { emailVerified: true } }, "vincular"],
+    ["ambos lados verificados con el auto-vínculo prendido: vincular", { identidadExistente: false, identidadVerificada: true, cuenta: { emailVerified: true }, autoVincular: true }, "vincular"],
+    ["ambos lados verificados pero el auto-vínculo apagado (default): conflicto", { identidadExistente: false, identidadVerificada: true, cuenta: { emailVerified: true } }, "conflicto"],
     ["cuenta existente sin verificar: conflicto", { identidadExistente: false, identidadVerificada: true, cuenta: { emailVerified: false } }, "conflicto"],
     ["identidad nueva sin verificar: conflicto", { identidadExistente: false, identidadVerificada: false, cuenta: { emailVerified: true } }, "conflicto"],
     ["ninguno verificado: conflicto", { identidadExistente: false, identidadVerificada: false, cuenta: { emailVerified: false } }, "conflicto"],
