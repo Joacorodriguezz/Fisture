@@ -139,6 +139,28 @@ wrangler secret put RAPIDAPI_KEY
 wrangler secret put ADMIN_SECRET
 ```
 
+### 5.1 Inventario de credenciales (sin valores)
+
+Fuente de verdad: `npx wrangler pages secret list --project-name fisture` y GitHub → Settings → Secrets and
+variables → Actions. Ningún valor va en `.dev.vars` commiteado (`.dev.vars` está en `.gitignore`). Cómo rotar
+cada uno: `docs/23-runbook-de-incidentes.md` §5.
+
+| Nombre | Dónde | Para qué | Si falta |
+| --- | --- | --- | --- |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Pages (secret) | OAuth y Google Calendar | No hay login con Google |
+| `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | Pages (secret) | OAuth y Outlook. **El secret vence** (6–24 meses): anotar la fecha en Entra ID | No hay login con Microsoft |
+| `OAUTH_STATE_SECRET` | Pages (secret) | Firma la cookie del estado del login (docs/20) | El login falla cerrado; `/api/health` 503 |
+| `ADMIN_SECRET` | Pages (secret) **y** GitHub Actions | `POST /api/admin/sync`, `GET /api/admin/status` | El sync diario responde 401 |
+| `FOOTBALL_DATA_API_KEY`, `API_FOOTBALL_KEY` | Pages (secret), opcionales | Proveedores alternativos, hoy fuera de `LEAGUES_CONFIG` | Nada |
+| `PUBLIC_APP_URL` | `wrangler.toml` `[vars]` **y** GitHub Actions | URL pública (`https://fisture.com`) para OAuth, SEO, smoke, sync y monitor | Redirects y smoke rotos |
+| `ENVIRONMENT` | `wrangler.toml` `[vars]` | Nivel de logs | Logs en nivel por defecto |
+| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions | `deploy.yml` (Pages y D1). Alcance mínimo: *Cloudflare Pages: Edit* y *D1: Edit* de esta cuenta | No hay deploy |
+
+**Desarrollo y producción separados.** Usar un cliente OAuth de Google y una app de Entra ID para desarrollo
+(redirect `http://localhost:4321/api/auth/callback/*`, credenciales en `.dev.vars`) y otros para producción (solo
+`https://fisture.com/api/auth/callback/*`, credenciales solo en Pages). Así se pueden quitar las URIs de localhost
+del cliente de producción, que es lo que revisa la verificación de Google.
+
 ### 6. Conectar con GitHub
 
 1. Ir a https://dash.cloudflare.com
