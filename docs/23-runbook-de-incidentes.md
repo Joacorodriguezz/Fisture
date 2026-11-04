@@ -102,6 +102,76 @@ a las 00:00 UTC (21:00 en Argentina).
 `/api/admin/status` muestra los errores por competencia. Un error de ESPN en una competencia deja el run en
 `partial` sin afectar a las demás. Si ESPN cambió un slug, corregirlo en `LEAGUES_CONFIG` (`docs/09`).
 
+### Antes del release con la migración 0010 (identidades OAuth, docs/18): paso obligatorio
+
+La migración `0010_oauth_identities.sql` normaliza `users.email` (`lower(trim(email))`) y crea un índice único
+sobre `lower(email)`. Si dos usuarios difieren solo en mayúsculas o espacios, **aborta** y traba `deploy.yml` y
+`staging.yml`. Por eso, **antes de abrir el PR de release** (y antes de mergear a `development`, que despliega
+staging), correr contra producción y staging:
+
+```bash
+node scripts/check-email-collisions.mjs          # fisture-db y fisture-staging; sale con 1 si hay colisiones
+# o a mano, por base:
+npx wrangler d1 execute fisture-db --remote --command "SELECT lower(trim(email)) e, COUNT(*) c FROM users GROUP BY e HAVING c>1"
+npx wrangler d1 execute fisture-staging --remote --command "SELECT lower(trim(email)) e, COUNT(*) c FROM users GROUP BY e HAVING c>1"
+```
+
+La salida tiene emails: se mira en la terminal y no se pega en issues ni PRs. Sin filas, se puede seguir. **Con filas,
+no se mergea hasta resolverlas**, a mano, de a un par:
+
+1. Anotar el bookmark de Time Travel (`npx wrangler d1 time-travel info <db>`, §3).
+2. Elegir qué cuenta sobrevive (la que tiene equipos, eventos sincronizados o sesiones más recientes; consultar
+   `user_teams`, `calendar_syncs` y `sessions` de cada `id`). Si no hay una clara, preguntar a las personas por el canal
+   de soporte (docs/25).
+3. Pasar los datos de la que se va (`<viejo>`) a la que queda (`<nuevo>`). `OR IGNORE` descarta lo que ya existe en la
+   que queda por los índices únicos:
+   ```sql
+   UPDATE OR IGNORE user_teams SET user_id = '<nuevo>' WHERE user_id = '<viejo>';
+   UPDATE OR IGNORE calendar_syncs SET user_id = '<nuevo>' WHERE user_id = '<viejo>';
+   DELETE FROM users WHERE id = '<viejo>';  -- borra por cascada sus preferencias, sesiones y lo que quedó
+   ```
+4. Volver a correr el chequeo hasta que no devuelva filas. Si los eventos de `calendar_syncs` pertenecían a otro
+   proveedor de calendario que el de la cuenta que queda, la reconciliación del cron los trata como `detached`/`failed`
+   (docs/11): avisar a la persona.
+
+También, con esa misma base de producción, revisar el **riesgo del Escenario C heredado** (docs/18 §1.2): el backfill
+copia `users.*` tal cual a `oauth_identities`, y un usuario que ya tenía los tokens de un proveedor pisados por el
+otro seguirá con tokens que no sirven. Cuentas `google` con un token que no parece de Google (heurística, solo vale
+mientras los tokens estén en claro, es decir, antes del TDD 15):
+
+```sql
+SELECT COUNT(*) FROM users WHERE provider = 'google' AND access_token IS NOT NULL AND access_token NOT LIKE 'ya29.%';
+```
+
+Esas personas ven la sincronización de calendario rota hasta que reingresan (el reingreso reescribe los tokens de su
+identidad correcta). No hay migración automática posible: el token ajeno no se puede "devolver".
+
+### Una persona recibe `email_en_uso` y dice que la cuenta es suya (pre-secuestro, docs/18 V-17)
+
+`email_en_uso` es el comportamiento esperado cuando alguien entra con un proveedor y ya existe una cuenta con ese
+email que no se puede unir sola. Si la persona asegura que **nunca tuvo cuenta** (o que la cuenta que la bloquea no es
+suya), puede ser que otra persona se registró antes con el email ajeno (por ejemplo, desde un tenant propio de Entra
+que fija el `mail`). La pantalla no dice con qué proveedor está la otra cuenta; eso se mira solo desde soporte:
+
+1. Pedir el email por el canal de soporte (docs/25) y **verificar que controla el buzón**: responder desde la casilla de
+   soporte a esa dirección y esperar la respuesta. Sin eso no se toca nada.
+2. Mirar la cuenta que bloquea, sin exponer tokens:
+   ```sql
+   SELECT u.id, u.provider, u.email_verified, u.created_at,
+          (SELECT COUNT(*) FROM user_teams t WHERE t.user_id = u.id) AS equipos,
+          (SELECT COUNT(*) FROM calendar_syncs c WHERE c.user_id = u.id) AS eventos,
+          (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id) AS sesiones
+   FROM users u WHERE lower(u.email) = lower('<email>');
+   ```
+3. Solo si `email_verified = 0` (nadie verificó ese email) y la cuenta no tiene actividad real que explique que es de
+   la persona, **liberar el email sin borrar la cuenta** (queda como evidencia):
+   ```sql
+   UPDATE users SET email = id || '@sin-verificar.invalid' WHERE id = '<id>';
+   ```
+   y pedirle que vuelva a entrar con su proveedor: se le crea una cuenta nueva. Si `email_verified = 1` o hay
+   actividad, **no se libera**: se le explica que entre con el proveedor original y vincule el otro desde Configuración.
+4. Dejar anotado el caso (sin el email) en el issue de incidente si hay indicios de abuso.
+
 ## 7. A quién avisar
 
 Hoy el proyecto tiene un solo administrador (ver la tarjeta de 2FA y dueño de respaldo). Si el incidente afecta

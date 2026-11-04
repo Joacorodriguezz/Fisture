@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { useTestDb } from "../../helpers/use-test-db";
 import { relojFijo } from "../../helpers/clock";
 import { seedApp } from "../../helpers/fixtures";
+import { tokensFalsos } from "../../helpers/id-token";
 import { apiCtx, kvEnMemoria, silenciarConsola } from "../../helpers/ctx";
 import { OAUTH_STATE_SECRET, cookieDeEstado, cookiesEnMemoria } from "../../helpers/oauth-state";
 import { createSession, getSessionUser } from "../../../src/lib/auth/session";
@@ -135,8 +136,7 @@ describe("DELETE /api/cuenta", () => {
 
   it("C10: el mismo email vuelve a registrarse como cuenta nueva y limpia", async () => {
     await llamar();
-    validar.mockResolvedValue({ accessToken: () => "at-2", refreshToken: () => "rt-2", accessTokenExpiresAt: () => new Date("2027-01-01") });
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "provider-1", email: "ana@example.test", name: "Ana" })));
+    validar.mockResolvedValue(tokensFalsos({ idToken: { sub: "provider-1", email: "ana@example.test", email_verified: true, name: "Ana" }, access: "at-2", refresh: "rt-2" }));
     const estado = await cookieDeEstado({ state: "st" });
     const cookiesLogin = cookiesEnMemoria({ [estado.nombre]: estado.valor });
 
@@ -190,6 +190,43 @@ describe("DELETE /api/cuenta", () => {
       const res = await llamar({ user, body: { confirmar: user.email } });
       expect(res.status).toBe(200);
       expect(revocar).not.toHaveBeenCalled();
+    });
+
+    // docs/18 V-22: con varias identidades se revoca el acceso de todas, y caen por cascade
+    const identidad = (id: string, userId: string, provider: string, refreshToken: string | null) =>
+      t.DB.prepare("INSERT INTO oauth_identities (id, user_id, provider, provider_id, refresh_token) VALUES (?, ?, ?, ?, ?)").bind(id, userId, provider, `p-${id}`, refreshToken).run();
+    const identidadesDe = async (userId: string) =>
+      (await t.DB.prepare("SELECT COUNT(*) AS n FROM oauth_identities WHERE user_id = ?").bind(userId).first<{ n: number }>())!.n;
+
+    it("V-22: revoca la identidad de Google vinculada a una cuenta cuyo calendario es Microsoft", async () => {
+      await identidad("user-2", "user-2", "microsoft", "rt-ms");
+      await identidad("id-g", "user-2", "google", "rt-google-vinculado");
+      const user = (await t.db.query.users.findFirst({ where: eq(users.id, "user-2") }))!;
+
+      const res = await llamar({ user, body: { confirmar: user.email } });
+
+      expect(res.status).toBe(200);
+      expect(revocar).toHaveBeenCalledTimes(1);
+      expect(revocar).toHaveBeenCalledWith("rt-google-vinculado");
+      expect(await identidadesDe("user-2")).toBe(0);
+    });
+
+    it("V-22: usa el token de la identidad y no el copiado en users.*, y no revoca dos veces", async () => {
+      await identidad("user-1", "user-1", "google", "rt-de-la-identidad");
+      const user = await conToken("user-1", "rt-viejo-en-users");
+
+      await llamar({ user });
+
+      expect(revocar).toHaveBeenCalledTimes(1);
+      expect(revocar).toHaveBeenCalledWith("rt-de-la-identidad");
+      expect(await identidadesDe("user-1")).toBe(0);
+    });
+
+    it("V-22: las identidades de otro usuario no se tocan", async () => {
+      await identidad("user-1", "user-1", "google", "rt-1");
+      await identidad("user-2", "user-2", "microsoft", "rt-2");
+      await llamar({ user: await conToken("user-1", "rt-1") });
+      expect(await identidadesDe("user-2")).toBe(1);
     });
 
     it("C8: un usuario sin refresh token no intenta revocar", async () => {

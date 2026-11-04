@@ -1,21 +1,26 @@
 import type { APIRoute } from "astro";
-import { createGoogleProvider, createMicrosoftProvider, isValidProvider } from "../../../../lib/auth/providers";
+import { isValidProvider } from "../../../../lib/auth/providers";
 import { leerEstado, nombreCookieEstado } from "../../../../lib/auth/oauth-state";
 import { createSession } from "../../../../lib/auth/session";
 import { createDb } from "../../../../lib/db";
-import { users } from "../../../../../drizzle/schema";
-import { eq } from "drizzle-orm";
 import { withApi } from "../../../../lib/observability/with-api";
 import { safeNext } from "../../../../lib/auth/guards";
+import { obtenerIdentidad } from "../../../../lib/auth/perfil";
+import {
+  agregarIdentidad,
+  buscarIdentidad,
+  buscarIdentidadDeUsuario,
+  buscarUsuario,
+  buscarUsuarioLegado,
+  buscarUsuarioPorEmail,
+  crearIdentidadLegada,
+  crearUsuarioConIdentidad,
+  decidirVinculo,
+  registrarLogin,
+} from "../../../../lib/auth/identity";
 
-// Una respuesta de error del proveedor (p. ej. 403 por falta de scope) no es un perfil:
-// se corta acá para que el log muestre la causa y no un error posterior de D1
-async function obtenerPerfil<T>(url: string, accessToken: string): Promise<T> {
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!response.ok) throw new Error(`profile_fetch_failed: ${response.status}`);
-  return (await response.json()) as T;
-}
-
+// Quién es el usuario lo decide (provider, provider_id) y nunca el email (docs/18).
+// El email solo sirve para unir una cuenta nueva a una existente cuando ambos lados están verificados.
 export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, locals }) => {
   const { provider } = params;
   const env = locals.runtime.env;
@@ -46,82 +51,79 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
 
   const { codeVerifier, next } = estado;
 
+  // Vincular exige la sesión vigente del mismo usuario que inició el intento (V-10)
+  if (estado.intent === "link") {
+    if (!locals.user) return redirect("/login?error=vinculo_sesion");
+    if (locals.user.id !== estado.userId) return redirect("/configuracion?error=vinculo_sesion");
+  }
+
   try {
-    let tokens;
-    let userInfo: { email: string; name: string; image?: string; providerId: string };
-
-    if (provider === "google") {
-      const google = createGoogleProvider(env);
-      tokens = await google.validateAuthorizationCode(code, codeVerifier);
-
-      const profile = await obtenerPerfil<{ email: string; name: string; picture?: string; id: string }>(
-        "https://www.googleapis.com/oauth2/v2/userinfo",
-        tokens.accessToken()
-      );
-
-      userInfo = {
-        email: profile.email,
-        name: profile.name,
-        image: profile.picture,
-        providerId: profile.id,
-      };
-    } else if (provider === "microsoft") {
-      const microsoft = createMicrosoftProvider(env);
-      tokens = await microsoft.validateAuthorizationCode(code, codeVerifier);
-
-      const profile = await obtenerPerfil<{ mail?: string; userPrincipalName?: string; displayName: string; id: string }>(
-        "https://graph.microsoft.com/v1.0/me",
-        tokens.accessToken()
-      );
-
-      userInfo = {
-        email: profile.mail || profile.userPrincipalName || "",
-        name: profile.displayName,
-        providerId: profile.id,
-      };
-    } else {
-      return redirect("/login?error=unsupported_provider");
-    }
-
-    // Sin email no hay con qué identificar al usuario
-    if (!userInfo.email) throw new Error("profile_without_email");
-
+    const { perfil, tokens } = await obtenerIdentidad(env, provider, code, codeVerifier);
     const db = createDb(env.DB);
+    // El proveedor de la URL es el del intento actual. Nunca el de la otra cuenta: no se revela (email_en_uso)
+    const conflicto = (codigo: string, destino: string, proveedor?: string) => {
+      locals.logger?.warn("oauth_identity_conflict", { provider, code: codigo });
+      return redirect(`${destino}?error=${codigo}${proveedor ? `&proveedor=${proveedor}` : ""}`);
+    };
 
-    let user = await db.query.users.findFirst({
-      where: eq(users.email, userInfo.email),
-    });
+    // ---------- Vincular desde Configuración ----------
+    if (estado.intent === "link") {
+      const userId = estado.userId!;
+      const existente = await buscarIdentidad(db, provider, perfil.providerId);
+      if (existente && existente.userId !== userId) return conflicto("identidad_en_uso", "/configuracion", provider);
 
-    if (user) {
-      await db
-        .update(users)
-        .set({
-          accessToken: tokens.accessToken(),
-          refreshToken: tokens.refreshToken(),
-          tokenExpiresAt: tokens.accessTokenExpiresAt()?.getTime(),
-          name: userInfo.name,
-          image: userInfo.image,
-        })
-        .where(eq(users.id, user.id));
-    } else {
-      const [newUser] = await db
-        .insert(users)
-        .values({
-          email: userInfo.email,
-          name: userInfo.name,
-          image: userInfo.image,
-          provider: provider!,
-          providerId: userInfo.providerId,
-          accessToken: tokens.accessToken(),
-          refreshToken: tokens.refreshToken(),
-          tokenExpiresAt: tokens.accessTokenExpiresAt()?.getTime(),
-        })
-        .returning();
-
-      user = newUser;
+      if (existente) {
+        const dueno = await buscarUsuario(db, userId);
+        if (!dueno) return redirect("/login?error=vinculo_sesion");
+        await registrarLogin(db, existente, dueno, perfil, tokens);
+      } else {
+        // En esta versión hay una identidad por proveedor y usuario
+        if (await buscarIdentidadDeUsuario(db, userId, provider)) return conflicto("proveedor_en_uso", "/configuracion", provider);
+        await agregarIdentidad(db, userId, perfil, tokens);
+      }
+      return redirect(`/configuracion?vinculado=${provider}`);
     }
 
-    const sessionId = await createSession(db, user.id);
+    // ---------- Login ----------
+    let userId: string;
+    const identidad = await buscarIdentidad(db, provider, perfil.providerId);
+
+    if (identidad) {
+      userId = identidad.userId;
+      const dueno = await buscarUsuario(db, userId);
+      if (!dueno) throw new Error("identity_without_user");
+      await registrarLogin(db, identidad, dueno, perfil, tokens);
+    } else {
+      const legado = await buscarUsuarioLegado(db, provider, perfil.providerId);
+      if (legado) {
+        userId = legado.id;
+        const creada = await crearIdentidadLegada(db, legado, perfil, tokens);
+        await registrarLogin(db, creada, legado, perfil, tokens);
+      } else {
+        // Sin email no hay con qué decidir si ya existe una cuenta: no se crea nada
+        if (!perfil.email) return conflicto("email_ausente", "/login", provider);
+
+        const cuenta = (await buscarUsuarioPorEmail(db, perfil.email)) ?? null;
+        const decision = decidirVinculo({
+          identidadExistente: false,
+          identidadVerificada: perfil.emailVerified,
+          cuenta,
+          autoVincular: env.AUTO_VINCULAR_EMAIL_VERIFICADO === "true",
+        });
+
+        if (decision === "crear") {
+          userId = await crearUsuarioConIdentidad(db, perfil, tokens);
+        } else if (decision === "vincular" && cuenta && !(await buscarIdentidadDeUsuario(db, cuenta.id, provider))) {
+          userId = cuenta.id;
+          await agregarIdentidad(db, userId, perfil, tokens);
+        } else {
+          // Hay una cuenta con ese email y no se puede unir sola: no se abre sesión ni se toca nada
+          return conflicto("email_en_uso", "/login");
+        }
+      }
+    }
+
+    const sessionId = await createSession(db, userId);
 
     cookies.set("session", sessionId, {
       path: "/",

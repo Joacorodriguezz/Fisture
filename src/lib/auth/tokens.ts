@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
-import { users } from "../../../drizzle/schema";
+import { oauthIdentities, users } from "../../../drizzle/schema";
 import type { Database } from "../db";
 import { createGoogleProvider, createMicrosoftProvider } from "./providers";
+import { buscarIdentidadDeUsuario, type Proveedor } from "./identity";
 
 type DbUser = typeof users.$inferSelect;
 
@@ -11,30 +12,35 @@ const CALENDAR_SCOPES = {
 };
 
 // Devuelve un access token vigente para la API de calendario.
+// Los tokens salen de la identidad del proveedor de calendario activo (users.provider, docs/18 D4);
+// si el usuario todavía no tiene identidad (legado, D6) se usan los de users.*.
 // Si el token venció y hay refresh token, lo renueva y guarda el nuevo.
 export async function getValidAccessToken(
   env: Env,
   db: Database,
   user: DbUser
 ): Promise<string> {
-  if (!user.accessToken) {
+  const identidad = await buscarIdentidadDeUsuario(db, user.id, user.provider as Proveedor);
+  const fuente = identidad ?? user;
+
+  if (!fuente.accessToken) {
     throw new Error("No calendar access token");
   }
 
-  const expiresAt = user.tokenExpiresAt;
+  const expiresAt = fuente.tokenExpiresAt;
   const stillValid = !expiresAt || expiresAt > Date.now() + 60_000;
-  if (stillValid) return user.accessToken;
+  if (stillValid) return fuente.accessToken;
 
-  if (!user.refreshToken) {
+  if (!fuente.refreshToken) {
     throw new Error("Calendar permission expired. Volvé a iniciar sesión.");
   }
 
   let tokens;
   if (user.provider === "google") {
-    tokens = await createGoogleProvider(env).refreshAccessToken(user.refreshToken);
+    tokens = await createGoogleProvider(env).refreshAccessToken(fuente.refreshToken);
   } else if (user.provider === "microsoft") {
     tokens = await createMicrosoftProvider(env).refreshAccessToken(
-      user.refreshToken,
+      fuente.refreshToken,
       CALENDAR_SCOPES.microsoft
     );
   } else {
@@ -42,17 +48,20 @@ export async function getValidAccessToken(
   }
 
   const accessToken = tokens.accessToken();
-  const newRefresh = safeRefreshToken(tokens);
+  const nuevos = {
+    accessToken,
+    tokenExpiresAt: tokens.accessTokenExpiresAt()?.getTime() ?? null,
+    // Google no siempre devuelve un refresh token nuevo: conservamos el anterior
+    refreshToken: safeRefreshToken(tokens) ?? fuente.refreshToken,
+  };
 
-  await db
-    .update(users)
-    .set({
-      accessToken,
-      tokenExpiresAt: tokens.accessTokenExpiresAt()?.getTime() ?? null,
-      // Google no siempre devuelve un refresh token nuevo: conservamos el anterior
-      refreshToken: newRefresh ?? user.refreshToken,
-    })
-    .where(eq(users.id, user.id));
+  // Doble escritura (docs/18 D6): users.* sigue vigente hasta el release N+1
+  const actualizarUsuario = db.update(users).set(nuevos).where(eq(users.id, user.id));
+  if (identidad) {
+    await db.batch([db.update(oauthIdentities).set(nuevos).where(eq(oauthIdentities.id, identidad.id)), actualizarUsuario]);
+  } else {
+    await actualizarUsuario;
+  }
 
   return accessToken;
 }

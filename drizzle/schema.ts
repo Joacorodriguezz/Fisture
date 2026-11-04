@@ -5,22 +5,64 @@ import { sql } from "drizzle-orm";
 // USUARIOS Y AUTH
 // ============================================
 
-export const users = sqliteTable("users", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  email: text("email").notNull().unique(),
-  name: text("name"),
-  image: text("image"),
-  provider: text("provider").notNull(), // 'google' | 'microsoft' | 'apple'
-  providerId: text("provider_id").notNull(),
-  accessToken: text("access_token"),
-  refreshToken: text("refresh_token"),
-  tokenExpiresAt: integer("token_expires_at"),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(
-    sql`(strftime('%s', 'now'))`
-  ),
-});
+export const users = sqliteTable(
+  "users",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    // Email de contacto, normalizado (trim + minúsculas). Lo fija el alta y no lo cambia el login (docs/18 D5)
+    email: text("email").notNull().unique(),
+    // Algún proveedor garantizó que el email es del dueño de la cuenta (docs/18 D2)
+    emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
+    name: text("name"),
+    image: text("image"),
+    // Proveedor de calendario activo (docs/18 D4). Apunta a una fila de oauth_identities
+    provider: text("provider").notNull(), // 'google' | 'microsoft' | 'apple'
+    // Deprecadas desde docs/18 (D6): se mantienen por doble escritura y se eliminan en el release N+1
+    providerId: text("provider_id").notNull(),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    tokenExpiresAt: integer("token_expires_at"),
+    createdAt: integer("created_at", { mode: "timestamp" }).default(
+      sql`(strftime('%s', 'now'))`
+    ),
+  },
+  (table) => ({
+    emailLowerIdx: uniqueIndex("users_email_lower_idx").on(sql`lower(${table.email})`),
+  })
+);
+
+// Una fila por cuenta de proveedor vinculada. La identidad es (provider, provider_id), nunca el email (docs/18)
+export const oauthIdentities = sqliteTable(
+  "oauth_identities",
+  {
+    // Para la identidad principal (la que crea la migración) id = users.id
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(), // 'google' | 'microsoft'
+    providerId: text("provider_id").notNull(), // Google: sub. Microsoft: oid (id de Graph)
+    tenantId: text("tenant_id"), // Microsoft: tid (informativo)
+    email: text("email"), // tal como lo informó el proveedor, normalizado; informativo
+    emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    tokenExpiresAt: integer("token_expires_at"),
+    createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+    lastLoginAt: integer("last_login_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  },
+  (table) => ({
+    identidadIdx: uniqueIndex("oauth_identities_provider_id_idx").on(table.provider, table.providerId),
+    userProviderIdx: uniqueIndex("oauth_identities_user_provider_idx").on(table.userId, table.provider),
+    userIdx: index("oauth_identities_user_id_idx").on(table.userId),
+  })
+);
+
+export type OAuthIdentity = typeof oauthIdentities.$inferSelect;
 
 // ============================================
 // LIGAS Y EQUIPOS
