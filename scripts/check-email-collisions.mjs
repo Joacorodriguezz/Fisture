@@ -14,10 +14,12 @@ let colisiones = 0;
 for (const base of bases) {
   let salida;
   try {
-    salida = execFileSync("npx", ["wrangler", "d1", "execute", base, "--remote", "--json", "--command", SQL], {
-      encoding: "utf8",
-      shell: process.platform === "win32",
-    });
+    const args = ["wrangler", "d1", "execute", base, "--remote", "--json", "--command", SQL];
+    // En Windows npx es un .cmd y necesita shell, que no cita los argumentos: el SQL llegaría partido
+    salida =
+      process.platform === "win32"
+        ? execFileSync("npx", args.map((a) => `"${a}"`), { encoding: "utf8", shell: true })
+        : execFileSync("npx", args, { encoding: "utf8" });
   } catch (error) {
     console.error(`No se pudo consultar ${base}: ${error.message}`);
     process.exit(2);
