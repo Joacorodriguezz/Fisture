@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { irALogin } from "../../lib/auth/client";
 import { mensajeDeLimite } from "../../lib/sync-ui";
+import { sincronizarEnLotes } from "../../lib/calendar/lotes";
 
 interface Props {
   matchIds: string[];
@@ -9,10 +10,6 @@ interface Props {
   variante?: "primario" | "tinta" | "secundario";
   // Visitante sin sesión: pide iniciar sesión en vez de sincronizar
   anonimo?: boolean;
-}
-
-interface SyncResponse {
-  results?: { matchId: string; success: boolean; error?: string }[];
 }
 
 // Clave del resumen que sobrevive a la recarga de la página
@@ -30,6 +27,7 @@ export default function SincronizarTodo({
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resumen, setResumen] = useState<string | null>(null);
+  const [progreso, setProgreso] = useState<string | null>(null);
 
   // Lee el resumen dejado por el lote anterior (una sola vez)
   useEffect(() => {
@@ -52,23 +50,27 @@ export default function SincronizarTodo({
     setResumen(null);
 
     try {
-      const res = await fetch("/api/calendario/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchIds }),
+      // Cada lote es una request aparte (docs/16 §12 R2), en secuencia y con progreso
+      const r = await sincronizarEnLotes(matchIds, {
+        enviar: (lote) =>
+          fetch("/api/calendario/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ matchIds: lote }),
+          }),
+        onProgreso: (hechos, total) => setProgreso(`${Math.min(hechos + 1, total)} de ${total}`),
       });
-      if (res.status === 401) return irALogin();
-      if (res.status === 429) {
-        setError(mensajeDeLimite(res.headers.get("Retry-After")));
+      if (r.sinSesion) return irALogin();
+
+      if (r.limitado) {
+        // Se frena sin recargar para que el mensaje no se pierda; lo ya agregado se ve al recargar
+        const faltan = matchIds.length - r.ok - r.fallo;
+        setError(`${mensajeDeLimite(r.retryAfter)} Se sincronizaron ${r.ok}; faltan ${faltan}.`);
         setCargando(false);
+        setProgreso(null);
         return;
       }
-      if (!res.ok && res.status !== 207) throw new Error(`HTTP ${res.status}`);
-
-      const data = (await res.json().catch(() => ({}))) as SyncResponse;
-      const resultados = data.results ?? [];
-      const ok = resultados.filter((r) => r.success).length;
-      const fallo = resultados.length - ok;
+      const { ok, fallo } = r;
       const texto = `${ok} ${ok === 1 ? "partido sincronizado" : "partidos sincronizados"}${fallo ? ` · ${fallo} ${fallo === 1 ? "falló" : "fallaron"}` : ""}`;
 
       try {
@@ -80,6 +82,7 @@ export default function SincronizarTodo({
     } catch {
       setError("No se pudo sincronizar. Probá de nuevo.");
       setCargando(false);
+      setProgreso(null);
     }
   }
 
@@ -89,7 +92,7 @@ export default function SincronizarTodo({
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }} aria-live="polite">
       {resumen && <span style={{ font: "700 13px/16px var(--font-rotulo)", letterSpacing: ".04em", textTransform: "uppercase", color: "var(--celeste)" }}>✓ {resumen}</span>}
       <button type="button" className={clase} disabled={cargando || (!anonimo && matchIds.length === 0)} onClick={sincronizar}>
-        {cargando ? etiquetaCargando : etiqueta}
+        {cargando ? (progreso ? `${etiquetaCargando.replace("…", "")} ${progreso}…` : etiquetaCargando) : etiqueta}
       </button>
       {error && <span className="tb-error">{error}</span>}
     </div>
