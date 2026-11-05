@@ -99,7 +99,7 @@ Hook `commit-msg` (`.githooks/`) valida tipo, longitud, puntuación y línea en 
 
 - Agregar un partido es idempotente (id determinístico en Google, etiqueta `fisture.matchId` en Microsoft, índice único `(user_id, match_id)`). Nunca se crea un evento nuevo ante un error transitorio (5xx, 429, red).
 - Estados de `calendar_syncs.status`: `pending`, `synced`, `needs_update`, `failed`, `detached` (el usuario borró el evento: el cron no lo recrea) y `cancelled` (partido cancelado, evento quitado).
-- La reconciliación (`reconcileCalendarBatch`, por lotes, ver Observabilidad) corrige los eventos desactualizados de todos los usuarios, tengan o no auto-sync. Se detecta cambio de hora, sede, postergado y cancelado. Rota por `users.calendar_reconciled_at` (el menos atendido primero) y solo atiende a quien tiene trabajo real. Un 401 o la falta de token pasa al usuario a `calendar_auth_status = 'reauth_required'`: sale de la cola hasta que vuelva a iniciar sesión (el callback OAuth lo reactiva).
+- La reconciliación (`reconcileCalendarBatch`, por lotes, ver Observabilidad) corrige los eventos desactualizados de todos los usuarios, tengan o no auto-sync. Se detecta cambio de hora, sede, postergado y cancelado. Rota por `users.calendar_reconciled_at` (el menos atendido primero) y solo atiende a quien tiene trabajo real. Solo un error de token (`invalid_grant`, falta de refresh token o de access token) pasa al usuario a `calendar_auth_status = 'reauth_required'`: sale de la cola hasta que vuelva a iniciar sesión (el callback OAuth lo reactiva).
 - Los títulos de eventos ajenos (aviso de solapamiento) no se loguean ni se guardan. Diseño completo: `docs/11-calendario-casos-borde-tdd.md`.
 
 ## Cambios grandes: TDD primero

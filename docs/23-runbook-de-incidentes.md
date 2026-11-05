@@ -186,14 +186,16 @@ que fija el `mail`). La pantalla no dice con qué proveedor está la otra cuenta
 ### Calendarios de usuarios sin acceso
 
 `metricas.calendariosSinAcceso` en `/api/admin/status` cuenta los usuarios en `reauth_required`: el proveedor
-rechazó su token (401) o no hay token. Salen de la cola del sync hasta que vuelven a iniciar sesión (el login
+falló su token (`invalid_grant`, sin refresh token o sin access token). Un 401 del proveedor que persiste tras renovar no cuenta: la fila se reintenta al día siguiente. Salen de la cola del sync hasta que vuelven a iniciar sesión (el login
 los reactiva). No es un fallo del sistema y no cambia el estado de `/api/health`. Un número que crece de golpe
 suele indicar un problema de credenciales de la app (cliente OAuth revocado o secret rotado): revisar §5.
 
 ### Los workflows programados dejaron de correr
 
-GitHub desactiva los `schedule` tras 60 días sin actividad en el repo y no avisa. `keepalive.yml` (lunes) los
-vuelve a habilitar con la API y abre un issue `incidente` si encontró alguno desactivado o si `sync-cron.yml`
+GitHub desactiva los `schedule` tras 60 días sin actividad en el repo y no avisa. La inactividad apaga **todos** los
+workflows programados a la vez, `keepalive.yml` incluido, por lo que reactivar ante `disabled_inactivity` sirve de
+poco. Lo que realmente protege es que el `PUT .../enable` de `keepalive.yml` (lunes) reinicie el plazo de 60 días,
+y eso todavía no está verificado (docs/17 §12). Intenta volver a habilitarlos con la API y abre un issue `incidente` si encontró alguno desactivado o si `sync-cron.yml`
 lleva más de 72 h sin terminar bien. Si aun así dejaron de correr (por ejemplo, también se desactivó
 `keepalive.yml`): GitHub → Actions → elegir el workflow → **Enable workflow**, y lanzar **Sync diario** a mano.
 Cualquier commit, PR o deploy reinicia el plazo de 60 días. El respaldo que no depende de GitHub es un monitor
