@@ -99,6 +99,9 @@ function safeRefreshToken(tokens: { refreshToken(): string }): string | null {
 // El error del proveedor puede arrastrar el refresh token en su mensaje: se conserva solo el motivo
 // (invalid_grant => el usuario debe reconectar; el resto es transitorio)
 function errorDeRenovacion(error: unknown): Error {
-  const texto = `${(error as { code?: unknown } | null)?.code ?? ""} ${error instanceof Error ? error.message : ""}`;
-  return new Error(/invalid_grant/i.test(texto) ? "refresh_failed: invalid_grant" : "refresh_failed");
+  const code = (error as { code?: unknown } | null)?.code;
+  const texto = `${code ?? ""} ${error instanceof Error ? error.message : ""}`;
+  if (/invalid_grant/i.test(texto)) return new Error("refresh_failed: invalid_grant");
+  // Otro código OAuth (invalid_client, etc.) solo si tiene forma de código: un token no cumple ^[a-z_]+$
+  return new Error(typeof code === "string" && /^[a-z_]+$/.test(code) ? `refresh_failed: ${code}` : "refresh_failed");
 }
