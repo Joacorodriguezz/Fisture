@@ -7,6 +7,8 @@ import {
 import { withApi } from "../../../lib/observability/with-api";
 import { mensajeDeError } from "../../../lib/observability/logger";
 
+const MAX_MATCH_IDS = 50;
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -30,13 +32,18 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
     return json({ error: "matchId or matchIds required" }, 400);
   }
 
+  // Tope por request (docs/16 R2): la UI manda como mucho 25 (LOTE_MAXIMO / LOTE_MANUAL)
+  if (idsToSync.length > MAX_MATCH_IDS) {
+    return json({ error: "too_many_matchIds", max: MAX_MATCH_IDS }, 400);
+  }
+
   const env = locals.runtime.env;
   const db = createDb(env.DB);
   const results = await syncMatches(db, env, user, idsToSync);
   const allSuccess = results.every((r) => r.success);
 
   return json({ success: allSuccess, results }, allSuccess ? 200 : 207);
-});
+}, { rateLimit: ["calendar_sync_ip", "calendar_sync", "calendar_sync_hour"] });
 
 // Quita el evento del partido del calendario del usuario
 export const DELETE: APIRoute = withApi(async ({ url, locals }) => {
@@ -56,4 +63,4 @@ export const DELETE: APIRoute = withApi(async ({ url, locals }) => {
     const message = mensajeDeError(error, "Error desconocido");
     return json({ success: false, error: message }, 500);
   }
-});
+}, { rateLimit: ["mutation_ip", "calendar_delete"] });

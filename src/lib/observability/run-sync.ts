@@ -3,6 +3,7 @@
 import { createDb } from "../db";
 import { syncAllLeagues, syncLote, syncSingleLeague, type LoteResult, type SyncEnv, type SyncResult } from "../data-providers/sync";
 import { purgeExpiredSessions } from "../auth/session";
+import { limpiarRateLimits } from "../rate-limit/cleanup";
 import { reconcileCalendars } from "../calendar/sync-service";
 import { checkConsistency } from "./consistency";
 import { mensajeDeError, rootLogger, type Logger } from "./logger";
@@ -115,6 +116,13 @@ export async function runSync(env: RunSyncEnv, trigger: SyncTrigger, options: Ru
       logger.info("sessions_purged", { count: await purgeExpiredSessions(db) });
     } catch (err) {
       logger.warn("sessions_purge_failed", { err });
+    }
+
+    // Higiene: contadores del límite de tasa de más de 24 h (docs/16 §4 D1). Un fallo no afecta al sync.
+    try {
+      logger.info("rate_limits_purged", { count: await limpiarRateLimits(env.DB) });
+    } catch (err) {
+      logger.warn("rate_limits_purge_failed", { err });
     }
 
     try {

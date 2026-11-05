@@ -19,4 +19,4 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
   }
 
   return redirect(await iniciarAutorizacion({ env, secret: env.OAUTH_STATE_SECRET, cookies, provider, next: safeNext(url.searchParams.get("next")) }));
-});
+}, { rateLimit: ["login"] });

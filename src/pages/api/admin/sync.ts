@@ -1,13 +1,14 @@
 import type { APIRoute } from "astro";
 import { runSync } from "../../../lib/observability/run-sync";
-import { isAdminAuthorized, unauthorized } from "../../../lib/observability/admin-auth";
+import { verificarAdmin } from "../../../lib/observability/admin-auth";
 import { withApi } from "../../../lib/observability/with-api";
 import { lotesDeSync } from "../../../lib/data-providers";
 
 export const POST: APIRoute = withApi(async ({ request, locals }) => {
   const env = locals.runtime.env;
 
-  if (!isAdminAuthorized(request, env.ADMIN_SECRET)) return unauthorized();
+  const rechazo = await verificarAdmin(request, env, { logger: locals.logger, requestId: locals.requestId });
+  if (rechazo) return rechazo;
 
   // Opcional: una sola competencia ({"leagueId": "eng.1"}) o un lote ({"lote": 0}, docs/22 D4).
   // Sin nada sincroniza todas en la misma invocación (sirve en local; en Workers Free no alcanza).
@@ -36,4 +37,4 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
     results: outcome.results,
     issues: outcome.issues,
   });
-});
+}, { origin: "none", contentType: "any", rateLimit: [] });
