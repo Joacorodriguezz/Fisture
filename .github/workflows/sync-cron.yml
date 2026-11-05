@@ -15,6 +15,11 @@ permissions:
   contents: read
   issues: write
 
+# Dos syncs a la vez (un schedule y un disparo manual) pisarían el mismo barrido: el segundo espera
+concurrency:
+  group: sync-diario
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
