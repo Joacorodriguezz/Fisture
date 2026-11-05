@@ -1,6 +1,5 @@
 // Contador de ventana fija en D1 (docs/16 D1/D2). Una sola sentencia atómica por hit: el conteo es
-// exacto y global. Pasado limit x CAP_FACTOR la sentencia no actualiza (WHERE) y por lo tanto no escribe.
-import { CAP_FACTOR } from "./policies";
+// exacto y global. El tope es limit + 1: el sujeto bloqueado ya no escribe (la sentencia no actualiza por el WHERE).
 
 export interface Regla {
   limit: number;
@@ -27,7 +26,7 @@ RETURNING count`;
 
 export async function hit(DB: D1Database, bucket: string, subject: string, regla: Regla, now: number = Date.now()): Promise<HitResult> {
   const { windowStart, retryAfter } = ventana(now, regla.windowSec);
-  const tope = regla.limit * CAP_FACTOR;
+  const tope = regla.limit + 1;
   const fila = await DB.prepare(UPSERT).bind(bucket, subject, windowStart, tope).first<{ count: number }>();
   // Sin fila devuelta: el contador ya estaba en el tope y no se tocó
   const count = fila ? Number(fila.count) : tope + 1;

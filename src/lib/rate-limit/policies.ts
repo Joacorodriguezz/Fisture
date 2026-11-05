@@ -24,8 +24,6 @@ export const POLICIES = {
 
 export type PolicyName = keyof typeof POLICIES;
 
-// Pasado limit x CAP_FACTOR en la misma ventana ya no se escribe más (docs/16 D2)
-export const CAP_FACTOR = 5;
 
 // Retención de las filas de rate_limits
 export const RETENCION_MS = 24 * 60 * 60 * 1000;

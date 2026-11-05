@@ -42,19 +42,24 @@ describe("hit() contra D1", () => {
     expect(resultados.filter((r) => !r.allowed)).toHaveLength(10);
   });
 
-  it("RL7: pasado limit x 5 responde bloqueado sin escribir en D1", async () => {
-    for (let i = 0; i < 50; i++) await hit(t.DB, "b", "s", REGLA, T0);
+  it("RL7: el sujeto bloqueado deja de escribir: el contador se detiene en limit + 1", async () => {
+    for (let i = 0; i < 11; i++) await hit(t.DB, "b", "s", REGLA, T0);
     const antes = await t.DB.prepare("SELECT count FROM rate_limits").first<{ count: number }>();
-    expect(antes?.count).toBe(50);
+    expect(antes?.count).toBe(11);
     for (let i = 0; i < 5; i++) {
       const r = await hit(t.DB, "b", "s", REGLA, T0 + 1_000);
       expect(r.allowed).toBe(false);
       expect(r.retryAfter).toBeGreaterThanOrEqual(1);
     }
     const despues = await t.DB.prepare("SELECT count FROM rate_limits").first<{ count: number }>();
-    expect(despues?.count).toBe(50);
-    const filas = await t.DB.prepare("SELECT COUNT(*) AS n FROM rate_limits").first<{ n: number }>();
-    expect(filas?.n).toBe(1);
+    expect(despues?.count).toBe(11);
+    expect((await t.DB.prepare("SELECT COUNT(*) AS n FROM rate_limits").first<{ n: number }>())?.n).toBe(1);
+  });
+
+  it("RL7b: una IP que ataca escribe como mucho limit + 1 por bucket y ventana", async () => {
+    const resultados = await Promise.all(Array.from({ length: 200 }, () => hit(t.DB, "b", "s", REGLA, T0)));
+    expect(resultados.filter((r) => r.allowed)).toHaveLength(10);
+    expect((await t.DB.prepare("SELECT count FROM rate_limits").first<{ count: number }>())?.count).toBe(11);
   });
 
   it("peek() lee el contador de la ventana sin escribir", async () => {
@@ -83,7 +88,7 @@ describe("limpieza y métricas", () => {
     await hit(t.DB, "login", "b", { limit: 10, windowSec: 600 }, T0);
     const m = await metricasRateLimit(t.DB, T0 + 1_000);
     const login = m.ultimas24h.find((b) => b.bucket === "login");
-    expect(login).toMatchObject({ limit: 10, hits: 14, blocked: 3, subjects: 2 });
+    expect(login).toMatchObject({ limit: 10, hits: 12, blocked: 1, subjects: 2 });
     expect(m.filas).toBe(2);
     expect(JSON.stringify(m)).not.toContain('"a"');
   });
