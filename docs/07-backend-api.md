@@ -454,30 +454,28 @@ export function handleError(error: unknown): Response {
 }
 ```
 
-## Rate Limiting (Opcional)
+## Límite de tasa y verificación de origen
+
+Implementado en `withApi` (`lib/observability/with-api.ts`), diseño en `docs/16`. No usa KV (el plan Free admite
+1.000 escrituras por día): cuenta en D1, tabla `rate_limits`, una sentencia atómica por request limitada.
 
 ```typescript
-// src/lib/rate-limit.ts
-export async function checkRateLimit(
-  kv: KVNamespace,
-  key: string,
-  limit: number,
-  windowSeconds: number
-): Promise<boolean> {
-  const current = await kv.get(`ratelimit:${key}`)
-  const count = current ? parseInt(current) : 0
-
-  if (count >= limit) {
-    return false
-  }
-
-  await kv.put(`ratelimit:${key}`, String(count + 1), {
-    expirationTtl: windowSeconds,
-  })
-
-  return true
-}
+export const POST: APIRoute = withApi(handler, {
+  rateLimit: ["calendar_sync_ip", "calendar_sync", "calendar_sync_hour"], // políticas de lib/rate-limit/policies.ts
+  origin: "session",    // por defecto en POST/PUT/PATCH/DELETE; "none" para rutas con Bearer (admin)
+  contentType: "json",  // por defecto; "any" para formularios HTML (auth/vincular) o el cron
+});
 ```
+
+- Una mutación sin `rateLimit` explícito cae en `mutation_ip` + `mutation` (falla segura); una lectura sin él no se limita.
+- Orden: origen y `Content-Type` -> límite por IP -> límite por usuario -> handler. Respuestas: `403 forbidden_origin`,
+  `415 unsupported_media_type`, `429 rate_limited` con `Retry-After`.
+- Valores: `login` 10 / 10 min por IP, `oauth_callback` 20 / 10 min por IP, `calendar_sync` 10 / min y 60 / h por usuario
+  (más 30 / min por IP), `calendar_delete` 30 / min, `mutation` 60 / min por usuario y 120 / min por IP,
+  `admin_fail` 5 fallos / 15 min por IP, `search_public` 60 / min por IP (memoria del isolate).
+- `POST /api/calendario/sync` acepta hasta 50 `matchIds` (400 `too_many_matchIds`).
+- Variables: `RATE_LIMIT_SALT`, `RATE_LIMIT_DISABLED`, `RATE_LIMIT_MODE=observe`, `ALLOWED_ORIGINS` (`docs/08`). Qué hacer
+  si un usuario legítimo queda limitado: `docs/23` §6.
 
 ## Resumen de Endpoints
 

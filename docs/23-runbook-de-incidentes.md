@@ -97,6 +97,36 @@ a las 00:00 UTC (21:00 en Argentina).
    `https://fisture.com/api/auth/callback/<provider>`.
 3. Bloqueos del WAF: Security → Events, filtrar por `/api/auth/*` (regla del ASN 32934, docs/20 §10).
 
+### Un usuario legítimo queda limitado (429 `rate_limited`) o bloqueado por origen (403 `forbidden_origin`)
+
+Diseño: `docs/16`. El usuario ve "Demasiados intentos. Probá de nuevo en N segundos" (429 con `Retry-After`).
+Las ventanas son de 1 minuto a 15 minutos y se reinician solas: **si puede esperar, esperar es la solución**.
+
+1. Confirmar: en el log buscar `rate_limited` (`bucket`, `scope`, `limit`, `retryAfter`; sin IP) con
+   `npx wrangler pages deployment tail --project-name fisture`, o pedir el `x-request-id` de la respuesta.
+   `GET /api/admin/status` trae `rateLimit.ultimas24h`: por bucket, `hits`, `blocked` y `subjects`. Si `blocked` es más
+   del 5% de `hits` en un bucket durante un día, el límite está mal calibrado (subirlo en `lib/rate-limit/policies.ts`,
+   hotfix `fix/*` desde `main`) o hay abuso.
+2. **Apagar el límite de tasa ya (sin deploy), si afecta a varios usuarios:**
+   `echo true | npx wrangler pages secret put RATE_LIMIT_DISABLED --project-name fisture` (staging: `--env preview`).
+   Se lee en cada request (esperar ~1 minuto, §5). Para pasar a "solo observar" en vez de apagar:
+   `RATE_LIMIT_MODE=observe`. Al resolverlo: `npx wrangler pages secret delete RATE_LIMIT_DISABLED --project-name fisture`.
+   El chequeo de origen no se apaga con esto (es un control de seguridad aparte).
+3. **Liberar a un solo usuario o IP** (NAT compartido: colegio, oficina, operadora móvil): borrar su fila.
+   - Por usuario, el `subject` es su `users.id`:
+     `npx wrangler d1 execute fisture-db --remote --command "DELETE FROM rate_limits WHERE subject = '<users.id>'"`.
+   - Por IP, el `subject` es el HMAC de la IP con `RATE_LIMIT_SALT` (o `ADMIN_SECRET` si no está). Calcularlo en la
+     terminal, sin pegar la IP en ningún issue ni PR:
+     `SAL='<RATE_LIMIT_SALT>' IP='<ip>' node -e "console.log(require('node:crypto').createHmac('sha256',process.env.SAL).update(process.env.IP).digest('base64url').slice(0,22))"`
+     y luego el `DELETE ... WHERE subject = '<hash>'` de arriba.
+4. **403 `forbidden_origin`** en un navegador legítimo: entra por un origen que no es `PUBLIC_APP_URL` y su navegador no
+   manda `Sec-Fetch-Site` (versiones viejas, proxys que lo quitan). Cargar el origen en `ALLOWED_ORIGINS`
+   (`echo 'https://www.fisture.com' | npx wrangler pages secret put ALLOWED_ORIGINS --project-name fisture`).
+5. **`POST /api/admin/sync` o `GET /api/admin/status` responden 429**: hubo 5 Bearer inválidos desde esa IP en los últimos
+   15 minutos (por ejemplo un `ADMIN_SECRET` mal rotado en GitHub, §5), y entonces se rechaza incluso el Bearer correcto
+   hasta que venza la ventana. Corregir el secret y esperar 15 minutos, o borrar la fila de `admin_fail` (paso 3).
+   Para ver qué `bucket` es: `SELECT bucket, SUM(count) FROM rate_limits GROUP BY bucket`.
+
 ### Sync en `fail` o `degraded`
 
 `/api/admin/status` muestra los errores por competencia. Un error de ESPN en una competencia deja el run en

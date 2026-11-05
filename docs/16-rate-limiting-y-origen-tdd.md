@@ -1,10 +1,10 @@
 # TDD: Rate limiting y verificación de origen en la API
 
-> Technical Design Document. Estado: **propuesto, pendiente de revisión**. Fecha: 2026-10-22. Rama de implementación sugerida: `feat/rate-limiting-y-origen`, desde `development`.
+> Technical Design Document. Estado: **implementado** (2026-11-05, rama `feat/rate-limiting-y-origen`). Redactado el 2026-10-22. Los desvíos respecto del diseño y lo verificado en la documentación de Cloudflare están en el §13.
 >
-> Este documento registra **qué problemas hay hoy, qué decidimos y por qué**. El código y los tests se escriben después de la aprobación, siguiendo el orden del §10.
+> Este documento registra **qué problemas hay hoy, qué decidimos y por qué**. El código y los tests se escribieron después de la aprobación, siguiendo el orden del §10.
 >
-> Dependencias de numeración: este TDD asume que `docs/14-borrado-de-cuenta-tdd.md` (que prevé `esMismoOrigen`) y `docs/15-cifrado-de-tokens-tdd.md` existen en `development` al implementar. En la rama donde se redactó, ninguno de los dos estaba todavía; ver D6 y el paso 1 del §10 para cómo se resuelve el orden de merge.
+> Dependencias de numeración: este TDD asumía que `docs/14-borrado-de-cuenta-tdd.md` (que prevé `esMismoOrigen`) y `docs/15-cifrado-de-tokens-tdd.md` existían en `development` al implementar. Al implementar, `esMismoOrigen` ya estaba en `lib/auth/guards.ts` (docs/14); se generalizó ahí mismo (D6). La migración es la `0013` (la `0011` y la `0012` estaban reservadas a otros PRs).
 
 ## 1. Contexto y problema
 
@@ -329,4 +329,47 @@ La verificación de origen **no** se apaga con `RATE_LIMIT_DISABLED`: es un cont
 
 ## 13. Notas de implementación (desvíos respecto del diseño original)
 
-_(vacío; se completa al terminar la implementación)_
+### 13.1 Spikes del §10 paso 0: qué se confirmó y con qué fuente
+
+Consultas hechas el 2026-11-05 en la documentación oficial de Cloudflare (`developers.cloudflare.com`). No se desplegó nada ni se tocó la cuenta: lo que exige el dashboard o un despliegue de prueba queda como pendiente del dueño.
+
+| Spike | Resultado | Fuente |
+| --- | --- | --- |
+| **S1** ¿`ratelimit` en Pages Functions? | **No está documentado como soportado**, así que se descarta. La página de configuración de Wrangler para Pages lista los bindings que acepta (`d1_databases`, `durable_objects`, `hyperdrive`, `kv_namespaces`, `queues.producers`, `r2_buckets`, `vectorize`, `services`, `analytics_engine_datasets`, `ai`) y `ratelimit`/`[[ratelimits]]` no figura; la página de bindings de Pages dice "Pages Functions only support a subset of all bindings, which are listed on this page". La página del binding (`[[ratelimits]]` con `name`, `namespace_id`, `[ratelimits.simple] limit/period`, Wrangler >= 4.36.0) habla solo de Workers y no menciona Pages ni restringe por plan. Aunque funcionara, `period` solo admite 10 o 60 s (no sirve para "10 logins cada 10 min" ni "5 fallos de admin cada 15 min") y el conteo es aproximado y por ubicación. No se probó con un despliegue real (no se tocó Cloudflare). | `pages/functions/wrangler-configuration/`, `pages/functions/bindings/`, `workers/runtime-apis/bindings/rate-limit/` (actualizada 2026-10-21) |
+| **S2** ¿Durable Objects desde Pages? | Sí, pero la clase tiene que vivir en un **Worker separado** ("You cannot create and deploy a Durable Object within a Pages project") y el binding en el `wrangler.toml` de Pages exige `script_name`. Sigue siendo la ruta de escalado si D1 no alcanza (§12); no hizo falta. | `pages/functions/wrangler-configuration/` (sección Durable Objects), `pages/functions/bindings/` |
+| **S3** Plan real de la cuenta | **Pendiente del dueño** (dashboard). El diseño asume Workers Free y D1 Free (100.000 filas escritas por día); `docs/24` mide hoy menos de 300 escrituras por día. | n/a |
+| **S4** Tamaño de `matchIds` y `cf-connecting-ip` | El mayor lote real de la UI es 25 (`LOTE_MAXIMO` en `hoy.astro` y `LOTE_MANUAL` en `calendario.astro`), así que el tope de 50 queda holgado (verificado en el código). `cf-connecting-ip` en `*.pages.dev`/`fisture.com` **no se pudo comprobar** sin un despliegue: si la cabecera falta, el scope IP se omite y se loguea `rate_limit_ip_omitida` en `debug` (RL10), es decir que el límite por usuario sigue funcionando. Para confirmarlo, ver el paso manual en "Despliegue y riesgos" del PR. | código del repo |
+| O1 WAF en `pages.dev` | No verificado (la documentación del WAF no lo menciona). Como la app se sirve en `fisture.com` (dominio propio), la regla de D3 es viable y queda como mejora opcional manual. | `waf/rate-limiting-rules/` |
+| Cómo apagar rápido (§11) | `wrangler.toml` es la fuente de verdad de los campos que define y no se pueden editar en el dashboard (`pages/functions/wrangler-configuration/`). `RATE_LIMIT_DISABLED` **no** está en `[vars]`, así que se define como **secret de Pages** (`wrangler pages secret put`), que se lee en cada request sin redeploy (como ya describe `docs/23` §5). | `pages/functions/wrangler-configuration/`, `docs/23` §5 |
+
+Conclusión: el binding de Workers no es viable en Pages, por lo que se mantuvo la opción que el TDD recomendaba (O4, contadores en D1 detrás de la interfaz `hit()/peek()`). Cambiar el backend más adelante solo toca `lib/rate-limit/limiter.ts`.
+
+### 13.2 Qué se implementó
+
+- `drizzle/migrations/0013_rate_limits.sql` (tabla `WITHOUT ROWID`), `src/lib/rate-limit/{policies,limiter,subject,memory,cleanup,metricas}.ts`.
+- `esMismoOrigen` generalizado y `contentTypeValido` en `lib/auth/guards.ts`; `withApi` aplica origen, `Content-Type` y límites (opciones `rateLimit`, `origin`, `contentType`). Las rutas `cuenta`, `identidades` y `vincular` dejaron su chequeo manual.
+- Políticas declaradas en `login`, `callback`, `calendario/sync` (POST y DELETE) y `equipos/buscar`; el resto de las mutaciones cae en el límite genérico. `admin/*` usa `verificarAdmin` (D5).
+- Limpieza de ventanas de más de 24 h dentro de `runSync`; `GET /api/admin/status` suma `rateLimit`.
+- UI: `mensajeDeLimite` en `lib/sync-ui.ts`, usado por `SincronizarPartido` y `SincronizarTodo`; caso E2E de humo.
+- Variables nuevas: `RATE_LIMIT_SALT` (secret), `RATE_LIMIT_DISABLED`, `RATE_LIMIT_MODE` y `ALLOWED_ORIGINS` (opcionales). Sin bindings nuevos.
+
+### 13.3 Desvíos respecto del diseño
+
+1. **El tope `limit x 5` se resuelve dentro del mismo UPSERT** (`... DO UPDATE SET count = count + 1 WHERE count < limit*5 RETURNING count`), sin el `SELECT` posterior que describía D2. Pasado el tope, la sentencia no actualiza ni devuelve fila: una sola ida a D1, sin escritura (RL7 lo comprueba contando filas y `count`).
+2. **`esMismoOrigen` no acepta "el origen de la propia request"** (regla 2 del TDD). `docs/14` ya fijó, y tiene test, que un `PUBLIC_APP_URL` inválido rechaza cualquier `Origin`; aceptar el origen de la request lo contradecía. Los accesos por un alias de Pages (`*.fisture.pages.dev`) funcionan igual porque el navegador manda `Sec-Fetch-Site: same-origin`; el caso de navegadores sin esa cabecera se cubre con `ALLOWED_ORIGINS`. Además, con `Sec-Fetch-Site` `cross-site`/`same-site` se acepta solo si el `Origin` está permitido (útil para `www.`).
+3. **Cuerpos de error unificados.** Los rechazos de `withApi` son `{ "error": "forbidden_origin" }` (403) y `{ "error": "unsupported_media_type" }` (415), como pedía el §5.4. `cuenta`, `identidades` y `vincular` devolvían antes textos en español; los status no cambian y la UI no depende del texto.
+4. **Sin declaración en `drizzle/schema.ts`** (R9). La tabla se usa con SQL directo sobre `D1Database` (`hit()` es una sentencia con `RETURNING`), así que no hacía falta el tipado de Drizzle y se evita un conflicto de merge con los PRs paralelos que también tocan el esquema. El test de esquema de Drizzle sigue verde.
+5. **D5 vive en `verificarAdmin` (`lib/observability/admin-auth.ts`), no en `withApi`**, porque necesita ver el resultado de la autorización: `peek` del contador de fallos (429 si ya está en el límite, incluso con Bearer correcto: R5 se resolvió como estaba propuesto) y `hit` solo ante un Bearer inválido. Las rutas `admin/*` se declaran con `origin: "none"` y `rateLimit: []`; `admin/sync` además con `contentType: "any"` para no cambiar el contrato del cron.
+6. **`RATE_LIMIT_MODE=observe` (RL18) quedó implementado**: cuenta y loguea `rate_limited` con `observe: true`, pero no devuelve 429. Es el modo recomendado para el primer despliegue. También cubre `admin_fail`.
+7. **R6 (salt)**: se mantuvo el fallback a `ADMIN_SECRET`; sin ninguno de los dos el scope IP se omite (el de usuario sigue). Se recomienda cargar `RATE_LIMIT_SALT`.
+8. **Métricas (§8)**: `rateLimit.ultimas24h` informa por bucket `hits`, `blocked` (acotado por el tope `limit x 5`), `subjects` y `limit`, más `filas` totales de la tabla. No hay una "estimación de escrituras del día" aparte: `hits` equivale a las escrituras (salvo las que pegaron el tope). `search_public` usa memoria y no aparece. Las métricas nunca exponen sujetos.
+9. **`buscar`**: la respuesta con sesión lleva `Cache-Control: private, max-age=60` (y `public` solo la anónima) porque incluye `isFollowing`; el TDD pedía `public` sin distinguir.
+10. **Tope de `matchIds`**: 50, respondiendo `400 { "error": "too_many_matchIds", "max": 50 }`.
+11. **Test de descubrimiento (RL16)** es un test unitario (`tests/unit/rate-limit/descubrimiento.test.ts`) que lee `pages/api/**`, no una extensión de `scripts/check-test-discovery.mjs` (ese guard verifica que los tests se descubran, no los handlers). Verifica que cada método exportado use `withApi`, que `login` y `callback` declaren política y que `esMismoOrigen` se defina una sola vez (OR14).
+12. **E2E**: el caso de humo reutiliza el escenario de sesión `calendar` del servidor E2E existente.
+
+### 13.4 Fuera de alcance / conocido
+
+- `GET /api/auth/logout` sigue siendo un `GET` que cambia estado (cierra la sesión): no pasa por la verificación de origen y un sitio ajeno podría cerrar la sesión (molestia, no robo de datos). Pasarlo a `POST` cambia los enlaces de la UI; queda para otro PR.
+- El límite de `login`/`callback` usa un hash de IP: usuarios detrás de un mismo NAT comparten contador (R1). Los valores del §5.3 se mantienen; `RATE_LIMIT_MODE=observe` permite calibrarlos antes de bloquear.
+- Pendiente del dueño: S3, confirmar `cf-connecting-ip` y, opcionalmente, la regla del WAF de D3. Los pasos están en la descripción del PR y en `docs/23` §6.

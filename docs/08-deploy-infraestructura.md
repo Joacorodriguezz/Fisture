@@ -137,7 +137,14 @@ wrangler secret put RAPIDAPI_KEY
 
 # Admin
 wrangler secret put ADMIN_SECRET
+
+# Sal del hash de IP del límite de tasa (docs/16). Sin él se usa ADMIN_SECRET; sin ninguno no se limita por IP
+openssl rand -base64 32 | npx wrangler pages secret put RATE_LIMIT_SALT --project-name fisture
 ```
+
+El límite de tasa y la verificación de origen **no usan bindings nuevos**: cuentan en la D1 `DB` existente
+(tabla `rate_limits`, migración `0013`). El binding `ratelimit` de Workers no figura entre los que admite Pages
+Functions (docs/16 §13.1).
 
 ### 5.1 Inventario de credenciales (sin valores)
 
@@ -151,6 +158,8 @@ cada uno: `docs/23-runbook-de-incidentes.md` §5.
 | `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | Pages (secret) | OAuth y Outlook. **El secret vence** (6–24 meses): anotar la fecha en Entra ID | No hay login con Microsoft |
 | `OAUTH_STATE_SECRET` | Pages (secret) | Firma la cookie del estado del login (docs/20) | El login falla cerrado; `/api/health` 503 |
 | `ADMIN_SECRET` | Pages (secret) **y** GitHub Actions | `POST /api/admin/sync`, `GET /api/admin/status` | El sync diario responde 401 |
+| `RATE_LIMIT_SALT` | Pages (secret; también en staging con `--env preview`) | Sal del HMAC con que se hashea la IP en `rate_limits` (docs/16 D7) | Se usa `ADMIN_SECRET`; sin ninguno se omite el límite por IP |
+| `RATE_LIMIT_DISABLED`, `RATE_LIMIT_MODE`, `ALLOWED_ORIGINS` | Pages (secret), **opcionales y ausentes por defecto** | `RATE_LIMIT_DISABLED=true` apaga el límite de tasa (no el chequeo de origen); `RATE_LIMIT_MODE=observe` cuenta y loguea sin bloquear; `ALLOWED_ORIGINS` suma orígenes (separados por comas) a `PUBLIC_APP_URL` en el chequeo de origen. Cómo usarlos: `docs/23` §6 | Límite activo y un solo origen permitido |
 | `FOOTBALL_DATA_API_KEY`, `API_FOOTBALL_KEY` | Pages (secret), opcionales | Proveedores alternativos, hoy fuera de `LEAGUES_CONFIG` | Nada |
 | `PUBLIC_APP_URL` | `wrangler.toml` `[vars]` **y** GitHub Actions | URL pública (`https://fisture.com`) para OAuth, SEO, smoke, sync y monitor | Redirects y smoke rotos |
 | `ENVIRONMENT` | `wrangler.toml` `[vars]` | Nivel de logs | Logs en nivel por defecto |

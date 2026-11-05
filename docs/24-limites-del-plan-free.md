@@ -39,6 +39,7 @@ Revisarla en cada release que cambie el patrón de consultas. Lo medido sale de 
   sostenidas por encima de **2,5 M/día** (50 %), o requests por encima de **50.000/día**. Paid sube D1 a 25.000 M
   filas leídas/mes, 50 M escritas/mes y 1.000 subrequests por invocación (el sync podría volver a una sola
   invocación). Al pasar: actualizar `/privacidad` (Time Travel de 30 días, docs/14) y esta tabla.
+- El límite de tasa (docs/16) escribe una fila en D1 por request limitada (login, callback, mutaciones, fallos de admin): con 500 usuarios activos por día son unas 50.000 filas, la mitad del tope. `/api/admin/status` informa `rateLimit.filas` y los `hits` por bucket para vigilarlo.
 - Antes de eso, lo más barato es bajar lecturas: cachear en KV los listados públicos de `/hoy` y `/partidos`
   (iguales para todos los anónimos) con vencimiento corto.
 
