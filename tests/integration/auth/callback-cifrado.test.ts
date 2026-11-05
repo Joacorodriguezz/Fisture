@@ -115,8 +115,7 @@ describe("callback OAuth: tokens cifrados en reposo", () => {
     validar.mockRejectedValue(Object.assign(new Error("fallo: code=c-secreto-xyz rt-secreto-abc"), { code: "invalid_grant" }));
     const res = await entrar();
     expect(res.headers.get("Location")).toBe("/login?error=oauth_failed");
-    const log = lineas.join("
-");
+    const log = lineas.join(" ");
     expect(log).toContain("oauth_failed");
     expect(log).toContain("invalid_grant");
     expect(log).not.toContain("c-secreto-xyz");
