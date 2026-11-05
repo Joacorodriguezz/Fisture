@@ -1,9 +1,11 @@
 import { leagues, teams, matches, users, leagueTeams } from "../../drizzle/schema";
 import type { Database } from "../../src/lib/db";
 import { AHORA, DIA_MS, HORA_MS } from "./clock";
+import { TOKEN_ENCRYPTION_KEY } from "./token-key";
 
 // Entorno vacío tipado: los servicios con clientes/tokens falsos no leen variables de entorno
-export const ENV_VACIO = {} as Env;
+// Lleva solo la clave de cifrado de tokens (docs/15): renovar un token la necesita
+export const ENV_VACIO = { TOKEN_ENCRYPTION_KEY } as Env;
 
 // Base de los tests de integración con D1 real. Las fechas son relativas a AHORA (ver clock.ts).
 // Para los tests con cliente de calendario falso se usa helpers/calendar.ts (sembrar), que
