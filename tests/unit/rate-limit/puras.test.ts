@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ventana } from "../../../src/lib/rate-limit/limiter";
-import { hashIp, ipDe, saltDe } from "../../../src/lib/rate-limit/subject";
+import { hashIp, ipDe, normalizarIp, saltDe, sujetoIp } from "../../../src/lib/rate-limit/subject";
 import { hitMemory, reiniciarMemoria } from "../../../src/lib/rate-limit/memory";
 import { POLICIES, politicasPorDefecto } from "../../../src/lib/rate-limit/policies";
 
@@ -39,6 +39,43 @@ describe("subject", () => {
     expect(saltDe({ RATE_LIMIT_SALT: "a", ADMIN_SECRET: "b" })).toBe("a");
     expect(saltDe({ ADMIN_SECRET: "b" })).toBe("b");
     expect(saltDe({})).toBeNull();
+  });
+});
+
+describe("normalizarIp (IPv6 al /64)", () => {
+  it("IPv4 queda intacta", () => {
+    expect(normalizarIp("203.0.113.9")).toBe("203.0.113.9");
+  });
+
+  it("IPv6 completa y comprimida del mismo /64 dan el mismo prefijo", () => {
+    const esperado = "2001:db8:abcd:12::/64";
+    expect(normalizarIp("2001:0db8:abcd:0012:0000:0000:0000:0001")).toBe(esperado);
+    expect(normalizarIp("2001:db8:abcd:12::1")).toBe(esperado);
+    expect(normalizarIp("2001:DB8:ABCD:12:ffff:ffff:ffff:ffff")).toBe(esperado);
+    expect(normalizarIp("2001:db8:abcd:13::1")).not.toBe(esperado);
+  });
+
+  it("comprime en la cabeza y en el medio", () => {
+    expect(normalizarIp("::1")).toBe("0:0:0:0::/64");
+    expect(normalizarIp("2001:db8::")).toBe("2001:db8:0:0::/64");
+    expect(normalizarIp("fe80::1%eth0")).toBe("fe80:0:0:0::/64");
+  });
+
+  it("IPv4-mapped se reduce a su IPv4 (en ambas notaciones)", () => {
+    expect(normalizarIp("::ffff:203.0.113.9")).toBe("203.0.113.9");
+    expect(normalizarIp("::ffff:cb00:7109")).toBe("203.0.113.9");
+  });
+
+  it("un valor que no es IP se devuelve tal cual", () => {
+    expect(normalizarIp("no-es-ip")).toBe("no-es-ip");
+    expect(normalizarIp("1:2:3")).toBe("1:2:3");
+  });
+
+  it("sujetoIp: dos IPv6 del mismo /64 comparten sujeto y una IPv4 no cambia", async () => {
+    const pedir = (ip: string) => sujetoIp(new Request("https://x.test", { headers: { "cf-connecting-ip": ip } }), { RATE_LIMIT_SALT: "s" });
+    expect(await pedir("2001:db8:1:2::1")).toBe(await pedir("2001:db8:1:2:aaaa::9"));
+    expect(await pedir("2001:db8:1:3::1")).not.toBe(await pedir("2001:db8:1:2::1"));
+    expect(await pedir("203.0.113.9")).toBe(await hashIp("203.0.113.9", "s"));
   });
 });
 
