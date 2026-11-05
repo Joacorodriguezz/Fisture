@@ -4,6 +4,7 @@ import { oauthIdentities } from "../../../../../drizzle/schema";
 import { createDb } from "../../../../lib/db";
 import { isValidProvider } from "../../../../lib/auth/providers";
 import { revocarAcceso } from "../../../../lib/auth/revoke";
+import { leerTokenOpcional } from "../../../../lib/auth/token-store";
 import { withApi } from "../../../../lib/observability/with-api";
 
 function json(body: unknown, status = 200) {
@@ -31,7 +32,8 @@ export const DELETE: APIRoute = withApi(async ({ params, locals }) => {
   await db.delete(oauthIdentities).where(and(eq(oauthIdentities.id, identidad.id), eq(oauthIdentities.userId, user.id)));
 
   // Después de D1: si falla, la identidad ya no existe y el token no quedó guardado en ningún lado
-  await revocarAcceso(env, { provider, refreshToken: identidad.refreshToken }, locals.logger);
+  const refreshToken = await leerTokenOpcional(env, identidad.refreshToken, identidad.id, "refresh_token");
+  await revocarAcceso(env, { provider, refreshToken }, locals.logger);
 
   locals.logger?.info("identity_unlinked", { provider });
   return json({ ok: true });

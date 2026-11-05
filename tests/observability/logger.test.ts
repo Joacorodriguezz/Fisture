@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DrizzleQueryError } from "drizzle-orm";
-import { createLogger, defaultLevel, mensajeDeError, redact, serializeError } from "../../src/lib/observability/logger";
+import { createLogger, defaultLevel, errorSeguro, mensajeDeError, redact, serializeError } from "../../src/lib/observability/logger";
 
 function capturar(opts: Parameters<typeof createLogger>[0] = {}) {
   const lineas: { level: string; data: Record<string, unknown> }[] = [];
@@ -161,5 +161,26 @@ describe("mensajeDeError", () => {
     expect(mensajeDeError(new Error("boom"))).toBe("boom");
     expect(mensajeDeError("texto")).toBe("texto");
     expect(mensajeDeError(undefined, "Error desconocido")).toBe("Error desconocido");
+  });
+});
+
+describe("errorSeguro (caminos con tokens)", () => {
+  it("serializeError conserva el mensaje y el stack: por eso los caminos con tokens no lo usan", () => {
+    expect(JSON.stringify(serializeError(new Error("falló con rt-secreto")))).toContain("rt-secreto");
+  });
+
+  it("deja solo nombre, código OAuth y status; no el mensaje, el stack ni la causa", () => {
+    const error = Object.assign(new Error("falló con rt-secreto", { cause: new Error("ya29.otro") }), { code: "invalid_grant", status: 400 });
+    const { logger, lineas } = capturar();
+    logger.error("x", { err: errorSeguro(error) });
+    expect(lineas[0].data.err).toEqual({ name: "Error", code: "invalid_grant", status: 400 });
+    expect(JSON.stringify(lineas)).not.toContain("secreto");
+    expect(JSON.stringify(lineas)).not.toContain("ya29");
+  });
+
+  it("conserva el mensaje de los errores propios con código fijo y descarta un código con forma de token", () => {
+    expect(errorSeguro(new Error("profile_fetch_failed: 403"))).toMatchObject({ message: "profile_fetch_failed: 403" });
+    expect(errorSeguro(Object.assign(new Error("x"), { code: "ya29.A0Af-secreto" }))).toEqual({ name: "Error" });
+    expect(errorSeguro("cadena con rt-secreto")).toEqual({ name: "NonError" });
   });
 });

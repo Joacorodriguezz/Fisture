@@ -132,6 +132,12 @@ wrangler secret put APPLE_PRIVATE_KEY
 # Firma la cookie del estado del login (docs/20). Sin él el login falla cerrado y /api/health responde 503
 openssl rand -base64 32 | npx wrangler pages secret put OAUTH_STATE_SECRET --project-name fisture
 
+# Cifra los tokens OAuth en reposo (docs/15). OBLIGATORIO ANTES de desplegar el Release A: sin él el login y la
+# renovación de tokens fallan cerrado y /api/health responde 503 (tokenKey: fail). Guardar el valor en un gestor
+# de contraseñas; si se pierde, los usuarios tienen que reconectar su calendario
+openssl rand -base64 32 | npx wrangler pages secret put TOKEN_ENCRYPTION_KEY --project-name fisture
+openssl rand -base64 32 | npx wrangler pages secret put TOKEN_ENCRYPTION_KEY --project-name fisture --env preview
+
 # API Football
 wrangler secret put RAPIDAPI_KEY
 
@@ -157,13 +163,15 @@ cada uno: `docs/23-runbook-de-incidentes.md` §5.
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Pages (secret) | OAuth y Google Calendar | No hay login con Google |
 | `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | Pages (secret) | OAuth y Outlook. **El secret vence** (6–24 meses): anotar la fecha en Entra ID | No hay login con Microsoft |
 | `OAUTH_STATE_SECRET` | Pages (secret) | Firma la cookie del estado del login (docs/20) | El login falla cerrado; `/api/health` 503 |
-| `ADMIN_SECRET` | Pages (secret) **y** GitHub Actions | `POST /api/admin/sync`, `GET /api/admin/status` | El sync diario responde 401 |
+| `TOKEN_ENCRYPTION_KEY` | Pages (secret), **producción y preview** | Clave AES-256-GCM (32 bytes en base64) con la que se cifran los tokens OAuth en D1 (docs/15). Distinta en cada entorno | Login y renovación de tokens fallan cerrado; `/api/health` 503 (`tokenKey: fail`). Si se pierde, hay que reconectar el calendario |
+| `TOKEN_ENCRYPTION_KEY_PREVIOUS` | Pages (secret), opcional | Solo durante una rotación: la clave anterior, que solo descifra | Nada |
+| `ADMIN_SECRET` | Pages (secret) **y** GitHub Actions | `POST /api/admin/sync`, `GET /api/admin/status`, `POST /api/admin/encrypt-tokens` | El sync diario responde 401 |
 | `RATE_LIMIT_SALT` | Pages (secret; también en staging con `--env preview`) | Sal del HMAC con que se hashea la IP en `rate_limits` (docs/16 D7) | Se usa `ADMIN_SECRET`; sin ninguno se omite el límite por IP |
 | `RATE_LIMIT_DISABLED`, `RATE_LIMIT_MODE`, `ALLOWED_ORIGINS` | Pages (secret), **opcionales y ausentes por defecto** | valores de arranque: `RATE_LIMIT_DISABLED=true` apaga el límite de tasa (no el chequeo de origen) y `RATE_LIMIT_MODE=observe` cuenta y loguea sin bloquear, pero un secret solo rige tras un deploy: para apagar en caliente se usa la clave KV `ratelimit:modo` (`docs/23` §6, que pisa a los secrets); `ALLOWED_ORIGINS` suma orígenes (separados por comas) a `PUBLIC_APP_URL` en el chequeo de origen. Cómo usarlos: `docs/23` §6 | Límite activo y un solo origen permitido |
 | `FOOTBALL_DATA_API_KEY`, `API_FOOTBALL_KEY` | Pages (secret), opcionales | Proveedores alternativos, hoy fuera de `LEAGUES_CONFIG` | Nada |
 | `PUBLIC_APP_URL` | `wrangler.toml` `[vars]` **y** GitHub Actions | URL pública (`https://fisture.com`) para OAuth, SEO, smoke, sync y monitor | Redirects y smoke rotos |
 | `ENVIRONMENT` | `wrangler.toml` `[vars]` | Nivel de logs | Logs en nivel por defecto |
-| Staging (`--env preview`): `OAUTH_STATE_SECRET`, `ADMIN_SECRET` y, cuando existan, `GOOGLE_*`/`MICROSOFT_*` de los clientes de staging | Pages (secret, entorno preview) | Lo mismo que en producción, pero para `development.fisture.pages.dev` (docs/26). Se aplican en el próximo deploy | Staging sin login o sin sync |
+| Staging (`--env preview`): `OAUTH_STATE_SECRET`, `TOKEN_ENCRYPTION_KEY`, `ADMIN_SECRET` y, cuando existan, `GOOGLE_*`/`MICROSOFT_*` de los clientes de staging | Pages (secret, entorno preview) | Lo mismo que en producción, pero para `development.fisture.pages.dev` (docs/26). Se aplican en el próximo deploy | Staging sin login o sin sync |
 | `STAGING_ADMIN_SECRET` | GitHub Actions | Sync de staging en `staging.yml`. Tiene que ser igual al `ADMIN_SECRET` de preview | El sync de staging responde 401 |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions | `deploy.yml` (Pages y D1). Alcance mínimo: *Cloudflare Pages: Edit* y *D1: Edit* de esta cuenta | No hay deploy |
 

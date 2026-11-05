@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { TOKEN_ENCRYPTION_KEY } from "./token-key";
 import type { User } from "../../drizzle/schema";
 import { apiCtx } from "./ctx";
 
@@ -17,7 +18,7 @@ export async function callApi(
       body: options.rawBody ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
       params: options.params,
       user: options.user as { id: string } | undefined,
-      env: { DB, ENVIRONMENT: "test" },
+      env: { DB, ENVIRONMENT: "test", TOKEN_ENCRYPTION_KEY },
     })
   );
 }

@@ -1,3 +1,5 @@
+import { TokenKeyError, TokenUnreadableError } from "../auth/token-crypto";
+
 // Errores de las APIs de calendario y su clasificación (docs/11-calendario-casos-borde-tdd.md, D4).
 
 export interface CalendarApiErrorOptions {
@@ -20,7 +22,8 @@ export class CalendarApiError extends Error {
   }
 }
 
-export type CalendarErrorClass = "gone" | "auth" | "rate_limit" | "transient" | "conflict" | "permanent";
+export type CalendarErrorClass = "gone" | "auth" | "rate_limit" | "transient" | "conflict" | "permanent" | "config";
+// config: falta o es inválida la clave de cifrado de tokens. Es un error operativo: no marca filas ni usuarios
 
 const RATE_LIMIT_REASONS = new Set(["rateLimitExceeded", "userRateLimitExceeded", "quotaExceeded"]);
 
@@ -35,6 +38,11 @@ export function classifyCalendarError(error: unknown): CalendarErrorClass {
     if (status === 408 || status >= 500) return "transient";
     return "permanent";
   }
+
+  // Sin clave no es culpa del usuario ni del partido: corta la corrida
+  if (error instanceof TokenKeyError) return "config";
+  // Un token que no se puede leer no sirve más: el usuario tiene que reconectar
+  if (error instanceof TokenUnreadableError) return "auth";
 
   // Errores al conseguir el token (lib/auth/tokens.ts y el refresh OAuth)
   const message = error instanceof Error ? error.message : "";
