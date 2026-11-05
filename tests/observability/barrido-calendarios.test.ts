@@ -80,7 +80,7 @@ describe("barrido de calendarios de punta a punta", () => {
   });
 
   it("B1: en los barridos siguientes u1 termina sus 12 eventos y u2 no le quita el turno a nadie", async () => {
-    for (let n = 0; n < 3; n++) {
+    for (let n = 0; n < 4; n++) {
       const r = await barrido();
       expect(r.error).toBeUndefined();
       expect(r.completo).toBe(true);

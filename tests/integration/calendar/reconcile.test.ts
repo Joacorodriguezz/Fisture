@@ -72,7 +72,7 @@ describe("reconcileCalendarBatch", () => {
     it("un usuario con auto-sync recibe también los partidos nuevos de su equipo", async () => {
       await seguir("u1");
       await lote();
-      expect(falso.llamadas.create).toBe(4);
+      expect(falso.llamadas.create).toBe(PARTIDOS_POR_TURNO);
     });
 
     it("no recrea lo que el usuario borró: queda detached", async () => {
@@ -238,6 +238,23 @@ describe("reconcileCalendarBatch", () => {
       expect(p.usado).toBeLessThanOrEqual(PRESUPUESTO_SUBREQUESTS);
     });
 
+    it("el peor caso de altas en Google (insert, 409, get y update = 3 llamadas cada una) entra en el presupuesto de un lote", async () => {
+      await sembrar(t, ["m1", "m2", "m3", "m4", "m5"]);
+      await seguir("u1");
+      const tokenCaro: typeof getToken = async (_e: unknown, db: Database, _u: unknown, o?: { alRenovar?: () => void }) => {
+        o?.alRenovar?.();
+        for (let i = 0; i < 3; i++) await db.run(sql`select 1`);
+        return "t";
+      };
+      let rechazado = false;
+      falso.fallos.create = () => (rechazado ? null : ((rechazado = true), new CalendarApiError("unauthorized", 401)));
+      const { p, resumen } = conPresupuesto({ marcarDesactualizados: true }, tokenCaro as never);
+      const r = await resumen;
+      expect(r).toMatchObject({ usuarios: 1, eventosOk: PARTIDOS_POR_TURNO, cortadoPorPresupuesto: false });
+      expect(falso.llamadas.create).toBeGreaterThanOrEqual(PARTIDOS_POR_TURNO);
+      expect(p.usado).toBeLessThanOrEqual(PRESUPUESTO_SUBREQUESTS);
+    });
+
     it("las correcciones (needs_update) van antes que los failed que se reintentan, aunque estos sean más próximos", async () => {
       const ids = await muchos(PARTIDOS_POR_TURNO + 2);
       // Los primeros PARTIDOS_POR_TURNO fallan siempre y son los más próximos; el último es una corrección nueva
@@ -321,12 +338,13 @@ describe("reconcileCalendarBatch", () => {
   });
 
   describe("autenticación caída (B4, C-07, C-08)", () => {
-    it("C-07: un 401 marca al usuario reauth_required, no marca los eventos como failed y no vuelve a la cola", async () => {
+    it("C-07: un error de token (invalid_grant) marca al usuario reauth_required, no marca los eventos como failed y no vuelve a la cola", async () => {
       await pendiente("u1");
       await pendiente("u2");
       await reprogramar("m1");
-      falso.fallos.update = () => new CalendarApiError("unauthorized", 401);
-      const r1 = await lote({ corte: MS });
+      const r1 = await lote({ corte: MS }, async () => {
+        throw new Error("invalid_grant");
+      });
       expect(r1).toMatchObject({ usuarios: 2, sinAcceso: 2 });
       expect(await columna("u1", "calendar_auth_status")).toBe("reauth_required");
       expect((await fila(t, "m1", "u1")).status).toBe("needs_update"); // no failed (docs/11 D4)
@@ -334,7 +352,26 @@ describe("reconcileCalendarBatch", () => {
       falso.fallos.update = () => null;
       const r2 = await lote({ now: new Date(MS + 86_400_000), marcarDesactualizados: false });
       expect(r2.usuarios).toBe(0);
-      expect(falso.llamadas.update).toBe(4); // por usuario: la llamada y el reintento tras renovar (docs/17 I2)
+      expect(falso.llamadas.update).toBe(0); // sin token no se llega a llamar al proveedor
+    });
+
+    it("un 401 que persiste tras renovar no marca reauth_required: el usuario sigue en la cola y se reintenta", async () => {
+      await pendiente("u1", "m1");
+      await pendiente("u1", "m2");
+      await reprogramar("m1", "m2");
+      // m1: 401, renueva y funciona. m2: 401 otra vez, y la renovación ya se usó (docs/17 I2)
+      let llamada = 0;
+      falso.fallos.update = () => (++llamada === 1 || llamada === 3 ? new CalendarApiError("unauthorized", 401) : null);
+      const r = await lote({ corte: MS });
+      expect(r.sinAcceso).toBe(0);
+      expect(await columna("u1", "calendar_auth_status")).toBe("ok");
+      expect((await fila(t, "m1", "u1")).status).toBe("synced");
+      expect((await fila(t, "m2", "u1")).status).toBe("needs_update");
+      // Al día siguiente vuelve a ser candidato
+      falso.fallos.update = () => null;
+      const r2 = await lote({ now: new Date(MS + 86_400_000), marcarDesactualizados: false });
+      expect(r2.usuarios).toBe(1);
+      expect((await fila(t, "m2", "u1")).status).toBe("synced");
     });
 
     it("un error de autenticación de un usuario no frena a los demás", async () => {

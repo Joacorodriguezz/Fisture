@@ -24,10 +24,11 @@ import {
 import { HORAS_PARTIDO_JUGADO, markOutdatedEvents, syncMatches, type SyncDeps, type SyncResult } from "./sync-service";
 
 // Tope de partidos por turno: un usuario con 80 pendientes no consume el presupuesto de todos. Con el
-// presupuesto de 45 (menos 3 de reserva), el costo fijo de un usuario (8), su token (4), el peor caso de
-// un partido (5) y la reserva para un 401 (6), cuatro partidos entran incluso en el primer lote del
-// barrido, que además gasta 5 en detectar eventos desactualizados y elegir candidatos.
-export const PARTIDOS_POR_TURNO = 4;
+// presupuesto de 45 (menos 3 de reserva), el costo fijo de un usuario (8), su token (4), la reserva para un
+// 401 (6) y el peor caso de un partido (6: 3 consultas y un alta con adopción de 3 llamadas), tres partidos
+// entran incluso en el primer lote del barrido, que además gasta 5 en detectar eventos desactualizados y
+// elegir candidatos: 5 + 8 + 4 + 6 + 3 x 6 = 41 de 42. Con cuatro serían 47.
+export const PARTIDOS_POR_TURNO = 3;
 // Usuarios que se traen por lote. El presupuesto corta antes en la práctica (~3 a 5 usuarios).
 export const USUARIOS_POR_LOTE = 10;
 
@@ -167,7 +168,9 @@ export async function reconcileCalendarBatch(
       resumen.eventosOk += results.filter((r) => r.success).length;
       resumen.eventosFallidos += results.filter((r) => !r.success).length;
 
-      if (results.some((r) => r.code === "auth")) {
+      // Solo un error de token prueba que hay que volver a conectar. Un 401 que persiste tras renovar puede
+      // ser transitorio del proveedor: la fila queda pendiente, sin marcar, y se reintenta al día siguiente.
+      if (results.some((r) => r.tokenInvalido)) {
         // Sin acceso al calendario: sale de la cola hasta que vuelva a iniciar sesión (B4)
         resumen.sinAcceso++;
         await marcarAtendido(db, user.id, ahoraMs, { calendarAuthStatus: "reauth_required" });

@@ -2,7 +2,18 @@
 // calendario suma 1, y el lote se corta antes de pasar el tope de Workers Free (50).
 import { describe, expect, it } from "vitest";
 import type { D1Database } from "@cloudflare/workers-types";
-import { contarCliente, contarD1, PRESUPUESTO_SUBREQUESTS, Presupuesto } from "../../../src/lib/calendar/presupuesto";
+import {
+  COSTO_FIJO_USUARIO,
+  COSTO_MAX_PARTIDO,
+  COSTO_RENOVACION_401,
+  COSTO_TOKEN_USUARIO,
+  contarCliente,
+  contarD1,
+  PRESUPUESTO_SUBREQUESTS,
+  Presupuesto,
+  RESERVA_REGISTRO,
+} from "../../../src/lib/calendar/presupuesto";
+import { PARTIDOS_POR_TURNO } from "../../../src/lib/calendar/reconcile";
 import type { CalendarClient } from "../../../src/lib/calendar/clients";
 
 // D1 mínima: registra qué se ejecutó y cuántas sentencias tuvo cada batch
@@ -101,14 +112,21 @@ describe("contarCliente", () => {
     overlaps: async () => [],
   };
 
-  it("create cuesta 2 (puede adoptar el evento con un GET) y el resto 1; cuenta también si falla", async () => {
+  it("create cuesta 3 (insert, 409, get y update de la adopción en Google) y el resto 1; cuenta también si falla", async () => {
     const p = new Presupuesto(50);
     const c = contarCliente({ ...base, update: async () => { throw new Error("x"); } }, p);
     expect(await c.create("t", {} as never, {} as never, { userId: "u" })).toBe("ev");
-    expect(p.usado).toBe(2);
+    expect(p.usado).toBe(3);
     await expect(c.update("t", "e", {} as never, {} as never)).rejects.toThrow("x");
     await c.remove("t", "e");
     await c.overlaps("t", {} as never, "e");
-    expect(p.usado).toBe(5);
+    expect(p.usado).toBe(6);
+  });
+
+  it("el peor caso de un partido (3 consultas + alta con adopción) cabe PARTIDOS_POR_TURNO veces en el presupuesto", () => {
+    const entrada = COSTO_FIJO_USUARIO + COSTO_TOKEN_USUARIO + COSTO_RENOVACION_401;
+    const primerLote = 5; // detección de eventos desactualizados y elección de candidatos
+    expect(COSTO_MAX_PARTIDO).toBe(6);
+    expect(primerLote + entrada + PARTIDOS_POR_TURNO * COSTO_MAX_PARTIDO).toBeLessThanOrEqual(PRESUPUESTO_SUBREQUESTS - RESERVA_REGISTRO);
   });
 });

@@ -11,8 +11,8 @@ export const PRESUPUESTO_SUBREQUESTS = 45;
 // Se reserva para registrar el run al final: el INSERT y la purga de runs viejos
 export const RESERVA_REGISTRO = 3;
 // Peor caso de un partido con el token ya en mano: detalle, fila existente, guardar estado (3 consultas)
-// y crear el evento (hasta 2 fetch: alta y adopción tras un 409). Se obtiene una vez por usuario.
-export const COSTO_MAX_PARTIDO = 5;
+// y crear el evento con adopción en Google (3 fetch: insert, 409 y get, y update o restore).
+export const COSTO_MAX_PARTIDO = 6;
 // Costo fijo de atender a un usuario: pendientes, equipos con auto-sync, sus partidos, sus estados
 // (hasta 3 consultas de 80 ids), preferencias y marcarlo como atendido.
 export const COSTO_FIJO_USUARIO = 8;
@@ -106,7 +106,7 @@ export function contarCliente(client: CalendarClient, presupuesto: Presupuesto):
       return fn(...args);
     };
   return {
-    create: contada(2, client.create.bind(client)),
+    create: contada(3, client.create.bind(client)),
     update: contada(1, client.update.bind(client)),
     remove: contada(1, client.remove.bind(client)),
     overlaps: contada(1, client.overlaps.bind(client)),

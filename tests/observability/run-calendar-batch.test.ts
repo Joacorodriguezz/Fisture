@@ -7,7 +7,6 @@ import { clienteFalso, getToken, insertarSync, sembrar, setMatch, T0 } from "../
 import { getLatestRuns } from "../../src/lib/observability/sync-runs";
 import { runCalendarBatch } from "../../src/lib/observability/run-calendar-batch";
 import { POST } from "../../src/pages/api/admin/sync";
-import { CalendarApiError } from "../../src/lib/calendar/errors";
 
 describe("runCalendarBatch", () => {
   const t = useTestDb();
@@ -45,9 +44,15 @@ describe("runCalendarBatch", () => {
     expect(r.siguiente).toBe(false);
   });
 
-  it("un 401 se informa como sinAcceso pero el run es success: es un problema del usuario, no del sistema", async () => {
-    falso.fallos.update = () => new CalendarApiError("unauthorized", 401);
-    const r = await correr();
+  it("un error de token se informa como sinAcceso pero el run es success: es un problema del usuario, no del sistema", async () => {
+    const r = await correr({
+      deps: {
+        client: falso.client,
+        getToken: async () => {
+          throw new Error("invalid_grant");
+        },
+      },
+    });
     expect(r).toMatchObject({ status: "success", resumen: { sinAcceso: 2 } });
   });
 
@@ -60,7 +65,12 @@ describe("runCalendarBatch", () => {
     await sembrar(t as never, ["m1", "m2", "m3", "m4"]);
     for (const m of ["m1", "m2", "m3", "m4"]) await insertarSync(t as never, { id: `z-${m}`, match: m, user: "u1" });
     for (const m of ["m1", "m2", "m3", "m4"]) await setMatch(t as never, m, { dateTime: T0 + 60 });
-    const r = await correr({ presupuesto: 33 });
+    // Un token caro (renovarlo gasta lo que gasta de verdad) deja al usuario sin lugar para todo su turno
+    const tokenCaro = async (_e: unknown, _d: unknown, _u: unknown, o?: { alRenovar?: () => void }) => {
+      for (let i = 0; i < 8; i++) o?.alRenovar?.();
+      return "t";
+    };
+    const r = await correr({ presupuesto: 36, deps: { client: falso.client, getToken: tokenCaro as never } });
     expect(r.resumen).toMatchObject({ cortadoPorPresupuesto: true, quedan: true, usuarios: 1 });
     expect(r.resumen.eventosOk).toBeGreaterThan(0);
     expect(r).toMatchObject({ status: "success", siguiente: true });

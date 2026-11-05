@@ -29,6 +29,9 @@ export interface SyncResult {
   error?: string;
   // Por qué falló (solo auth y rate_limit cortan el resto de la tanda)
   code?: CalendarErrorClass;
+  // Solo con code "auth": el fallo vino del token (invalid_grant, sin refresh o access token) y no de un
+  // 401 del proveedor. Solo el primero prueba que hay que volver a conectar (docs/17 B4).
+  tokenInvalido?: boolean;
   warnings?: SyncWarning[];
 }
 
@@ -233,7 +236,8 @@ export async function syncMatches(
         // No es culpa del partido: se corta, no se marca nada como failed y se reintenta cuando se pueda (D4)
         rootLogger.warn("calendar_sync_aborted", { matchId, code, pending: ids.length - i });
         const message = MENSAJES_CORTE[code] ?? "Error desconocido";
-        for (const id of ids.slice(i)) results.push({ matchId: id, success: false, error: message, code });
+        const tokenInvalido = code === "auth" && !(error instanceof CalendarApiError);
+        for (const id of ids.slice(i)) results.push({ matchId: id, success: false, error: message, code, ...(tokenInvalido && { tokenInvalido }) });
         break;
       }
 
