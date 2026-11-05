@@ -52,7 +52,9 @@ const DETALLE: Record<string, { detalle: string; pagina: string }> = {
         <>
           <span class="tb-menu__avatar" aria-hidden="true">{usuario.nombre.charAt(0).toUpperCase()}</span>
           <span class="tb-menu__quien"><b>{usuario.nombre}</b><span>{usuario.detalle}</span></span>
-          <a class="tb-menu__salir" href="/api/auth/logout">Cerrar sesión</a>
+          <form method="post" action="/api/auth/logout" class="tb-menu__salir-form">
+            <button class="tb-menu__salir" type="submit">Cerrar sesión</button>
+          </form>
         </>
       ) : (
         loginHref && <a class="tb-menu__login" href={loginHref}>Iniciar sesión</a>

@@ -98,7 +98,7 @@ test("navega por ligas, equipos y detalle del partido", async ({ page }, info) =
 test("logout elimina la sesión del KV y rechaza reutilizarla", async ({ page }, info) => {
   await login(page, info, "logout");
   await page.goto("/configuracion");
-  await page.getByRole("link", { name: "Cerrar sesión", exact: true }).click();
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
   await expect(page).toHaveURL("http://127.0.0.1:4322/");
   await login(page, info, "logout");
   await page.goto("/configuracion");
