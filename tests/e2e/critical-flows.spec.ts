@@ -371,3 +371,15 @@ test("las pantallas principales no desbordan el viewport", async ({ page }) => {
     expect(sizes.content, path).toBeLessThanOrEqual(sizes.viewport + 1);
   }
 });
+
+test("un 429 al agregar al calendario muestra la espera en un mensaje legible", async ({ page }, info) => {
+  await login(page, info, "calendar");
+  await page.route("**/api/calendario/sync", (route) =>
+    route.fulfill({ status: 429, headers: { "Retry-After": "37", "Content-Type": "application/json" }, body: JSON.stringify({ error: "rate_limited", retryAfter: 37 }) })
+  );
+  await page.goto("/partidos/superclasico");
+  const agregar = page.getByRole("button", { name: /^Agregar/ });
+  await ready(page, agregar);
+  await agregar.click();
+  await expect(page.getByText("Demasiados intentos. Probá de nuevo en 37 segundos.")).toBeVisible();
+});

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { irALogin } from "../../lib/auth/client";
+import { mensajeDeLimite } from "../../lib/sync-ui";
 
 interface Props {
   matchIds: string[];
@@ -57,6 +58,11 @@ export default function SincronizarTodo({
         body: JSON.stringify({ matchIds }),
       });
       if (res.status === 401) return irALogin();
+      if (res.status === 429) {
+        setError(mensajeDeLimite(res.headers.get("Retry-After")));
+        setCargando(false);
+        return;
+      }
       if (!res.ok && res.status !== 207) throw new Error(`HTTP ${res.status}`);
 
       const data = (await res.json().catch(() => ({}))) as SyncResponse;
