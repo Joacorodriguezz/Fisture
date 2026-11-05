@@ -102,7 +102,7 @@ async function calcular(env: ClavesEnv, direccion: Direccion, fila: FilaTokens):
 // UPDATE condicional sobre lo leído: si la fila cambió, no toca nada
 function actualizar(db: Database, tabla: Tabla, fila: FilaTokens, cambios: Cambios) {
   const t = tabla === "users" ? users : oauthIdentities;
-  const igual = (col: typeof t.accessToken, valor: string | null) => (valor === null ? isNull(col) : eq(col, valor));
+  const igual = (col: typeof t.accessToken | typeof t.refreshToken, valor: string | null) => (valor === null ? isNull(col) : eq(col, valor));
   const donde = and(eq(t.id, fila.id), igual(t.accessToken, fila.access_token), igual(t.refreshToken, fila.refresh_token));
   return db.update(t).set(cambios).where(donde).returning({ id: t.id });
 }
