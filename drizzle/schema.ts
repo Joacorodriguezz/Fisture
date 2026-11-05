@@ -27,8 +27,15 @@ export const users = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp" }).default(
       sql`(strftime('%s', 'now'))`
     ),
+    // Última vez que el sync de calendarios atendió al usuario (epoch ms; NULL = nunca). Ordena la
+    // rotación: el menos atendido va primero (docs/17 D4).
+    calendarReconciledAt: integer("calendar_reconciled_at"),
+    // 'ok' | 'reauth_required': con 'reauth_required' el calendario perdió acceso y el sync lo salta
+    // hasta que el usuario vuelva a iniciar sesión.
+    calendarAuthStatus: text("calendar_auth_status").notNull().default("ok"),
   },
   (table) => ({
+    calendarReconciledIdx: index("idx_users_calendar_reconciled").on(table.calendarReconciledAt),
     emailLowerIdx: uniqueIndex("users_email_lower_idx").on(sql`lower(${table.email})`),
   })
 );
@@ -273,6 +280,8 @@ export const syncRuns = sqliteTable(
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
     trigger: text("trigger").notNull(), // 'cron' | 'admin'
+    // Qué sincronizó: 'leagues' (ESPN) o 'calendars' (reconciliación de calendarios)
+    kind: text("kind").notNull().default("leagues"),
     startedAt: integer("started_at").notNull(), // epoch ms
     finishedAt: integer("finished_at"),
     status: text("status").notNull(), // running, success, partial, failed
@@ -281,7 +290,10 @@ export const syncRuns = sqliteTable(
     issues: text("issues").notNull().default("[]"),
     error: text("error"),
   },
-  (table) => ({ startedIdx: index("idx_sync_runs_started").on(table.startedAt) })
+  (table) => ({
+    startedIdx: index("idx_sync_runs_started").on(table.startedAt),
+    kindStartedIdx: index("idx_sync_runs_kind_started").on(table.kind, table.startedAt),
+  })
 );
 
 export type SyncRun = typeof syncRuns.$inferSelect;

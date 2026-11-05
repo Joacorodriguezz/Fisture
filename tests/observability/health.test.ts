@@ -100,7 +100,7 @@ describe("getHealth y endpoints (D1)", () => {
     await syncExitoso(Date.now() - H);
     const h = await getHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret" });
     expect(h.status).toBe("ok");
-    expect(h.checks).toEqual({ db: "ok", kv: "ok", sync: "ok", oauthState: "ok" });
+    expect(h.checks).toEqual({ db: "ok", kv: "ok", sync: "ok", calendars: "ok", oauthState: "ok" });
     expect(h.lastSyncAt).toBeTruthy();
   });
 
@@ -166,8 +166,8 @@ describe("getHealth y endpoints (D1)", () => {
     await failSyncRun(t.db, id, new Error("clave secreta de ESPN: abc"), Date.now());
     const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret" }));
     const body = (await res.json()) as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(["checks", "lastSyncAt", "status"]);
-    expect(Object.keys(body.checks as object).sort()).toEqual(["db", "kv", "oauthState", "sync"]);
+    expect(Object.keys(body).sort()).toEqual(["checks", "lastCalendarSyncAt", "lastSyncAt", "status"]);
+    expect(Object.keys(body.checks as object).sort()).toEqual(["calendars", "db", "kv", "oauthState", "sync"]);
     expect(JSON.stringify(body)).not.toContain("clave secreta");
   });
 
@@ -189,7 +189,8 @@ describe("getHealth y endpoints (D1)", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.runs).toHaveLength(2);
-    expect(body.runs[0]).toMatchObject({ status: "success", trigger: "cron" });
+    expect(body.runs[0]).toMatchObject({ status: "success", trigger: "cron", kind: "leagues" });
+    expect(body.runsCalendarios).toEqual([]);
     expect(body.health.status).toBe("ok");
     expect(body.metricas).toMatchObject({ usuarios: 0, eventosEnCalendarios: 0 });
   });

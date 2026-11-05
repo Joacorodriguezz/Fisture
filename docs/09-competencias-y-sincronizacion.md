@@ -60,13 +60,15 @@ tablas, es solo para desarrollo).
 npx wrangler d1 execute fisture-db --remote --file=drizzle/migrations/0003_league_teams.sql
 ```
 
-- Sync completo: cron diario (`functions/scheduled.ts`) o `POST /api/admin/sync` con `Authorization: Bearer $ADMIN_SECRET`.
+- Sync completo: `POST /api/admin/sync` con `Authorization: Bearer $ADMIN_SECRET` (el cron diario es `.github/workflows/sync-cron.yml`; `functions/scheduled.ts` se borró en docs/17).
   Hay que enviar `Content-Type: application/json` (cuerpo `{}`): sin él, la protección CSRF de Astro responde 403.
 - Una sola competencia: `POST /api/admin/sync` con `{"leagueId": "eng.1"}`.
 - Por lotes (lo que usa `sync-cron.yml`): `POST /api/admin/sync` con `{"lote": 0}`; la respuesta trae
   `siguienteLote` (`null` en el último, que además desactiva las competencias que salieron de la configuración).
   Workers Free admite 50 subrequests por invocación y un sync completo de ~43 competencias no entra: cada lote
   son 5 competencias (docs/22 D4).
+- Calendarios: `POST /api/admin/sync` con `{"calendarios": true}` (y `"corte"` en los lotes siguientes). Cada lote atiende a unos
+  pocos usuarios dentro de 45 subrequests y responde `siguiente`; `scripts/sync-calendarios.mjs` los encadena (docs/17).
 
 ## Verificación de punta a punta
 

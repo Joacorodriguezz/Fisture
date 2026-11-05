@@ -13,6 +13,7 @@ Revisarla en cada release que cambie el patrón de consultas. Lo medido sale de 
 - Escrituras por activo: ~5 por día (sesión, seguir equipos, estados de `calendar_syncs`).
 - Sync diario: ~9 invocaciones (docs/22 D4), ~45.000 filas leídas y ~2.000 escritas en un día normal
   (solo escribe lo que cambia); el primer sync después de sumar competencias escribe ~20.000.
+- Reconciliación de calendarios (docs/17): hasta 40 invocaciones por día más (una por lote de ~3 a 4 usuarios con trabajo, 45 subrequests cada una). Sumadas a las ~9 del sync de ligas siguen muy por debajo de las 100.000 requests diarias.
 - Bots y crawlers: se suman ~3.000 requests/día (sitemap con ~1.500 URLs, más buscadores e IA).
 
 ## 2. Tabla
@@ -47,3 +48,33 @@ Revisarla en cada release que cambie el patrón de consultas. Lo medido sale de 
 A verificar en el dashboard si el plan Free ofrece notificaciones de uso para Workers y D1. Mientras tanto, revisar
 **Workers & Pages → Overview** (requests) y **D1 → fisture-db → Metrics** (filas leídas/escritas) una vez por
 semana hasta el lanzamiento. `monitor.yml` avisa si la app deja de responder, pero no anticipa un tope.
+
+## 5. Filas leídas por la reconciliación de calendarios (docs/17)
+
+Estimación, no medida. Cada lote evalúa `candidatos` (`calendar/reconcile.ts`): recorre `users` por
+`calendar_reconciled_at` y, para cada usuario, dos `EXISTS` correlacionados, hasta juntar 10 con trabajo. Los
+partidos ya están acotados por `m.date_time` (desde hace `HORAS_PARTIDO_JUGADO` en los eventos por corregir, desde
+ahora en el auto-sync) y las columnas de equipo tienen índice (`idx_matches_home_team`, `idx_matches_away_team`).
+
+Costo de evaluar a un usuario **sin trabajo** (se recorre completo, no corta antes):
+
+- Sin auto-sync: sus `calendar_syncs` (~20 filas) y sus `user_teams` (~3): **~25 filas**.
+- Con auto-sync: además, por equipo (~3), los partidos por local y por visitante (~50 por índice) y la comprobación
+  de cada partido futuro (~30) contra `calendar_syncs`: **~450 filas**.
+- Con 30 % de usuarios con auto-sync, el promedio es de unas **160 filas por usuario**.
+
+Un usuario sin trabajo no se marca como atendido, así que queda delante en la cola y **se vuelve a evaluar en
+cada lote del barrido** (y el lote final, vacío, evalúa a todos).
+
+| Escenario (1.000 usuarios registrados) | Conectados | Con trabajo por día | Lotes | Filas leídas por día |
+| --- | --- | --- | --- | --- |
+| Esperado | 500 | 50 | ~15 | ~15 lotes x 450 usuarios x 160 filas + 500 x 160 = **~1,2 M** |
+| Pesimista | 1.000 | 200 | 40 (tope) | 40 lotes x 800 usuarios x 160 filas = **~5,1 M** |
+
+Contra el tope de 5 M diarias de D1 Free: el escenario esperado suma ~1,2 M a los ~1,4 M del resto (§2), unos
+2,6 M, ya por encima del umbral de 2,5 M del §3. El pesimista lo supera por sí solo. **Con ~1.000 usuarios conectados
+el costo de esta consulta es lo primero que hay que bajar**; opciones, de menor a mayor cambio: marcar como
+atendido (o guardar `calendar_checked_at`) al usuario que se evaluó sin trabajo, para que no vuelva en el mismo
+barrido; mantener una marca "tiene trabajo" al escribir `calendar_syncs`; pasar a Workers Paid. Hasta ~300
+usuarios conectados el costo es de unas 0,4 M filas por día y no hace falta actuar. Medirlo con **D1 → Metrics**
+(filas leídas) antes y después del primer barrido real.

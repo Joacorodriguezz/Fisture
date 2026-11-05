@@ -36,6 +36,20 @@ export function evaluateSyncHealth({ latest, lastSuccessAt, now }: SyncHealthInp
   return "fail";
 }
 
+// Calendarios: mismas reglas de frescura que las ligas (el barrido corre en el mismo workflow diario),
+// con dos diferencias:
+//  - sin ningún run todavía no se alarma: aún no hay nada que medir y, si el disparo no corriera, ya
+//    fallaría el check de ligas;
+//  - como máximo degraded. Un fallo de calendarios no tumba la app: con `fail`, /api/health respondería
+//    503 y production-smoke bloquearía deploys, incluido el que lo arregla (docs/17 I3).
+// Un lote sin progreso, un barrido que llegó al tope de lotes con usuarios pendientes (el workflow
+// registra un run partial, M2) o un último run fallido muestran degraded.
+export function evaluateCalendarHealth(input: SyncHealthInput): CheckStatus {
+  if (!input.latest) return "ok";
+  const estado = evaluateSyncHealth(input);
+  return estado === "fail" ? "degraded" : estado;
+}
+
 export function overallStatus(checks: Record<string, CheckStatus>): CheckStatus {
   const valores = Object.values(checks);
   if (valores.includes("fail")) return "fail";
@@ -51,15 +65,18 @@ export interface HealthEnv {
 
 export interface Health {
   status: CheckStatus;
-  checks: { db: CheckStatus; kv: CheckStatus; sync: CheckStatus; oauthState: CheckStatus };
+  checks: { db: CheckStatus; kv: CheckStatus; sync: CheckStatus; calendars: CheckStatus; oauthState: CheckStatus };
   lastSyncAt: string | null;
+  lastCalendarSyncAt: string | null;
 }
 
 export async function getHealth(env: HealthEnv, now = Date.now()): Promise<Health> {
   let db: CheckStatus = "ok";
   let kv: CheckStatus = "ok";
   let sync: CheckStatus = "fail";
+  let calendars: CheckStatus = "degraded";
   let lastSuccessAt: number | null = null;
+  let lastCalendarAt: number | null = null;
 
   try {
     await env.DB.prepare("SELECT 1").first();
@@ -77,21 +94,27 @@ export async function getHealth(env: HealthEnv, now = Date.now()): Promise<Healt
   if (db === "ok") {
     try {
       const database = createDb(env.DB);
-      const [latest] = await getLatestRuns(database, 1);
-      lastSuccessAt = await getLastSuccessAt(database);
+      const [latest] = await getLatestRuns(database, 1, "leagues");
+      lastSuccessAt = await getLastSuccessAt(database, "leagues");
       sync = evaluateSyncHealth({ latest: latest ?? null, lastSuccessAt, now });
+
+      const [latestCal] = await getLatestRuns(database, 1, "calendars");
+      lastCalendarAt = await getLastSuccessAt(database, "calendars");
+      calendars = evaluateCalendarHealth({ latest: latestCal ?? null, lastSuccessAt: lastCalendarAt, now });
     } catch {
       sync = "fail";
+      calendars = "degraded";
     }
   }
 
   // Sin el secret el login falla cerrado (docs/20): se detecta acá antes de que lo note un usuario
   const oauthState: CheckStatus = env.OAUTH_STATE_SECRET ? "ok" : "fail";
 
-  const checks = { db, kv, sync, oauthState };
+  const checks = { db, kv, sync, calendars, oauthState };
   return {
     status: overallStatus(checks),
     checks,
     lastSyncAt: lastSuccessAt === null ? null : new Date(lastSuccessAt).toISOString(),
+    lastCalendarSyncAt: lastCalendarAt === null ? null : new Date(lastCalendarAt).toISOString(),
   };
 }

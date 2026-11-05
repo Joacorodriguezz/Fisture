@@ -281,7 +281,7 @@ describe("syncMatches", () => {
       const r = await sync(["m1", "m2", "m3"]);
       expect(r.map((x) => x.success)).toEqual([false, false, false]);
       expect(r.every((x) => x.code === "auth")).toBe(true);
-      expect(falso.llamadas.update).toBe(1);
+      expect(falso.llamadas.update).toBe(2); // la llamada y un único reintento tras renovar el token (docs/17 I2)
       expect(falso.llamadas.create).toBe(0);
       expect((await fila(t, "m1")).status).toBe("needs_update");
       expect((await fila(t, "m2")).status).toBe("pending");

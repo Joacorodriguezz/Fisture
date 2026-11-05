@@ -93,6 +93,7 @@ CREATE INDEX `sessions_expires_at_idx` ON `sessions` (`expires_at`);--> statemen
 CREATE TABLE `sync_runs` (
 	`id` text PRIMARY KEY NOT NULL,
 	`trigger` text NOT NULL,
+	`kind` text DEFAULT 'leagues' NOT NULL,
 	`started_at` integer NOT NULL,
 	`finished_at` integer,
 	`status` text NOT NULL,
@@ -103,6 +104,7 @@ CREATE TABLE `sync_runs` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_sync_runs_started` ON `sync_runs` (`started_at`);--> statement-breakpoint
+CREATE INDEX `idx_sync_runs_kind_started` ON `sync_runs` (`kind`,`started_at`);--> statement-breakpoint
 CREATE TABLE `teams` (
 	`id` text PRIMARY KEY NOT NULL,
 	`external_id` text NOT NULL,
@@ -149,8 +151,11 @@ CREATE TABLE `users` (
 	`access_token` text,
 	`refresh_token` text,
 	`token_expires_at` integer,
-	`created_at` integer DEFAULT (strftime('%s', 'now'))
+	`created_at` integer DEFAULT (strftime('%s', 'now')),
+	`calendar_reconciled_at` integer,
+	`calendar_auth_status` text DEFAULT 'ok' NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
+CREATE INDEX `idx_users_calendar_reconciled` ON `users` (`calendar_reconciled_at`);--> statement-breakpoint
 CREATE UNIQUE INDEX `users_email_lower_idx` ON `users` (lower("email"));

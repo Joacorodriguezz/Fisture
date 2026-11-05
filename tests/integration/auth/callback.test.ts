@@ -196,6 +196,17 @@ describe("callback OAuth", () => {
     expect(filas[0]).toMatchObject({ name: "Ana María", access_token: "at-2" });
   });
 
+  it("C-08: al iniciar sesión de nuevo, un calendario sin acceso (reauth_required) vuelve a la cola del sync", async () => {
+    await conEstado();
+    await llamar("google", { code: "c1", state: "st-1" });
+    await t.DB.prepare("UPDATE users SET calendar_auth_status = 'reauth_required', calendar_reconciled_at = 123").run();
+    await conEstado({}, "st-2");
+
+    await llamar("google", { code: "c2", state: "st-2" });
+
+    expect((await usuarios())[0]).toMatchObject({ calendar_auth_status: "ok", calendar_reconciled_at: null });
+  });
+
   it("Microsoft sin mail usa userPrincipalName", async () => {
     await conEstado({ provider: "microsoft" });
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "m-1", displayName: "Beto", userPrincipalName: "beto@corp.com" })));
