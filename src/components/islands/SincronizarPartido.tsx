@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { syncView, toSyncStatus, type SyncStatus } from "../../lib/sync-ui";
+import { mensajeDeLimite, syncView, toSyncStatus, type SyncStatus } from "../../lib/sync-ui";
 import { irALogin } from "../../lib/auth/client";
 
 interface Aviso {
@@ -58,6 +58,11 @@ export default function SincronizarPartido({
         body: JSON.stringify({ matchId }),
       });
       if (res.status === 401) return irALogin();
+      if (res.status === 429) {
+        setEstado("failed");
+        setError(mensajeDeLimite(res.headers.get("Retry-After")));
+        return;
+      }
       const data = (await res.json()) as SyncResponse;
       const resultado = data.results?.[0];
 
@@ -81,6 +86,7 @@ export default function SincronizarPartido({
     try {
       const res = await fetch(`/api/calendario/sync?matchId=${matchId}`, { method: "DELETE" });
       const data = (await res.json().catch(() => ({}))) as SyncResponse;
+      if (res.status === 429) throw new Error(mensajeDeLimite(res.headers.get("Retry-After")));
       if (!res.ok) throw new Error(data.error || "No se pudo quitar del calendario");
       setEstado("none");
       setError(null);

@@ -135,6 +135,45 @@ a las 00:00 UTC (21:00 en Argentina).
   un camino de código que guarda tokens sin cifrar, que es justo lo que este diseño evita (docs/15 D6), para
   cubrir un rollback que ocurre una vez y cuyo costo ya es acotado.
 
+### Un usuario legítimo queda limitado (429 `rate_limited`) o bloqueado por origen (403 `forbidden_origin`)
+
+Diseño: `docs/16`. El usuario ve "Demasiados intentos. Probá de nuevo en N segundos" (429 con `Retry-After`).
+Las ventanas son de 1 minuto a 15 minutos y se reinician solas: **si puede esperar, esperar es la solución**.
+
+1. Confirmar: en el log buscar `rate_limited` (`bucket`, `scope`, `limit`, `retryAfter`; sin IP) con
+   `npx wrangler pages deployment tail --project-name fisture`, o pedir el `x-request-id` de la respuesta.
+   `GET /api/admin/status` trae `rateLimit.ultimas24h`: por bucket, `hits` (hasta `limit + 1` por sujeto y ventana), `blocked`
+   (sujetos-ventana bloqueados) y `subjects`. Si `blocked` es más del 5% de `subjects` en un bucket durante un día, el límite está mal calibrado (subirlo en `lib/rate-limit/policies.ts`,
+   hotfix `fix/*` desde `main`) o hay abuso.
+2. **Apagar el límite de tasa ya (sin deploy ni secret), si afecta a varios usuarios o si D1 se acerca al tope de escrituras:**
+   un secret de Pages solo toma efecto en el siguiente deploy, así que el interruptor es una clave de KV (se lee con caché
+   de 45 s por isolate, más la propagación de KV: tarda 1-2 minutos). Producción:
+   `npx wrangler kv key put "ratelimit:modo" "off" --namespace-id 8a9fc92ed9774806833736d1bec711bb`
+   (agregar `--ttl 3600` para que se reactive solo en una hora). Staging: el mismo comando con
+   `--namespace-id eb9880ef072042d8b93e46a6ca9e49d7`. Para pasar a "solo observar": valor `"observe"`; para forzar el
+   bloqueo aunque un secret diga otra cosa: `"on"`. Al resolverlo, volver al valor de arranque borrando la clave:
+   `npx wrangler kv key delete "ratelimit:modo" --namespace-id 8a9fc92ed9774806833736d1bec711bb`.
+   `RATE_LIMIT_DISABLED` / `RATE_LIMIT_MODE` (secrets) siguen valiendo como arranque cuando la clave no existe (cambiarlos
+   exige un deploy). Con `off` el limitador no escribe en D1. Con wrangler 4, agregar `--remote` a los comandos de KV.
+   El chequeo de origen no se apaga con esto (es un control de seguridad aparte).
+3. **Liberar a un solo usuario o IP** (NAT compartido: colegio, oficina, operadora móvil): borrar su fila.
+   - Por usuario, el `subject` es su `users.id`:
+     `npx wrangler d1 execute fisture-db --remote --command "DELETE FROM rate_limits WHERE subject = '<users.id>'"`.
+   - Por IP, el `subject` es el HMAC de la IP con `RATE_LIMIT_SALT` (o `ADMIN_SECRET` si no está). Una IPv6 se agrupa
+     por su /64: se usa `h1:h2:h3:h4::/64` (los cuatro primeros grupos en minúscula y sin ceros a la izquierda, p. ej.
+     `2001:db8:abcd:12::/64`) en lugar de la IP; una IPv4 va tal cual. Calcularlo en la
+     terminal, sin pegar la IP en ningún issue ni PR:
+     `SAL='<RATE_LIMIT_SALT>' IP='<ip>' node -e "console.log(require('node:crypto').createHmac('sha256',process.env.SAL).update(process.env.IP).digest('base64url').slice(0,22))"`
+     y luego el `DELETE ... WHERE subject = '<hash>'` de arriba.
+4. **403 `forbidden_origin`** en un navegador legítimo: entra por un origen que no es `PUBLIC_APP_URL` y su navegador no
+   manda `Sec-Fetch-Site` (versiones viejas, proxys que lo quitan). Cargar el origen en `ALLOWED_ORIGINS`
+   (`echo 'https://www.fisture.com' | npx wrangler pages secret put ALLOWED_ORIGINS --project-name fisture`).
+5. **`POST /api/admin/sync` o `GET /api/admin/status` responden 429**: hubo 5 Bearer inválidos desde esa IP en los últimos
+   15 minutos (por ejemplo un `ADMIN_SECRET` mal rotado en GitHub, §5). Un Bearer correcto nunca recibe 429, así que si
+   el 429 llega con el secret bien cargado el problema es otro (revisar el `x-request-id`). `sync-por-lotes.sh` corta ante
+   `rate_limited` en vez de seguir. Corregir el secret y esperar 15 minutos, o borrar la fila de `admin_fail` (paso 3).
+   Para ver qué `bucket` es: `SELECT bucket, SUM(count) FROM rate_limits GROUP BY bucket`.
+
 ### Sync en `fail` o `degraded`
 
 `/api/admin/status` muestra los errores por competencia. Un error de ESPN en una competencia deja el run en

@@ -31,6 +31,7 @@ export default defineConfig({
         "src/lib/calendar/*.ts",
         "src/lib/db/{account,preferences,queries}.ts", "src/lib/data-providers/{espn,sync}.ts",
         "src/lib/observability/*.ts",
+        "src/lib/rate-limit/*.ts",
         "src/pages/api/{preferencias,cuenta}.ts", "src/pages/api/equipos/*.ts", "src/pages/api/calendario/*.ts",
         "src/pages/api/auth/**/*.ts", "src/pages/api/admin/*.ts", "src/pages/api/partidos/*.ts",
       ],

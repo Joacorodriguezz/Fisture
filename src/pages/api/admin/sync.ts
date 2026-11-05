@@ -1,14 +1,15 @@
 import type { APIRoute } from "astro";
 import { runSync } from "../../../lib/observability/run-sync";
 import { runCalendarBatch } from "../../../lib/observability/run-calendar-batch";
-import { isAdminAuthorized, unauthorized } from "../../../lib/observability/admin-auth";
+import { verificarAdmin } from "../../../lib/observability/admin-auth";
 import { withApi } from "../../../lib/observability/with-api";
 import { lotesDeSync } from "../../../lib/data-providers";
 
 export const POST: APIRoute = withApi(async ({ request, locals }) => {
   const env = locals.runtime.env;
 
-  if (!isAdminAuthorized(request, env.ADMIN_SECRET)) return unauthorized();
+  const rechazo = await verificarAdmin(request, env, { logger: locals.logger, requestId: locals.requestId });
+  if (rechazo) return rechazo;
 
   // Opcional: una sola competencia ({"leagueId": "eng.1"}), un lote de competencias ({"lote": 0},
   // docs/22 D4) o un lote de la reconciliación de calendarios ({"calendarios": true, "corte": 1700...},
@@ -67,4 +68,4 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
     results: outcome.results,
     issues: outcome.issues,
   });
-});
+}, { origin: "none", contentType: "any", rateLimit: [] });

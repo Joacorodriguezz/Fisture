@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 import { oauthIdentities } from "../../../drizzle/schema";
 import { createDb } from "../../lib/db";
 import { deleteAccount } from "../../lib/db/account";
-import { esMismoOrigen } from "../../lib/auth/guards";
 import { revocarAcceso } from "../../lib/auth/revoke";
 import { leerTokenOpcional } from "../../lib/auth/token-store";
 import { withApi } from "../../lib/observability/with-api";
@@ -25,10 +24,6 @@ export const DELETE: APIRoute = withApi(async ({ request, cookies, locals }) => 
   locals.omitirUserIdEnLog = true;
 
   const env = locals.runtime.env;
-  if (!esMismoOrigen(request, env)) return json({ error: "Origen no permitido" }, 403);
-  if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) {
-    return json({ error: "Content-Type debe ser application/json" }, 415);
-  }
 
   const body = (await request.json().catch(() => null)) as { confirmar?: unknown } | null;
   if (typeof body?.confirmar !== "string") return json({ error: "Falta la confirmación" }, 400);

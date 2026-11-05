@@ -92,3 +92,11 @@ export function syncView(status: SyncStatus, errorMessage?: string | null): Sync
       };
   }
 }
+
+// Mensaje para un 429 (docs/16 §5.4, §9): retryAfter son los segundos que informa el servidor
+export function mensajeDeLimite(retryAfter?: number | string | null): string {
+  const segundos = Math.ceil(Number(retryAfter));
+  return Number.isFinite(segundos) && segundos > 0
+    ? `Demasiados intentos. Probá de nuevo en ${segundos} ${segundos === 1 ? "segundo" : "segundos"}.`
+    : "Demasiados intentos. Probá de nuevo en un momento.";
+}

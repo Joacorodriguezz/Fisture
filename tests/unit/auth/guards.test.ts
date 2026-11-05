@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decidirAcceso, esMismoOrigen, loginHref, safeNext } from "../../../src/lib/auth/guards";
+import { contentTypeValido, decidirAcceso, esMismoOrigen, loginHref, safeNext } from "../../../src/lib/auth/guards";
 
 describe("decidirAcceso: navegación sin sesión", () => {
   const paginasPublicas = [
@@ -110,6 +110,82 @@ describe("esMismoOrigen", () => {
 
   it("si PUBLIC_APP_URL no es una URL válida, un Origin presente se rechaza", () => {
     expect(esMismoOrigen(req("https://fisture.test"), { PUBLIC_APP_URL: "" })).toBe(false);
+  });
+});
+
+describe("esMismoOrigen con Sec-Fetch-Site, cookie y ALLOWED_ORIGINS (docs/16 D6)", () => {
+  const env = { PUBLIC_APP_URL: "https://fisture.test" };
+  const mut = (headers: Record<string, string> = {}, url = "https://fisture.test/api/equipos") =>
+    new Request(url, { method: "POST", headers });
+  const conCookie = { cookie: "session=abc; otra=1" };
+
+  it("OR1: cookie con Sec-Fetch-Site same-origin o none pasa", () => {
+    expect(esMismoOrigen(mut({ ...conCookie, "sec-fetch-site": "same-origin" }), env)).toBe(true);
+    expect(esMismoOrigen(mut({ ...conCookie, "sec-fetch-site": "none" }), env)).toBe(true);
+  });
+
+  it("OR2/OR3: cross-site y same-site se rechazan", () => {
+    expect(esMismoOrigen(mut({ ...conCookie, "sec-fetch-site": "cross-site" }), env)).toBe(false);
+    expect(esMismoOrigen(mut({ ...conCookie, "sec-fetch-site": "same-site" }), env)).toBe(false);
+  });
+
+  it("OR4/OR5: sin Sec-Fetch-Site decide el Origin", () => {
+    expect(esMismoOrigen(mut({ ...conCookie, origin: "https://fisture.test" }), env)).toBe(true);
+    expect(esMismoOrigen(mut({ ...conCookie, origin: "https://evil.com" }), env)).toBe(false);
+  });
+
+  it("OR6: con cookie de sesión y sin ninguna de las dos cabeceras se rechaza", () => {
+    expect(esMismoOrigen(mut(conCookie), env)).toBe(false);
+  });
+
+  it("OR7: sin cookie y sin cabeceras (Bearer del cron) pasa", () => {
+    expect(esMismoOrigen(mut({ authorization: "Bearer x" }), env)).toBe(true);
+  });
+
+  it("una cookie que no es la de sesión no activa la regla", () => {
+    expect(esMismoOrigen(mut({ cookie: "tema=oscuro" }), env)).toBe(true);
+  });
+
+  it("OR13: ALLOWED_ORIGINS admite otros orígenes (lista separada por comas)", () => {
+    const e = { ...env, ALLOWED_ORIGINS: "https://www.fisture.test, https://alias.fisture.pages.dev/" };
+    expect(esMismoOrigen(mut({ ...conCookie, origin: "https://www.fisture.test" }), e)).toBe(true);
+    expect(esMismoOrigen(mut({ ...conCookie, origin: "https://alias.fisture.pages.dev" }), e)).toBe(true);
+    expect(esMismoOrigen(mut({ ...conCookie, origin: "https://otro.com" }), e)).toBe(false);
+  });
+});
+
+describe("contentTypeValido", () => {
+  const post = (headers: Record<string, string>) => new Request("https://fisture.test/api/x", { method: "POST", headers });
+
+  it("OR11: application/json con o sin charset pasa", () => {
+    expect(contentTypeValido(post({ "content-type": "application/json" }))).toBe(true);
+    expect(contentTypeValido(post({ "content-type": "application/json; charset=utf-8" }))).toBe(true);
+    expect(contentTypeValido(post({ "content-type": "Application/JSON" }))).toBe(true);
+  });
+
+  it("OR10: text/plain y formularios se rechazan", () => {
+    expect(contentTypeValido(post({ "content-type": "text/plain;charset=UTF-8" }))).toBe(false);
+    expect(contentTypeValido(post({ "content-type": "application/x-www-form-urlencoded" }))).toBe(false);
+    expect(contentTypeValido(post({ "content-type": "application/jsonp" }))).toBe(false);
+  });
+
+  it("OR12: sin cuerpo y sin Content-Type pasa; con cuerpo y sin tipo, no", () => {
+    expect(contentTypeValido(post({}))).toBe(true);
+    expect(contentTypeValido(post({ "content-length": "0" }))).toBe(true);
+    expect(contentTypeValido(post({ "content-length": "12" }))).toBe(false);
+  });
+
+  it("OR12b: cuerpo sin Content-Type ni Content-Length (chunked) se rechaza", () => {
+    const cuerpo = new ReadableStream({
+      start: (c) => {
+        c.enqueue(new TextEncoder().encode("a=1"));
+        c.close();
+      },
+    });
+    const chunked = new Request("https://fisture.test/api/x", { method: "POST", body: cuerpo, duplex: "half" } as RequestInit);
+    expect(chunked.headers.get("content-type")).toBeNull();
+    expect(chunked.headers.get("content-length")).toBeNull();
+    expect(contentTypeValido(chunked)).toBe(false);
   });
 });
 

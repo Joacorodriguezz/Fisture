@@ -42,6 +42,8 @@ while [ -n "$lote" ]; do
     # Un 400 es un lote fuera de rango: no hay más. Un 401 se repetiría en todos (secret mal cargado).
     if echo "$respuesta" | grep -q "lote debe ser"; then break; fi
     if echo "$respuesta" | grep -q '"Unauthorized"'; then echo "::error::ADMIN_SECRET rechazado: se corta el sync"; break; fi
+    # Un 429 (rate_limited) también se repetiría en todos los lotes: se corta en vez de seguir insistiendo
+    if echo "$respuesta" | grep -q "rate_limited"; then echo "::error::Límite de tasa alcanzado (rate_limited): se corta el sync"; break; fi
     lote=$((lote + 1))
     if [ "$lote" -ge "$total" ]; then lote=""; fi
   else

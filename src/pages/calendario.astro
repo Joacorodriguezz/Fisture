@@ -65,9 +65,8 @@ for (const m of proximos) {
   }
 }
 
-// Cada partido es una llamada a la API de calendario: el lote manual tiene tope
-const LOTE_MANUAL = 25;
-const lote = accionables.slice(0, LOTE_MANUAL);
+// La island parte la lista en lotes de MAX_PARTIDOS_POR_REQUEST y los manda en secuencia (docs/16 §12 R2)
+const lote = accionables;
 
 const stats = [
   { n: enCalendario, label: "En calendario", detalle: "Eventos creados y al día", color: "var(--celeste)" },

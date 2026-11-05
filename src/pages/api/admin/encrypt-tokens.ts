@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { createDb } from "../../../lib/db";
-import { isAdminAuthorized, unauthorized } from "../../../lib/observability/admin-auth";
+import { verificarAdmin } from "../../../lib/observability/admin-auth";
 import { withApi } from "../../../lib/observability/with-api";
 import { claveValida, clavePreviaValida } from "../../../lib/auth/token-crypto";
 import { CursorInvalidoError, procesarTokens, type Direccion } from "../../../lib/auth/token-backfill";
@@ -11,7 +11,8 @@ import { CursorInvalidoError, procesarTokens, type Direccion } from "../../../li
 // necesita una ventana de mantenimiento (docs/23).
 export const POST: APIRoute = withApi(async ({ request, url, locals }) => {
   const env = locals.runtime.env;
-  if (!isAdminAuthorized(request, env.ADMIN_SECRET)) return unauthorized();
+  const rechazo = await verificarAdmin(request, env, { logger: locals.logger, requestId: locals.requestId });
+  if (rechazo) return rechazo;
 
   const direccion: Direccion = url.searchParams.get("direction") === "decrypt" ? "decrypt" : "encrypt";
   const headers = { "Cache-Control": "no-store" };
@@ -37,4 +38,4 @@ export const POST: APIRoute = withApi(async ({ request, url, locals }) => {
   // Solo conteos y cursores: nunca tokens (docs/15 K15)
   locals.logger?.info("token_backfill", { ...resultado });
   return Response.json(resultado, { headers });
-});
+}, { origin: "none", contentType: "any", rateLimit: [] });

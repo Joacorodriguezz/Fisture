@@ -41,6 +41,8 @@ export async function sincronizarCalendarios({
         });
         const texto = await respuesta.text();
         if (respuesta.status === 401) return { fatal: "ADMIN_SECRET rechazado (401): se corta el sync de calendarios" };
+        // Un 429 (rate_limited, docs/16) se repetiría en todos los lotes: se corta igual que un 401
+        if (respuesta.status === 429) return { fatal: "rate_limited (429): se corta el sync de calendarios" };
         if (respuesta.ok) return { datos: JSON.parse(texto) };
         ultimo = `HTTP ${respuesta.status}: ${texto.slice(0, 300)}`;
         if (respuesta.status === 400) return { fatal: ultimo };
