@@ -74,7 +74,8 @@ la 3.ª ronda: avisar todo el año sería ruido en `/api/admin/status`.
 **D7. No se activa la reconciliación de calendarios en el workflow.** `reconcileCalendars` hoy solo
 corre desde `functions/scheduled.ts`, que Pages no ejecuta. Activarla desde el workflow parece natural,
 pero su presupuesto (20 usuarios × 10 partidos) excede las 50 subrequests de Workers Free. Queda como
-hallazgo para un TDD propio.
+hallazgo para un TDD propio. **Resuelto en `docs/17`** (2026-11-03): lotes de usuarios con presupuesto de
+subrequests y un job `calendarios` en `sync-cron.yml`.
 
 ## 4. Diseño
 
