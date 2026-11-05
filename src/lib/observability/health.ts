@@ -2,7 +2,7 @@
 import { createDb } from "../db";
 import { getLastSuccessAt, getLatestRuns } from "./sync-runs";
 import type { SyncRunStatus } from "./types";
-import { claveValida } from "../auth/token-crypto";
+import { claveValida, clavePreviaValida } from "../auth/token-crypto";
 
 export type CheckStatus = "ok" | "degraded" | "fail";
 
@@ -63,6 +63,7 @@ export interface HealthEnv {
   KV?: { get(key: string): Promise<unknown> };
   OAUTH_STATE_SECRET?: string;
   TOKEN_ENCRYPTION_KEY?: string;
+  TOKEN_ENCRYPTION_KEY_PREVIOUS?: string;
 }
 
 export interface Health {
@@ -113,7 +114,8 @@ export async function getHealth(env: HealthEnv, now = Date.now()): Promise<Healt
   const oauthState: CheckStatus = env.OAUTH_STATE_SECRET ? "ok" : "fail";
 
   // Sin la clave de cifrado (o con una que no tiene 32 bytes) el login y la renovación de tokens fallan cerrado (docs/15 D4)
-  const tokenKey: CheckStatus = claveValida(env) ? "ok" : "fail";
+  // Una clave anterior mal formada no corta el servicio, pero rompería el backfill de la rotación: degraded
+  const tokenKey: CheckStatus = !claveValida(env) ? "fail" : clavePreviaValida(env) ? "ok" : "degraded";
 
   const checks = { db, kv, sync, calendars, oauthState, tokenKey };
   return {

@@ -171,6 +171,15 @@ describe("getHealth y endpoints (D1)", () => {
     }
   });
 
+  it("una TOKEN_ENCRYPTION_KEY_PREVIOUS mal formada deja tokenKey en degraded (200), no en fail", async () => {
+    await syncExitoso(Date.now() - H);
+    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY, TOKEN_ENCRYPTION_KEY_PREVIOUS: btoa("corta") }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.checks.tokenKey).toBe("degraded");
+    expect(body.status).toBe("degraded");
+  });
+
   it("GET /api/health no expone detalles internos", async () => {
     const id = await startSyncRun(t.db, "cron", Date.now() - H);
     await failSyncRun(t.db, id, new Error("clave secreta de ESPN: abc"), Date.now());
