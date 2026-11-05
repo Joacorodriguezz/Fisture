@@ -6,7 +6,8 @@ import { POST as syncPost } from "../../../src/pages/api/calendario/sync";
 import { GET as buscar } from "../../../src/pages/api/equipos/buscar";
 import { GET as status } from "../../../src/pages/api/admin/status";
 import { POST as adminSync } from "../../../src/pages/api/admin/sync";
-import { apiCtx } from "../../helpers/ctx";
+import { reiniciarConfig, TTL_CONFIG_MS } from "../../../src/lib/rate-limit/config";
+import { apiCtx, kvEnMemoria } from "../../helpers/ctx";
 import { AHORA, relojFijo } from "../../helpers/clock";
 import { useTestDb } from "../../helpers/use-test-db";
 
@@ -23,7 +24,7 @@ function capturar() {
 describe("withApi: límite de tasa y origen", () => {
   const t = useTestDb();
   relojFijo();
-  beforeEach(() => reiniciarMemoria());
+  beforeEach(() => (reiniciarMemoria(), reiniciarConfig()));
 
   const env = (extra: Record<string, unknown> = {}) => ({ DB: t.DB, ENVIRONMENT: "test", PUBLIC_APP_URL: APP, RATE_LIMIT_SALT: "sal", ...extra });
   const ok = async () => Response.json({ ok: true });
@@ -92,9 +93,9 @@ describe("withApi: límite de tasa y origen", () => {
   });
 
   it("D2: si el límite por IP ya bloqueó no se evalúa el de usuario", async () => {
-    const handler = withApi(ok, { logger: capturar().logger, rateLimit: ["calendar_sync_ip", "calendar_sync"] });
+    const handler = withApi(ok, { logger: capturar().logger, rateLimit: ["calendar_sync_ip", "calendar_delete"] });
     for (let i = 0; i < 31; i++) await handler(peticion());
-    const porUsuario = await t.DB.prepare("SELECT count FROM rate_limits WHERE bucket = 'calendar_sync'").first<{ count: number }>();
+    const porUsuario = await t.DB.prepare("SELECT count FROM rate_limits WHERE bucket = 'calendar_delete'").first<{ count: number }>();
     expect(porUsuario?.count).toBe(30); // la request 31 (bloqueada por IP) no tocó el contador de usuario
   });
 
@@ -147,6 +148,92 @@ describe("withApi: límite de tasa y origen", () => {
     const e = env({ RATE_LIMIT_MODE: "observe" });
     for (let i = 0; i < 12; i++) expect((await handler(peticion({ env: e }))).status).toBe(200);
     expect(lineas.find((l) => l.data.msg === "rate_limited")?.data).toMatchObject({ observe: true, bucket: "calendar_sync" });
+  });
+
+  describe("interruptor en caliente (KV)", () => {
+    const filas = async () => (await t.DB.prepare("SELECT COUNT(*) AS n FROM rate_limits").first<{ n: number }>())?.n;
+    const correr = async (e: Record<string, unknown>, n = 12) => {
+      const handler = withApi(ok, { logger: capturar().logger, rateLimit: ["calendar_sync"] });
+      const codigos: number[] = [];
+      for (let i = 0; i < n; i++) codigos.push((await handler(peticion({ env: e }))).status);
+      return codigos;
+    };
+
+    it("KV1: ratelimit:modo=off apaga el limitador sin escribir, sin redeploy ni secret", async () => {
+      const KV = kvEnMemoria();
+      KV.datos.set("ratelimit:modo", "off");
+      expect((await correr(env({ KV }))).every((c) => c === 200)).toBe(true);
+      expect(await filas()).toBe(0);
+    });
+
+    it("KV2: ratelimit:modo=observe cuenta pero no bloquea", async () => {
+      const KV = kvEnMemoria();
+      KV.datos.set("ratelimit:modo", "observe");
+      expect((await correr(env({ KV }))).every((c) => c === 200)).toBe(true);
+      expect(await filas()).toBe(1);
+    });
+
+    it("KV3: sin clave manda el secret de arranque; la clave on lo pisa", async () => {
+      const KV = kvEnMemoria();
+      expect((await correr(env({ KV, RATE_LIMIT_DISABLED: "true" }))).every((c) => c === 200)).toBe(true);
+      reiniciarConfig();
+      KV.datos.set("ratelimit:modo", "on");
+      expect(await correr(env({ KV, RATE_LIMIT_DISABLED: "true" }))).toContain(429);
+    });
+
+    it("KV4: el valor se cachea en el isolate (una sola lectura) y se renueva al vencer el TTL", async () => {
+      const KV = kvEnMemoria();
+      const get = vi.spyOn(KV, "get");
+      await correr(env({ KV }), 5);
+      expect(get).toHaveBeenCalledTimes(1);
+      KV.datos.set("ratelimit:modo", "off");
+      await correr(env({ KV }), 2);
+      expect(get).toHaveBeenCalledTimes(1);
+      vi.setSystemTime(new Date(AHORA.getTime() + TTL_CONFIG_MS + 1));
+      get.mockClear();
+      await correr(env({ KV }), 2);
+      expect(get).toHaveBeenCalledTimes(1);
+    });
+
+    it("KV5: si KV falla se usa el secret de arranque y no se rompe la request", async () => {
+      const KV = { get: async () => { throw new Error("KV caído"); } };
+      expect((await correr(env({ KV }), 3)).every((c) => c === 200)).toBe(true);
+    });
+
+    it("KV6: el interruptor también apaga el contador de admin_fail", async () => {
+      const KV = kvEnMemoria();
+      KV.datos.set("ratelimit:modo", "off");
+      const e = { DB: t.DB, KV, ENVIRONMENT: "test", PUBLIC_APP_URL: APP, RATE_LIMIT_SALT: "sal", ADMIN_SECRET: SECRET };
+      for (let i = 0; i < 8; i++) {
+        const r = await status(apiCtx({ url: `${APP}/api/admin/status`, headers: { "cf-connecting-ip": IP, authorization: "Bearer mal" }, env: e }));
+        expect(r.status).toBe(401);
+      }
+      expect(await filas()).toBe(0);
+    });
+  });
+
+  it("RL20: en las navegaciones (login, callback) el 429 redirige a /login?error=rate_limited", async () => {
+    const handler = withApi(ok, { logger: capturar().logger, rateLimit: ["login"], rateLimitRedirect: "/login?error=rate_limited" });
+    const desde = () => peticion({ method: "GET", user: null });
+    for (let i = 0; i < 10; i++) expect((await handler(desde())).status).toBe(200);
+    const res = await handler(desde());
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/login?error=rate_limited");
+    expect(res.headers.get("Retry-After")).toBeTruthy();
+  });
+
+  describe("mutaciones anónimas", () => {
+    it("RL19: sin usuario, los límites por defecto no se aplican ni escriben (irán a 401)", async () => {
+      const handler = withApi(ok, { logger: capturar().logger });
+      for (let i = 0; i < 130; i++) expect((await handler(peticion({ user: null }))).status).toBe(200);
+      expect((await t.DB.prepare("SELECT COUNT(*) AS n FROM rate_limits").first<{ n: number }>())?.n).toBe(0);
+    });
+
+    it("RL19b: con límites explícitos (login/callback) sí se aplican sin usuario", async () => {
+      const handler = withApi(ok, { logger: capturar().logger, rateLimit: ["oauth_callback"] });
+      for (let i = 0; i < 20; i++) await handler(peticion({ user: null, method: "GET" }));
+      expect((await handler(peticion({ user: null, method: "GET" }))).status).toBe(429);
+    });
   });
 
   describe("origen y Content-Type", () => {
@@ -221,6 +308,7 @@ describe("endpoints con política propia", () => {
   relojFijo();
   beforeEach(() => {
     reiniciarMemoria();
+    reiniciarConfig();
     for (const m of ["log", "warn", "error"] as const) vi.spyOn(console, m).mockImplementation(() => {});
   });
   const env = (extra: Record<string, unknown> = {}) => ({ DB: t.DB, ENVIRONMENT: "test", PUBLIC_APP_URL: APP, RATE_LIMIT_SALT: "sal", ADMIN_SECRET: SECRET, ...extra });
@@ -254,19 +342,32 @@ describe("endpoints con política propia", () => {
   const admin = (bearer: string | null, extra: Record<string, string> = {}) =>
     apiCtx({ url: `${APP}/api/admin/status`, headers: { "cf-connecting-ip": IP, ...(bearer ? { authorization: `Bearer ${bearer}` } : {}), ...extra }, env: env() });
 
-  it("RL13: 5 Bearer inválidos dan 401 y a la sexta 429, incluso con el Bearer correcto", async () => {
+  it("RL13: 5 Bearer inválidos dan 401 y a la sexta 429; el Bearer correcto sigue pasando", async () => {
     for (let i = 0; i < 5; i++) expect((await status(admin("incorrecto"))).status).toBe(401);
     const sexta = await status(admin("incorrecto"));
     expect(sexta.status).toBe(429);
     expect(Number(sexta.headers.get("Retry-After"))).toBeGreaterThan(0);
-    expect((await status(admin(SECRET))).status).toBe(429);
+    expect((await status(admin(SECRET))).status).toBe(200);
   });
 
-  it("RL13: otra IP no queda afectada y la ventana vence a los 15 minutos", async () => {
+  it("RL13b: otra IP no queda afectada y la ventana vence a los 15 minutos", async () => {
     for (let i = 0; i < 6; i++) await status(admin("incorrecto"));
-    expect((await status(admin(SECRET, { "cf-connecting-ip": "198.51.100.9" }))).status).toBe(200);
+    expect((await status(admin("incorrecto", { "cf-connecting-ip": "198.51.100.9" }))).status).toBe(401);
     vi.setSystemTime(new Date(AHORA.getTime() + 15 * 60_000 + 1_000));
-    expect((await status(admin(SECRET))).status).toBe(200);
+    expect((await status(admin("incorrecto"))).status).toBe(401);
+  });
+
+  it("RL13c: con requests concurrentes pasan exactamente 5 inválidos (401), el resto 429, y el válido 200", async () => {
+    const respuestas = await Promise.all([
+      ...Array.from({ length: 20 }, () => status(admin("incorrecto"))),
+      status(admin(SECRET)),
+    ]);
+    const codigos = respuestas.map((r) => r.status);
+    expect(codigos.filter((c) => c === 401)).toHaveLength(5);
+    expect(codigos.filter((c) => c === 429)).toHaveLength(15);
+    expect(codigos[20]).toBe(200);
+    const fila = await t.DB.prepare("SELECT count FROM rate_limits WHERE bucket = 'admin_fail'").first<{ count: number }>();
+    expect(fila?.count).toBe(6);
   });
 
   it("RL14: un Bearer válido repetido no cuenta, no escribe y no se bloquea", async () => {
@@ -284,7 +385,7 @@ describe("endpoints con política propia", () => {
     for (let i = 0; i < 12; i++) await handler(apiCtx({ url: `${APP}/api/auth/login/google`, headers: { "cf-connecting-ip": IP }, env: env() }));
     const body = (await (await status(admin(SECRET, { "cf-connecting-ip": "198.51.100.50" }))).json()) as any;
     const login = body.rateLimit.ultimas24h.find((b: any) => b.bucket === "login");
-    expect(login).toMatchObject({ hits: 12, blocked: 2, subjects: 1, limit: 10 });
+    expect(login).toMatchObject({ hits: 11, blocked: 1, subjects: 1, limit: 10 });
     expect(JSON.stringify(body.rateLimit)).not.toContain(IP);
   });
 });

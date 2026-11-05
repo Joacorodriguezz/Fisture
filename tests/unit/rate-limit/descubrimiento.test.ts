@@ -37,5 +37,19 @@ describe("RL16: descubrimiento de handlers", () => {
     const callback = readFileSync(join(RAIZ, "auth/callback/[provider].ts"), "utf8");
     expect(login).toMatch(/rateLimit:\s*\[\s*"login"/);
     expect(callback).toMatch(/rateLimit:\s*\[\s*"oauth_callback"/);
+    expect(login).toMatch(/rateLimitRedirect:\s*"\/login\?error=rate_limited"/);
+    expect(callback).toMatch(/rateLimitRedirect:\s*"\/login\?error=rate_limited"/);
+  });
+
+  const admin = archivos.filter((f) => f.startsWith("admin/"));
+
+  it("encuentra los endpoints de admin", () => {
+    expect(admin.length).toBeGreaterThan(0);
+  });
+
+  it.each(admin)("%s autoriza con verificarAdmin (cuenta los fallos de Bearer por IP)", (archivo) => {
+    const fuente = readFileSync(join(RAIZ, archivo), "utf8");
+    expect(fuente, `${archivo}: debe llamar a verificarAdmin`).toMatch(/\bverificarAdmin\(/);
+    expect(fuente, `${archivo}: no debe usar isAdminAuthorized directo`).not.toMatch(/\bisAdminAuthorized\(/);
   });
 });

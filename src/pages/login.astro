@@ -20,6 +20,7 @@ const mensajesError: Record<string, string> = {
   missing_params: "Falta información del proveedor. Volvé a intentar.",
   unsupported_provider: "Ese proveedor no está disponible por ahora.",
   oauth_unavailable: "El inicio de sesión no está disponible por ahora. Probá de nuevo más tarde.",
+  rate_limited: "Hiciste demasiados intentos seguidos. Esperá unos minutos y volvé a probar.",
   oauth_failed: "No pudimos conectar con tu cuenta. Probá de nuevo en un momento.",
 };
 const codigoError = Astro.url.searchParams.get("error");

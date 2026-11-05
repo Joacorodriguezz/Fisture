@@ -140,4 +140,4 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
     locals.logger?.error("oauth_failed", { provider: params.provider, err: error });
     return redirect("/login?error=oauth_failed");
   }
-}, { rateLimit: ["oauth_callback"] });
+}, { rateLimit: ["oauth_callback"], rateLimitRedirect: "/login?error=rate_limited" });

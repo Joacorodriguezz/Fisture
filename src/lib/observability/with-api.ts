@@ -3,10 +3,11 @@
 // orden origen y Content-Type (sin I/O) -> límite por IP -> límite por usuario -> handler.
 import type { APIRoute } from "astro";
 import { contentTypeValido, esMismoOrigen } from "../auth/guards";
+import { modoLimite } from "../rate-limit/config";
 import { hit, type HitResult } from "../rate-limit/limiter";
 import { hitMemory } from "../rate-limit/memory";
 import { muta, POLICIES, politicasPorDefecto, type PolicyName } from "../rate-limit/policies";
-import { sujetoIp } from "../rate-limit/subject";
+import { ipDe, normalizarIp, sujetoIp } from "../rate-limit/subject";
 import { createLogger, defaultLevel, type Logger } from "./logger";
 
 export interface WithApiOptions {
@@ -17,6 +18,8 @@ export interface WithApiOptions {
   rateLimit?: PolicyName[];
   // "session" (por defecto): las mutaciones verifican origen. "none": rutas con Bearer (admin), sin CSRF.
   origin?: "session" | "none";
+  // Para rutas de navegación (login, callback): ante un 429 se redirige a esta URL en vez de devolver JSON
+  rateLimitRedirect?: string;
   // "json" (por defecto): las mutaciones con cuerpo deben ser application/json. "any": sin chequeo.
   contentType?: "json" | "any";
 }
@@ -51,6 +54,14 @@ export function respuesta429(retryAfter: number, requestId: string): Response {
   );
 }
 
+function respuestaLimite(retryAfter: number, requestId: string, options: WithApiOptions): Response {
+  if (!options.rateLimitRedirect) return respuesta429(retryAfter, requestId);
+  return new Response(null, {
+    status: 302,
+    headers: { Location: options.rateLimitRedirect, "Retry-After": String(retryAfter), "Cache-Control": "no-store" },
+  });
+}
+
 // Devuelve la respuesta de rechazo (403/415/429) o null si la request puede seguir al handler
 async function aplicarGuardas(
   context: Parameters<APIRoute>[0],
@@ -72,12 +83,17 @@ async function aplicarGuardas(
     return Response.json({ error: "unsupported_media_type", requestId }, { status: 415 });
   }
 
-  if (env.RATE_LIMIT_DISABLED === "true") return null;
+  const userId = (locals as { user?: { id: string } }).user?.id;
+  // Los límites por defecto no se aplican a una mutación sin usuario autenticado: va a responder 401 y no
+  // debe escribir en D1 antes (docs/16 §12). Los límites explícitos de la ruta (login, callback) se mantienen.
+  if (options.rateLimit === undefined && mutacion && !userId) return null;
   const reglas = (options.rateLimit ?? politicasPorDefecto(method)).map((nombre) => ({ nombre, ...POLICIES[nombre] }));
   if (reglas.length === 0) return null;
 
-  const observe = env.RATE_LIMIT_MODE === "observe";
-  const userId = (locals as { user?: { id: string } }).user?.id;
+  // Interruptor en caliente (KV, cacheado en el isolate) con el secret como valor de arranque
+  const modo = await modoLimite(env);
+  if (modo.disabled) return null;
+  const observe = modo.observe;
   let ipSujeto: string | null | undefined;
   let ipCrudo: string | null = null;
 
@@ -91,9 +107,9 @@ async function aplicarGuardas(
           if (!userId || !env.DB) continue;
           r = await hit(env.DB, regla.nombre, userId, regla);
         } else if (memoria) {
-          ipCrudo ??= request.headers.get("cf-connecting-ip")?.trim() || null;
+          ipCrudo ??= ipDe(request);
           if (!ipCrudo) continue;
-          r = hitMemory(`${regla.nombre}:${ipCrudo}`, regla.limit, regla.windowSec);
+          r = hitMemory(`${regla.nombre}:${normalizarIp(ipCrudo)}`, regla.limit, regla.windowSec);
         } else {
           if (!env.DB) continue;
           if (ipSujeto === undefined) ipSujeto = await sujetoIp(request, env);
@@ -114,7 +130,7 @@ async function aplicarGuardas(
       // Solo el primer bloqueo de la ventana va en warn: no se inunda el log durante un ataque
       if (r.count === regla.limit + 1) logger.warn("rate_limited", campos);
       else logger.debug("rate_limited", campos);
-      if (!observe) return respuesta429(r.retryAfter, requestId);
+      if (!observe) return respuestaLimite(r.retryAfter, requestId, options);
     }
   }
   return null;
