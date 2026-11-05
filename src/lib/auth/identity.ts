@@ -4,6 +4,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { oauthIdentities, users, type OAuthIdentity, type User } from "../../../drizzle/schema";
 import type { Database } from "../db";
+import { cifrarTokens, leerTokenOpcional } from "./token-store";
 
 export type Proveedor = "google" | "microsoft";
 
@@ -71,11 +72,12 @@ export interface PerfilIdentidad {
   image: string | null;
 }
 
-const cargaTokens = (t: TokensProveedor, anteriorRefresh?: string | null) => ({
-  accessToken: t.accessToken,
-  tokenExpiresAt: t.tokenExpiresAt,
-  refreshToken: t.refreshToken ?? anteriorRefresh ?? null,
-});
+// Columnas de tokens listas para guardar: siempre cifradas con el id de la fila (docs/15). Sin clave lanza.
+// `anteriorRefresh` va en claro (el llamador lo descifra con leerTokenOpcional)
+async function cargaTokens(env: Env, id: string, t: TokensProveedor, anteriorRefresh?: string | null) {
+  const cifrados = await cifrarTokens(env, id, { accessToken: t.accessToken, refreshToken: t.refreshToken ?? anteriorRefresh ?? null });
+  return { ...cifrados, tokenExpiresAt: t.tokenExpiresAt };
+}
 
 export async function buscarIdentidad(db: Database, provider: Proveedor, providerId: string): Promise<OAuthIdentity | undefined> {
   return db.query.oauthIdentities.findFirst({
@@ -107,7 +109,7 @@ export async function buscarUsuarioLegado(db: Database, provider: Proveedor, pro
   return (await buscarIdentidadDeUsuario(db, usuario.id, provider)) ? undefined : usuario;
 }
 
-function filaIdentidad(id: string, userId: string, perfil: PerfilIdentidad, tokens: TokensProveedor) {
+async function filaIdentidad(env: Env, id: string, userId: string, perfil: PerfilIdentidad, tokens: TokensProveedor) {
   return {
     id,
     userId,
@@ -116,13 +118,15 @@ function filaIdentidad(id: string, userId: string, perfil: PerfilIdentidad, toke
     tenantId: perfil.tenantId,
     email: perfil.email || null,
     emailVerified: perfil.emailVerified,
-    ...cargaTokens(tokens),
+    ...(await cargaTokens(env, id, tokens)),
   };
 }
 
 // Alta de una cuenta nueva: usuario + identidad principal (id = users.id) en un solo batch (una transacción)
-export async function crearUsuarioConIdentidad(db: Database, perfil: PerfilIdentidad, tokens: TokensProveedor): Promise<string> {
+export async function crearUsuarioConIdentidad(env: Env, db: Database, perfil: PerfilIdentidad, tokens: TokensProveedor): Promise<string> {
   const userId = crypto.randomUUID();
+  const filaUsuario = await cargaTokens(env, userId, tokens);
+  const identidad = await filaIdentidad(env, userId, userId, perfil, tokens);
   await db.batch([
     db.insert(users).values({
       id: userId,
@@ -132,33 +136,36 @@ export async function crearUsuarioConIdentidad(db: Database, perfil: PerfilIdent
       image: perfil.image,
       provider: perfil.provider,
       providerId: perfil.providerId,
-      ...cargaTokens(tokens),
+      ...filaUsuario,
     }),
-    db.insert(oauthIdentities).values(filaIdentidad(userId, userId, perfil, tokens)),
+    db.insert(oauthIdentities).values(identidad),
   ]);
   return userId;
 }
 
 // Asocia una identidad nueva a una cuenta existente. No toca users.* (ni provider ni tokens): V-15
-export async function agregarIdentidad(db: Database, userId: string, perfil: PerfilIdentidad, tokens: TokensProveedor, id: string = crypto.randomUUID()): Promise<void> {
-  await db.insert(oauthIdentities).values(filaIdentidad(id, userId, perfil, tokens));
+export async function agregarIdentidad(env: Env, db: Database, userId: string, perfil: PerfilIdentidad, tokens: TokensProveedor, id: string = crypto.randomUUID()): Promise<void> {
+  await db.insert(oauthIdentities).values(await filaIdentidad(env, id, userId, perfil, tokens));
 }
 
 // Identidad de un usuario anterior a la migración: la principal usa id = users.id (docs/18 §3.1)
-export async function crearIdentidadLegada(db: Database, usuario: User, perfil: PerfilIdentidad, tokens: TokensProveedor): Promise<OAuthIdentity> {
+export async function crearIdentidadLegada(env: Env, db: Database, usuario: User, perfil: PerfilIdentidad, tokens: TokensProveedor): Promise<OAuthIdentity> {
   const idLibre = !(await db.query.oauthIdentities.findFirst({ where: eq(oauthIdentities.id, usuario.id) }));
   const id = idLibre ? usuario.id : crypto.randomUUID();
-  await agregarIdentidad(db, usuario.id, perfil, { ...tokens, refreshToken: tokens.refreshToken ?? usuario.refreshToken }, id);
+  // El refresh anterior viene de users.* (AAD de esa fila): se descifra y se re-cifra para la identidad
+  const anterior = tokens.refreshToken ?? (await leerTokenOpcional(env, usuario.refreshToken, usuario.id, "refresh_token"));
+  await agregarIdentidad(env, db, usuario.id, perfil, { ...tokens, refreshToken: anterior }, id);
   return (await buscarIdentidad(db, perfil.provider, perfil.providerId))!;
 }
 
 // Reingreso: actualiza SOLO lo de esa identidad (tokens, email informativo, verificación). Si es la del
 // proveedor activo, además escribe users.* (doble escritura de D6) y el nombre y la imagen de la cuenta.
-export async function registrarLogin(db: Database, identidad: OAuthIdentity, usuario: User, perfil: PerfilIdentidad, tokens: TokensProveedor): Promise<void> {
+export async function registrarLogin(env: Env, db: Database, identidad: OAuthIdentity, usuario: User, perfil: PerfilIdentidad, tokens: TokensProveedor): Promise<void> {
+  const refreshDeIdentidad = await leerTokenOpcional(env, identidad.refreshToken, identidad.id, "refresh_token");
   const actualizarIdentidad = db
     .update(oauthIdentities)
     .set({
-      ...cargaTokens(tokens, identidad.refreshToken),
+      ...(await cargaTokens(env, identidad.id, tokens, refreshDeIdentidad)),
       tenantId: perfil.tenantId ?? identidad.tenantId,
       email: perfil.email || identidad.email,
       emailVerified: perfil.emailVerified,
@@ -172,7 +179,7 @@ export async function registrarLogin(db: Database, identidad: OAuthIdentity, usu
   const actualizarUsuario = db
     .update(users)
     .set({
-      ...cargaTokens(tokens, usuario.refreshToken),
+      ...(await cargaTokens(env, usuario.id, tokens, await leerTokenOpcional(env, usuario.refreshToken, usuario.id, "refresh_token"))),
       // Tokens nuevos del calendario activo: vuelve a tener acceso y reentra primero en la cola del sync (docs/17 B4)
       calendarAuthStatus: "ok",
       calendarReconciledAt: null,

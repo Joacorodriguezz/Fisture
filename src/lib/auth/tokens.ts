@@ -3,6 +3,7 @@ import { oauthIdentities, users } from "../../../drizzle/schema";
 import type { Database } from "../db";
 import { createGoogleProvider, createMicrosoftProvider } from "./providers";
 import { buscarIdentidadDeUsuario, type Proveedor } from "./identity";
+import { cifrarTokens, leerToken } from "./token-store";
 
 type DbUser = typeof users.$inferSelect;
 
@@ -33,15 +34,18 @@ export async function getValidAccessToken(
   const identidad = await buscarIdentidadDeUsuario(db, user.id, user.provider as Proveedor);
   const fuente = identidad ?? user;
 
-  if (!fuente.accessToken) {
+  // Acepta cifrado y legado en claro (docs/15 D5). Si no se puede descifrar lanza: el usuario reconecta
+  const accessActual = await leerToken(env, fuente.accessToken, fuente.id, "access_token");
+  if (!accessActual) {
     throw new Error("No calendar access token");
   }
 
   const expiresAt = fuente.tokenExpiresAt;
   const stillValid = !expiresAt || expiresAt > Date.now() + 60_000;
-  if (stillValid && !opciones.forzarRenovacion) return fuente.accessToken;
+  if (stillValid && !opciones.forzarRenovacion) return accessActual;
 
-  if (!fuente.refreshToken) {
+  const refreshActual = await leerToken(env, fuente.refreshToken, fuente.id, "refresh_token");
+  if (!refreshActual) {
     throw new Error("Calendar permission expired. Volvé a iniciar sesión.");
   }
 
@@ -49,10 +53,10 @@ export async function getValidAccessToken(
 
   let tokens;
   if (user.provider === "google") {
-    tokens = await createGoogleProvider(env).refreshAccessToken(fuente.refreshToken);
+    tokens = await createGoogleProvider(env).refreshAccessToken(refreshActual);
   } else if (user.provider === "microsoft") {
     tokens = await createMicrosoftProvider(env).refreshAccessToken(
-      fuente.refreshToken,
+      refreshActual,
       CALENDAR_SCOPES.microsoft
     );
   } else {
@@ -60,21 +64,22 @@ export async function getValidAccessToken(
   }
 
   const accessToken = tokens.accessToken();
-  const nuevos = {
-    accessToken,
-    tokenExpiresAt: tokens.accessTokenExpiresAt()?.getTime() ?? null,
-    // Google no siempre devuelve un refresh token nuevo: conservamos el anterior
-    refreshToken: safeRefreshToken(tokens) ?? fuente.refreshToken,
-  };
+  const tokenExpiresAt = tokens.accessTokenExpiresAt()?.getTime() ?? null;
+  // Google no siempre devuelve un refresh token nuevo: conservamos el anterior
+  const claros = { accessToken, refreshToken: safeRefreshToken(tokens) ?? refreshActual };
 
+  // Siempre cifrado, con el id de cada fila en el AAD (docs/15 D6). Sin clave lanza antes de escribir
+  const paraUsuario = { ...(await cifrarTokens(env, user.id, claros)), tokenExpiresAt };
   // Doble escritura (docs/18 D6): users.* sigue vigente hasta el release N+1
-  const actualizarUsuario = db.update(users).set(nuevos).where(eq(users.id, user.id));
+  const actualizarUsuario = db.update(users).set(paraUsuario).where(eq(users.id, user.id));
   if (identidad) {
-    await db.batch([db.update(oauthIdentities).set(nuevos).where(eq(oauthIdentities.id, identidad.id)), actualizarUsuario]);
+    const paraIdentidad = { ...(await cifrarTokens(env, identidad.id, claros)), tokenExpiresAt };
+    await db.batch([db.update(oauthIdentities).set(paraIdentidad).where(eq(oauthIdentities.id, identidad.id)), actualizarUsuario]);
   } else {
     await actualizarUsuario;
   }
-  Object.assign(user, nuevos);
+  // En memoria queda el valor cifrado para user.id (nunca tokens en claro ni los de la identidad)
+  Object.assign(user, paraUsuario);
 
   return accessToken;
 }

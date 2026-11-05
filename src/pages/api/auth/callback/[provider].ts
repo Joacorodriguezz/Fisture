@@ -6,6 +6,7 @@ import { createDb } from "../../../../lib/db";
 import { withApi } from "../../../../lib/observability/with-api";
 import { safeNext } from "../../../../lib/auth/guards";
 import { obtenerIdentidad } from "../../../../lib/auth/perfil";
+import { TokenKeyError } from "../../../../lib/auth/token-crypto";
 import {
   agregarIdentidad,
   buscarIdentidad,
@@ -75,11 +76,11 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
       if (existente) {
         const dueno = await buscarUsuario(db, userId);
         if (!dueno) return redirect("/login?error=vinculo_sesion");
-        await registrarLogin(db, existente, dueno, perfil, tokens);
+        await registrarLogin(env, db, existente, dueno, perfil, tokens);
       } else {
         // En esta versión hay una identidad por proveedor y usuario
         if (await buscarIdentidadDeUsuario(db, userId, provider)) return conflicto("proveedor_en_uso", "/configuracion", provider);
-        await agregarIdentidad(db, userId, perfil, tokens);
+        await agregarIdentidad(env, db, userId, perfil, tokens);
       }
       return redirect(`/configuracion?vinculado=${provider}`);
     }
@@ -92,13 +93,13 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
       userId = identidad.userId;
       const dueno = await buscarUsuario(db, userId);
       if (!dueno) throw new Error("identity_without_user");
-      await registrarLogin(db, identidad, dueno, perfil, tokens);
+      await registrarLogin(env, db, identidad, dueno, perfil, tokens);
     } else {
       const legado = await buscarUsuarioLegado(db, provider, perfil.providerId);
       if (legado) {
         userId = legado.id;
-        const creada = await crearIdentidadLegada(db, legado, perfil, tokens);
-        await registrarLogin(db, creada, legado, perfil, tokens);
+        const creada = await crearIdentidadLegada(env, db, legado, perfil, tokens);
+        await registrarLogin(env, db, creada, legado, perfil, tokens);
       } else {
         // Sin email no hay con qué decidir si ya existe una cuenta: no se crea nada
         if (!perfil.email) return conflicto("email_ausente", "/login", provider);
@@ -112,10 +113,10 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
         });
 
         if (decision === "crear") {
-          userId = await crearUsuarioConIdentidad(db, perfil, tokens);
+          userId = await crearUsuarioConIdentidad(env, db, perfil, tokens);
         } else if (decision === "vincular" && cuenta && !(await buscarIdentidadDeUsuario(db, cuenta.id, provider))) {
           userId = cuenta.id;
-          await agregarIdentidad(db, userId, perfil, tokens);
+          await agregarIdentidad(env, db, userId, perfil, tokens);
         } else {
           // Hay una cuenta con ese email y no se puede unir sola: no se abre sesión ni se toca nada
           return conflicto("email_en_uso", "/login");
@@ -137,6 +138,8 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
     // next se validó al iniciar el login y se vuelve a validar acá antes de redirigir
     return redirect(safeNext(next) ?? "/ligas");
   } catch (error) {
+    // Sin clave de cifrado no se guarda nada: el login falla cerrado (docs/15 D4)
+    if (error instanceof TokenKeyError) locals.logger?.error("token_key_missing", { provider: params.provider, motivo: error.message });
     locals.logger?.error("oauth_failed", { provider: params.provider, err: error });
     return redirect("/login?error=oauth_failed");
   }

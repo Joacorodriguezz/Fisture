@@ -1,4 +1,5 @@
 // Vinculación segura de cuentas OAuth (docs/18-vinculacion-de-cuentas-tdd.md, casos V-01 a V-17 y V-20).
+import { descifrarFilas, TOKEN_ENCRYPTION_KEY } from "../../helpers/token-key";
 // Reproduce el ataque "nOAuth": la identidad es (provider, provider_id) y el email nunca identifica a nadie.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "../../helpers/use-test-db";
@@ -38,7 +39,7 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
           url: `https://fisture.test/api/auth/callback/${provider}?code=c&state=st-1`,
           params: { provider },
           user,
-          env: { ENVIRONMENT: "production", DB: t.DB, OAUTH_STATE_SECRET, ...extraEnv },
+          env: { ENVIRONMENT: "production", DB: t.DB, OAUTH_STATE_SECRET, TOKEN_ENCRYPTION_KEY, ...extraEnv },
           over: { cookies, redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) },
         })
       );
@@ -58,7 +59,8 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
   };
   const ana: Cuenta = { id: "ana", email: "ana@example.com", provider: "google", providerId: "g-1", verificado: true, access: "at-ana", refresh: "rt-ana" };
 
-  const todo = async (sql: string) => (await t.DB.prepare(sql).all<any>()).results;
+  // Los tokens se guardan cifrados (docs/15): las filas se leen ya descifradas
+  const todo = async (sql: string) => descifrarFilas((await t.DB.prepare(sql).all<any>()).results);
   const usuarios = () => todo("SELECT * FROM users ORDER BY id");
   const identidades = () => todo("SELECT * FROM oauth_identities ORDER BY provider, provider_id");
   const sesiones = async () => (await t.DB.prepare("SELECT COUNT(*) AS n FROM sessions").first<{ n: number }>())!.n;
