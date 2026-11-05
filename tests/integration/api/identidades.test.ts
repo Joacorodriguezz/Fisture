@@ -2,6 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "../../helpers/use-test-db";
 import { apiCtx, silenciarConsola } from "../../helpers/ctx";
+import { ENV_CON_CLAVE, TOKEN_ENCRYPTION_KEY } from "../../helpers/token-key";
+import { encryptToken } from "../../../src/lib/auth/token-crypto";
 
 const { revocar } = vi.hoisted(() => ({ revocar: vi.fn() }));
 vi.mock("../../../src/lib/auth/providers", () => ({
@@ -40,7 +42,7 @@ describe("DELETE /api/auth/identidades/[provider]", () => {
         params: { provider },
         user: "user" in opts ? (opts.user && (await usuario(opts.user.id))) : await usuario("ana"),
         headers: opts.headers,
-        env: { ENVIRONMENT: "test", DB: t.DB, PUBLIC_APP_URL: APP },
+        env: { ENVIRONMENT: "test", DB: t.DB, PUBLIC_APP_URL: APP, TOKEN_ENCRYPTION_KEY },
       })
     );
 
@@ -79,6 +81,18 @@ describe("DELETE /api/auth/identidades/[provider]", () => {
     expect(await res.json()).toEqual({ ok: true });
     expect(await identidades()).toEqual(["google"]);
     expect((await t.DB.prepare("SELECT COUNT(*) AS n FROM users").first<{ n: number }>())!.n).toBe(1);
+  });
+
+  it("K11: revoca con el refresh descifrado cuando el id de la identidad no es el del usuario (AAD)", async () => {
+    await sembrarAna({ activo: "microsoft", google: false });
+    const cifrado = await encryptToken(ENV_CON_CLAVE, "rt-cifrado-google", "id-g:refresh_token");
+    await t.DB.prepare("INSERT INTO oauth_identities (id, user_id, provider, provider_id, refresh_token) VALUES ('id-g', 'ana', 'google', 'g-9', ?1)").bind(cifrado).run();
+
+    const res = await llamar("google");
+
+    expect(res.status).toBe(200);
+    expect(revocar).toHaveBeenCalledWith("rt-cifrado-google");
+    expect(await identidades()).toEqual(["microsoft"]);
   });
 
   it("V-21: al desvincular Google revoca su refresh token (best-effort)", async () => {

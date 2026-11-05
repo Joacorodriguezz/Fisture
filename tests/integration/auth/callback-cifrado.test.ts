@@ -111,6 +111,18 @@ describe("callback OAuth: tokens cifrados en reposo", () => {
     expect(log).not.toContain(u.refresh_token);
   });
 
+  it("K15: un error del proveedor con un secreto en el mensaje no llega al log de oauth_failed", async () => {
+    validar.mockRejectedValue(Object.assign(new Error("fallo: code=c-secreto-xyz rt-secreto-abc"), { code: "invalid_grant" }));
+    const res = await entrar();
+    expect(res.headers.get("Location")).toBe("/login?error=oauth_failed");
+    const log = lineas.join("
+");
+    expect(log).toContain("oauth_failed");
+    expect(log).toContain("invalid_grant");
+    expect(log).not.toContain("c-secreto-xyz");
+    expect(log).not.toContain("rt-secreto-abc");
+  });
+
   it("al reingresar con una clave nueva y la anterior en PREVIOUS, los tokens viejos siguen legibles y pasan a la nueva", async () => {
     await entrar();
     const nueva = nuevaClave();
