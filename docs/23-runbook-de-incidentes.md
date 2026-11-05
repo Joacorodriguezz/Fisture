@@ -78,6 +78,7 @@ npx wrangler d1 time-travel restore fisture-db --timestamp=2026-11-03T12:00:00Z
 | --- | --- | --- |
 | `ADMIN_SECRET` | `npx wrangler pages secret put ADMIN_SECRET --project-name fisture` **y** el secret del mismo nombre en GitHub Actions | Ninguno para usuarios. Sin actualizar GitHub, el sync diario falla con 401 |
 | `OAUTH_STATE_SECRET` | `openssl rand -base64 32 \| npx wrangler pages secret put OAUTH_STATE_SECRET --project-name fisture` | Los logins en curso (10 min) fallan y hay que reintentar |
+| `TOKEN_ENCRYPTION_KEY` | Rotación sin que nadie reconecte: (1) copiar la actual a `TOKEN_ENCRYPTION_KEY_PREVIOUS`, (2) cargar una nueva en `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`), (3) `POST /api/admin/encrypt-tokens` (Bearer `ADMIN_SECRET`) repetido hasta `pendientes: 0` e `ilegibles: 0`, (4) recién entonces borrar `TOKEN_ENCRYPTION_KEY_PREVIOUS` | Con `PREVIOUS` cargada nada se corta. **Nunca** reemplazar la clave sin dejar la anterior en `PREVIOUS`: los tokens guardados quedan ilegibles y todos tienen que reconectar |
 | `GOOGLE_CLIENT_SECRET` / `MICROSOFT_CLIENT_SECRET` | Generar uno nuevo en Google Cloud / Entra ID, cargarlo en Pages, después borrar el viejo | Ninguno si se hace en ese orden |
 | `CLOUDFLARE_API_TOKEN` (GitHub) | Cloudflare → My Profile → API Tokens: *Roll*; actualizar en GitHub | Deploys fallan hasta actualizarlo |
 
@@ -95,10 +96,23 @@ a las 00:00 UTC (21:00 en Argentina).
 
 ### Login caído
 
-1. `/api/health` con `oauthState: fail` → falta `OAUTH_STATE_SECRET` en Pages (§5).
+1. `/api/health` con `oauthState: fail` → falta `OAUTH_STATE_SECRET` en Pages (§5). Con `tokenKey: fail` → falta
+   `TOKEN_ENCRYPTION_KEY` (o no tiene 32 bytes en base64): el login redirige a `oauth_failed` y se loguea
+   `token_key_missing`. Cargarla en Pages (producción y preview, docs/08 §5) y esperar ~1 minuto.
 2. Errores `redirect_uri_mismatch` en el log → la URI registrada en Google/Entra no coincide con
    `https://fisture.com/api/auth/callback/<provider>`.
 3. Bloqueos del WAF: Security → Events, filtrar por `/api/auth/*` (regla del ASN 32934, docs/20 §10).
+
+### Cifrado de tokens: backfill y rollback (docs/15)
+
+- **Backfill** tras el Release A (con `TOKEN_ENCRYPTION_KEY` ya cargada): repetir hasta `pendientes: 0`
+  (cada llamada procesa hasta 20 filas):
+  `curl -X POST https://fisture.com/api/admin/encrypt-tokens -H "Authorization: Bearer $ADMIN_SECRET"`.
+  `GET /api/admin/status` muestra `tokensSinCifrar` (`usuarios` e `identidades` que siguen en claro).
+  `ilegibles > 0` son filas cifradas que la clave actual (ni la anterior) no abre: no se tocan; esa persona
+  reconecta su calendario.
+- **Rollback del Release A**: el código anterior no entiende `enc:v1:`. Antes de revertir, devolver las filas a
+  texto plano repitiendo `POST /api/admin/encrypt-tokens?direction=decrypt` hasta `pendientes: 0`.
 
 ### Sync en `fail` o `degraded`
 

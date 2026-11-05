@@ -95,6 +95,11 @@ Hook `commit-msg` (`.githooks/`) valida tipo, longitud, puntuación y línea en 
 - Antes de un release con la migración 0010: `npm run db:check-emails` (docs/23 §6).
 - `users.access_token`, `refresh_token`, `token_expires_at` y `provider_id` están deprecadas (doble escritura hasta el release N+1). Nunca leer tokens de `users` sin pasar por `getValidAccessToken`.
 
+## Tokens OAuth
+
+- Los tokens (`users` y `oauth_identities`) se guardan cifrados (AES-256-GCM, `enc:v1:...`) con el secret `TOKEN_ENCRYPTION_KEY` (32 bytes en base64, obligatorio en producción y preview; sin él el login falla cerrado y `/api/health` da 503 con `tokenKey: fail`). Nunca escribir ni leer las columnas de tokens sin pasar por `lib/auth/token-store.ts` (`cifrarTokens`, `leerToken`); nunca loguearlos. Ver `docs/15-cifrado-de-tokens-tdd.md`.
+- Backfill de lo existente: `POST /api/admin/encrypt-tokens` (Bearer `ADMIN_SECRET`) hasta `pendientes: 0`. Rotación de la clave y rollback: `docs/23` §5 y §6.
+
 ## Calendario
 
 - Agregar un partido es idempotente (id determinístico en Google, etiqueta `fisture.matchId` en Microsoft, índice único `(user_id, match_id)`). Nunca se crea un evento nuevo ante un error transitorio (5xx, 429, red).

@@ -1,6 +1,6 @@
 # TDD: Cifrado de tokens OAuth en reposo
 
-> Technical Design Document. Estado: **propuesto, pendiente de revisión**. Fecha: 2026-10-22. Rama de implementación: `feat/cifrado-de-tokens`, desde `development` **después** de mergear `feat/borrado-de-cuenta` (ver §6).
+> Technical Design Document. Estado: **implementado el Release A (2026-11-05)**; el Release B (quitar la lectura de texto plano) queda pendiente, ver §9. Fecha del diseño: 2026-10-22. Rama de implementación: `feat/cifrado-de-tokens-a`, desde `development` (el borrado de cuenta y la vinculación de cuentas, docs/14 y docs/18, ya estaban mergeados).
 >
 > Este documento registra **qué problema hay hoy, qué decidimos y por qué**. El código y los tests se escriben después de que se apruebe, siguiendo el orden del §6.
 
@@ -167,7 +167,18 @@ Rojo, verde, refactor. Los tests inyectan una clave fija de prueba en el `Env` (
 
 ## 9. Notas de implementación
 
-_(Se completa al terminar: desvíos respecto del diseño, decisiones tomadas en el camino.)_
+Release A implementado (2026-11-05). Desvíos y decisiones respecto del diseño:
+
+- **Alcance ampliado a `oauth_identities`** (docs/18, ya en `development`). Los tokens viven en dos tablas: `users.*` (deprecadas, doble escritura) y `oauth_identities`. Las dos se cifran, cada una con el AAD `<id de su fila>:<columna>` (la identidad principal tiene `id = users.id`, así que ambos AAD coinciden en ese caso). Cuando se copia un token de una fila a otra con id distinto (`crearIdentidadLegada`, o al conservar el refresh anterior) se descifra y se vuelve a cifrar para la fila destino.
+- **Módulos**: `token-crypto.ts` (`encryptToken`, `decryptToken`, `decryptTokenInfo`, `claveValida`) y `token-store.ts` (`cifrarTokens`, `leerToken`, `leerTokenOpcional`) con la forma del §3.2 D6, pero **sin `saveTokens(db, ...)`/`readTokens(user)`**: las escrituras siguen en `identity.ts` y `tokens.ts` (donde ya están los `INSERT`/`UPDATE` con sus batches) y esos dos archivos llaman a `cifrarTokens`/`leerToken`. Así el diff queda chico y localizado, y no choca con `feat/sync-confiable` (PR #54), que toca los mismos archivos. Las funciones de `identity.ts` (`crearUsuarioConIdentidad`, `agregarIdentidad`, `crearIdentidadLegada`, `registrarLogin`) pasaron a recibir `env` como primer parámetro, porque cifrar la necesita.
+- **Falla cerrada**: escribir sin clave (o con una de largo distinto de 32 bytes) lanza `TokenKeyError` antes de tocar la base; el callback responde `/login?error=oauth_failed` y loguea `token_key_missing` con el motivo (`token_key_missing` o `token_key_invalid`), nunca la clave. Leer un valor cifrado sin clave también lanza. Leer un valor legado en claro **no** necesita clave.
+- **Revocación (K17)**: `DELETE /api/cuenta` y `DELETE /api/auth/identidades/[provider]` descifran el refresh token con `leerTokenOpcional`. Es best-effort: si no se puede leer, el borrado sigue y simplemente no se revoca (antes de esto se habría enviado un valor ilegible al proveedor).
+- **Health**: `tokenKey` es `fail` (503) si falta la clave o no tiene 32 bytes en base64; no hay estado `degraded`. Como el cifrado falla cerrado, el deploy de producción **sin el secret** da 503 en el smoke: por eso el secret va antes (docs/08 §5).
+- **Chequeo de consistencia**: en vez de sumar un chequeo a `consistency.ts` (corre al final de cada sync y sus `issues` quedan en `sync_runs`), el conteo de tokens sin cifrar se expone como `tokensSinCifrar: { usuarios, identidades }` en `GET /api/admin/status`. Evita que los datos sembrados de los tests y un estado transitorio esperable (Release A recién desplegado) ensucien los runs.
+- **Backfill** (`POST /api/admin/encrypt-tokens`, `token-backfill.ts`): lote de **20 filas** por llamada (`LOTE_FILAS`), un solo `db.batch` de escritura; por tabla, un conteo, una lectura acotada y, solo con `TOKEN_ENCRYPTION_KEY_PREVIOUS` cargada, una lectura de las filas cifradas para detectar las que siguen con la clave anterior. Entre 5 y 7 subrequests a D1 por llamada, lejos del tope de 50. Responde `{ direccion, procesadas, ilegibles, pendientes }`. `ilegibles` son filas cifradas que ninguna clave abre: no se tocan y no cuentan como pendientes (el usuario reconecta). `?direction=decrypt` implementa el rollback del §7. Sin clave responde 503 antes de leer la base. Se loguea `token_backfill` solo con conteos.
+- **Sin migración**: no hizo falta ninguna (las columnas son `TEXT`), así que el número 0012 reservado no se usó.
+- **Tests**: `tests/unit/auth/token-crypto.test.ts` (K1 a K7, K12), `tests/integration/tokens.test.ts` (K10, K11, K12, falla cerrada y AAD), `tests/integration/auth/callback-cifrado.test.ts` (K7, K8, K9, K15 y rotación), `tests/integration/api/encrypt-tokens.test.ts` (K13, K14, lotes, rotación, `ilegibles`, `decrypt`, K15, conteo en `status`), `tests/observability/health.test.ts` (K16) y `tests/integration/api/cuenta.test.ts` (K17). Los tests existentes que leían las columnas ahora las leen descifradas (`tests/helpers/token-key.ts`). Las claves de los tests se generan al cargar el módulo; el servidor E2E usa una clave fija de prueba en `scripts/e2e-server.mjs`.
+- **Pendiente (Release B, PR aparte)**: K18, eliminar la lectura de texto plano cuando producción tenga `pendientes: 0`; hasta entonces la lectura dual sigue activa. También queda la decisión de si, en el release N+1 de docs/18 (borrar `users.access_token`/`refresh_token`), se retira de paso el cifrado de esas columnas.
 
 ## 10. Fuera de alcance (fases siguientes)
 
