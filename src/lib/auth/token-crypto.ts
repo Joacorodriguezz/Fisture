@@ -1,6 +1,8 @@
 // Cifrado de tokens OAuth en reposo (docs/15-cifrado-de-tokens-tdd.md).
 // Formato: enc:v1:<iv>:<ciphertext+tag>, ambos en base64url. AES-256-GCM con WebCrypto.
 // El AAD (`<id>:<columna>`) ata el texto cifrado a su fila y columna.
+import { rootLogger } from "../observability/logger";
+
 export const PREFIJO_CIFRADO = "enc:v1:";
 
 export interface ClavesEnv {
@@ -70,6 +72,18 @@ export function clavePreviaValida(env: ClavesEnv): boolean {
   return !env.TOKEN_ENCRYPTION_KEY_PREVIOUS || crudaDe(env.TOKEN_ENCRYPTION_KEY_PREVIOUS) !== null;
 }
 
+let avisoPreviaEmitido = false;
+// ¿Hay una clave anterior usable? Si está cargada pero mal formada, avisa una vez por instancia
+function clavePreviaUsable(env: ClavesEnv): boolean {
+  if (!env.TOKEN_ENCRYPTION_KEY_PREVIOUS) return false;
+  if (crudaDe(env.TOKEN_ENCRYPTION_KEY_PREVIOUS)) return true;
+  if (!avisoPreviaEmitido) {
+    avisoPreviaEmitido = true;
+    rootLogger.warn("token_key_previous_invalid", { efecto: "se ignora; las filas cifradas con la clave anterior no se pueden leer" });
+  }
+  return false;
+}
+
 // El valor cifrado no se puede leer (otra clave, otra fila o alterado). Nunca lleva el valor ni el detalle del fallo
 export class TokenUnreadableError extends Error {
   constructor() {
@@ -104,7 +118,9 @@ export async function decryptTokenInfo(env: ClavesEnv, valor: string, aad: strin
     return { valor: await descifrarCon(actual, valor, aad), clave: "actual" };
   } catch {
     // Sin clave anterior (o si tampoco sirve) el valor es ilegible: error sin detalle
-    if (!env.TOKEN_ENCRYPTION_KEY_PREVIOUS) throw new TokenUnreadableError();
+    // Una PREVIOUS mal formada se trata como ausente (con aviso): la actual sigue funcionando y solo las
+    // filas de la clave vieja quedan ilegibles; antes cortaba el barrido de calendarios para todos
+    if (!clavePreviaUsable(env)) throw new TokenUnreadableError();
     const anterior = await importar(env.TOKEN_ENCRYPTION_KEY_PREVIOUS);
     try {
       return { valor: await descifrarCon(anterior, valor, aad), clave: "anterior" };
