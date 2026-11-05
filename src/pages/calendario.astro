@@ -9,6 +9,7 @@ import Recuadro from "../components/tribuna/Recuadro.astro";
 import SincronizarTodo from "../components/islands/SincronizarTodo";
 import SincronizarPartido from "../components/islands/SincronizarPartido";
 import { createDb } from "../lib/db";
+import { MAX_PARTIDOS_POR_REQUEST } from "../lib/calendar/limites";
 import { getUpcomingMatches, getSyncStates } from "../lib/db/queries";
 import { markOutdatedEvents } from "../lib/calendar/sync-service";
 import { calendarSyncs } from "../../drizzle/schema";
@@ -66,7 +67,7 @@ for (const m of proximos) {
 }
 
 // Cada partido es una llamada a la API de calendario: el lote manual tiene tope
-const LOTE_MANUAL = 25;
+const LOTE_MANUAL = MAX_PARTIDOS_POR_REQUEST;
 const lote = accionables.slice(0, LOTE_MANUAL);
 
 const stats = [

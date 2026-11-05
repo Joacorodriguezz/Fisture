@@ -6,8 +6,9 @@ import {
 } from "../../../lib/calendar/sync-service";
 import { withApi } from "../../../lib/observability/with-api";
 import { mensajeDeError } from "../../../lib/observability/logger";
+import { MAX_PARTIDOS_POR_REQUEST } from "../../../lib/calendar/limites";
 
-const MAX_MATCH_IDS = 50;
+const MAX_MATCH_IDS = MAX_PARTIDOS_POR_REQUEST;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -32,7 +33,7 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
     return json({ error: "matchId or matchIds required" }, 400);
   }
 
-  // Tope por request (docs/16 R2): la UI manda como mucho 25 (LOTE_MAXIMO / LOTE_MANUAL)
+  // Tope por request (docs/16 R2): el máximo sale del presupuesto de subrequests de Workers Free (lib/calendar/limites.ts)
   if (idsToSync.length > MAX_MATCH_IDS) {
     return json({ error: "too_many_matchIds", max: MAX_MATCH_IDS }, 400);
   }

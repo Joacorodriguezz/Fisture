@@ -314,11 +314,11 @@ describe("endpoints con política propia", () => {
   const env = (extra: Record<string, unknown> = {}) => ({ DB: t.DB, ENVIRONMENT: "test", PUBLIC_APP_URL: APP, RATE_LIMIT_SALT: "sal", ADMIN_SECRET: SECRET, ...extra });
   const base = { "cf-connecting-ip": IP, "sec-fetch-site": "same-origin" };
 
-  it("RL11: calendario/sync con 51 matchIds da 400", async () => {
-    const matchIds = Array.from({ length: 51 }, (_, i) => `m${i}`);
+  it("RL11: calendario/sync con 7 matchIds (más que el presupuesto de subrequests) da 400", async () => {
+    const matchIds = Array.from({ length: 7 }, (_, i) => `m${i}`);
     const res = await syncPost(apiCtx({ url: `${APP}/api/calendario/sync`, method: "POST", headers: base, body: { matchIds }, user: { id: "u1" }, env: env() }));
     expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: "too_many_matchIds", max: 50 });
+    expect(await res.json()).toMatchObject({ error: "too_many_matchIds", max: 6 });
   });
 
   it("RL15: buscar da 429 en la request 61 desde una IP y no escribe en D1", async () => {
