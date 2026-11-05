@@ -202,7 +202,7 @@ test("calendario refleja reprogramados, detached y cancelados sin reofrecerlos e
 test("salud, auth administrativa y errores HTTP sobre el worker construido", async ({ request }) => {
   const health = await request.get("/api/health");
   expect(health.status()).toBe(200);
-  expect(await health.json()).toMatchObject({ status: "ok", checks: { db: "ok", kv: "ok", sync: "ok", oauthState: "ok" } });
+  expect(await health.json()).toMatchObject({ status: "ok", checks: { db: "ok", kv: "ok", sync: "ok", oauthState: "ok", tokenKey: "ok" } });
   expect((await request.get("/api/admin/status")).status()).toBe(401);
   const status = await request.get("/api/admin/status", { headers: { Authorization: "Bearer local-e2e-admin" } });
   expect(status.status()).toBe(200);
