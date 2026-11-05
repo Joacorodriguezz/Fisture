@@ -62,8 +62,11 @@ export function esMismoOrigen(request: Request, env: EnvOrigen): boolean {
 export function contentTypeValido(request: Request): boolean {
   const tipo = request.headers.get("Content-Type");
   if (!tipo) {
+    // Sin Content-Type hay cuerpo si Content-Length es mayor que 0 o, sin esa cabecera (chunked), si el
+    // Request trae un stream: no se confía solo en Content-Length
     const largo = request.headers.get("Content-Length");
-    return !largo || largo === "0";
+    if (largo !== null) return largo.trim() === "0";
+    return request.body === null;
   }
   return /^application\/json\s*(;|$)/i.test(tipo.trim());
 }

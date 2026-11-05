@@ -174,6 +174,19 @@ describe("contentTypeValido", () => {
     expect(contentTypeValido(post({ "content-length": "0" }))).toBe(true);
     expect(contentTypeValido(post({ "content-length": "12" }))).toBe(false);
   });
+
+  it("OR12b: cuerpo sin Content-Type ni Content-Length (chunked) se rechaza", () => {
+    const cuerpo = new ReadableStream({
+      start: (c) => {
+        c.enqueue(new TextEncoder().encode("a=1"));
+        c.close();
+      },
+    });
+    const chunked = new Request("https://fisture.test/api/x", { method: "POST", body: cuerpo, duplex: "half" } as RequestInit);
+    expect(chunked.headers.get("content-type")).toBeNull();
+    expect(chunked.headers.get("content-length")).toBeNull();
+    expect(contentTypeValido(chunked)).toBe(false);
+  });
 });
 
 describe("loginHref", () => {
