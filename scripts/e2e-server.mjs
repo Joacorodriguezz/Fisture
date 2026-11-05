@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:net";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { connectHeadlessInspector } from "./e2e-inspector.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -33,6 +33,7 @@ ENVIRONMENT = "test"
 PUBLIC_APP_URL = "http://127.0.0.1:4322"
 ADMIN_SECRET = "local-e2e-admin"
 OAUTH_STATE_SECRET = "local-e2e-oauth-state-secret-0123456789"
+TOKEN_ENCRYPTION_KEY = "${randomBytes(32).toString("base64")}"
 GOOGLE_CLIENT_ID = "e2e-google-id"
 GOOGLE_CLIENT_SECRET = "e2e-google-secret"
 `);

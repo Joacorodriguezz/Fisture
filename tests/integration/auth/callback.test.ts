@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { descifrarFilas, TOKEN_ENCRYPTION_KEY } from "../../helpers/token-key";
 import { createDb } from "../../../src/lib/db";
 import { useTestDb } from "../../helpers/use-test-db";
 import { apiCtx, kvEnMemoria, silenciarConsola } from "../../helpers/ctx";
@@ -34,7 +35,7 @@ describe("callback OAuth", () => {
       apiCtx({
         url: url.toString(),
         params: { provider },
-        env: { ENVIRONMENT: "production", DB: t.DB, KV: kv, OAUTH_STATE_SECRET, ...extraEnv },
+        env: { ENVIRONMENT: "production", DB: t.DB, KV: kv, OAUTH_STATE_SECRET, TOKEN_ENCRYPTION_KEY, ...extraEnv },
         over: { cookies, redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) },
       })
     );
@@ -44,7 +45,9 @@ describe("callback OAuth", () => {
     const { nombre, valor } = await cookieDeEstado({ state, ...extra });
     cookies.valores.set(nombre, valor);
   };
-  const usuarios = async () => (await t.DB.prepare("SELECT * FROM users").all<any>()).results;
+  const crudos = async (tabla: string) => (await t.DB.prepare(`SELECT * FROM ${tabla}`).all<any>()).results;
+  // Los tokens se guardan cifrados (docs/15): se leen descifrados; el cifrado en reposo tiene sus propios tests
+  const usuarios = async () => descifrarFilas(await crudos("users"));
   const destino = (res: Response) => res.headers.get("Location");
 
   beforeEach(() => {

@@ -8,6 +8,8 @@ import { tokensFalsos } from "../../helpers/id-token";
 import { apiCtx, kvEnMemoria, silenciarConsola } from "../../helpers/ctx";
 import { OAUTH_STATE_SECRET, cookieDeEstado, cookiesEnMemoria } from "../../helpers/oauth-state";
 import { createSession, getSessionUser } from "../../../src/lib/auth/session";
+import { encryptToken } from "../../../src/lib/auth/token-crypto";
+import { ENV_CON_CLAVE, TOKEN_ENCRYPTION_KEY } from "../../helpers/token-key";
 import { calendarSyncs, userPreferences, userTeams, users } from "../../../drizzle/schema";
 
 const { revocar, validar } = vi.hoisted(() => ({ revocar: vi.fn(), validar: vi.fn() }));
@@ -59,7 +61,7 @@ describe("DELETE /api/cuenta", () => {
         user: "user" in opts ? opts.user : f.user,
         body: "body" in opts ? opts.body : { confirmar: f.user.email },
         headers: opts.headers,
-        env: { ENVIRONMENT: "test", DB: opts.DB ?? t.DB, KV: kv, PUBLIC_APP_URL: APP_URL },
+        env: { ENVIRONMENT: "test", DB: opts.DB ?? t.DB, KV: kv, PUBLIC_APP_URL: APP_URL, TOKEN_ENCRYPTION_KEY },
         over: { cookies },
       })
     );
@@ -144,7 +146,7 @@ describe("DELETE /api/cuenta", () => {
       apiCtx({
         url: `${APP_URL}/api/auth/callback/google?code=c&state=st`,
         params: { provider: "google" },
-        env: { ENVIRONMENT: "test", DB: t.DB, KV: kv, OAUTH_STATE_SECRET },
+        env: { ENVIRONMENT: "test", DB: t.DB, KV: kv, OAUTH_STATE_SECRET, TOKEN_ENCRYPTION_KEY },
         over: { cookies: cookiesLogin, redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) },
       })
     );
@@ -173,6 +175,38 @@ describe("DELETE /api/cuenta", () => {
       expect(res.status).toBe(200);
       expect(usuariosAlRevocar).toBe(0);
       expect(revocar).toHaveBeenCalledWith("rt-secreto");
+    });
+
+    it("K17: con el refresh token cifrado la revocación recibe el token descifrado", async () => {
+      const user = await conToken("user-1", await encryptToken(ENV_CON_CLAVE, "rt-cifrado", "user-1:refresh_token"));
+      expect((await llamar({ user })).status).toBe(200);
+      expect(revocar).toHaveBeenCalledTimes(1);
+      expect(revocar).toHaveBeenCalledWith("rt-cifrado");
+    });
+
+    it("K17: con la identidad cifrada (id distinto del usuario) también se descifra", async () => {
+      await t.DB.prepare("INSERT INTO oauth_identities (id, user_id, provider, provider_id, refresh_token) VALUES ('id-g', 'user-1', 'google', 'p-g', ?)")
+        .bind(await encryptToken(ENV_CON_CLAVE, "rt-identidad", "id-g:refresh_token")).run();
+      const user = (await t.db.query.users.findFirst({ where: eq(users.id, "user-1") }))!;
+      expect((await llamar({ user })).status).toBe(200);
+      expect(revocar).toHaveBeenCalledWith("rt-identidad");
+    });
+
+    it("K17: si el token cifrado no se puede leer (sin clave) borra igual y no revoca", async () => {
+      const user = await conToken("user-1", await encryptToken(ENV_CON_CLAVE, "rt-cifrado", "user-1:refresh_token"));
+      const res = await DELETE(
+        apiCtx({
+          url: `${APP_URL}/api/cuenta`,
+          method: "DELETE",
+          user,
+          body: { confirmar: user.email },
+          env: { ENVIRONMENT: "test", DB: t.DB, KV: kv, PUBLIC_APP_URL: APP_URL },
+          over: { cookies },
+        })
+      );
+      expect(res.status).toBe(200);
+      expect((await filasDe("user-1")).users).toBe(0);
+      expect(revocar).not.toHaveBeenCalled();
     });
 
     it("C6: si la revocación falla responde 200 igual", async () => {

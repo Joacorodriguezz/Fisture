@@ -1,6 +1,7 @@
 // Salud de los calendarios separada de la de ligas (docs/17 B6).
 import { describe, expect, it } from "vitest";
 import { useTestDb } from "../helpers/use-test-db";
+import { TOKEN_ENCRYPTION_KEY } from "../helpers/token-key";
 import { evaluateCalendarHealth, getHealth, SYNC_DEGRADED_MAX_AGE_MS, SYNC_OK_MAX_AGE_MS } from "../../src/lib/observability/health";
 import { finishSyncRun, registrarRunCalendarios, startSyncRun } from "../../src/lib/observability/sync-runs";
 
@@ -30,7 +31,7 @@ describe("evaluateCalendarHealth (puro)", () => {
 
 describe("getHealth con runs de calendarios (D1)", () => {
   const t = useTestDb();
-  const env = () => ({ DB: t.DB, KV: kv, OAUTH_STATE_SECRET: "s" });
+  const env = () => ({ DB: t.DB, KV: kv, OAUTH_STATE_SECRET: "s", TOKEN_ENCRYPTION_KEY });
 
   const ligasOk = async (cuando: number) => {
     const id = await startSyncRun(t.db, "admin", cuando);
@@ -42,7 +43,7 @@ describe("getHealth con runs de calendarios (D1)", () => {
   it("sin runs de calendarios el estado depende solo de las ligas", async () => {
     await ligasOk(Date.now() - H);
     const h = await getHealth(env());
-    expect(h.checks).toEqual({ db: "ok", kv: "ok", sync: "ok", calendars: "ok", oauthState: "ok" });
+    expect(h.checks).toEqual({ db: "ok", kv: "ok", sync: "ok", calendars: "ok", oauthState: "ok", tokenKey: "ok" });
     expect(h.lastCalendarSyncAt).toBeNull();
   });
 

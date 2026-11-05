@@ -78,6 +78,7 @@ npx wrangler d1 time-travel restore fisture-db --timestamp=2026-11-03T12:00:00Z
 | --- | --- | --- |
 | `ADMIN_SECRET` | `npx wrangler pages secret put ADMIN_SECRET --project-name fisture` **y** el secret del mismo nombre en GitHub Actions | Ninguno para usuarios. Sin actualizar GitHub, el sync diario falla con 401 |
 | `OAUTH_STATE_SECRET` | `openssl rand -base64 32 \| npx wrangler pages secret put OAUTH_STATE_SECRET --project-name fisture` | Los logins en curso (10 min) fallan y hay que reintentar |
+| `TOKEN_ENCRYPTION_KEY` | Rotación sin que nadie reconecte: (1) copiar la actual a `TOKEN_ENCRYPTION_KEY_PREVIOUS`, (2) cargar una nueva en `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`), (3) `POST /api/admin/encrypt-tokens` (Bearer `ADMIN_SECRET`) repetido con el cursor hasta `siguienteCursor: null` y `pendientes: 0` (ver "Cifrado de tokens" más abajo), (4) recién entonces borrar `TOKEN_ENCRYPTION_KEY_PREVIOUS` | Con `PREVIOUS` cargada nada se corta. **Nunca** reemplazar la clave sin dejar la anterior en `PREVIOUS`: los tokens guardados quedan ilegibles y todos tienen que reconectar |
 | `GOOGLE_CLIENT_SECRET` / `MICROSOFT_CLIENT_SECRET` | Generar uno nuevo en Google Cloud / Entra ID, cargarlo en Pages, después borrar el viejo | Ninguno si se hace en ese orden |
 | `CLOUDFLARE_API_TOKEN` (GitHub) | Cloudflare → My Profile → API Tokens: *Roll*; actualizar en GitHub | Deploys fallan hasta actualizarlo |
 
@@ -95,10 +96,44 @@ a las 00:00 UTC (21:00 en Argentina).
 
 ### Login caído
 
-1. `/api/health` con `oauthState: fail` → falta `OAUTH_STATE_SECRET` en Pages (§5).
+1. `/api/health` con `oauthState: fail` → falta `OAUTH_STATE_SECRET` en Pages (§5). Con `tokenKey: fail` → falta
+   `TOKEN_ENCRYPTION_KEY` (o no tiene 32 bytes en base64): el login redirige a `oauth_failed` y se loguea
+   `token_key_missing`. Cargarla en Pages (producción y preview, docs/08 §5) y esperar ~1 minuto.
 2. Errores `redirect_uri_mismatch` en el log → la URI registrada en Google/Entra no coincide con
    `https://fisture.com/api/auth/callback/<provider>`.
 3. Bloqueos del WAF: Security → Events, filtrar por `/api/auth/*` (regla del ASN 32934, docs/20 §10).
+
+### Cifrado de tokens: backfill y rollback (docs/15)
+
+- **Backfill** tras el Release A (con `TOKEN_ENCRYPTION_KEY` ya cargada). Cada llamada mira hasta 20 filas
+  (primero `users`, después `oauth_identities`, ordenadas por id) y responde
+  `{ direccion, cursor, siguienteCursor, procesadas, ilegibles, pendientes }`. Iterar con el cursor hasta que
+  `siguienteCursor` sea `null` **y** `pendientes` sea `0`:
+  `curl -X POST "https://fisture.com/api/admin/encrypt-tokens?cursor=<siguienteCursor>" -H "Authorization: Bearer $ADMIN_SECRET"`
+  (la primera llamada va sin `cursor`). Una pasada completa recorre todas las filas; si `pendientes` no es 0 al
+  final (una fila cambió mientras corría: un login o una renovación), repetir la pasada desde el principio.
+  - `procesadas`: filas realmente escritas. Las escrituras son condicionales sobre lo leído: si la fila cambió
+    entre la lectura y el batch, se saltea y cuenta como pendiente.
+  - `ilegibles`: filas cifradas de esta página que ni la clave actual ni la anterior abren. No se tocan y no
+    cuentan como pendientes. Si son estables (aparecen igual en cada pasada) se resuelven cuando ese usuario
+    reconecta su calendario (el login pisa los tokens con unos nuevos).
+  - `pendientes`: por convertir. Con `TOKEN_ENCRYPTION_KEY_PREVIOUS` cargada (rotación) es una cota superior,
+    porque no se sabe qué filas usan la clave anterior sin leerlas.
+  - `GET /api/admin/status` muestra `tokensSinCifrar` (`usuarios` e `identidades` que siguen en claro).
+  - Errores: `503 token_key_missing` (falta la clave), `503 token_key_previous_invalid` (la clave anterior no
+    tiene 32 bytes en base64: corregirla o borrarla; `/api/health` lo marca `tokenKey: degraded`) y
+    `400 cursor_invalido`.
+- **Rollback del Release A**: el código anterior no entiende `enc:v1:`. Antes de revertir, devolver las filas a
+  texto plano con `POST /api/admin/encrypt-tokens?direction=decrypt`, iterando con el cursor igual que el
+  backfill hasta `siguienteCursor: null` y `pendientes: 0`. **Necesita una ventana de mantenimiento**:
+  mientras corre el `decrypt`, el Release A sigue desplegado y vuelve a cifrar en cada login o renovación. Hacerlo
+  en un horario de poco tráfico, sin pausas largas entre llamadas, y revertir el código apenas termine. Los
+  pocos usuarios que ingresaron o renovaron en el medio quedan con tokens cifrados que el código viejo no lee:
+  verlo en `tokensSinCifrar` (cuenta los que están en claro, así que ahí aparecen como faltantes en el total),
+  y cada uno reconecta su calendario (la UI ya lo pide). No hay pérdida de datos. Una pasada final del
+  `decrypt` justo antes de revertir acota ese número. Por qué no un interruptor de "escribir en claro": agrega
+  un camino de código que guarda tokens sin cifrar, que es justo lo que este diseño evita (docs/15 D6), para
+  cubrir un rollback que ocurre una vez y cuyo costo ya es acotado.
 
 ### Sync en `fail` o `degraded`
 

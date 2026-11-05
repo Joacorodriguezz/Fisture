@@ -9,6 +9,7 @@ import { syncMatches } from "../../../src/lib/calendar/sync-service";
 import { CalendarApiError } from "../../../src/lib/calendar/errors";
 import { Presupuesto } from "../../../src/lib/calendar/presupuesto";
 import { ENV_VACIO } from "../../helpers/fixtures";
+import { claro } from "../../helpers/token-key";
 
 const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock("../../../src/lib/auth/providers", () => ({
@@ -61,7 +62,7 @@ describe("token y reintento ante 401", () => {
     falso.client.create = async (token, ...resto) => (tokens.push(token), crear(token, ...resto));
     await sync(["m1", "m2"]);
     expect(tokens).toEqual(["nuevo-1", "nuevo-1"]);
-    expect(await columna("refresh_token")).toBe("rt-1");
+    expect(await claro(String(await columna("refresh_token")), "u1", "refresh_token")).toBe("rt-1");
   });
 
   it("con el token vigente no renueva", async () => {
