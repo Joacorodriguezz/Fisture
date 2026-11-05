@@ -162,5 +162,13 @@ export async function procesarTokens(env: ClavesEnv, db: Database, direccion: Di
     }
   }
 
+  // Al terminar la pasada, la última respuesta es la verdad: se cuenta lo que queda en la dirección pedida,
+  // incluidas las filas salteadas o ilegibles de páginas anteriores. Con rotación (CON_TOKENS) no se puede
+  // saber qué filas usan la clave anterior sin leerlas, así que sigue siendo la cuenta parcial
+  if (!resto && !rotando) {
+    pendientes = 0;
+    for (const tabla of TABLAS) pendientes += await contar(db, tabla, base);
+  }
+
   return { direccion, cursor: desde ? `${desde.tabla}:${desde.id}` : null, siguienteCursor, procesadas, ilegibles, pendientes };
 }
