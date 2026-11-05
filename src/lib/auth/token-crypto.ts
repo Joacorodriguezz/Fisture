@@ -65,6 +65,19 @@ export function claveValida(env: ClavesEnv): boolean {
   return crudaDe(env.TOKEN_ENCRYPTION_KEY) !== null;
 }
 
+// ¿La clave anterior (rotación) está ausente o es válida? Una PREVIOUS mal formada rompería el backfill
+export function clavePreviaValida(env: ClavesEnv): boolean {
+  return !env.TOKEN_ENCRYPTION_KEY_PREVIOUS || crudaDe(env.TOKEN_ENCRYPTION_KEY_PREVIOUS) !== null;
+}
+
+// El valor cifrado no se puede leer (otra clave, otra fila o alterado). Nunca lleva el valor ni el detalle del fallo
+export class TokenUnreadableError extends Error {
+  constructor() {
+    super("token_unreadable");
+    this.name = "TokenUnreadableError";
+  }
+}
+
 export async function encryptToken(env: ClavesEnv, valor: string, aad: string): Promise<string> {
   const clave = await importar(env.TOKEN_ENCRYPTION_KEY);
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -89,10 +102,15 @@ export async function decryptTokenInfo(env: ClavesEnv, valor: string, aad: strin
   const actual = await importar(env.TOKEN_ENCRYPTION_KEY);
   try {
     return { valor: await descifrarCon(actual, valor, aad), clave: "actual" };
-  } catch (error) {
-    if (!env.TOKEN_ENCRYPTION_KEY_PREVIOUS) throw error;
+  } catch {
+    // Sin clave anterior (o si tampoco sirve) el valor es ilegible: error sin detalle
+    if (!env.TOKEN_ENCRYPTION_KEY_PREVIOUS) throw new TokenUnreadableError();
     const anterior = await importar(env.TOKEN_ENCRYPTION_KEY_PREVIOUS);
-    return { valor: await descifrarCon(anterior, valor, aad), clave: "anterior" };
+    try {
+      return { valor: await descifrarCon(anterior, valor, aad), clave: "anterior" };
+    } catch {
+      throw new TokenUnreadableError();
+    }
   }
 }
 

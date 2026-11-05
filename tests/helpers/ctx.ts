@@ -1,3 +1,4 @@
+import { TOKEN_ENCRYPTION_KEY } from "./token-key";
 // Contexto mínimo de Astro (APIContext) para invocar handlers en los tests.
 export interface ApiCtxOpts {
   url?: string;
@@ -13,7 +14,7 @@ export interface ApiCtxOpts {
 export function apiCtx(opts: ApiCtxOpts = {}) {
   const url = new URL(opts.url ?? "https://fisture.test/api/partidos?limit=5");
   const body = opts.body === undefined ? undefined : typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
-  const locals: Record<string, any> = { runtime: { env: opts.env ?? { ENVIRONMENT: "production" } } };
+  const locals: Record<string, any> = { runtime: { env: opts.env ?? { ENVIRONMENT: "production", TOKEN_ENCRYPTION_KEY } } };
   if (opts.user) locals.user = opts.user;
   return {
     request: new Request(url, {

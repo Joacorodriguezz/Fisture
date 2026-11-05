@@ -8,9 +8,10 @@
 // quien se atiende pasa al final, así nadie queda relegado y no hace falta un cursor aparte.
 import { and, asc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { calendarSyncs, matches, users } from "../../../drizzle/schema";
+import { TokenKeyError } from "../auth/token-crypto";
 import type { Database } from "../db";
 import { getAutoSyncMatchIds } from "../db/queries";
-import { mensajeDeError, rootLogger } from "../observability/logger";
+import { errorSeguro, rootLogger } from "../observability/logger";
 import type { ResumenCalendarios } from "../observability/sync-runs";
 import {
   COSTO_FIJO_USUARIO,
@@ -138,6 +139,7 @@ export async function reconcileCalendarBatch(
   // Un lote lleno puede dejar usuarios atrás; uno que no se llenó los atendió a todos
   resumen.quedan = lista.length >= limite;
 
+  let claveFaltante = false;
   for (const user of lista) {
     // Lugar para el costo fijo, el token y al menos un partido con su posible reintento tras un 401
     if (!presupuesto.alcanza(COSTO_FIJO_USUARIO + COSTO_TOKEN_USUARIO + COSTO_MAX_PARTIDO + COSTO_RENOVACION_401)) {
@@ -153,6 +155,14 @@ export async function reconcileCalendarBatch(
       const ids = [...new Set([...pendientes, ...nuevos])].slice(0, perUser);
 
       const results: SyncResult[] = ids.length === 0 ? [] : await syncMatches(db, env, user, ids, { mode: "auto", deps, presupuesto });
+
+      // Sin clave de cifrado no es un problema del usuario: no se lo marca atendido ni reauth_required, y se
+      // corta la corrida como error operativo (si no, todos quedarían como "reconectar")
+      if (results.some((r) => r.code === "config")) {
+        rootLogger.error("calendar_reconcile_token_key_missing", {});
+        claveFaltante = true;
+        break;
+      }
 
       // Sin presupuesto en medio del usuario: lo que se alcanzó a procesar es progreso. Si hubo alguno se lo
       // marca atendido para que rote (el resto sigue en su próximo turno); si no hubo ninguno no se lo marca y
@@ -187,7 +197,7 @@ export async function reconcileCalendarBatch(
     } catch (error) {
       // Un usuario que falla no bloquea a los demás ni se reintenta en este barrido
       resumen.usuarios++;
-      rootLogger.error("calendar_reconcile_user_failed", { err: error, message: mensajeDeError(error) });
+      rootLogger.error("calendar_reconcile_user_failed", { err: errorSeguro(error) });
       try {
         await marcarAtendido(db, user.id, ahoraMs);
       } catch {
@@ -197,5 +207,6 @@ export async function reconcileCalendarBatch(
   }
 
   resumen.subrequests = presupuesto.usado;
+  if (claveFaltante) throw new TokenKeyError();
   return resumen;
 }

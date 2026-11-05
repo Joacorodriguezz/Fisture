@@ -6,7 +6,9 @@ import { getValidAccessToken } from "../../src/lib/auth/tokens";
 import { oauthIdentities, users } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { claro, ENV_CON_CLAVE } from "../helpers/token-key";
-import { encryptToken } from "../../src/lib/auth/token-crypto";
+import { encryptToken, TokenKeyError, TokenUnreadableError } from "../../src/lib/auth/token-crypto";
+import { classifyCalendarError } from "../../src/lib/calendar/errors";
+import { createLogger, errorSeguro } from "../../src/lib/observability/logger";
 
 const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock("../../src/lib/auth/providers", () => ({
@@ -107,6 +109,63 @@ describe("renovación de permisos de calendario", () => {
     it("un token cifrado sin la clave no se puede leer", async () => {
       const cifrado = await encryptToken(ENV_CON_CLAVE, "at", "user-1:access_token");
       await expect(getValidAccessToken({} as Env, t.db, { ...fixtures.user, accessToken: cifrado })).rejects.toThrow("token_key_missing");
+    });
+
+    // docs/15 revisión: clasificación de errores y orden de las verificaciones
+    it("forzar renovación con el token vigente cifrado: renueva con el refresh descifrado y guarda cifrado", async () => {
+      const at = await encryptToken(ENV_CON_CLAVE, "at-vigente", "user-1:access_token");
+      const rt = await encryptToken(ENV_CON_CLAVE, "rt-guardado", "user-1:refresh_token");
+      refresh.mockResolvedValue({ accessToken: () => "forzado", accessTokenExpiresAt: () => null, refreshToken: () => "rt-rotado" });
+      const user = { ...fixtures.user, accessToken: at, refreshToken: rt, tokenExpiresAt: AHORA.getTime() + HORA_MS };
+      expect(await getValidAccessToken(ENV_CON_CLAVE, t.db, user, { forzarRenovacion: true })).toBe("forzado");
+      expect(refresh).toHaveBeenCalledWith("rt-guardado");
+      expect(await guardado("user-1")).toMatchObject({ accessToken: "forzado", refreshToken: "rt-rotado" });
+      // user en memoria: cifrado para user.id, nunca en claro
+      expect(user.accessToken).toMatch(/^enc:v1:/);
+      expect(await claro(user.refreshToken, "user-1", "refresh_token")).toBe("rt-rotado");
+    });
+
+    it("sin clave no hace ninguna llamada de red ni rota el refresh token (legado)", async () => {
+      await expect(getValidAccessToken({} as Env, t.db, vencido(fixtures.user, { refreshToken: "legado" }))).rejects.toBeInstanceOf(TokenKeyError);
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("un token ilegible lanza TokenUnreadableError y se clasifica auth (reconectar)", async () => {
+      const ajeno = await encryptToken(ENV_CON_CLAVE, "at-ajeno", "user-2:access_token");
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, { ...fixtures.user, accessToken: ajeno }).catch((e) => e);
+      expect(error).toBeInstanceOf(TokenUnreadableError);
+      expect(classifyCalendarError(error)).toBe("auth");
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("un refresh ilegible también es auth y no llama al proveedor", async () => {
+      const ajeno = await encryptToken(ENV_CON_CLAVE, "rt", "user-2:refresh_token");
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: ajeno })).catch((e) => e);
+      expect(classifyCalendarError(error)).toBe("auth");
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("la falta de clave se clasifica config, distinta de auth y de transient", async () => {
+      const error = await getValidAccessToken({} as Env, t.db, fixtures.user).catch((e) => e);
+      expect(classifyCalendarError(error)).toBe("config");
+    });
+
+    it("K15: un error del proveedor con un secreto en el mensaje no sale en el error ni en el log", async () => {
+      refresh.mockRejectedValue(new Error("fallo con rt-secreto-xyz y ya29.abc"));
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: "rt-secreto-xyz" })).catch((e) => e);
+      const lineas: string[] = [];
+      createLogger({ write: (_n, l) => lineas.push(l) }).error("x", { err: errorSeguro(error) });
+      for (const prohibido of ["rt-secreto-xyz", "ya29.abc"]) {
+        expect(String(error.message)).not.toContain(prohibido);
+        expect(lineas.join("")).not.toContain(prohibido);
+      }
+      expect(classifyCalendarError(error)).toBe("transient");
+    });
+
+    it("un invalid_grant del proveedor sigue siendo auth", async () => {
+      refresh.mockRejectedValue(new Error("invalid_grant"));
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: "rt" })).catch((e) => e);
+      expect(classifyCalendarError(error)).toBe("auth");
     });
 
     it("un valor copiado de otro usuario no se descifra (AAD)", async () => {

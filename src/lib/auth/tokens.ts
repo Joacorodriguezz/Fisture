@@ -4,6 +4,7 @@ import type { Database } from "../db";
 import { createGoogleProvider, createMicrosoftProvider } from "./providers";
 import { buscarIdentidadDeUsuario, type Proveedor } from "./identity";
 import { cifrarTokens, leerToken } from "./token-store";
+import { claveValida, TokenKeyError } from "./token-crypto";
 
 type DbUser = typeof users.$inferSelect;
 
@@ -31,6 +32,10 @@ export async function getValidAccessToken(
   user: DbUser,
   opciones: OpcionesToken = {}
 ): Promise<string> {
+  // Antes de cualquier consulta o llamada de red: sin clave un refresh no gasta una subrequest ni rota el
+  // refresh token en el proveedor (si se rota y después no se puede guardar, se pierde la credencial)
+  if (!claveValida(env)) throw new TokenKeyError();
+
   const identidad = await buscarIdentidadDeUsuario(db, user.id, user.provider as Proveedor);
   const fuente = identidad ?? user;
 
@@ -51,16 +56,15 @@ export async function getValidAccessToken(
 
   opciones.alRenovar?.();
 
+  if (user.provider !== "google" && user.provider !== "microsoft") throw new Error("Unsupported provider");
   let tokens;
-  if (user.provider === "google") {
-    tokens = await createGoogleProvider(env).refreshAccessToken(refreshActual);
-  } else if (user.provider === "microsoft") {
-    tokens = await createMicrosoftProvider(env).refreshAccessToken(
-      refreshActual,
-      CALENDAR_SCOPES.microsoft
-    );
-  } else {
-    throw new Error("Unsupported provider");
+  try {
+    tokens =
+      user.provider === "google"
+        ? await createGoogleProvider(env).refreshAccessToken(refreshActual)
+        : await createMicrosoftProvider(env).refreshAccessToken(refreshActual, CALENDAR_SCOPES.microsoft);
+  } catch (error) {
+    throw errorDeRenovacion(error);
   }
 
   const accessToken = tokens.accessToken();
@@ -90,4 +94,11 @@ function safeRefreshToken(tokens: { refreshToken(): string }): string | null {
   } catch {
     return null;
   }
+}
+
+// El error del proveedor puede arrastrar el refresh token en su mensaje: se conserva solo el motivo
+// (invalid_grant => el usuario debe reconectar; el resto es transitorio)
+function errorDeRenovacion(error: unknown): Error {
+  const texto = `${(error as { code?: unknown } | null)?.code ?? ""} ${error instanceof Error ? error.message : ""}`;
+  return new Error(/invalid_grant/i.test(texto) ? "refresh_failed: invalid_grant" : "refresh_failed");
 }

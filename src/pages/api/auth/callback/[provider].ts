@@ -4,6 +4,7 @@ import { leerEstado, nombreCookieEstado } from "../../../../lib/auth/oauth-state
 import { createSession } from "../../../../lib/auth/session";
 import { createDb } from "../../../../lib/db";
 import { withApi } from "../../../../lib/observability/with-api";
+import { errorSeguro } from "../../../../lib/observability/logger";
 import { safeNext } from "../../../../lib/auth/guards";
 import { obtenerIdentidad } from "../../../../lib/auth/perfil";
 import { TokenKeyError } from "../../../../lib/auth/token-crypto";
@@ -140,7 +141,7 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
   } catch (error) {
     // Sin clave de cifrado no se guarda nada: el login falla cerrado (docs/15 D4)
     if (error instanceof TokenKeyError) locals.logger?.error("token_key_missing", { provider: params.provider, motivo: error.message });
-    locals.logger?.error("oauth_failed", { provider: params.provider, err: error });
+    locals.logger?.error("oauth_failed", { provider: params.provider, err: errorSeguro(error) });
     return redirect("/login?error=oauth_failed");
   }
 });
