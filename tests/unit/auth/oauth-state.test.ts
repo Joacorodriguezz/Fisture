@@ -23,12 +23,22 @@ describe("oauth-state: cookie firmada del intento de login", () => {
 
   it("ida y vuelta: devuelve el verifier y el next", async () => {
     const cookie = await crearEstado(SECRET, datos, AHORA);
-    expect(await leerEstado(SECRET, cookie, esperado, AHORA + 1000)).toEqual({ codeVerifier: "cv-1", next: "/equipos/12" });
+    expect(await leerEstado(SECRET, cookie, esperado, AHORA + 1000)).toEqual({ codeVerifier: "cv-1", next: "/equipos/12", intent: "login", userId: null });
   });
 
   it("conserva un next nulo", async () => {
     const cookie = await crearEstado(SECRET, { ...datos, next: null }, AHORA);
-    expect(await leerEstado(SECRET, cookie, esperado, AHORA)).toEqual({ codeVerifier: "cv-1", next: null });
+    expect(await leerEstado(SECRET, cookie, esperado, AHORA)).toEqual({ codeVerifier: "cv-1", next: null, intent: "login", userId: null });
+  });
+
+  it("conserva el intent de vincular y el usuario que lo inició (docs/18)", async () => {
+    const cookie = await crearEstado(SECRET, { ...datos, intent: "link", userId: "u-1" }, AHORA);
+    expect(await leerEstado(SECRET, cookie, esperado, AHORA)).toMatchObject({ intent: "link", userId: "u-1" });
+  });
+
+  it("un intent de vincular sin userId se trata como login", async () => {
+    const cookie = await crearEstado(SECRET, { ...datos, intent: "link" }, AHORA);
+    expect(await leerEstado(SECRET, cookie, esperado, AHORA)).toMatchObject({ intent: "login", userId: null });
   });
 
   it("L6: una firma alterada se rechaza", async () => {

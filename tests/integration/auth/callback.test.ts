@@ -5,6 +5,7 @@ import { apiCtx, kvEnMemoria, silenciarConsola } from "../../helpers/ctx";
 import { OAUTH_STATE_SECRET, cookieDeEstado, cookiesEnMemoria } from "../../helpers/oauth-state";
 import { crearEstado } from "../../../src/lib/auth/oauth-state";
 import { getSessionUser } from "../../../src/lib/auth/session";
+import { tokensFalsos } from "../../helpers/id-token";
 
 const { validar } = vi.hoisted(() => ({ validar: vi.fn() }));
 vi.mock("../../../src/lib/auth/providers", () => ({
@@ -16,12 +17,9 @@ vi.mock("../../../src/lib/auth/providers", () => ({
 import { GET } from "../../../src/pages/api/auth/callback/[provider]";
 
 const EXPIRA = new Date("2027-01-01T00:00:00Z");
-const tokens = (access = "at-1") => ({
-  accessToken: () => access,
-  refreshToken: () => "rt-1",
-  accessTokenExpiresAt: () => EXPIRA,
-});
-const perfilGoogle = { id: "g-1", email: "ana@example.com", name: "Ana", picture: "https://img/ana.png" };
+// Google: la identidad sale del ID token (docs/18 D10)
+const claimsGoogle = { sub: "g-1", email: "ana@example.com", email_verified: true, name: "Ana", picture: "https://img/ana.png" };
+const tokens = (access = "at-1", claims: Record<string, unknown> = claimsGoogle) => tokensFalsos({ idToken: claims, access, expira: EXPIRA });
 
 describe("callback OAuth", () => {
   const t = useTestDb();
@@ -57,7 +55,7 @@ describe("callback OAuth", () => {
     const get = kv.get;
     kv.get = async (k: string) => (lecturasEnKv.push(k), get(k));
     validar.mockReset().mockResolvedValue(tokens());
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json(perfilGoogle)));
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "m-1", displayName: "Beto", mail: "beto@example.com" })));
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -185,11 +183,10 @@ describe("callback OAuth", () => {
     expect(opciones).toMatchObject({ httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 2_592_000 });
   });
 
-  it("usuario existente: no duplica y actualiza tokens y nombre", async () => {
+  it("reingreso de la misma identidad: no duplica y actualiza tokens y nombre", async () => {
     await conEstado();
     await llamar("google", { code: "c1", state: "st-1" });
-    validar.mockResolvedValue(tokens("at-2"));
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ...perfilGoogle, name: "Ana María" })));
+    validar.mockResolvedValue(tokens("at-2", { ...claimsGoogle, name: "Ana María" }));
     await conEstado({}, "st-2");
 
     await llamar("google", { code: "c2", state: "st-2" });
@@ -206,7 +203,8 @@ describe("callback OAuth", () => {
     expect((await usuarios())[0]).toMatchObject({ email: "beto@corp.com", provider: "microsoft", provider_id: "m-1" });
   });
 
-  it("Microsoft con mail lo prefiere sobre userPrincipalName", async () => {
+  // El mail de Graph no es verificado: sirve de contacto al crear la cuenta, nunca para entrar a otra (docs/18 H3)
+  it("Microsoft con mail lo prefiere sobre userPrincipalName como email de contacto", async () => {
     await conEstado({ provider: "microsoft" });
     vi.stubGlobal(
       "fetch",
@@ -224,7 +222,7 @@ describe("callback OAuth", () => {
       .map(String)
       .join("\n");
 
-  it.each(["google", "microsoft"])("si %s no devuelve el perfil falla con oauth_failed y loguea el status", async (provider) => {
+  it.each(["microsoft"])("si %s no devuelve el perfil falla con oauth_failed y loguea el status", async (provider) => {
     await conEstado({ provider });
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { code: "Authorization_RequestDenied" } }, { status: 403 })));
 
@@ -237,15 +235,14 @@ describe("callback OAuth", () => {
     expect(logs()).not.toContain("D1_TYPE_ERROR");
   });
 
-  it("Microsoft sin mail ni userPrincipalName falla con oauth_failed, sin usuario", async () => {
+  it("Microsoft sin mail ni userPrincipalName da email_ausente, sin usuario", async () => {
     await conEstado({ provider: "microsoft" });
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "m-1", displayName: "Beto" })));
 
     const res = await llamar("microsoft", { code: "c", state: "st-1" });
 
-    expect(destino(res)).toBe("/login?error=oauth_failed");
+    expect(destino(res)).toBe("/login?error=email_ausente&proveedor=microsoft");
     expect(await usuarios()).toHaveLength(0);
-    expect(logs()).toContain("profile_without_email");
     expect(logs()).not.toContain("D1_TYPE_ERROR");
   });
 

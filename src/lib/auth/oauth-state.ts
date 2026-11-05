@@ -9,6 +9,9 @@ export interface DatosEstadoOAuth {
   codeVerifier: string;
   provider: string;
   next: string | null;
+  // "link": el usuario con sesión vincula otro proveedor desde Configuración (docs/18). Por defecto "login"
+  intent?: "login" | "link";
+  userId?: string;
 }
 
 interface Payload extends DatosEstadoOAuth {
@@ -56,7 +59,7 @@ export async function leerEstado(
   cookie: string | undefined,
   esperado: { state: string; provider: string },
   ahora = Date.now()
-): Promise<{ codeVerifier: string; next: string | null } | null> {
+): Promise<{ codeVerifier: string; next: string | null; intent: "login" | "link"; userId: string | null } | null> {
   if (!cookie) return null;
   const partes = cookie.split(".");
   if (partes.length !== 2) return null;
@@ -82,5 +85,7 @@ export async function leerEstado(
   if (payload.state !== esperado.state || payload.provider !== esperado.provider) return null;
   if (typeof payload.codeVerifier !== "string") return null;
 
-  return { codeVerifier: payload.codeVerifier, next: payload.next ?? null };
+  // Un valor desconocido se trata como login: nunca como un permiso de vincular
+  const intent = payload.intent === "link" && typeof payload.userId === "string" ? "link" : "login";
+  return { codeVerifier: payload.codeVerifier, next: payload.next ?? null, intent, userId: intent === "link" ? payload.userId! : null };
 }

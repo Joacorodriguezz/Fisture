@@ -4,6 +4,7 @@ import Volanta from "../components/tribuna/Volanta.astro";
 import Titular from "../components/tribuna/Titular.astro";
 import Bajada from "../components/tribuna/Bajada.astro";
 import { safeNext } from "../lib/auth/guards";
+import { mensajeErrorAuth } from "../lib/auth/mensajes";
 
 // A dónde volver después de loguearse (solo rutas internas seguras)
 const next = safeNext(Astro.url.searchParams.get("next"));
@@ -22,7 +23,9 @@ const mensajesError: Record<string, string> = {
   oauth_failed: "No pudimos conectar con tu cuenta. Probá de nuevo en un momento.",
 };
 const codigoError = Astro.url.searchParams.get("error");
-const error = codigoError ? mensajesError[codigoError] ?? "No pudimos iniciar sesión. Probá de nuevo." : null;
+const error = codigoError
+  ? mensajeErrorAuth(codigoError, Astro.url.searchParams.get("proveedor")) ?? mensajesError[codigoError] ?? "No pudimos iniciar sesión. Probá de nuevo."
+  : null;
 
 const opciones = [
   {

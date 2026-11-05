@@ -61,6 +61,25 @@ CREATE UNIQUE INDEX `matches_external_id_unique` ON `matches` (`external_id`);--
 CREATE INDEX `idx_matches_date` ON `matches` (`date_time`);--> statement-breakpoint
 CREATE INDEX `idx_matches_home_team` ON `matches` (`home_team_id`);--> statement-breakpoint
 CREATE INDEX `idx_matches_away_team` ON `matches` (`away_team_id`);--> statement-breakpoint
+CREATE TABLE `oauth_identities` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`provider` text NOT NULL,
+	`provider_id` text NOT NULL,
+	`tenant_id` text,
+	`email` text,
+	`email_verified` integer DEFAULT false NOT NULL,
+	`access_token` text,
+	`refresh_token` text,
+	`token_expires_at` integer,
+	`created_at` integer DEFAULT (strftime('%s', 'now')),
+	`last_login_at` integer DEFAULT (strftime('%s', 'now')),
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `oauth_identities_provider_id_idx` ON `oauth_identities` (`provider`,`provider_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `oauth_identities_user_provider_idx` ON `oauth_identities` (`user_id`,`provider`);--> statement-breakpoint
+CREATE INDEX `oauth_identities_user_id_idx` ON `oauth_identities` (`user_id`);--> statement-breakpoint
 CREATE TABLE `sessions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
@@ -122,6 +141,7 @@ CREATE INDEX `idx_user_teams_team` ON `user_teams` (`team_id`);--> statement-bre
 CREATE TABLE `users` (
 	`id` text PRIMARY KEY NOT NULL,
 	`email` text NOT NULL,
+	`email_verified` integer DEFAULT false NOT NULL,
 	`name` text,
 	`image` text,
 	`provider` text NOT NULL,
@@ -132,4 +152,5 @@ CREATE TABLE `users` (
 	`created_at` integer DEFAULT (strftime('%s', 'now'))
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);
+CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
+CREATE UNIQUE INDEX `users_email_lower_idx` ON `users` (lower("email"));

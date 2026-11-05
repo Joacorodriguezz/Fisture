@@ -1,9 +1,8 @@
 import type { APIRoute } from "astro";
-import { generateState, generateCodeVerifier } from "arctic";
-import { createGoogleProvider, createMicrosoftProvider, isValidProvider } from "../../../../lib/auth/providers";
+import { isValidProvider } from "../../../../lib/auth/providers";
 import { withApi } from "../../../../lib/observability/with-api";
 import { safeNext } from "../../../../lib/auth/guards";
-import { OAUTH_STATE_TTL_SEGUNDOS, crearEstado, nombreCookieEstado } from "../../../../lib/auth/oauth-state";
+import { iniciarAutorizacion } from "../../../../lib/auth/iniciar";
 
 export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, locals }) => {
   const { provider } = params;
@@ -19,53 +18,5 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
     return redirect("/login?error=oauth_unavailable");
   }
 
-  const state = generateState();
-  const codeVerifier = generateCodeVerifier();
-
-  // El estado viaja en una cookie firmada y no en KV: este endpoint es anónimo y público, y cada
-  // escritura en KV gasta una cuota diaria compartida por todos (docs/20-login-sin-kv-tdd.md)
-  cookies.set(
-    nombreCookieEstado(provider),
-    await crearEstado(env.OAUTH_STATE_SECRET, {
-      state,
-      codeVerifier,
-      provider,
-      next: safeNext(url.searchParams.get("next")),
-    }),
-    {
-      path: "/api/auth",
-      httpOnly: true,
-      // Staging también se sirve por HTTPS (docs/26)
-      secure: env.ENVIRONMENT === "production" || env.ENVIRONMENT === "staging",
-      sameSite: "lax",
-      maxAge: OAUTH_STATE_TTL_SEGUNDOS,
-    }
-  );
-
-  let authUrl: URL;
-
-  if (provider === "google") {
-    const google = createGoogleProvider(env);
-    authUrl = google.createAuthorizationURL(state, codeVerifier, [
-      "openid",
-      "email",
-      "profile",
-      "https://www.googleapis.com/auth/calendar.events",
-    ]);
-    authUrl.searchParams.set("access_type", "offline");
-    authUrl.searchParams.set("prompt", "consent");
-  } else {
-    const microsoft = createMicrosoftProvider(env);
-    authUrl = microsoft.createAuthorizationURL(state, codeVerifier, [
-      "openid",
-      "email",
-      "profile",
-      // Lo exige Graph para leer /me en el callback (sin él responde 403)
-      "User.Read",
-      "Calendars.ReadWrite",
-      "offline_access",
-    ]);
-  }
-
-  return redirect(authUrl.toString());
+  return redirect(await iniciarAutorizacion({ env, secret: env.OAUTH_STATE_SECRET, cookies, provider, next: safeNext(url.searchParams.get("next")) }));
 });

@@ -71,6 +71,20 @@ export async function checkConsistency(db: Database, now = Date.now()): Promise<
       // Una copa no destacada puede no tener partidos de equipos conocidos todavía (FA Cup antes de la 3.ª ronda)
       from: sql`leagues l WHERE l.is_active = 1 AND l.is_featured = 1 AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.league_id = l.id)`,
     },
+    {
+      // Los cubre el fallback legado del callback (docs/18 D6); aviso, no error
+      code: "user_without_identity",
+      severity: "warn",
+      id: sql`u.id`,
+      from: sql`users u WHERE NOT EXISTS (SELECT 1 FROM oauth_identities i WHERE i.user_id = u.id)`,
+    },
+    {
+      code: "provider_without_identity",
+      severity: "warn",
+      id: sql`u.id`,
+      from: sql`users u WHERE EXISTS (SELECT 1 FROM oauth_identities i WHERE i.user_id = u.id)
+        AND NOT EXISTS (SELECT 1 FROM oauth_identities i WHERE i.user_id = u.id AND i.provider = u.provider)`,
+    },
   ];
 
   const issues: ConsistencyIssue[] = [];
