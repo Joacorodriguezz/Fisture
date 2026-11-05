@@ -473,8 +473,8 @@ export const POST: APIRoute = withApi(handler, {
 - Valores: `login` 10 / 10 min por IP, `oauth_callback` 20 / 10 min por IP, `calendar_sync` 10 / min y 60 / h por usuario
   (más 30 / min por IP), `calendar_delete` 30 / min, `mutation` 60 / min por usuario y 120 / min por IP,
   `admin_fail` 5 fallos / 15 min por IP, `search_public` 60 / min por IP (memoria del isolate).
-- `POST /api/calendario/sync` acepta hasta 50 `matchIds` (400 `too_many_matchIds`).
-- Variables: `RATE_LIMIT_SALT`, `RATE_LIMIT_DISABLED`, `RATE_LIMIT_MODE=observe`, `ALLOWED_ORIGINS` (`docs/08`). Qué hacer
+- `POST /api/calendario/sync` acepta hasta 6 `matchIds` (400 `too_many_matchIds`; presupuesto de subrequests de Workers Free, `docs/16` §12).
+- Variables: `RATE_LIMIT_SALT`, `RATE_LIMIT_DISABLED`, `RATE_LIMIT_MODE=observe`, `ALLOWED_ORIGINS` (`docs/08`) y la clave KV `ratelimit:modo` para apagar en caliente. Qué hacer
   si un usuario legítimo queda limitado: `docs/23` §6.
 
 ## Resumen de Endpoints
@@ -483,7 +483,7 @@ export const POST: APIRoute = withApi(handler, {
 |--------|------|-------------|------|
 | GET | /api/auth/login/[provider] | Iniciar OAuth | No |
 | GET | /api/auth/callback/[provider] | OAuth callback | No |
-| POST | /api/auth/logout | Cerrar sesión | Sí |
+| POST | /api/auth/logout | Cerrar sesión (un `GET` responde 405) | Sí |
 | GET | /api/equipos/buscar?q= | Buscar equipos | Sí |
 | POST | /api/equipos | Agregar equipo | Sí |
 | DELETE | /api/equipos/[id] | Eliminar equipo | Sí |

@@ -92,7 +92,7 @@ CREATE TABLE rate_limits (
 
 - **Solo se escribe en D1 para**: login/callback, mutaciones, `calendario/sync`, y **fallos** de Bearer en admin. Las lecturas autenticadas y las públicas no escriben (D4).
 - **Orden en `withApi`**: primero origen/`Content-Type` (barato, sin I/O), después el límite por IP, después el límite por usuario (solo si hay sesión). Si el límite por IP ya bloqueó, no se evalúa el de usuario (una escritura menos).
-- **Bloqueados**: el `count` sigue subiendo (un UPSERT por intento). Para acotar el costo bajo ataque, pasado `limit * 5` en la misma ventana se responde 429 **sin escribir**: hace falta leer el contador, así que el flujo es `UPSERT` hasta `5x` y desde ahí un `SELECT` (una lectura no cuesta filas escritas).
+- **Bloqueados** (revisado, ver §13.3): el contador se detiene en `limit + 1`. Con `limit + 1` el sujeto ya quedó bloqueado, así que las requests siguientes de esa ventana responden 429 **sin escribir** (el `UPSERT` no actualiza por su `WHERE`). La versión original usaba `limit * 5` y dejaba a una IP anónima escribir hasta 5 filas por cada permitida.
   - *Alternativa descartada*: leer siempre primero y escribir después: dobla la latencia en el camino feliz.
 - **Fail-open**: si D1 falla al contar, se deja pasar y se loguea `error` (`rate_limit_unavailable`). Un incidente de D1 no debe tumbar la app entera por el limitador. **Excepción**: login de admin (D5) también es fail-open; el riesgo se acepta porque `ADMIN_SECRET` debe ser largo y aleatorio.
 - **Presupuesto en el plan Free (100.000 filas/día)**: con los límites del §5.3, un usuario muy activo genera del orden de 100 hits/día. 500 usuarios activos al día serían ~50.000 filas escritas: dentro del límite, con margen para el sync (`sync_runs`, `calendar_syncs`). Si el volumen real se acerca al 50% del límite, se migra el backend (§12). La métrica del §8 incluye las filas escritas por el limitador.
@@ -107,7 +107,7 @@ Mientras la app viva en `fisture.pages.dev`, la protección es la del código (D
 
 ### D5. Fallos de Bearer en admin
 
-`/api/admin/*` limita solo los **fallos**: 5 intentos fallidos por IP cada 15 minutos; al sexto, 429 aunque el Bearer sea correcto durante esa ventana (así un atacante no puede confirmar el secreto una vez agotado el límite). Es una decisión abierta: ver R5 en el §12. Las requests con Bearer válido no cuentan ni escriben. El workflow `sync-cron.yml` envía el Bearer correcto desde IPs compartidas de GitHub: un secreto mal configurado (fallos repetidos) bloquearía también el cron durante 15 minutos; se loguea claramente y es recuperable.
+`/api/admin/*` limita solo los **fallos**: 5 intentos fallidos por IP cada 15 minutos; al sexto, 429. **Revisado (§13.3): el Bearer válido pasa siempre**, incluso con la IP en bloqueo: no cuenta, no escribe y nunca recibe 429 (R5 resuelto). La decisión con un Bearer inválido es atómica: primero `hit()` y después 401 o 429 según el valor devuelto. El workflow `sync-cron.yml` envía el Bearer correcto desde IPs compartidas de GitHub: un secreto mal configurado (fallos repetidos) bloquearía también el cron durante 15 minutos; se loguea claramente y es recuperable.
 
 ### D6. Verificación de origen generalizada en `withApi` (reutiliza `esMismoOrigen`)
 
@@ -303,7 +303,11 @@ Cambio mínimo: el cliente que llama a `/api/calendario/sync` interpreta el 429 
 
 **Rollback / apagado rápido (si bloquea usuarios legítimos)**
 
-1. Más rápido (minutos, sin deploy de código): poner `RATE_LIMIT_DISABLED=true` en las variables de Pages y re-desplegar con `wrangler pages deploy` (las variables de Pages se leen en el siguiente despliegue; **a verificar** si el dashboard permite editarlas sin redeploy: de ser así es inmediato).
+1. Más rápido (≈ 1-2 minutos, sin deploy ni secret): escribir la clave KV `ratelimit:modo` (ver §12 R11 y el comando exacto en `docs/23`). Un secret de Pages solo toma efecto en el siguiente deploy, por eso el interruptor en caliente es KV, que `withApi` y `verificarAdmin` leen con caché de 45 s por isolate (más la propagación de KV, hasta ~60 s):
+   - Apagar: `npx wrangler kv key put "ratelimit:modo" "off" --namespace-id 8a9fc92ed9774806833736d1bec711bb` (producción; staging: `eb9880ef072042d8b93e46a6ca9e49d7`). Con `--ttl 3600` se reactiva solo en una hora.
+   - Solo observar: mismo comando con `"observe"`. Volver a bloquear aunque el secret diga otra cosa: `"on"`.
+   - Volver al valor del secret de arranque: `npx wrangler kv key delete "ratelimit:modo" --namespace-id 8a9fc92ed9774806833736d1bec711bb`.
+   - `RATE_LIMIT_DISABLED` / `RATE_LIMIT_MODE` siguen existiendo como valor de arranque (rigen solo si la clave KV no existe).
 2. Ajuste fino: subir el límite del bucket afectado en `policies.ts` y desplegar por el flujo normal (hotfix `fix/*` desde `main`).
 3. Revertir el PR: la tabla `rate_limits` queda sin uso; no hace falta migración inversa (`DROP TABLE` opcional en una migración posterior).
 4. Un IP concreto bloqueado por error: esperar el fin de la ventana (máx. 15 min) o borrar su fila con `wrangler d1 execute` (el `subject` es un hash, así que se calcula con el salt; se documenta el comando en el runbook).
@@ -315,15 +319,34 @@ La verificación de origen **no** se apaga con `RATE_LIMIT_DISABLED`: es un cont
 | # | Riesgo / decisión | Mitigación |
 | --- | --- | --- |
 | R1 | **NAT compartido** (colegio, oficina, operadora móvil con CGNAT): muchos usuarios legítimos con la misma IP | Los límites por IP son de 3 a 10 veces el uso humano normal; el límite estricto es por usuario, no por IP. Modo `observe` antes de bloquear |
-| R2 | **Presupuesto de escrituras de D1** (100.000/día en Free) | D2: escritura solo donde importa, tope `5x` sin escribir, métrica del §8; si pasa del 50% se pasa a DO o binding (§3, S1/S2) |
+| R2 | **Presupuesto de escrituras de D1** (100.000/día en Free) | D2: escritura solo donde importa, tope `limit + 1` sin escribir más, sin límites por defecto para mutaciones anónimas, métrica del §8; costo adversarial en R11; si pasa del 50% se pasa a DO o binding (§3, S1/S2) |
 | R3 | **Falsos positivos en el cron** de GitHub Actions por D5 | Un fallo de Bearer lo causa el secreto mal configurado, no el uso normal; se loguea claro y se recupera en 15 min |
 | R4 | `cf-connecting-ip` ausente o spoofeable | En Cloudflare lo setea el borde y no es falsificable por el cliente; verificar en S4. Sin la cabecera se omite el scope IP |
-| R5 | D5 bloquea incluso un Bearer correcto durante la ventana | Evita que un atacante confirme el secreto, pero deja al operador sin acceso hasta 15 min; alternativa: dejar pasar el Bearer correcto. **Decisión abierta para la revisión** |
+| R5 | D5 bloquea incluso un Bearer correcto durante la ventana | **Resuelto**: el Bearer válido pasa siempre y solo se cuentan los fallos. Un atacante no gana nada (adivinar el secreto sigue siendo inviable con 5 intentos por IP y ventana) y el operador y el cron no quedan afuera |
 | R6 | `RATE_LIMIT_SALT` como secret nuevo | Fallback a `ADMIN_SECRET`: acopla dos secretos. **Decisión abierta**: ¿exigir el secret nuevo antes de desplegar? |
 | R7 | Ventana fija permite 2x en el borde | Aceptado; si importa en `calendar_sync`, ya hay un límite por hora que lo acota |
 | R8 | `Sec-Fetch-Site` ausente en clientes viejos o proxys que lo quitan | Cae a `Origin`; si tampoco hay y hay cookie, se rechaza (falla segura) |
 | R9 | Test de descubrimiento y el guard de `npm test` pueden asumir que todas las migraciones tienen esquema en Drizzle | La tabla se declara también en `drizzle/schema.ts` para el tipado (sin `WITHOUT ROWID`) y se verifica que `db:generate` no proponga un cambio espurio |
 | R10 | Conflicto de orden con el TDD 14 (`esMismoOrigen`) | Quien se implemente primero la define en `guards.ts`; el otro solo importa (§10, paso 1) |
+| R11 | **El limitador gasta la cuota de D1 que protege** (revisión de PR). Cada hit permitido o el que bloquea por primera vez escribe una fila (un `UPDATE` también cuenta como fila escrita) | Ver la cuenta de abajo. Mitigaciones: tope `limit + 1` (el sujeto bloqueado no escribe), las mutaciones anónimas no escriben antes del 401, el interruptor KV (`ratelimit:modo=off`) detiene toda escritura en 1-2 minutos y no depende de D1, y `rateLimit.filas`/`hits` en `/api/admin/status` para vigilarlo |
+| R12 | **Interruptor en caliente**: un secret de Pages no toma efecto sin redeploy | La clave KV `ratelimit:modo` (45 s de caché por isolate, hasta ~60 s de propagación de KV). Leer KV no consume escrituras de D1 y funciona aun si D1 está agotada. Si KV falla, se usa el último valor conocido o el secret de arranque |
+| R13 | **IPv6**: un cliente con un /64 propio puede rotar 2^64 direcciones y evadir el límite por IP | El sujeto de IP se normaliza al prefijo /64 antes del HMAC (`normalizarIp`); una IPv4-mapped se reduce a su IPv4. Un /48 o /56 con muchos /64 sigue pudiendo rotar: se acepta (cuesta más que el beneficio) |
+
+**Costo adversarial en filas de D1** (peor caso, con los límites del §5.3 y el tope `limit + 1`). Una fila escrita por request mientras el sujeto no esté bloqueado en ese bucket:
+
+| Atacante | Filas por ventana | Filas por día (ventanas × filas) |
+| --- | --- | --- |
+| IP anónima, `login` (10 / 10 min) | 11 | 144 × 11 = 1.584 |
+| IP anónima, `oauth_callback` (20 / 10 min) | 21 | 144 × 21 = 3.024 |
+| IP anónima, `admin_fail` (5 / 15 min) | 6 | 96 × 6 = 576 |
+| IP anónima, mutaciones sin sesión | 0 (no se aplican límites por defecto, van a 401) | 0 |
+| **Total por IP anónima** | | **≈ 5.200/día**, es decir ~19 IP distintas agotan las 100.000 |
+| Cuenta con sesión que insiste, `calendario/sync` (IP 30 / min + usuario 10 / min + hora 60 / h) | 31 + 11 (+ ~1 de la hora) | ≈ 62.000 |
+| Cuenta con sesión que insiste, mutaciones (IP 120 / min + usuario 60 / min) | 121 + 61 | ≈ 262.000 |
+
+Lectura: (1) sin sesión, el costo por IP es bajo pero ~20 IPs bastan, y rotar IPv6 dentro de un /64 no multiplica. (2) Con sesión, una sola cuenta que mande unas 3 mutaciones por segundo durante todo el día supera la cuota gratuita por sí sola; hace falta una cuenta OAuth (identificable y bloqueable) y es un ataque deliberado, pero es el techo real del diseño con contadores en D1. Defensas actuales: el interruptor KV (apaga el limitador y con él las escrituras, y el costo vuelve a ser cero), la alerta por `rateLimit.hits` en `/api/admin/status` y el runbook (`docs/23`). Si el techo no es aceptable: migrar el contador a Durable Objects o al binding `ratelimit` (§3) o poner una regla de WAF delante (D3). Las estimaciones de uso normal están en `docs/24`.
+
+**Presupuesto de subrequests de `calendario/sync`** (revisión de PR). Workers Free: 50 por invocación, y cuentan los `fetch` y cada consulta a D1 o KV (`docs/17`). Costo fijo: 1 sesión + 3 contadores (`calendar_sync_ip`, `calendar_sync`, `calendar_sync_hour`) + 1 lectura del interruptor (KV, cacheada) + 1 preferencias + 2 de renovación del token (solo si venció) = 8. Costo por partido en el peor caso (`syncMatches`): `getMatchDetail` 1 + fila de `calendar_syncs` 1 + identidad/token 1 + 3 llamadas al calendario cuando el evento "ya no existe" (update, búsqueda por etiqueta de Microsoft y create) + `saveState` 1 = 7 (lo habitual es 5-6; un partido ya al día cuesta 2). Máximo: ⌊(50 − 8) / 7⌋ = **6 partidos por request**. El tope pasó de 50 a 6 (`MAX_PARTIDOS_POR_REQUEST` en `lib/calendar/limites.ts`) y `LOTE_MAXIMO` (`hoy.astro`) y `LOTE_MANUAL` (`calendario.astro`) bajaron de 25 a 6 para que la UI nunca lo supere. "Agregar todos" ya indicaba cuántos quedan para el próximo clic.
 
 **Después de esta iteración** (fuera de alcance): Turnstile en el login si hay registro masivo; migrar a Durable Objects o al binding `ratelimit` si S1/S2 lo permiten y D1 se queda corto; regla WAF si se adopta dominio propio (D3); límites diferenciados por plan de usuario.
 
@@ -340,7 +363,7 @@ Consultas hechas el 2026-11-05 en la documentación oficial de Cloudflare (`deve
 | **S3** Plan real de la cuenta | **Pendiente del dueño** (dashboard). El diseño asume Workers Free y D1 Free (100.000 filas escritas por día); `docs/24` mide hoy menos de 300 escrituras por día. | n/a |
 | **S4** Tamaño de `matchIds` y `cf-connecting-ip` | El mayor lote real de la UI es 25 (`LOTE_MAXIMO` en `hoy.astro` y `LOTE_MANUAL` en `calendario.astro`), así que el tope de 50 queda holgado (verificado en el código). `cf-connecting-ip` en `*.pages.dev`/`fisture.com` **no se pudo comprobar** sin un despliegue: si la cabecera falta, el scope IP se omite y se loguea `rate_limit_ip_omitida` en `debug` (RL10), es decir que el límite por usuario sigue funcionando. Para confirmarlo, ver el paso manual en "Despliegue y riesgos" del PR. | código del repo |
 | O1 WAF en `pages.dev` | No verificado (la documentación del WAF no lo menciona). Como la app se sirve en `fisture.com` (dominio propio), la regla de D3 es viable y queda como mejora opcional manual. | `waf/rate-limiting-rules/` |
-| Cómo apagar rápido (§11) | `wrangler.toml` es la fuente de verdad de los campos que define y no se pueden editar en el dashboard (`pages/functions/wrangler-configuration/`). `RATE_LIMIT_DISABLED` **no** está en `[vars]`, así que se define como **secret de Pages** (`wrangler pages secret put`), que se lee en cada request sin redeploy (como ya describe `docs/23` §5). | `pages/functions/wrangler-configuration/`, `docs/23` §5 |
+| Cómo apagar rápido (§11) | `wrangler.toml` es la fuente de verdad de los campos que define y no se pueden editar en el dashboard (`pages/functions/wrangler-configuration/`). `RATE_LIMIT_DISABLED` **no** está en `[vars]`, así que se había definido como secret de Pages, pero **un secret solo toma efecto en el siguiente deploy**; ver §13.5: el interruptor en caliente es la clave KV `ratelimit:modo`. | `pages/functions/wrangler-configuration/`, `docs/23` §5 |
 
 Conclusión: el binding de Workers no es viable en Pages, por lo que se mantuvo la opción que el TDD recomendaba (O4, contadores en D1 detrás de la interfaz `hit()/peek()`). Cambiar el backend más adelante solo toca `lib/rate-limit/limiter.ts`.
 
@@ -355,21 +378,33 @@ Conclusión: el binding de Workers no es viable en Pages, por lo que se mantuvo 
 
 ### 13.3 Desvíos respecto del diseño
 
-1. **El tope `limit x 5` se resuelve dentro del mismo UPSERT** (`... DO UPDATE SET count = count + 1 WHERE count < limit*5 RETURNING count`), sin el `SELECT` posterior que describía D2. Pasado el tope, la sentencia no actualiza ni devuelve fila: una sola ida a D1, sin escritura (RL7 lo comprueba contando filas y `count`).
+1. **(Reemplazado por `limit + 1`, ver §13.5.)** El tope `limit x 5` se resolvía dentro del mismo UPSERT (`... DO UPDATE SET count = count + 1 WHERE count < tope RETURNING count`), sin el `SELECT` posterior que describía D2. Pasado el tope, la sentencia no actualiza ni devuelve fila: una sola ida a D1, sin escritura (RL7 lo comprueba contando filas y `count`).
 2. **`esMismoOrigen` no acepta "el origen de la propia request"** (regla 2 del TDD). `docs/14` ya fijó, y tiene test, que un `PUBLIC_APP_URL` inválido rechaza cualquier `Origin`; aceptar el origen de la request lo contradecía. Los accesos por un alias de Pages (`*.fisture.pages.dev`) funcionan igual porque el navegador manda `Sec-Fetch-Site: same-origin`; el caso de navegadores sin esa cabecera se cubre con `ALLOWED_ORIGINS`. Además, con `Sec-Fetch-Site` `cross-site`/`same-site` se acepta solo si el `Origin` está permitido (útil para `www.`).
 3. **Cuerpos de error unificados.** Los rechazos de `withApi` son `{ "error": "forbidden_origin" }` (403) y `{ "error": "unsupported_media_type" }` (415), como pedía el §5.4. `cuenta`, `identidades` y `vincular` devolvían antes textos en español; los status no cambian y la UI no depende del texto.
 4. **Sin declaración en `drizzle/schema.ts`** (R9). La tabla se usa con SQL directo sobre `D1Database` (`hit()` es una sentencia con `RETURNING`), así que no hacía falta el tipado de Drizzle y se evita un conflicto de merge con los PRs paralelos que también tocan el esquema. El test de esquema de Drizzle sigue verde.
-5. **D5 vive en `verificarAdmin` (`lib/observability/admin-auth.ts`), no en `withApi`**, porque necesita ver el resultado de la autorización: `peek` del contador de fallos (429 si ya está en el límite, incluso con Bearer correcto: R5 se resolvió como estaba propuesto) y `hit` solo ante un Bearer inválido. Las rutas `admin/*` se declaran con `origin: "none"` y `rateLimit: []`; `admin/sync` además con `contentType: "any"` para no cambiar el contrato del cron.
+5. **D5 vive en `verificarAdmin` (`lib/observability/admin-auth.ts`), no en `withApi`**, porque necesita ver el resultado de la autorización: `(revisado en §13.5) el Bearer válido pasa siempre; ante uno inválido, `hit` y recién entonces 401 o 429. Las rutas `admin/*` se declaran con `origin: "none"` y `rateLimit: []`; `admin/sync` además con `contentType: "any"` para no cambiar el contrato del cron.
 6. **`RATE_LIMIT_MODE=observe` (RL18) quedó implementado**: cuenta y loguea `rate_limited` con `observe: true`, pero no devuelve 429. Es el modo recomendado para el primer despliegue. También cubre `admin_fail`.
 7. **R6 (salt)**: se mantuvo el fallback a `ADMIN_SECRET`; sin ninguno de los dos el scope IP se omite (el de usuario sigue). Se recomienda cargar `RATE_LIMIT_SALT`.
-8. **Métricas (§8)**: `rateLimit.ultimas24h` informa por bucket `hits`, `blocked` (acotado por el tope `limit x 5`), `subjects` y `limit`, más `filas` totales de la tabla. No hay una "estimación de escrituras del día" aparte: `hits` equivale a las escrituras (salvo las que pegaron el tope). `search_public` usa memoria y no aparece. Las métricas nunca exponen sujetos.
+8. **Métricas (§8)**: `rateLimit.ultimas24h` informa por bucket `hits`, `blocked` (sujetos-ventana con `count > limit`; ver §13.5), `subjects` y `limit`, más `filas` totales de la tabla. No hay una "estimación de escrituras del día" aparte: `hits` equivale a las escrituras (salvo las que pegaron el tope). `search_public` usa memoria y no aparece. Las métricas nunca exponen sujetos.
 9. **`buscar`**: la respuesta con sesión lleva `Cache-Control: private, max-age=60` (y `public` solo la anónima) porque incluye `isFollowing`; el TDD pedía `public` sin distinguir.
-10. **Tope de `matchIds`**: 50, respondiendo `400 { "error": "too_many_matchIds", "max": 50 }`.
+10. **Tope de `matchIds`**: 6 desde §13.5 (era 50), respondiendo `400 { "error": "too_many_matchIds", "max": 6 }`.
 11. **Test de descubrimiento (RL16)** es un test unitario (`tests/unit/rate-limit/descubrimiento.test.ts`) que lee `pages/api/**`, no una extensión de `scripts/check-test-discovery.mjs` (ese guard verifica que los tests se descubran, no los handlers). Verifica que cada método exportado use `withApi`, que `login` y `callback` declaren política y que `esMismoOrigen` se defina una sola vez (OR14).
 12. **E2E**: el caso de humo reutiliza el escenario de sesión `calendar` del servidor E2E existente.
 
+### 13.5 Correcciones tras la revisión del PR (Opus y Codex)
+
+1. **Interruptor en caliente.** `RATE_LIMIT_DISABLED` y `RATE_LIMIT_MODE` ya no son la fuente principal: un secret de Pages solo rige tras un deploy. La fuente es la clave KV `ratelimit:modo` (`off`, `observe`, `on`), leída por `modoLimite()` (`lib/rate-limit/config.ts`) con caché de 45 s por isolate. Se eligió KV y no una fila de D1 porque leer KV no consume escrituras, funciona aunque D1 esté agotada (justo el caso en que hay que apagar) y el comando no depende de D1. Sin la clave, rigen los secrets (valor de arranque). Si KV falla se usa el último valor conocido. La migración 0013 no cambió. Comando en §11 y `docs/23`.
+2. **Cuota de D1.** (a) Tope `limit + 1` (la constante `CAP_FACTOR` se eliminó); `blocked` pasó a medir sujetos-ventana bloqueados (`count > limit`) y `hits` se detiene en `limit + 1` por sujeto y ventana, así que ya no es el total de intentos. (b) `withApi` no aplica los límites por defecto a una mutación sin usuario; los explícitos de `login` y `callback` se mantienen. (c) Costo adversarial en §12 (R11) y estimación en `docs/24`.
+3. **IPv6** al /64 antes del HMAC (`normalizarIp` en `subject.ts`), también en el limitador en memoria de `buscar`. El runbook explica cómo calcular el sujeto de una IPv6.
+4. **Bearer de admin.** Válido: pasa siempre, no cuenta. Inválido: `hit()` primero y 401 o 429 según el valor (sin `peek()`, que dejaba pasar más de 5 con requests concurrentes; test RL13c). `peek()` quedó sin uso en el código de la app. `sync-por-lotes.sh` corta también ante `rate_limited`.
+5. **429 en navegaciones.** `login` y `callback` usan la opción `rateLimitRedirect` de `withApi`: redirigen (302) a `/login?error=rate_limited`, que muestra un mensaje en español.
+6. **Content-Type sin Content-Length.** Sin `Content-Type`, se rechaza si `Content-Length` > 0 o, sin esa cabecera (chunked), si `request.body` no es `null`.
+7. **Tope de `matchIds`**: 6 (ver el cálculo de subrequests en §12). La UI baja de 25 a 6 por clic. Implicancia de producto: "Agregar todos" necesita más clics con listas largas.
+8. **Logout** solo por `POST` con las guardas normales (origen; sin exigir JSON porque el formulario del navegador envía `application/x-www-form-urlencoded`). `GET` responde 405 con `Allow: POST`. Los enlaces pasaron a formularios (menú móvil y Configuración) y el E2E busca un botón.
+9. **Descubrimiento**: `tests/unit/rate-limit/descubrimiento.test.ts` exige que todo `pages/api/admin/**` use `verificarAdmin` (y no `isAdminAuthorized` directo). `admin/encrypt-tokens.ts` no existe en esta rama: lo trae el PR #56 y el test lo cubrirá al integrarse.
+
 ### 13.4 Fuera de alcance / conocido
 
-- `GET /api/auth/logout` sigue siendo un `GET` que cambia estado (cierra la sesión): no pasa por la verificación de origen y un sitio ajeno podría cerrar la sesión (molestia, no robo de datos). Pasarlo a `POST` cambia los enlaces de la UI; queda para otro PR.
+- (Resuelto en §13.5) `logout` pasó a `POST`.
 - El límite de `login`/`callback` usa un hash de IP: usuarios detrás de un mismo NAT comparten contador (R1). Los valores del §5.3 se mantienen; `RATE_LIMIT_MODE=observe` permite calibrarlos antes de bloquear.
 - Pendiente del dueño: S3, confirmar `cf-connecting-ip` y, opcionalmente, la regla del WAF de D3. Los pasos están en la descripción del PR y en `docs/23` §6.
