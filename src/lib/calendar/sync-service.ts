@@ -55,6 +55,7 @@ export interface SyncOptions {
 
 const MENSAJES_CORTE: Partial<Record<CalendarErrorClass, string>> = {
   auth: "Hay que volver a conectar el calendario",
+  scope: "Falta el permiso para escribir en tu calendario: volvé a iniciar sesión y aceptá el acceso al calendario",
   rate_limit: "El calendario pidió esperar un rato, reintentá más tarde",
   config: "Servicio no disponible por un problema de configuración, reintentá más tarde",
 };
@@ -233,12 +234,13 @@ export async function syncMatches(
     } catch (error) {
       const code = classifyCalendarError(error);
 
-      if (code === "auth" || code === "rate_limit" || code === "config") {
+      if (code === "auth" || code === "scope" || code === "rate_limit" || code === "config") {
         // No es culpa del partido: se corta, no se marca nada como failed y se reintenta cuando se pueda (D4)
         rootLogger.warn("calendar_sync_aborted", { matchId, code, pending: ids.length - i });
         const message = MENSAJES_CORTE[code] ?? "Error desconocido";
-        // TokenUnreadableError también cuenta: el token guardado no sirve. La falta de clave (config) no marca a nadie
-        const tokenInvalido = code === "auth" && !(error instanceof CalendarApiError);
+        // TokenUnreadableError también cuenta: el token guardado no sirve. La falta de clave (config) no marca a nadie.
+        // Sin el permiso de calendario (scope) el usuario tiene que reconectar: queda como reauth_required
+        const tokenInvalido = (code === "auth" && !(error instanceof CalendarApiError)) || code === "scope";
         for (const id of ids.slice(i)) results.push({ matchId: id, success: false, error: message, code, ...(tokenInvalido && { tokenInvalido }) });
         break;
       }
