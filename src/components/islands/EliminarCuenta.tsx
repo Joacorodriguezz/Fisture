@@ -9,6 +9,7 @@ interface Props {
 // El servidor vuelve a validar la confirmación (docs/14-borrado-de-cuenta-tdd.md).
 export default function EliminarCuenta({ email, provider }: Props) {
   const dialogo = useRef<HTMLDialogElement>(null);
+  const botonAbrir = useRef<HTMLButtonElement>(null);
   const [confirmacion, setConfirmacion] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,13 +53,14 @@ export default function EliminarCuenta({ email, provider }: Props) {
           Borra tu usuario, tus equipos y tus preferencias. No se puede deshacer.
         </span>
       </div>
-      <button type="button" className="tb-boton" onClick={abrir}>
+      <button ref={botonAbrir} type="button" className="tb-boton" onClick={abrir}>
         Eliminar mi cuenta
       </button>
 
       <dialog
         ref={dialogo}
         aria-labelledby="eliminar-cuenta-titulo"
+        onClose={() => botonAbrir.current?.focus()}
         onCancel={(e) => {
           if (ocupado) e.preventDefault();
         }}

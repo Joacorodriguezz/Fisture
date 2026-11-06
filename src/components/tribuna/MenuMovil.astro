@@ -27,7 +27,7 @@ const DETALLE: Record<string, { detalle: string; pagina: string }> = {
     Menú
   </button>
 
-  <div id="tb-menu-panel" class="tb-menu__panel" role="dialog" aria-modal="true" aria-label="Menú" hidden>
+  <dialog id="tb-menu-panel" class="tb-menu__panel" aria-label="Menú" hidden>
     <div class="tb-menu__cab">
       <span class="tb-menu__nombre">Fisture</span>
       <button type="button" class="tb-menu__cerrar" data-menu-cerrar>Cerrar ✕</button>
@@ -60,26 +60,52 @@ const DETALLE: Record<string, { detalle: string; pagina: string }> = {
         loginHref && <a class="tb-menu__login" href={loginHref}>Iniciar sesión</a>
       )}
     </div>
-  </div>
+  </dialog>
 </div>
 
 <script>
-  const panel = document.getElementById("tb-menu-panel");
+  const panel = document.querySelector<HTMLDialogElement>("#tb-menu-panel");
   const abrir = document.querySelector<HTMLButtonElement>("[data-menu-abrir]");
   const cerrar = document.querySelector<HTMLButtonElement>("[data-menu-cerrar]");
 
-  function mostrar(visible: boolean) {
+  let overflowAnterior = "";
+
+  function mostrar() {
     if (!panel || !abrir) return;
-    panel.hidden = !visible;
-    abrir.setAttribute("aria-expanded", String(visible));
-    document.body.style.overflow = visible ? "hidden" : "";
-    if (visible) cerrar?.focus();
-    else abrir.focus();
+    if (panel.open) return;
+    overflowAnterior = document.body.style.overflow;
+    panel.hidden = false;
+    panel.showModal(); // El navegador deja inerte el fondo y contiene el foco.
+    abrir.setAttribute("aria-expanded", "true");
+    document.body.style.overflow = "hidden";
+    cerrar?.focus();
   }
 
-  abrir?.addEventListener("click", () => mostrar(true));
-  cerrar?.addEventListener("click", () => mostrar(false));
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && panel && !panel.hidden) mostrar(false);
+  abrir?.addEventListener("click", mostrar);
+  cerrar?.addEventListener("click", () => panel?.close());
+  panel?.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const controles = [...panel.querySelectorAll<HTMLElement>("button:not([disabled]), a[href]")]
+      .filter((control) => control.getClientRects().length > 0);
+    const primero = controles[0];
+    const ultimo = controles[controles.length - 1];
+    // Ciclar dentro del menú también en Chromium, que permite pasar a la barra del navegador.
+    if (event.shiftKey && document.activeElement === primero) {
+      event.preventDefault();
+      ultimo?.focus();
+    } else if (!event.shiftKey && document.activeElement === ultimo) {
+      event.preventDefault();
+      primero?.focus();
+    }
+  });
+  panel?.addEventListener("close", () => {
+    panel.hidden = true;
+    abrir?.setAttribute("aria-expanded", "false");
+    document.body.style.overflow = overflowAnterior;
+    abrir?.focus();
+  });
+  // Evitar que quede un modal invisible bloqueando la página al pasar a escritorio.
+  matchMedia("(max-width: 640px)").addEventListener("change", (event) => {
+    if (!event.matches && panel?.open) panel.close();
   });
 </script>
