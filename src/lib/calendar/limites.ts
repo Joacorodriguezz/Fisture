@@ -10,5 +10,9 @@
 export const SUBREQUESTS_FREE = 50;
 export const COSTO_FIJO_REQUEST = 8;
 export const COSTO_PARTIDO_PEOR_CASO = 7;
+// Reserva para una renovación forzada tras un 401 (refresh + guardado) y el reintento de esa llamada
+export const RESERVA_RENOVACION_FORZADA = 3;
 
-export const MAX_PARTIDOS_POR_REQUEST = Math.floor((SUBREQUESTS_FREE - COSTO_FIJO_REQUEST) / COSTO_PARTIDO_PEOR_CASO);
+export const MAX_PARTIDOS_POR_REQUEST = Math.floor(
+  (SUBREQUESTS_FREE - COSTO_FIJO_REQUEST - RESERVA_RENOVACION_FORZADA) / COSTO_PARTIDO_PEOR_CASO
+);

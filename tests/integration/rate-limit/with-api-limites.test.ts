@@ -318,7 +318,7 @@ describe("endpoints con política propia", () => {
     const matchIds = Array.from({ length: 7 }, (_, i) => `m${i}`);
     const res = await syncPost(apiCtx({ url: `${APP}/api/calendario/sync`, method: "POST", headers: base, body: { matchIds }, user: { id: "u1" }, env: env() }));
     expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: "too_many_matchIds", max: 6 });
+    expect(await res.json()).toMatchObject({ error: "too_many_matchIds", max: 5 });
   });
 
   it("RL15: buscar da 429 en la request 61 desde una IP y no escribe en D1", async () => {

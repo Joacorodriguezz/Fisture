@@ -7,6 +7,9 @@
 
 export const CLAVE_MODO = "ratelimit:modo";
 export const TTL_CONFIG_MS = 45_000;
+// Si KV falla, el último valor conocido se usa como mucho este tiempo desde la última lectura buena;
+// después manda el secret de arranque (así un "off" no queda pegado indefinidamente).
+export const VIGENCIA_MAX_SIN_KV_MS = 10 * 60_000;
 
 export interface EnvModo {
   KV?: Pick<KVNamespace, "get">;
@@ -19,7 +22,7 @@ export interface Modo {
   observe: boolean;
 }
 
-let cache: { valor: string | null; vence: number } | null = null;
+let cache: { valor: string | null; vence: number; leido: number } | null = null;
 
 export function reiniciarConfig(): void {
   cache = null;
@@ -29,12 +32,13 @@ async function valorKv(kv: Pick<KVNamespace, "get">, now: number): Promise<strin
   if (cache && cache.vence > now) return cache.valor;
   try {
     const valor = (await kv.get(CLAVE_MODO))?.trim().toLowerCase() || null;
-    cache = { valor, vence: now + TTL_CONFIG_MS };
+    cache = { valor, vence: now + TTL_CONFIG_MS, leido: now };
     return valor;
   } catch {
-    // KV caído: se conserva el último valor conocido (aunque haya vencido) y se reintenta pasado el TTL
-    if (cache) {
-      cache = { valor: cache.valor, vence: now + TTL_CONFIG_MS };
+    // KV caído: se conserva el último valor conocido y se reintenta pasado el TTL, pero solo hasta
+    // VIGENCIA_MAX_SIN_KV_MS desde la última lectura buena; después manda el secret de arranque
+    if (cache && now - cache.leido < VIGENCIA_MAX_SIN_KV_MS) {
+      cache = { ...cache, vence: now + TTL_CONFIG_MS };
       return cache.valor;
     }
     return null;
