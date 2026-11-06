@@ -30,6 +30,9 @@ const avisos = prefs ? [prefs.reminder60 && "1 hora", prefs.reminder15 && "15 mi
 const avisosTxt = avisos.length ? `${avisos.join(" y ")} antes` : "Sin avisos";
 
 const venue = match.venue ?? "Sede a confirmar";
+const rutaLiga = rutaPublica("ligas", league.id);
+const rutaLocal = rutaPublica("equipos", homeTeam.id);
+const rutaVisitante = rutaPublica("equipos", awayTeam.id);
 const fin = horaFin(match.dateTime);
 
 const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
@@ -50,23 +53,24 @@ const jsonLd = [
     <a href="/partidos" class="tb-volver">← Partidos</a>
 
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:16px">
-      <Volanta tono="rojo">{league.name}{match.round ? ` · ${match.round}` : ""}</Volanta>
-      <div style="display:flex;align-items:center;gap:20px">
-        <Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={112} pad={14} />
+      <Volanta tono="rojo"><a href={rutaLiga} class="fp-enlace">{league.name}</a>{match.round ? ` · ${match.round}` : ""}</Volanta>
+      <div class="fp-duelo" style="display:flex;align-items:center;gap:20px">
+        {/* El escudo se toca, pero el enlace accesible es el nombre del titular: no se duplica para teclado ni lector */}
+        <a href={rutaLocal} tabindex="-1" aria-hidden="true" class="fp-escudo"><Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={112} pad={14} /></a>
         <span style="font:400 40px/1 var(--font-titular);color:var(--rojo)">VS</span>
-        <Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={112} pad={14} />
+        <a href={rutaVisitante} tabindex="-1" aria-hidden="true" class="fp-escudo"><Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={112} pad={14} /></a>
       </div>
-      <Titular nivel="tapa">{homeTeam.name} vs {awayTeam.name}</Titular>
+      <Titular nivel="tapa"><a href={rutaLocal} class="fp-equipo">{homeTeam.name}</a> vs <a href={rutaVisitante} class="fp-equipo">{awayTeam.name}</a></Titular>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:24px;max-width:720px">
       <div style="display:flex;flex-direction:column;gap:24px">
-        <Recuadro titulo="Ficha del partido">
+        <Recuadro titulo="Ficha del partido" nivel={2}>
           <div style="display:flex;flex-direction:column;gap:8px">
             <div><b>Día:</b> {fechaLarga(match.dateTime)}</div>
             <div><b>Hora:</b> {hora(match.dateTime)} a {fin} hs (Buenos Aires)</div>
             <div><b>Estadio:</b> {venue}</div>
-            <div><b>Torneo:</b> {league.name}{match.round ? ` · ${match.round}` : ""}</div>
+            <div><b>Torneo:</b> <a href={rutaLiga} class="fp-enlace">{league.name}</a>{match.round ? ` · ${match.round}` : ""}</div>
             {user && <div><b>Avisos:</b> {avisosTxt}</div>}
           </div>
         </Recuadro>

@@ -128,7 +128,7 @@ export default function HoyMovil({ dias, grupos, anonimo, soloMios, hrefTodos, h
       <div className="hm-sticky">
         <div className="hm-scroll hm-dias" ref={tira} role="navigation" aria-label="Cambiar de día">
           {dias.map((d) => (
-            <a key={d.iso} className="hm-dia" href={d.href} aria-current={d.activo ? "date" : undefined}>
+            <a key={d.iso} className="hm-dia" href={d.href} aria-current={d.activo ? "date" : undefined} aria-label={`${d.esHoy ? "Hoy" : d.semana} ${d.numero}: ${d.cantidad} ${d.cantidad === 1 ? "partido" : "partidos"}`}>
               <span className={`hm-dia__sem${d.esHoy ? " hm-dia__sem--hoy" : ""}`}>{d.esHoy ? "Hoy" : d.semana}</span>
               <span className="hm-dia__num">{d.numero}</span>
               <span className="hm-dia__cant">{d.cantidad} p.</span>

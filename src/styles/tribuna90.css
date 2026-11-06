@@ -195,14 +195,14 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 .tb-volanta--tinta { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
 .tb-volanta--texto { padding: 0; color: var(--rojo); }
 /* Titular */
-.tb-titular { margin: 0; font-family: var(--font-titular); font-weight: 400; text-transform: uppercase; color: var(--tinta); }
+.tb-titular { margin: 0; font-family: var(--font-titular); font-weight: 400; text-transform: uppercase; color: var(--tinta); overflow-wrap: anywhere; }
 .tb-titular--tapa { font-size: 96px; line-height: .88; }
 .tb-titular--1 { font-size: 64px; line-height: .92; }
 .tb-titular--2 { font-size: 40px; line-height: 1; }
 .tb-titular--3 { font-size: 26px; line-height: 1.05; }
 .tb-titular--rojo { color: var(--rojo); }
 .tb-titular--sobre-foto { color: var(--amarillo); -webkit-text-stroke: 2px var(--on-amarillo); paint-order: stroke fill; text-shadow: 4px 4px 0 var(--on-amarillo); }
-@media (max-width: 640px) { .tb-titular--tapa { font-size: 56px; } .tb-titular--1 { font-size: 40px; } .tb-titular--2 { font-size: 30px; } }
+@media (max-width: 640px) { .tb-titular--tapa { font-size: clamp(36px, 12vw, 56px); } .tb-titular--1 { font-size: 40px; } .tb-titular--2 { font-size: 30px; } }
 /* Bajada */
 .tb-bajada { margin: 0; padding: var(--space-2) 0; border-top: 3px solid var(--rojo); border-bottom: 1px solid var(--rojo); font: italic 400 20px/28px var(--font-texto); color: var(--tinta); }
 /* Intertítulo */
@@ -401,7 +401,12 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
   .tb-chip { display: inline-flex; align-items: center; }
   .tb-cabecera__nav a { padding: 12px 10px; margin: 0 -10px; }
   .tb-cabecera__nav { gap: var(--space-1) var(--space-6); }
+  /* Enlaces de texto sueltos: zona de 44px sin cambiar el aspecto; el margen negativo conserva la grilla. */
+  .tb-volver, .tb-migas a, .tb-enlace-tactil { display: inline-flex; align-items: center; min-height: 44px; margin-block: -13px; }
+  .tb-footer__enlace { display: inline-flex; align-items: center; min-height: 44px; }
 }
+/* Sin la demora del doble toque para hacer zoom; el zoom con pellizco sigue disponible. */
+a, button, input, select, textarea, summary, label { touch-action: manipulation; }
 @media (max-width: 640px) {
   .tb-cabecera__nombre { font-size: 44px; }
 }

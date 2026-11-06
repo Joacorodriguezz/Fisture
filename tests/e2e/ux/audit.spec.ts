@@ -237,6 +237,142 @@ for (const theme of ["papel", "nocturna"]) {
   }
 }
 
+for (const width of [320, 375]) {
+  test(`partido: nombres largos y escudos entran a ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/partidos/superclasico");
+    const titulo = page.getByRole("heading", { level: 1 });
+    await expect(titulo).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    // Nombres reales de ESPN: una palabra de 15 letras no puede partirse por espacios.
+    await titulo.evaluate((element) => { element.textContent = "Hamburger SV vs Borussia Mönchengladbach"; });
+    const medidas = await page.evaluate(() => {
+      const main = document.querySelector("main")!;
+      const padding = parseFloat(getComputedStyle(main).paddingRight);
+      const h1 = document.querySelector("h1")!;
+      return {
+        content: document.documentElement.scrollWidth,
+        viewport: document.documentElement.clientWidth,
+        tituloContent: h1.scrollWidth,
+        tituloWidth: h1.clientWidth,
+        escudosRight: document.querySelector("main .tb-escudo")!.parentElement!.getBoundingClientRect().right,
+        limite: main.getBoundingClientRect().right - padding,
+      };
+    });
+    await info.attach(`partido-largo-${width}px`, { body: await page.screenshot(), contentType: "image/png" });
+    expect(medidas.tituloContent, "El titular debe ajustar dentro de su caja").toBeLessThanOrEqual(medidas.tituloWidth + 1);
+    expect(medidas.content, "Sin desborde horizontal").toBeLessThanOrEqual(medidas.viewport + 1);
+    expect(medidas.escudosRight, "Los escudos deben respetar el margen").toBeLessThanOrEqual(medidas.limite + 1);
+  });
+}
+
+test("partido: equipos y competencia llevan a sus páginas", async ({ page }) => {
+  await page.goto("/partidos/superclasico");
+  const equipos = page.getByRole("heading", { level: 1 }).getByRole("link");
+  await expect(equipos).toHaveCount(2);
+  for (const enlace of await equipos.all()) await expect(enlace).toHaveAttribute("href", /^\/equipos\/[^/]+$/);
+  // Los escudos también se tocan, pero no duplican el enlace para el teclado ni el lector de pantalla.
+  const escudos = page.locator("main a:has(.tb-escudo)");
+  await expect(escudos).toHaveCount(2);
+  for (const escudo of await escudos.all()) {
+    await expect(escudo).toHaveAttribute("tabindex", "-1");
+    await expect(escudo).toHaveAttribute("aria-hidden", "true");
+  }
+  const competencia = page.locator(".tb-volanta a");
+  await expect(competencia).toHaveAttribute("href", /^\/ligas\/[^/]+$/);
+  await expect(page.locator(".tb-recuadro a[href^='/ligas/']")).toHaveCount(1);
+
+  const nombre = (await equipos.first().textContent())!.trim();
+  await equipos.first().click();
+  await expect(page).toHaveURL(/\/equipos\//);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(nombre, { ignoreCase: true });
+  await page.goBack();
+  await competencia.click();
+  await expect(page).toHaveURL(/\/ligas\//);
+});
+
+test("equipo: sin sesión, un solo aviso para iniciar sesión en lugar de uno por partido", async ({ page }, info) => {
+  await page.goto("/equipos/river");
+  const filas = page.locator(".eq-fila");
+  expect(await filas.count()).toBeGreaterThan(0);
+  await expect(filas.getByRole("button")).toHaveCount(0);
+  const aviso = page.getByRole("region", { name: "Agregar al calendario" });
+  await expect(aviso.getByRole("link", { name: "Iniciá sesión", exact: true })).toHaveAttribute("href", "/login?next=%2Fequipos%2Friver");
+  await expect(page.getByRole("button", { name: /Iniciá sesión/ })).toHaveCount(0);
+  await info.attach("equipo-visitante", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+});
+
+for (const conSesion of [false, true]) {
+  test(`equipo: la cabecera usa todo el ancho y la liga es un enlace (${conSesion ? "con sesión" : "visitante"})`, async ({ page, isMobile }, info) => {
+    test.skip(!isMobile, "La grilla de la cabecera es la vista móvil");
+    if (conSesion) await login(page, info, "navigation");
+    await page.goto("/equipos/river");
+    await expect(page.locator(".eq-titulo .tb-volanta a")).toHaveAttribute("href", /^\/ligas\/[^/]+$/);
+    const medidas = await page.evaluate(() => {
+      const caja = (s: string) => document.querySelector(s)!.getBoundingClientRect();
+      const cab = caja(".eq-cab");
+      return {
+        cabIzq: cab.left, cabDer: cab.right,
+        comp: caja(".eq-competencias"),
+        botones: [...document.querySelectorAll(".eq-acciones .tb-boton")].map((b) => { const r = b.getBoundingClientRect(); return { izq: r.left, der: r.right, top: r.top }; }),
+      };
+    });
+    await info.attach("cabecera-equipo", { body: await page.locator(".eq-cab").screenshot(), contentType: "image/png" });
+    expect(medidas.comp.left, "Las competencias no van en la columna del escudo").toBeLessThanOrEqual(medidas.cabIzq + 1);
+    expect(medidas.comp.right, "Las competencias ocupan todo el ancho").toBeGreaterThanOrEqual(medidas.cabDer - 1);
+    expect(medidas.botones.length).toBeGreaterThan(0);
+    // Cada fila de botones llena el ancho: un botón solo ocupa toda la fila; dos la comparten.
+    const filas = new Map<number, { izq: number; der: number }[]>();
+    for (const boton of medidas.botones) filas.set(Math.round(boton.top), [...(filas.get(Math.round(boton.top)) ?? []), boton]);
+    for (const fila of filas.values()) {
+      expect(Math.min(...fila.map((b) => b.izq)), "La fila arranca en el borde").toBeLessThanOrEqual(medidas.cabIzq + 1);
+      expect(Math.max(...fila.map((b) => b.der)), "La fila no deja medio ancho vacío").toBeGreaterThanOrEqual(medidas.cabDer - 1);
+    }
+  });
+}
+
+test("equipo: con sesión, cada partido mantiene su acción y no hay aviso", async ({ page }, info) => {
+  await login(page, info, "navigation");
+  await page.goto("/equipos/river");
+  await expect(page.getByRole("region", { name: "Agregar al calendario" })).toHaveCount(0);
+  const filas = page.locator(".eq-fila");
+  await expect(filas.first().getByRole("button")).toHaveCount(1);
+});
+
+test("partido: la ficha es un h2 bajo el titular", async ({ page }) => {
+  await page.goto("/partidos/superclasico");
+  await expect(page.getByRole("heading", { level: 2, name: "Ficha del partido" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3 })).toHaveCount(0);
+});
+
+test("táctil: los enlaces de navegación miden al menos 44px de alto", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "La zona táctil ampliada aplica solo con puntero grueso");
+  const casos: Array<[string, string]> = [
+    ["/", "main a[href='/ayuda']"],
+    ["/", ".tb-footer__enlace"],
+    ["/partidos/superclasico", ".tb-volver"],
+    ["/equipos/river", ".eq-mig a"],
+  ];
+  for (const [path, selector] of casos) {
+    await page.goto(path);
+    const enlaces = page.locator(selector);
+    expect(await enlaces.count(), `${path} ${selector}`).toBeGreaterThan(0);
+    for (const enlace of await enlaces.all()) {
+      const alto = await enlace.evaluate((element) => element.getBoundingClientRect().height);
+      expect(alto, `${path} ${selector}`).toBeGreaterThanOrEqual(44);
+    }
+  }
+});
+
+test("hoy: la tira de días usa texto de al menos 12px", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "La tira de días es la vista móvil de Hoy");
+  await page.goto("/hoy");
+  const dia = page.locator(".hm-dia").first();
+  await expect(dia).toBeVisible();
+  const tamanos = await page.locator(".hm-dia__sem, .hm-dia__cant").evaluateAll((elements) => elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
+  expect(Math.min(...tamanos)).toBeGreaterThanOrEqual(12);
+});
+
 for (const width of [320, 375, 768, 1280]) {
   test(`reflow: pantallas principales a ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });

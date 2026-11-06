@@ -181,3 +181,25 @@ Se integró `development` hasta `4bb8199` y se ejecutó nuevamente `npm run chec
 
 - Las acciones de las filas de `/partidos` en móvil (Agregar, Iniciá sesión) pasan de 30 a 40 px de alto, como el resto de los botones compactos de la app; 30 px era poco para tocar con el dedo.
 - Los mensajes de la island del partido (motivo del error, solapamiento, error de la acción) ya no quedan apretados en la columna de 110 px del botón: en móvil la island se integra a la grilla de la fila, el estado corto queda debajo del botón y los mensajes largos ocupan el ancho de la columna de los equipos.
+
+## Auditoría mobile en staging (2026-11-06)
+
+Recorrido de solo lectura (GET, sin sesión) por 14 rutas públicas de `https://development.fisture.pages.dev`, en WebKit con iPhone SE, Chromium con Pixel 7 y Chromium a 320 px. Se midieron desborde horizontal, áreas táctiles, tamaño de texto, zoom de iOS en campos, axe (WCAG 2.2 AA y buenas prácticas) y consola. Además, el código se revisó contra las Web Interface Guidelines de Vercel.
+
+Sin problemas: ninguna otra ruta desborda, ningún campo tiene menos de 16 px (iOS no hace zoom al enfocarlo), el viewport permite zoom, los focos tienen reemplazo visible, la barra fija respeta el área segura y axe no encontró fallas de contraste ni de etiquetas.
+
+| # | Prioridad | Hallazgo | Estado |
+| --- | --- | --- | --- |
+| M-01 | P1 | En la ficha del partido, un nombre largo («Borussia Mönchengladbach») hace que el titular de 56 px mida 431 px a 320, 375 y 412 px: se corta y la página se desplaza de costado. | Corregido: titular de `clamp(36px, 12vw, 56px)` en móvil y `overflow-wrap: anywhere`. |
+| M-02 | P2 | UX-08 sigue: el buscador empieza en `y=657` a 375 × 667. | Pendiente: `docs/28`. |
+| M-03 | P2 | UX-09 sigue: la búsqueda no se guarda en la URL y se pierde al recargar. | Pendiente: `docs/28`. |
+| M-04 | P2 | Enlaces de texto sueltos de 16–18 px de alto: «← Volver», migas del equipo, «Preguntas frecuentes →» y pie. | Corregido: zona de 44 px con puntero grueso, sin cambiar el aspecto. |
+| M-05 | P3 | UX-10: chips, segmentos y «Iniciá sesión» de Hoy en 40 px. | Sin cambios, pendiente de prueba física. |
+| M-06 | P3 | Tira de días de Hoy en 11 px; «14 p.» no se entiende con lector de pantalla. | Corregido: 12 px y `aria-label` («Vie 7: 26 partidos»). |
+| M-07 | P3 | A 320 px los escudos de la ficha (2 × 112 px y «VS») invaden el margen derecho. | Corregido: 88 px en ≤ 420 px. |
+| M-08 | P3 | La ficha del partido salta de `h1` a `h3` (axe `heading-order`). | Corregido: `Recuadro` acepta `nivel` y la ficha usa `h2`. |
+| M-09 | P3 | En Hoy a 320 px los nombres de equipo se cortan con puntos suspensivos. | Sin cambios: la fila prioriza hora y acción; revisar con personas. |
+| M-10 | P3 | Sin `touch-action: manipulation`; «Desvinculando...» con tres puntos. | Corregido. |
+| — | Solo staging | axe `region` en el aviso de staging (`role="note"` fuera de un landmark). | Sin cambios: no llega a producción. |
+
+Regresiones nuevas en `tests/e2e/ux/audit.spec.ts`: titular con nombres largos y escudos a 320/375 px, ficha como `h2`, enlaces de navegación de al menos 44 px en móvil y texto de la tira de días de al menos 12 px. Se comprobó que fallan sin la corrección (431 px de ancho; 18 px de alto; 11 px) y pasan con ella.

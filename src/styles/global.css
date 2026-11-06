@@ -385,7 +385,7 @@ a:hover {
   color: var(--crema-sobre-oscuro);
 }
 .hm-dia__sem {
-  font: 700 11px/1 var(--font-rotulo);
+  font: 700 12px/1 var(--font-rotulo);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -399,7 +399,7 @@ a:hover {
   font: 400 24px/1 var(--font-titular);
 }
 .hm-dia__cant {
-  font: 600 11px/1 var(--font-rotulo);
+  font: 600 12px/1 var(--font-rotulo);
   color: var(--tinta-suave);
 }
 .hm-dia[aria-current="date"] .hm-dia__cant {
@@ -842,6 +842,10 @@ a:hover {
     justify-self: start;
     min-width: 0;
   }
+  /* La lista de competencias va debajo, a todo el ancho, no en la columna de 96px del escudo */
+  .eq-titulo > .eq-competencias {
+    grid-column: 1 / -1;
+  }
   .eq-escudo .tb-escudo {
     width: 96px !important;
     height: 96px !important;
@@ -876,6 +880,10 @@ a:hover {
     width: 100%;
     text-align: center;
     text-decoration: none;
+  }
+  /* Sin «Dejar de seguir» al lado, «Descargar .ics» queda solo en su fila: que la ocupe entera */
+  .eq-acciones:has(.seg > .tb-boton:first-child) > .tb-boton {
+    grid-column: 1 / -1;
   }
   .eq-acciones .seg__confirmar {
     grid-column: 1 / -1;
@@ -1012,5 +1020,68 @@ a:hover {
 @media (max-width: 359px) {
   .pm-fila .pm-login {
     display: none;
+  }
+}
+
+/* Equipo sin sesión: un aviso para iniciar sesión en lugar de un botón por partido */
+.eq-aviso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 2px solid var(--tinta);
+  background: var(--papel-2);
+}
+.eq-aviso p {
+  margin: 0;
+  flex: 1 1 220px;
+  font: 400 16px/22px var(--font-texto);
+}
+.eq-flecha {
+  margin-left: auto;
+  padding-left: 8px;
+  font: 400 28px/1 var(--font-titular);
+  color: var(--tinta-suave);
+}
+
+/* Ficha del partido: equipos y competencia llevan a sus páginas */
+.fp-equipo {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.06em;
+  text-decoration-color: var(--rojo);
+}
+/* Con el subrayado, el interlineado de tapa (.88) pega la línea con la de abajo */
+.tb-titular:has(.fp-equipo) {
+  line-height: 1;
+}
+.fp-enlace {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.fp-equipo:hover {
+  color: var(--rojo);
+}
+.fp-escudo {
+  display: block;
+  flex: none;
+}
+.fp-equipo:focus-visible,
+.fp-enlace:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+/* Ficha del partido: en pantallas angostas los escudos se achican para respetar el margen */
+@media (max-width: 420px) {
+  .fp-duelo {
+    --escudo-tamano: 88px;
+    gap: 12px !important;
   }
 }
