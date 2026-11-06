@@ -9,13 +9,17 @@ on:
       entorno:
         description: "Dónde correrlo"
         type: choice
-        options: [produccion, staging]
-        default: produccion
+        options: [staging, produccion]
+        default: staging
       direction:
         description: "encrypt (normal) o decrypt (solo rollback)"
         type: choice
         options: [encrypt, decrypt]
         default: encrypt
+      confirmar:
+        description: "Para decrypt en produccion, escribir: produccion"
+        type: string
+        default: ""
 
 concurrency:
   group: encrypt-tokens-${{ inputs.entorno }}
@@ -29,6 +33,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # Producción solo desde main; decrypt en producción exige confirmarlo a mano.
+      - name: Validar entorno
+        env:
+          ENTORNO: ${{ inputs.entorno }}
+          DIRECTION: ${{ inputs.direction }}
+          CONFIRMAR: ${{ inputs.confirmar }}
+        run: |
+          if [ "$ENTORNO" = "produccion" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Producción solo se lanza desde main (ref: $GITHUB_REF)"; exit 1
+          fi
+          if [ "$ENTORNO" = "produccion" ] && [ "$DIRECTION" = "decrypt" ] && [ "$CONFIRMAR" != "produccion" ]; then
+            echo "::error::decrypt en producción requiere confirmar=produccion"; exit 1
+          fi
       - name: Recorrer el backfill
         env:
           APP_URL: ${{ inputs.entorno == 'staging' && 'https://development.fisture.pages.dev' || secrets.PUBLIC_APP_URL }}
