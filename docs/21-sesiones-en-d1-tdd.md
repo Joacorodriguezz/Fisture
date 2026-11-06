@@ -1,6 +1,6 @@
 # TDD: Sesiones en D1 (en lugar de KV)
 
-> Technical Design Document. Estado: **propuesto, pendiente de revisión**. Fecha: 2026-10-26. Rama de implementación: `feat/sesiones-en-d1`, desde `development`.
+> Technical Design Document. Estado: **implementado** (PR #37, en producción desde el release #39 del 2026-10-29). Fecha: 2026-10-26. Rama de implementación: `feat/sesiones-en-d1`, desde `development`.
 >
 > Este documento registra **qué problema hay hoy, qué decidimos y por qué**. El código y los tests se escriben después de que se apruebe, siguiendo el orden del §7. No es urgente: el incidente del 2026-10-26 se resuelve con `docs/20-login-sin-kv-tdd.md`. Este cambio saca el último uso de KV que crece con los usuarios.
 
