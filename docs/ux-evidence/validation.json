@@ -2,16 +2,22 @@
   "node": "22.23.4",
   "command": "npm run check",
   "exitCode": 0,
+  "baseCommit": "4bb8199a462e745d0b65bb336f3b471137b73c7b",
+  "unitIntegration": {
+    "files": 77,
+    "passed": 1022,
+    "todo": 1
+  },
   "ux": {
-    "startTime": "2026-11-05T22:44:43.125Z",
-    "duration": 79876.553,
-    "expected": 104,
+    "startTime": "2026-11-06T00:42:44.633Z",
+    "duration": 152420.857,
+    "expected": 134,
     "skipped": 1,
     "unexpected": 0,
     "flaky": 0
   },
   "e2e": {
-    "passed": 65,
+    "passed": 67,
     "skipped": 9
   },
   "staging": {

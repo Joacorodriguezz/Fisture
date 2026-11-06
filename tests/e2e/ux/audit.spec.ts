@@ -187,30 +187,45 @@ test("Hoy: volver desde un partido conserva fecha y filtro", async ({ page }, in
 
 for (const theme of ["papel", "nocturna"]) {
   for (const width of [320, 375]) {
-    test(`Próximos partidos: hora y nombres completos a ${width}px (${theme})`, async ({ page }, info) => {
-      await page.setViewportSize({ width, height: 812 });
-      await page.goto("/partidos");
-      await page.evaluate((value) => document.documentElement.dataset.theme = value, theme);
-      await page.evaluate(() => document.fonts.ready);
-      const row = page.locator(".pm-fila").filter({ has: page.locator('.pm-enlace[href="/partidos/neutral-match"]') });
-      await expect(row).toBeVisible();
-      const time = await row.locator(".pm-hora").evaluate((element) => {
-        const range = document.createRange();
-        range.selectNodeContents(element);
-        return { boxWidth: element.getBoundingClientRect().width, textWidth: range.getBoundingClientRect().width };
+    for (const signedIn of [false, true]) {
+      test(`Próximos partidos: hora y nombres completos a ${width}px (${theme}, ${signedIn ? "con sesión" : "visitante"})`, async ({ page }, info) => {
+        await page.setViewportSize({ width, height: 812 });
+        if (signedIn) await login(page, info, "navigation");
+        await page.goto("/partidos");
+        await page.evaluate((value) => document.documentElement.dataset.theme = value, theme);
+        await page.evaluate(() => document.fonts.ready);
+        const matchId = signedIn ? "superclasico" : "neutral-match";
+        const row = page.locator(".pm-fila").filter({ has: page.locator(`.pm-enlace[href="/partidos/${matchId}"]`) });
+        await expect(row).toBeVisible();
+        if (signedIn) await ready(page, row.getByRole("button", { name: "Agregar", exact: true }));
+        const time = await row.locator(".pm-hora").evaluate((element) => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          return { boxWidth: element.getBoundingClientRect().width, textWidth: range.getBoundingClientRect().width };
+        });
+        expect(time.textWidth, "La hora no debe invadir la columna de los equipos").toBeLessThanOrEqual(time.boxWidth + 1);
+        const positions = await row.evaluate((element) => {
+          const rect = (selector: string) => element.querySelector(selector)!.getBoundingClientRect();
+          const teams = rect(".pm-equipos");
+          const time = rect(".pm-hora");
+          const action = rect(".pm-login, .pm-accion button");
+          return { teamsRight: teams.right, actionLeft: action.left, teamsCenter: teams.y + teams.height / 2, timeCenter: time.y + time.height / 2, actionCenter: action.y + action.height / 2 };
+        });
+        expect(positions.actionLeft, "La acción debe quedar a la derecha de los equipos").toBeGreaterThan(positions.teamsRight);
+        expect(Math.abs(positions.timeCenter - positions.teamsCenter), "La hora debe centrarse entre los dos equipos").toBeLessThan(1);
+        expect(Math.abs(positions.actionCenter - positions.teamsCenter), "La acción debe centrarse entre los dos equipos").toBeLessThan(1);
+        const names = row.locator(".pm-nombre");
+        await expect(names).toHaveCount(2);
+        // Someter la fila a nombres largos, sin depender de datos de proveedores externos.
+        await names.first().evaluate((element) => { element.textContent = "Club Atletico de la Ciudad de Buenos Aires"; });
+        for (const name of await names.all()) {
+          const size = await name.evaluate((element) => ({ content: element.scrollWidth, width: element.clientWidth }));
+          expect(size.content, "El nombre debe ajustar dentro de su columna").toBeLessThanOrEqual(size.width + 1);
+        }
+        await row.screenshot({ path: info.outputPath("fila-partido.png") });
+        await info.attach("fila-partido", { path: info.outputPath("fila-partido.png"), contentType: "image/png" });
       });
-      expect(time.textWidth, "La hora no debe invadir la columna de los equipos").toBeLessThanOrEqual(time.boxWidth + 1);
-      const names = row.locator(".pm-nombre");
-      await expect(names).toHaveCount(2);
-      // Someter la fila a nombres largos, sin depender de datos de proveedores externos.
-      await names.first().evaluate((element) => { element.textContent = "Club Atletico de la Ciudad de Buenos Aires"; });
-      for (const name of await names.all()) {
-        const size = await name.evaluate((element) => ({ content: element.scrollWidth, width: element.clientWidth }));
-        expect(size.content, "El nombre debe ajustar dentro de su columna").toBeLessThanOrEqual(size.width + 1);
-      }
-      await row.screenshot({ path: info.outputPath("fila-partido.png") });
-      await info.attach("fila-partido", { path: info.outputPath("fila-partido.png"), contentType: "image/png" });
-    });
+    }
   }
 }
 
