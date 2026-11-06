@@ -178,6 +178,15 @@ describe("errorSeguro (caminos con tokens)", () => {
     expect(JSON.stringify(lineas)).not.toContain("ya29");
   });
 
+  it("de un DrizzleQueryError agrega el mensaje de la causa de D1, sin SQL ni parámetros", () => {
+    const e = new DrizzleQueryError('update "users" set "access_token" = ?', ["ya29.secreto"], new Error("D1_ERROR: UNIQUE constraint failed: users.email"));
+    const seguro = errorSeguro(e);
+    expect(seguro).toEqual({ name: "Error", message: "D1_ERROR: UNIQUE constraint failed: users.email" });
+    const texto = JSON.stringify(seguro);
+    for (const prohibido of ["ya29.secreto", "access_token", "update"]) expect(texto).not.toContain(prohibido);
+    expect(errorSeguro(new DrizzleQueryError("select ?", ["rt-secreto"]))).toEqual({ name: "Error", message: "Falló una consulta a la base de datos" });
+  });
+
   it("conserva el mensaje de los errores propios con código fijo y descarta un código con forma de token", () => {
     expect(errorSeguro(new Error("profile_fetch_failed: 403"))).toMatchObject({ message: "profile_fetch_failed: 403" });
     expect(errorSeguro(Object.assign(new Error("x"), { code: "ya29.A0Af-secreto" }))).toEqual({ name: "Error" });

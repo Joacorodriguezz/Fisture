@@ -154,8 +154,19 @@ describe("POST /api/admin/encrypt-tokens", () => {
     expect(paginas.length).toBeGreaterThan(1);
     expect(paginas.reduce((n, p) => n + p.ilegibles, 0)).toBe(total);
     expect(paginas.reduce((n, p) => n + p.procesadas, 0)).toBe(1);
-    expect(paginas[paginas.length - 1]).toMatchObject({ siguienteCursor: null, pendientes: 0 });
+    // Las ilegibles de páginas anteriores siguen cifradas: la última respuesta las cuenta (el código viejo tampoco las lee)
+    expect(paginas[paginas.length - 1]).toMatchObject({ siguienteCursor: null, pendientes: total });
     expect((await fila("users", "z-ok")).access_token).toBe("at-ok");
+  });
+
+  it("decrypt: la última página cuenta lo que sigue cifrado aunque se haya salteado en páginas anteriores", async () => {
+    // Las ilegibles ocupan las primeras páginas; la fila legible queda sola en la última
+    for (let i = 0; i < LOTE_FILAS; i++) await usuario(id2(i), await ajenoEnc(id2(i), "access_token"), null);
+    await usuario("z-ok", await encryptToken(ENV_CON_CLAVE, "at-ok", "z-ok:access_token"), null);
+    const paginas = await recorrer({ query: "?direction=decrypt" });
+    const ultima = paginas[paginas.length - 1];
+    expect(ultima).toMatchObject({ siguienteCursor: null, procesadas: 1 });
+    expect(ultima.pendientes).toBe(LOTE_FILAS);
   });
 
   it("una fila mixta (access cifrado, refresh en claro) se convierte una vez y no deja pendientes", async () => {

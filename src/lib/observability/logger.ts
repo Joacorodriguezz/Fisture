@@ -60,6 +60,8 @@ export function errorSeguro(error: unknown): Record<string, unknown> {
     ...(typeof code === "string" && /^[a-z_]{1,40}$/i.test(code) ? { code } : {}),
     ...(typeof status === "number" ? { status } : {}),
     ...(ERRORES_CON_MENSAJE_FIJO.has(error.name) || CODIGO_PROPIO.test(error.message) ? { message: error.message } : {}),
+    // Para diagnosticar: el mensaje de la causa de D1 (sin SQL ni parámetros, ver mensajeDeError)
+    ...(error instanceof DrizzleQueryError ? { message: mensajeDeError(error) } : {}),
   };
 }
 

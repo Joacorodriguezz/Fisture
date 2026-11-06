@@ -117,12 +117,23 @@ a las 00:00 UTC (21:00 en Argentina).
   - `ilegibles`: filas cifradas de esta página que ni la clave actual ni la anterior abren. No se tocan y no
     cuentan como pendientes. Si son estables (aparecen igual en cada pasada) se resuelven cuando ese usuario
     reconecta su calendario (el login pisa los tokens con unos nuevos).
-  - `pendientes`: por convertir. Con `TOKEN_ENCRYPTION_KEY_PREVIOUS` cargada (rotación) es una cota superior,
-    porque no se sabe qué filas usan la clave anterior sin leerlas.
+  - `pendientes`: por convertir. Mientras `siguienteCursor` no es `null` cuenta lo que queda después del cursor
+    (más las filas que cambiaron durante la corrida). En la **última página** (`siguienteCursor: null`) cuenta el
+    total real que queda en la dirección pedida (un COUNT por tabla), incluidas las filas salteadas en páginas
+    anteriores: la última respuesta es la verdad. En `decrypt` eso incluye las `ilegibles`, que siguen cifradas
+    (el código viejo tampoco las lee), así que `pendientes` puede no llegar a 0 por ellas. Con
+    `TOKEN_ENCRYPTION_KEY_PREVIOUS` cargada (rotación) sigue siendo una cota superior, porque no se sabe qué filas
+    usan la clave anterior sin leerlas.
   - `GET /api/admin/status` muestra `tokensSinCifrar` (`usuarios` e `identidades` que siguen en claro).
   - Errores: `503 token_key_missing` (falta la clave), `503 token_key_previous_invalid` (la clave anterior no
     tiene 32 bytes en base64: corregirla o borrarla; `/api/health` lo marca `tokenKey: degraded`) y
     `400 cursor_invalido`.
+  - **`TOKEN_ENCRYPTION_KEY_PREVIOUS` mal formada durante una rotación**: el backfill responde 503, pero el resto
+    de la app sigue andando. El descifrado la trata como ausente y loguea una vez por instancia
+    `token_key_previous_invalid` (warn). Efecto: la clave actual funciona igual; solo las filas cifradas con la clave
+    vieja quedan ilegibles (esos usuarios reconectan), igual que si `PREVIOUS` no estuviera cargada. El
+    barrido de calendarios ya no se corta para todos. `/api/health` la sigue marcando `tokenKey: degraded`:
+    corregir la clave (32 bytes en base64) o borrarla y repetir la rotación.
 - **Rollback del Release A**: el código anterior no entiende `enc:v1:`. Antes de revertir, devolver las filas a
   texto plano con `POST /api/admin/encrypt-tokens?direction=decrypt`, iterando con el cursor igual que el
   backfill hasta `siguienteCursor: null` y `pendientes: 0`. **Necesita una ventana de mantenimiento**:

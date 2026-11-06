@@ -162,6 +162,19 @@ describe("renovación de permisos de calendario", () => {
       expect(classifyCalendarError(error)).toBe("transient");
     });
 
+    it("conserva el código OAuth con forma de código y descarta el resto del mensaje", async () => {
+      refresh.mockRejectedValue(Object.assign(new Error("fallo con rt-secreto-xyz"), { code: "invalid_client" }));
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: "rt-secreto-xyz" })).catch((e) => e);
+      expect(error.message).toBe("refresh_failed: invalid_client");
+      expect(classifyCalendarError(error)).toBe("transient");
+    });
+
+    it("descarta un código con forma de token", async () => {
+      refresh.mockRejectedValue(Object.assign(new Error("x"), { code: "ya29.A0Af-secreto" }));
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: "rt" })).catch((e) => e);
+      expect(error.message).toBe("refresh_failed");
+    });
+
     it("un invalid_grant del proveedor sigue siendo auth", async () => {
       refresh.mockRejectedValue(new Error("invalid_grant"));
       const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: "rt" })).catch((e) => e);

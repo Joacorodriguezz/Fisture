@@ -40,6 +40,15 @@ describe("token-crypto", () => {
     await expect(decryptToken(envCon(clave()), cifrado, AAD)).rejects.toThrow();
   });
 
+  it("una PREVIOUS mal formada se ignora: la actual sigue funcionando y las filas viejas quedan ilegibles", async () => {
+    const actual = clave();
+    const propio = await encryptToken(envCon(actual), "token", AAD);
+    const env = envCon(actual, btoa("corta"));
+    expect(await decryptToken(env, propio, AAD)).toBe("token");
+    const deOtra = await encryptToken(envCon(clave()), "viejo", AAD);
+    await expect(decryptToken(env, deOtra, AAD)).rejects.toMatchObject({ name: "TokenUnreadableError" });
+  });
+
   it("K6: un valor de la clave anterior se descifra con PREVIOUS y se informa", async () => {
     const vieja = clave();
     const cifrado = await encryptToken(envCon(vieja), "token", AAD);
