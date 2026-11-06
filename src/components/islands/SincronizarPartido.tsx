@@ -122,6 +122,7 @@ export default function SincronizarPartido({
       </div>
       {vista.estado && (
         <span
+          role="status"
           style={{
             font: compacto ? "700 12px/14px var(--font-rotulo)" : "700 13px/16px var(--font-rotulo)",
             letterSpacing: ".04em",
@@ -134,6 +135,7 @@ export default function SincronizarPartido({
       )}
       {mostrarMotivo && (
         <span
+          role={estado === "failed" ? "alert" : "status"}
           style={{
             font: "400 14px/19px var(--font-texto)",
             color: "var(--tinta-suave)",
@@ -157,7 +159,7 @@ export default function SincronizarPartido({
           Se superpone con: {solapados.join(", ")}
         </span>
       )}
-      {error && estado !== "failed" && <span className="tb-error">{error}</span>}
+      {error && estado !== "failed" && <span role="alert" className="tb-error">{error}</span>}
     </div>
   );
 }

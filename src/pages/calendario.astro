@@ -70,7 +70,7 @@ const lote = accionables;
 
 const stats = [
   { n: enCalendario, label: "En calendario", detalle: "Eventos creados y al día", color: "var(--celeste)" },
-  { n: pendientes, label: "Pendientes", detalle: "Se agregan en la próxima sync", color: "var(--tinta)" },
+  { n: pendientes, label: "Pendientes", detalle: "Todavía no están en tu calendario", color: "var(--tinta)" },
   { n: aActualizar, label: "A actualizar", detalle: "Cambió fecha, hora o estadio", color: "var(--rojo)" },
   { n: conError, label: "Con error", detalle: "No se pudo escribir el evento", color: "var(--rojo)" },
 ];
@@ -165,8 +165,8 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
       <Recuadro tono="celeste" titulo="Cómo funciona la sync">
         <div style="display:flex;flex-direction:column;gap:8px">
           <div><b>Todos los días a las 6 hs</b> traemos el fixture actualizado de todas las ligas.</div>
-          <div><b>Si cambia un horario</b> actualizamos el evento en tu calendario, si el equipo tiene auto-sync activado.</div>
-          <div><b>Si borraste un evento</b> desde tu calendario, volvé a agregarlo con Reintentar o Sincronizar ahora.</div>
+          <div><b>Si cambia un horario</b> actualizamos los eventos que ya agregaste a tu calendario, aunque el equipo tenga auto-sync desactivado.</div>
+          <div><b>Si borraste un evento</b> desde tu calendario, respetamos tu decisión y no lo recreamos automáticamente. Para recuperarlo, abrí la ficha del partido y elegí Agregar al calendario.</div>
           <div><b>Otro calendario</b>: descargá el .ics y importalo.</div>
         </div>
       </Recuadro>
