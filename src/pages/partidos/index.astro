@@ -67,7 +67,7 @@ const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, etiqueta
     {!user && (
       <p style="margin:0;font:400 17px/27px var(--font-texto);color:var(--tinta-suave)">
         Próximos {DIAS_PUBLICOS} días en todas las ligas.{" "}
-        <a href={loginHref("/partidos")}>Iniciá sesión</a> para ver solo los partidos de tus equipos y agregarlos a tu calendario.
+        <a href={loginHref("/partidos")} style="text-decoration:underline;text-underline-offset:3px">Iniciá sesión</a> para ver solo los partidos de tus equipos y agregarlos a tu calendario.
       </p>
     )}
 
@@ -105,35 +105,48 @@ const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, etiqueta
             {g.items.map((m) => {
               const estado = estados.get(m.match.id);
               return (
-                <div class="pm-fila" style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:16px 12px;border-bottom:1px solid var(--linea)">
+                <div class:list={["pm-fila", { "pm-fila--publica": !user }]} style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:16px 12px;border-bottom:1px solid var(--linea)">
                   <a
                     href={`/partidos/${m.match.id}`}
                     class="pm-enlace" style="flex:1;min-width:240px;display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:16px;color:var(--tinta);text-decoration:none"
                   >
                     <span class="pm-hora" style="font:400 40px/1 var(--font-titular)">{hora(m.match.dateTime)}</span>
-                    <div style="min-width:0;display:flex;flex-direction:column;gap:4px">
-                      <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">
+                    <div class="pm-info" style="min-width:0;display:flex;flex-direction:column;gap:4px">
+                      <span class="pm-competencia" style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">
                         {m.league.name}{m.match.round ? ` · ${m.match.round}` : ""}
                       </span>
                       <span class="pm-equipos" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;font:400 26px/1.05 var(--font-titular);text-transform:uppercase">
-                        <Escudo src={m.homeTeam.logo} nombre={m.homeTeam.name} sigla={m.homeTeam.shortName} size={40} />
-                        <span>{m.homeTeam.name}</span>
+                        <span class="pm-equipo">
+                          <Escudo src={m.homeTeam.logo} nombre={m.homeTeam.name} sigla={m.homeTeam.shortName} size={40} />
+                          <span class="pm-nombre">{m.homeTeam.name}</span>
+                        </span>
                         <span class="pm-vs" style="color:var(--tinta-suave)">vs</span>
-                        <Escudo src={m.awayTeam.logo} nombre={m.awayTeam.name} sigla={m.awayTeam.shortName} size={40} />
-                        <span>{m.awayTeam.name}</span>
+                        <span class="pm-equipo">
+                          <Escudo src={m.awayTeam.logo} nombre={m.awayTeam.name} sigla={m.awayTeam.shortName} size={40} />
+                          <span class="pm-nombre">{m.awayTeam.name}</span>
+                        </span>
                       </span>
-                      <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
+                      <span class="pm-sede" style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
                         {m.match.venue ?? "Sede a confirmar"}
                       </span>
                     </div>
                   </a>
-                  <SincronizarPartido
-                    client:visible
-                    anonimo={!user}
-                    matchId={m.match.id}
-                    status={estado?.status ?? null}
-                    errorMessage={estado?.errorMessage ?? null}
-                  />
+                  {!user ? (
+                    <a
+                      class="pm-login"
+                      href={loginHref(`/partidos/${m.match.id}`)}
+                      aria-label={`Iniciá sesión para agregar ${m.homeTeam.name} vs ${m.awayTeam.name} al calendario`}
+                    >Iniciá sesión</a>
+                  ) : (
+                    <div class="pm-accion">
+                      <SincronizarPartido
+                        client:visible
+                        matchId={m.match.id}
+                        status={estado?.status ?? null}
+                        errorMessage={estado?.errorMessage ?? null}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })}
