@@ -39,7 +39,7 @@ jobs:
           llamar() {
             curl --fail-with-body --silent --show-error --max-time 60 --retry 2 --retry-delay 10 \
               -X POST "${APP_URL%/}/api/admin/encrypt-tokens?direction=${DIRECTION}${1:+&cursor=$1}" \
-              -H "Authorization: Bearer $ADMIN_SECRET"
+              -H "Authorization: Bearer $ADMIN_SECRET" -H "Content-Type: application/json" -d "{}"
           }
           cursor=""
           for i in $(seq 1 500); do
