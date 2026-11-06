@@ -191,8 +191,8 @@ Sin problemas: ninguna otra ruta desborda, ningún campo tiene menos de 16 px (i
 | # | Prioridad | Hallazgo | Estado |
 | --- | --- | --- | --- |
 | M-01 | P1 | En la ficha del partido, un nombre largo («Borussia Mönchengladbach») hace que el titular de 56 px mida 431 px a 320, 375 y 412 px: se corta y la página se desplaza de costado. | Corregido: titular de `clamp(36px, 12vw, 56px)` en móvil y `overflow-wrap: anywhere`. |
-| M-02 | P2 | UX-08 sigue: el buscador empieza en `y=657` a 375 × 667. | Pendiente: `docs/28`. |
-| M-03 | P2 | UX-09 sigue: la búsqueda no se guarda en la URL y se pierde al recargar. | Pendiente: `docs/28`. |
+| M-02 | P2 | UX-08 sigue: el buscador empieza en `y=657` a 375 × 667. | Corregido en #70 (`docs/28`). |
+| M-03 | P2 | UX-09 sigue: la búsqueda no se guarda en la URL y se pierde al recargar. | Corregido en #70 (`docs/28`). |
 | M-04 | P2 | Enlaces de texto sueltos de 16–18 px de alto: «← Volver», migas del equipo, «Preguntas frecuentes →» y pie. | Corregido: zona de 44 px con puntero grueso, sin cambiar el aspecto. |
 | M-05 | P3 | UX-10: chips, segmentos y «Iniciá sesión» de Hoy en 40 px. | Sin cambios, pendiente de prueba física. |
 | M-06 | P3 | Tira de días de Hoy en 11 px; «14 p.» no se entiende con lector de pantalla. | Corregido: 12 px y `aria-label` («Vie 7: 26 partidos»). |
