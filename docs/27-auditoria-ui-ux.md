@@ -176,3 +176,8 @@ Se agregó `/partidos` a la matriz axe y al recorrido de reflow. Los 24 casos de
 ## Validación final para el PR
 
 Se integró `development` hasta `4bb8199` y se ejecutó nuevamente `npm run check` bajo Node 22.23.4: tipos, descubrimiento, cobertura y build aprobados; 1.022 tests unitarios/integración aprobados (un caso existente pendiente), 67 E2E generales aprobados (nueve no aplicables por proyecto) y 134 casos UI/UX aprobados (menú móvil no aplicable en escritorio). No hubo fallidos ni reintentos. El resumen está en `ux-evidence/validation.json`. El CI de GitHub verificará la rama subida; los calendarios reales y la prueba física de dispositivos siguen pendientes de la revisión de staging.
+
+## Ajustes de la revisión (2026-11-06)
+
+- Las acciones de las filas de `/partidos` en móvil (Agregar, Iniciá sesión) pasan de 30 a 40 px de alto, como el resto de los botones compactos de la app; 30 px era poco para tocar con el dedo.
+- Los mensajes de la island del partido (motivo del error, solapamiento, error de la acción) ya no quedan apretados en la columna de 110 px del botón: en móvil la island se integra a la grilla de la fila, el estado corto queda debajo del botón y los mensajes largos ocupan el ancho de la columna de los equipos.
