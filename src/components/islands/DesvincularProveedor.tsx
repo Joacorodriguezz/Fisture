@@ -28,7 +28,7 @@ export default function DesvincularProveedor({ provider, etiqueta }: Props) {
   return (
     <span style={{ display: "inline-flex", flexDirection: "column", gap: 4 }}>
       <button type="button" className="tb-boton" onClick={desvincular} disabled={ocupado}>
-        {ocupado ? "Desvinculando..." : "Desvincular"}
+        {ocupado ? "Desvinculando…" : "Desvincular"}
       </button>
       {error && (
         <span role="alert" style={{ font: "400 14px/19px var(--font-texto)", color: "var(--rojo-fondo)" }}>

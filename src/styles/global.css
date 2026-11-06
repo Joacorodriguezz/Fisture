@@ -385,7 +385,7 @@ a:hover {
   color: var(--crema-sobre-oscuro);
 }
 .hm-dia__sem {
-  font: 700 11px/1 var(--font-rotulo);
+  font: 700 12px/1 var(--font-rotulo);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -399,7 +399,7 @@ a:hover {
   font: 400 24px/1 var(--font-titular);
 }
 .hm-dia__cant {
-  font: 600 11px/1 var(--font-rotulo);
+  font: 600 12px/1 var(--font-rotulo);
   color: var(--tinta-suave);
 }
 .hm-dia[aria-current="date"] .hm-dia__cant {
@@ -1012,5 +1012,13 @@ a:hover {
 @media (max-width: 359px) {
   .pm-fila .pm-login {
     display: none;
+  }
+}
+
+/* Ficha del partido: en pantallas angostas los escudos se achican para respetar el margen */
+@media (max-width: 420px) {
+  .fp-duelo {
+    --escudo-tamano: 88px;
+    gap: 12px !important;
   }
 }

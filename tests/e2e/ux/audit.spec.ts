@@ -237,6 +237,69 @@ for (const theme of ["papel", "nocturna"]) {
   }
 }
 
+for (const width of [320, 375]) {
+  test(`partido: nombres largos y escudos entran a ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/partidos/superclasico");
+    const titulo = page.getByRole("heading", { level: 1 });
+    await expect(titulo).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    // Nombres reales de ESPN: una palabra de 15 letras no puede partirse por espacios.
+    await titulo.evaluate((element) => { element.textContent = "Hamburger SV vs Borussia Mönchengladbach"; });
+    const medidas = await page.evaluate(() => {
+      const main = document.querySelector("main")!;
+      const padding = parseFloat(getComputedStyle(main).paddingRight);
+      const h1 = document.querySelector("h1")!;
+      return {
+        content: document.documentElement.scrollWidth,
+        viewport: document.documentElement.clientWidth,
+        tituloContent: h1.scrollWidth,
+        tituloWidth: h1.clientWidth,
+        escudosRight: document.querySelector("main .tb-escudo")!.parentElement!.getBoundingClientRect().right,
+        limite: main.getBoundingClientRect().right - padding,
+      };
+    });
+    await info.attach(`partido-largo-${width}px`, { body: await page.screenshot(), contentType: "image/png" });
+    expect(medidas.tituloContent, "El titular debe ajustar dentro de su caja").toBeLessThanOrEqual(medidas.tituloWidth + 1);
+    expect(medidas.content, "Sin desborde horizontal").toBeLessThanOrEqual(medidas.viewport + 1);
+    expect(medidas.escudosRight, "Los escudos deben respetar el margen").toBeLessThanOrEqual(medidas.limite + 1);
+  });
+}
+
+test("partido: la ficha es un h2 bajo el titular", async ({ page }) => {
+  await page.goto("/partidos/superclasico");
+  await expect(page.getByRole("heading", { level: 2, name: "Ficha del partido" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3 })).toHaveCount(0);
+});
+
+test("táctil: los enlaces de navegación miden al menos 44px de alto", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "La zona táctil ampliada aplica solo con puntero grueso");
+  const casos: Array<[string, string]> = [
+    ["/", "main a[href='/ayuda']"],
+    ["/", ".tb-footer__enlace"],
+    ["/partidos/superclasico", ".tb-volver"],
+    ["/equipos/river", ".eq-mig a"],
+  ];
+  for (const [path, selector] of casos) {
+    await page.goto(path);
+    const enlaces = page.locator(selector);
+    expect(await enlaces.count(), `${path} ${selector}`).toBeGreaterThan(0);
+    for (const enlace of await enlaces.all()) {
+      const alto = await enlace.evaluate((element) => element.getBoundingClientRect().height);
+      expect(alto, `${path} ${selector}`).toBeGreaterThanOrEqual(44);
+    }
+  }
+});
+
+test("hoy: la tira de días usa texto de al menos 12px", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "La tira de días es la vista móvil de Hoy");
+  await page.goto("/hoy");
+  const dia = page.locator(".hm-dia").first();
+  await expect(dia).toBeVisible();
+  const tamanos = await page.locator(".hm-dia__sem, .hm-dia__cant").evaluateAll((elements) => elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
+  expect(Math.min(...tamanos)).toBeGreaterThanOrEqual(12);
+});
+
 for (const width of [320, 375, 768, 1280]) {
   test(`reflow: pantallas principales a ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });

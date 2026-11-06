@@ -51,7 +51,7 @@ const jsonLd = [
 
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:16px">
       <Volanta tono="rojo">{league.name}{match.round ? ` · ${match.round}` : ""}</Volanta>
-      <div style="display:flex;align-items:center;gap:20px">
+      <div class="fp-duelo" style="display:flex;align-items:center;gap:20px">
         <Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={112} pad={14} />
         <span style="font:400 40px/1 var(--font-titular);color:var(--rojo)">VS</span>
         <Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={112} pad={14} />
@@ -61,7 +61,7 @@ const jsonLd = [
 
     <div style="display:flex;flex-direction:column;gap:24px;max-width:720px">
       <div style="display:flex;flex-direction:column;gap:24px">
-        <Recuadro titulo="Ficha del partido">
+        <Recuadro titulo="Ficha del partido" nivel={2}>
           <div style="display:flex;flex-direction:column;gap:8px">
             <div><b>Día:</b> {fechaLarga(match.dateTime)}</div>
             <div><b>Hora:</b> {hora(match.dateTime)} a {fin} hs (Buenos Aires)</div>
