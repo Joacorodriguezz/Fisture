@@ -34,6 +34,11 @@ import { CONTACTO_EMAIL } from "../lib/legal";
         <b>Datos técnicos:</b> registros del servidor (fecha, ruta solicitada, errores) para detectar fallas. No guardamos
         contraseñas, porque nunca las vemos.
       </li>
+      <li>
+        <b>Contadores contra abuso:</b> para limitar intentos repetidos (por ejemplo, de inicio de sesión) guardamos por
+        poco tiempo un identificador derivado de tu dirección IP mediante una función criptográfica irreversible. No
+        guardamos la IP en sí, y esos contadores se borran solos en menos de 24 horas.
+      </li>
     </ul>
 
     <h2>2. Para qué los usamos</h2>
@@ -73,8 +78,13 @@ import { CONTACTO_EMAIL } from "../lib/legal";
       <li><b>Google o Microsoft:</b> el proveedor que elegiste, para autenticarte y escribir en tu calendario.</li>
     </ul>
     <p>
-      Los datos de partidos y equipos vienen de fuentes públicas (football-data.org, Promiedos). A esos servicios no
-      les enviamos información tuya.
+      Los datos de partidos y equipos vienen de fuentes públicas (ESPN, football-data.org, Promiedos). A esos servicios
+      no les enviamos información tuya.
+    </p>
+    <p>
+      Cloudflare, Google y Microsoft pueden procesar y almacenar los datos en servidores ubicados fuera de Argentina,
+      incluidos Estados Unidos y la Unión Europea. Al usar Fisture aceptás esa transferencia internacional, que se hace
+      solo con estos proveedores y para las finalidades descritas en esta política.
     </p>
 
     <h2>5. Cookies</h2>
@@ -121,7 +131,9 @@ import { CONTACTO_EMAIL } from "../lib/legal";
 
     <h2>8. Seguridad</h2>
     <p>
-      Toda la comunicación va cifrada por HTTPS y el acceso administrativo está protegido. Ningún sistema es
+      Toda la comunicación va cifrada por HTTPS y el acceso administrativo está protegido. Las credenciales de acceso a
+      tu calendario se guardan cifradas (AES-256-GCM) con una clave que no está en la base de datos, y limitamos los
+      intentos repetidos contra el inicio de sesión y las funciones que modifican datos. Ningún sistema es
       completamente seguro, pero limitamos los datos que guardamos a lo necesario para funcionar.
     </p>
 
