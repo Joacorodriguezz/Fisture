@@ -1,0 +1,55 @@
+name: Backfill de cifrado de tokens
+
+# Recorre POST /api/admin/encrypt-tokens con el cursor hasta siguienteCursor null (docs/15 D5, docs/23).
+# Manual: se usa después del release del cifrado, al rotar la clave (TOKEN_ENCRYPTION_KEY_PREVIOUS) o, con
+# direction=decrypt, en el rollback (con ventana de mantenimiento). Solo imprime conteos, nunca tokens.
+on:
+  workflow_dispatch:
+    inputs:
+      entorno:
+        description: "Dónde correrlo"
+        type: choice
+        options: [produccion, staging]
+        default: produccion
+      direction:
+        description: "encrypt (normal) o decrypt (solo rollback)"
+        type: choice
+        options: [encrypt, decrypt]
+        default: encrypt
+
+concurrency:
+  group: encrypt-tokens-${{ inputs.entorno }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Recorrer el backfill
+        env:
+          APP_URL: ${{ inputs.entorno == 'staging' && 'https://development.fisture.pages.dev' || secrets.PUBLIC_APP_URL }}
+          ADMIN_SECRET: ${{ inputs.entorno == 'staging' && secrets.STAGING_ADMIN_SECRET || secrets.ADMIN_SECRET }}
+          DIRECTION: ${{ inputs.direction }}
+        run: |
+          set -euo pipefail
+          llamar() {
+            curl --fail-with-body --silent --show-error --max-time 60 --retry 2 --retry-delay 10 \
+              -X POST "${APP_URL%/}/api/admin/encrypt-tokens?direction=${DIRECTION}${1:+&cursor=$1}" \
+              -H "Authorization: Bearer $ADMIN_SECRET"
+          }
+          cursor=""
+          for i in $(seq 1 500); do
+            r="$(llamar "$cursor")"
+            echo "Pasada $i: $(echo "$r" | jq -c '{procesadas, ilegibles, pendientes, siguienteCursor}')"
+            cursor="$(echo "$r" | jq -r '.siguienteCursor // empty')"
+            [ -z "$cursor" ] && break
+            sleep 2
+          done
+          pendientes="$(echo "$r" | jq -r '.pendientes')"
+          ilegibles="$(echo "$r" | jq -r '.ilegibles')"
+          echo "### Backfill ${DIRECTION} en ${{ inputs.entorno }}: pendientes ${pendientes}, ilegibles ${ilegibles} (última página)" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$pendientes" != "0" ]; then echo "::warning::Quedan $pendientes pendientes: correr de nuevo"; fi
