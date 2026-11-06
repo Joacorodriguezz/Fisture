@@ -13,6 +13,8 @@ describe("classifyCalendarError", () => {
     [403, "rateLimitExceeded", "rate_limit"],
     [403, "userRateLimitExceeded", "rate_limit"],
     [403, "forbidden", "permanent"],
+    [403, "insufficientPermissions", "scope"],
+    [403, "ACCESS_TOKEN_SCOPE_INSUFFICIENT", "scope"],
     [500, undefined, "transient"],
     [503, undefined, "transient"],
     [409, undefined, "conflict"],

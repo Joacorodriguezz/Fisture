@@ -125,6 +125,18 @@ describe("token y reintento ante 401", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it("sin el permiso de calendario (403 insufficientPermissions) corta sin renovar ni marcar failed, y pide reconectar", async () => {
+    await vigenteToken();
+    falso.fallos.create = () => new CalendarApiError("Request had insufficient authentication scopes.", 403, { reason: "insufficientPermissions" });
+    const r = await sync(["m1", "m2"], { mode: "manual" });
+    expect(r.map((x) => x.code)).toEqual(["scope", "scope"]);
+    expect(r.every((x) => x.tokenInvalido)).toBe(true);
+    expect(r[0].error).toMatch(/permiso/i);
+    expect(refresh).not.toHaveBeenCalled(); // renovar no agrega permisos
+    expect(falso.llamadas.create).toBe(1);
+    expect(await t.DB.prepare("SELECT COUNT(*) AS n FROM calendar_syncs WHERE status = 'failed'").first<{ n: number }>()).toEqual({ n: 0 });
+  });
+
   it("un error transitorio (503) no reintenta ni crea un evento nuevo", async () => {
     await vigenteToken();
     await insertarSync(t, { id: "s1", match: "m1" });
