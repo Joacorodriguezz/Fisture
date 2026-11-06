@@ -1006,3 +1006,11 @@ a:hover {
     padding: 8px 12px;
   }
 }
+
+/* Pantallas muy angostas: el visitante no ve el "Iniciá sesión" de cada fila de /partidos (ya hay un enlace
+   arriba de la lista) para que los nombres de los equipos tengan lugar. */
+@media (max-width: 359px) {
+  .pm-fila .pm-login {
+    display: none;
+  }
+}

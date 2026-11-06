@@ -204,16 +204,24 @@ for (const theme of ["papel", "nocturna"]) {
           return { boxWidth: element.getBoundingClientRect().width, textWidth: range.getBoundingClientRect().width };
         });
         expect(time.textWidth, "La hora no debe invadir la columna de los equipos").toBeLessThanOrEqual(time.boxWidth + 1);
-        const positions = await row.evaluate((element) => {
+        // Por debajo de 360px el visitante no ve el "Iniciá sesión" de cada fila: ya está el enlace arriba de la lista
+        const sinAccion = !signedIn && width < 360;
+        if (sinAccion) {
+          await expect(row.locator(".pm-login")).toBeHidden();
+          await expect(page.getByRole("link", { name: "Iniciá sesión", exact: true }).first()).toBeVisible();
+        }
+        const positions = await row.evaluate((element, sinAccion) => {
           const rect = (selector: string) => element.querySelector(selector)!.getBoundingClientRect();
           const teams = rect(".pm-equipos");
           const time = rect(".pm-hora");
-          const action = rect(".pm-login, .pm-accion button");
-          return { teamsRight: teams.right, actionLeft: action.left, teamsCenter: teams.y + teams.height / 2, timeCenter: time.y + time.height / 2, actionCenter: action.y + action.height / 2 };
-        });
-        expect(positions.actionLeft, "La acción debe quedar a la derecha de los equipos").toBeGreaterThan(positions.teamsRight);
+          const action = sinAccion ? null : rect(".pm-login, .pm-accion button");
+          return { teamsRight: teams.right, actionLeft: action?.left ?? 0, teamsCenter: teams.y + teams.height / 2, timeCenter: time.y + time.height / 2, actionCenter: action ? action.y + action.height / 2 : 0 };
+        }, sinAccion);
         expect(Math.abs(positions.timeCenter - positions.teamsCenter), "La hora debe centrarse entre los dos equipos").toBeLessThan(1);
-        expect(Math.abs(positions.actionCenter - positions.teamsCenter), "La acción debe centrarse entre los dos equipos").toBeLessThan(1);
+        if (!sinAccion) {
+          expect(positions.actionLeft, "La acción debe quedar a la derecha de los equipos").toBeGreaterThan(positions.teamsRight);
+          expect(Math.abs(positions.actionCenter - positions.teamsCenter), "La acción debe centrarse entre los dos equipos").toBeLessThan(1);
+        }
         const names = row.locator(".pm-nombre");
         await expect(names).toHaveCount(2);
         // Someter la fila a nombres largos, sin depender de datos de proveedores externos.
