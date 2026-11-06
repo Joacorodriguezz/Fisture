@@ -64,7 +64,7 @@ export default function SincronizarTodo({
 
       if (r.limitado) {
         // Se frena sin recargar para que el mensaje no se pierda; lo ya agregado se ve al recargar
-        const faltan = matchIds.length - r.ok - r.fallo;
+        const faltan = matchIds.length - r.ok; // incluye los que fallaron
         setError(`${mensajeDeLimite(r.retryAfter)} Se sincronizaron ${r.ok}; faltan ${faltan}.`);
         setCargando(false);
         setProgreso(null);
