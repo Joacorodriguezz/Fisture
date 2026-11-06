@@ -571,8 +571,8 @@ a:hover {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  min-height: 30px;
-  padding: 5px 10px;
+  min-height: 40px;
+  padding: 5px 12px;
   border: 1px solid var(--tinta-suave);
   background: var(--papel-2);
   font: 700 13px/18px var(--font-rotulo);
@@ -666,7 +666,7 @@ a:hover {
     padding: 5px 10px;
     font-size: 13px;
     line-height: 18px;
-    min-height: 30px;
+    min-height: 40px;
     border-width: 1px;
   }
   .pm-accion .tb-boton:not(.tb-boton--primario):not(.tb-boton--tinta) {
@@ -735,20 +735,36 @@ a:hover {
     grid-column: 2;
     grid-row: 3;
   }
-  .pm-fila .pm-login,
-  .pm-fila .pm-accion {
+  .pm-fila .pm-login {
     grid-column: 3;
     grid-row: 2;
     align-self: center;
     white-space: nowrap;
   }
-  .pm-accion {
-    min-width: 0;
-    max-width: 110px;
+  /* La island se "aplana" en la grilla de la fila: el botón queda a la derecha de los equipos, el estado
+     corto debajo del botón y los mensajes largos (motivo, solapamiento, error) a todo el ancho, abajo. */
+  .pm-fila .pm-accion,
+  .pm-fila .pm-accion astro-island,
+  .pm-fila .pm-accion astro-island > div {
+    display: contents !important;
   }
-  .pm-accion span {
-    max-width: 100% !important;
-    white-space: normal;
+  .pm-fila .pm-accion astro-island > div > div:first-child {
+    grid-column: 3;
+    grid-row: 2;
+    align-self: center;
+    justify-self: end;
+    white-space: nowrap;
+  }
+  .pm-fila .pm-accion .sp-estado {
+    grid-column: 3;
+    grid-row: 3;
+    justify-self: end;
+    text-align: right;
+  }
+  .pm-fila .pm-accion .sp-mensaje {
+    grid-column: 2 / -1;
+    max-width: none !important;
+    text-align: left !important;
     overflow-wrap: anywhere;
   }
 
