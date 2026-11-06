@@ -25,8 +25,19 @@ interface Env {
   ADMIN_SECRET?: string;
   // Firma la cookie con el estado del login OAuth (32 bytes aleatorios, secret de Pages)
   OAUTH_STATE_SECRET?: string;
+  // Cifra los tokens OAuth en reposo: AES-256-GCM, 32 bytes aleatorios en base64 (docs/15). Sin ella los
+  // tokens no se guardan (falla cerrado). PREVIOUS solo descifra: se usa para rotar la clave
+  TOKEN_ENCRYPTION_KEY?: string;
+  TOKEN_ENCRYPTION_KEY_PREVIOUS?: string;
   // "true" prende el auto-vínculo por email con ambos lados verificados (docs/18 D3.1). Apagado por defecto
   AUTO_VINCULAR_EMAIL_VERIFICADO?: string;
+  // Límite de tasa y origen (docs/16). RATE_LIMIT_SALT: 32 bytes aleatorios para hashear IPs (si falta se usa ADMIN_SECRET)
+  RATE_LIMIT_SALT?: string;
+  // "true" apaga el límite de tasa (no la verificación de origen). RATE_LIMIT_MODE="observe" cuenta y loguea sin bloquear
+  RATE_LIMIT_DISABLED?: string;
+  RATE_LIMIT_MODE?: string;
+  // Orígenes extra (separados por comas) que pasan la verificación de origen: alias de Pages, www.
+  ALLOWED_ORIGINS?: string;
 }
 
 declare namespace App {

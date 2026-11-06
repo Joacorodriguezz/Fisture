@@ -100,7 +100,9 @@ const preferencias = [
             {user.email} · {providerLabel(user.provider)}
           </span>
         </div>
-        <Boton href="/api/auth/logout">Cerrar sesión</Boton>
+        <form method="post" action="/api/auth/logout">
+          <Boton type="submit">Cerrar sesión</Boton>
+        </form>
       </div>
     </div>
 

@@ -52,11 +52,9 @@ for (const m of partidos) {
 }
 const grupos = [...porLiga.values()].sort((a, b) => a.items[0].match.dateTime.getTime() - b.items[0].match.dateTime.getTime());
 
-// Los que todavía no están al día en el calendario. Cada partido es una llamada a la API: el lote tiene tope.
-const LOTE_MAXIMO = 25;
-const pendientes = partidos.filter((m) => esAccionable(toSyncStatus(estados.get(m.match.id)?.status))).map((m) => m.match.id);
-const lote = pendientes.slice(0, LOTE_MAXIMO);
-const sobran = pendientes.length - lote.length;
+// Los que todavía no están al día en el calendario. La island los parte en lotes de MAX_PARTIDOS_POR_REQUEST
+// y los manda en secuencia (docs/16 §12 R2), así que acá van todos.
+const lote = partidos.filter((m) => esAccionable(toSyncStatus(estados.get(m.match.id)?.status))).map((m) => m.match.id);
 const enCalendario = partidos.filter((m) => toSyncStatus(estados.get(m.match.id)?.status) === "synced").length;
 
 const titulo = dia === hoy ? "Hoy" : dia === sumarDias(hoy, 1) ? "Mañana" : dia === sumarDias(hoy, -1) ? "Ayer" : fechaLarga(rangoDelDia(dia).desde);
@@ -109,9 +107,7 @@ const gruposMovil = grupos.map((g) => ({
       {partidos.length > 0 && (
         <Bajada>
           {`${partidos.length} ${partidos.length === 1 ? "partido" : "partidos"}`}
-          {user ? ` · ${enCalendario} en tu calendario` : " · Iniciá sesión para agregarlos a tu calendario."}
-          {user && sobran > 0 && ` · "Agregar todos" suma de a ${LOTE_MAXIMO}; quedan ${sobran} más para el próximo clic.`}
-        </Bajada>
+          {user ? ` · ${enCalendario} en tu calendario` : " · Iniciá sesión para agregarlos a tu calendario."}        </Bajada>
       )}
     </div>
     <HoyMovil
@@ -159,9 +155,7 @@ const gruposMovil = grupos.map((g) => ({
     {partidos.length > 0 && (
       <Bajada>
         {partidos.length} {partidos.length === 1 ? "partido" : "partidos"}
-        {user ? ` · ${enCalendario} en tu calendario` : " · Iniciá sesión para agregarlos a tu calendario."}
-        {user && sobran > 0 && ` · Se agregan ${LOTE_MAXIMO} por vez, quedan ${sobran}.`}
-      </Bajada>
+        {user ? ` · ${enCalendario} en tu calendario` : " · Iniciá sesión para agregarlos a tu calendario."}      </Bajada>
     )}
 
     {grupos.length === 0 ? (

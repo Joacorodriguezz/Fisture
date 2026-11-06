@@ -1,17 +1,19 @@
 // Sincronización de partidos con el calendario del usuario (Google / Microsoft).
-// La usan la API (/api/calendario/*) y el cron diario (functions/scheduled.ts).
+// La usan la API (/api/calendario/*) y la reconciliación por lotes (calendar/reconcile.ts).
 // Diseño y decisiones: docs/11-calendario-casos-borde-tdd.md
 
-import { and, asc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
-import { calendarSyncs, matches, users, userTeams } from "../../../drizzle/schema";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import { calendarSyncs, matches, users } from "../../../drizzle/schema";
 import { getValidAccessToken } from "../auth/tokens";
 import type { Database } from "../db";
 import { mensajeDeError, rootLogger } from "../observability/logger";
-import { getMatchDetail, getAutoSyncMatchIds } from "../db/queries";
+import { getMatchDetail } from "../db/queries";
 import { getPreferences } from "../db/preferences";
 import { getClient, type CalendarClient, type MatchDetail } from "./clients";
-import { classifyCalendarError, type CalendarErrorClass } from "./errors";
+import { CalendarApiError, classifyCalendarError, type CalendarErrorClass } from "./errors";
 import { eventState, type OverlapItem } from "./event-state";
+import { COSTO_MAX_PARTIDO, COSTO_RENOVACION_401, contarCliente, type Presupuesto } from "./presupuesto";
+import type { OpcionesToken } from "../auth/tokens";
 
 type DbUser = typeof users.$inferSelect;
 
@@ -27,6 +29,9 @@ export interface SyncResult {
   error?: string;
   // Por qué falló (solo auth y rate_limit cortan el resto de la tanda)
   code?: CalendarErrorClass;
+  // Solo con code "auth": el fallo vino del token (invalid_grant, sin refresh o access token) y no de un
+  // 401 del proveedor. Solo el primero prueba que hay que volver a conectar (docs/17 B4).
+  tokenInvalido?: boolean;
   warnings?: SyncWarning[];
 }
 
@@ -36,22 +41,22 @@ export type SyncMode = "manual" | "auto";
 // Dependencias inyectables (los tests reemplazan el proveedor real y el token)
 export interface SyncDeps {
   client?: CalendarClient;
-  getToken?: (env: Env, db: Database, user: DbUser) => Promise<string>;
+  getToken?: (env: Env, db: Database, user: DbUser, opciones?: OpcionesToken) => Promise<string>;
 }
 
 export interface SyncOptions {
   mode?: SyncMode;
   deps?: SyncDeps;
+  // Solo la reconciliación por lotes: cuenta las llamadas al calendario y se detiene, sin procesar
+  // los partidos que quedan, cuando no alcanza para otro partido (docs/17 B5). Quienes no se
+  // procesaron no aparecen en el resultado.
+  presupuesto?: Presupuesto;
 }
-
-// Límites del cron: cada partido es una llamada a la API de calendario.
-// Cloudflare Workers limita las subrequests por invocación.
-const CRON_MAX_USERS = 20;
-const CRON_MATCHES_PER_USER = 10;
 
 const MENSAJES_CORTE: Partial<Record<CalendarErrorClass, string>> = {
   auth: "Hay que volver a conectar el calendario",
   rate_limit: "El calendario pidió esperar un rato, reintentá más tarde",
+  config: "Servicio no disponible por un problema de configuración, reintentá más tarde",
 };
 
 type SyncedValues = Partial<typeof calendarSyncs.$inferInsert>;
@@ -89,6 +94,30 @@ function upToDate(existing: SyncRow | undefined, snap: Snapshot): boolean {
   );
 }
 
+// Ante un 401 pide un token nuevo y repite la llamada una vez. `renovar` devuelve undefined si ya se
+// renovó antes en esta invocación (la renovación no sirvió: es un problema de acceso, no de token).
+function conRenovacionAnte401(client: CalendarClient, renovar: () => Promise<string | undefined>): CalendarClient {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const reintentable = <A extends any[], R>(fn: (token: string, ...args: A) => Promise<R>) =>
+    async (token: string, ...args: A): Promise<R> => {
+      try {
+        return await fn(token, ...args);
+      } catch (error) {
+        if (error instanceof CalendarApiError && classifyCalendarError(error) === "auth") {
+          const nuevo = await renovar();
+          if (nuevo) return fn(nuevo, ...args);
+        }
+        throw error;
+      }
+    };
+  return {
+    create: (token, match, prefs, ctx) => reintentable(client.create.bind(client))(token, match, prefs, ctx),
+    update: (token, eventId, match, prefs) => reintentable(client.update.bind(client))(token, eventId, match, prefs),
+    remove: (token, eventId) => reintentable(client.remove.bind(client))(token, eventId),
+    overlaps: (token, match, ownEventId) => client.overlaps(token, match, ownEventId),
+  };
+}
+
 // Crea o actualiza el evento de cada partido en el calendario del usuario
 export async function syncMatches(
   db: Database,
@@ -100,11 +129,36 @@ export async function syncMatches(
   const mode = options.mode ?? "manual";
   const ids = [...new Set(matchIds)];
   const prefs = await getPreferences(db, user.id);
-  const client = options.deps?.client ?? getClient(user.provider);
-  const getToken = options.deps?.getToken ?? getValidAccessToken;
+  const { presupuesto } = options;
+  const clienteBase = options.deps?.client ?? getClient(user.provider);
+  const tokenBase = options.deps?.getToken ?? getValidAccessToken;
+
+  // El token se obtiene una vez por invocación y se reutiliza (docs/17 I1): pedirlo por partido
+  // renovaba un token vencido en cada uno, con el refresh token ya rotado. Renovar es una llamada de red
+  // (la consulta que lo guarda ya la cuenta la D1 instrumentada).
+  let token: string | undefined;
+  let renovadoPorRechazo = false;
+  const obtenerToken = async (forzar = false): Promise<string> => {
+    if (!forzar && token) return token;
+    token = await tokenBase(env, db, user, {
+      forzarRenovacion: forzar,
+      alRenovar: presupuesto ? () => presupuesto.gastar() : undefined,
+    });
+    return token;
+  };
+  // Un 401 con un token que parecía vigente: se renueva y se reintenta una sola vez por invocación
+  // (docs/17 I2). Reintentar es seguro: alta, cambio y baja son idempotentes. Solo el 401 reintenta.
+  const renovarTrasRechazo = async (): Promise<string | undefined> => {
+    if (renovadoPorRechazo) return undefined;
+    renovadoPorRechazo = true;
+    return obtenerToken(true);
+  };
+  const client = conRenovacionAnte401(presupuesto ? contarCliente(clienteBase, presupuesto) : clienteBase, renovarTrasRechazo);
   const results: SyncResult[] = [];
 
   for (let i = 0; i < ids.length; i++) {
+    // Sin lugar para otro partido: se frena acá y el resto queda para el próximo lote
+    if (presupuesto && !presupuesto.alcanza(COSTO_MAX_PARTIDO + (renovadoPorRechazo ? 0 : COSTO_RENOVACION_401))) break;
     const matchId = ids[i];
     try {
       const match = await getMatchDetail(db, matchId);
@@ -129,11 +183,11 @@ export async function syncMatches(
       }
 
       if (snap.state === "cancelled") {
-        results.push(await cancelEvent(db, env, user, matchId, existing, snap, client, getToken));
+        results.push(await cancelEvent(db, user, matchId, existing, snap, client, obtenerToken));
         continue;
       }
 
-      const token = await getToken(env, db, user);
+      const token = await obtenerToken();
 
       let externalEventId: string;
       if (existing?.externalEventId) {
@@ -179,11 +233,13 @@ export async function syncMatches(
     } catch (error) {
       const code = classifyCalendarError(error);
 
-      if (code === "auth" || code === "rate_limit") {
+      if (code === "auth" || code === "rate_limit" || code === "config") {
         // No es culpa del partido: se corta, no se marca nada como failed y se reintenta cuando se pueda (D4)
         rootLogger.warn("calendar_sync_aborted", { matchId, code, pending: ids.length - i });
         const message = MENSAJES_CORTE[code] ?? "Error desconocido";
-        for (const id of ids.slice(i)) results.push({ matchId: id, success: false, error: message, code });
+        // TokenUnreadableError también cuenta: el token guardado no sirve. La falta de clave (config) no marca a nadie
+        const tokenInvalido = code === "auth" && !(error instanceof CalendarApiError);
+        for (const id of ids.slice(i)) results.push({ matchId: id, success: false, error: message, code, ...(tokenInvalido && { tokenInvalido }) });
         break;
       }
 
@@ -199,25 +255,30 @@ export async function syncMatches(
     }
   }
 
+  // Un alta o cambio a mano que funcionó prueba que el calendario volvió a tener acceso (docs/17 M5)
+  if (mode === "manual" && user.calendarAuthStatus === "reauth_required" && results.some((r) => r.success)) {
+    await db.update(users).set({ calendarAuthStatus: "ok" }).where(eq(users.id, user.id));
+    user.calendarAuthStatus = "ok";
+  }
+
   return results;
 }
 
 // Partido cancelado: se quita el evento y la fila queda cancelled (D10)
 async function cancelEvent(
   db: Database,
-  env: Env,
   user: DbUser,
   matchId: string,
   existing: SyncRow | undefined,
   snap: Snapshot,
   client: CalendarClient,
-  getToken: NonNullable<SyncDeps["getToken"]>
+  obtenerToken: () => Promise<string>
 ): Promise<SyncResult> {
   if (existing?.status === "cancelled") return { matchId, success: true };
   if (!existing) return { matchId, success: false, error: "El partido está cancelado" };
 
   if (existing.externalEventId) {
-    const token = await getToken(env, db, user);
+    const token = await obtenerToken();
     try {
       await client.remove(token, existing.externalEventId);
     } catch (error) {
@@ -275,7 +336,7 @@ export async function removeMatchFromCalendar(
 }
 
 // Un partido que empezó hace más de esto se considera jugado: no se corrige su evento (D9)
-const HORAS_PARTIDO_JUGADO = 3;
+export const HORAS_PARTIDO_JUGADO = 3;
 
 // Marca como needs_update los eventos que quedaron desactualizados respecto del partido: cambió la
 // fecha u hora, la sede, o pasó a postergado/cancelado (o volvió de cancelado). Sin userId procesa a
@@ -332,87 +393,4 @@ export async function markOutdatedEvents(db: Database, userId?: string, now: Dat
     .returning({ id: calendarSyncs.id });
 
   return desactualizados.length + revividos.length;
-}
-
-export interface ReconcileOptions {
-  now?: Date;
-  maxUsers?: number;
-  matchesPerUser?: number;
-}
-
-// Partidos que hay que corregir o reintentar de un usuario, los más próximos primero
-async function pendingMatchIds(db: Database, userId: string, now: Date, limit: number): Promise<string[]> {
-  const limiteJugado = new Date(now.getTime() - HORAS_PARTIDO_JUGADO * 3600 * 1000);
-  const rows = await db
-    .select({ matchId: calendarSyncs.matchId })
-    .from(calendarSyncs)
-    .innerJoin(matches, eq(matches.id, calendarSyncs.matchId))
-    .where(
-      and(
-        eq(calendarSyncs.userId, userId),
-        inArray(calendarSyncs.status, ["needs_update", "failed"]),
-        gte(matches.dateTime, limiteJugado)
-      )
-    )
-    .orderBy(asc(matches.dateTime))
-    .limit(limit);
-  return rows.map((r) => r.matchId);
-}
-
-// Usuarios a atender: los que tienen eventos para corregir y los que tienen auto-sync, empezando por
-// los que más pendientes tienen (así nadie queda sin atender para siempre cuando hay más usuarios que el límite).
-async function reconcileCandidates(db: Database, now: Date, maxUsers: number): Promise<string[]> {
-  const limiteJugado = new Date(now.getTime() - HORAS_PARTIDO_JUGADO * 3600 * 1000);
-  const pendientes = await db
-    .select({ userId: calendarSyncs.userId, n: sql<number>`count(*)` })
-    .from(calendarSyncs)
-    .innerJoin(matches, eq(matches.id, calendarSyncs.matchId))
-    .where(and(inArray(calendarSyncs.status, ["needs_update", "failed"]), gte(matches.dateTime, limiteJugado)))
-    .groupBy(calendarSyncs.userId);
-  const conAutoSync = await db
-    .selectDistinct({ userId: userTeams.userId })
-    .from(userTeams)
-    .where(eq(userTeams.autoSync, true));
-
-  const cantidad = new Map<string, number>();
-  for (const { userId } of conAutoSync) cantidad.set(userId, 0);
-  for (const { userId, n } of pendientes) cantidad.set(userId, Number(n));
-
-  return [...cantidad.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, maxUsers)
-    .map(([userId]) => userId);
-}
-
-// Job diario: detecta los eventos desactualizados de todos los usuarios, los corrige y da de alta
-// los partidos pendientes de los equipos con auto-sync (D12).
-export async function reconcileCalendars(
-  env: Env,
-  db: Database,
-  deps?: SyncDeps,
-  options: ReconcileOptions = {}
-): Promise<void> {
-  const now = options.now ?? new Date();
-  const perUser = options.matchesPerUser ?? CRON_MATCHES_PER_USER;
-
-  await markOutdatedEvents(db, undefined, now);
-
-  for (const userId of await reconcileCandidates(db, now, options.maxUsers ?? CRON_MAX_USERS)) {
-    try {
-      const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
-      if (!user) continue;
-
-      // Primero las correcciones: valen más que las altas nuevas
-      const pendientes = await pendingMatchIds(db, user.id, now, perUser);
-      const nuevos = await getAutoSyncMatchIds(db, user.id, perUser);
-      const ids = [...new Set([...pendientes, ...nuevos])].slice(0, perUser);
-      if (ids.length === 0) continue;
-
-      const results = await syncMatches(db, env, user, ids, { mode: "auto", deps });
-      const ok = results.filter((r) => r.success).length;
-      rootLogger.info("calendar_reconcile_user", { provider: user.provider, ok, total: results.length });
-    } catch (error) {
-      rootLogger.error("calendar_reconcile_user_failed", { userId, err: error });
-    }
-  }
 }

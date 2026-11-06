@@ -7,15 +7,15 @@ con una sesión de `npx wrangler login` (o `CLOUDFLARE_API_TOKEN` en el entorno)
 ## 0. Primeros cinco minutos
 
 1. `curl -s https://fisture.com/api/health` → `ok`, `degraded` o `fail` (503), con el detalle por chequeo
-   (`db`, `kv`, `sync`, `oauthState`).
+   (`db`, `kv`, `sync` para las ligas, `calendars` y `oauthState`).
 2. Detalle del sync: `curl -s -H "Authorization: Bearer $ADMIN_SECRET" https://fisture.com/api/admin/status`
    (salud + últimos 20 runs con sus errores).
 3. Logs en vivo: `npx wrangler pages deployment tail --project-name fisture` (JSON; filtrar por `requestId`
    si el usuario lo tiene del header `x-request-id`).
 4. ¿Coincide con un deploy? Ver la última corrida de **Deploy a producción** en GitHub Actions.
 
-Avisos automáticos: `monitor.yml` (cada 30 min) y `sync-cron.yml` abren un issue con la etiqueta `incidente`
-y lo cierran al recuperarse. Comentar en ese issue lo que se va haciendo: queda como registro.
+Avisos automáticos: `monitor.yml` (cada 30 min), `sync-cron.yml` (ligas y calendarios) y `keepalive.yml`
+(semanal) abren un issue con la etiqueta `incidente` y lo cierran al recuperarse. Comentar en ese issue lo que se va haciendo: queda como registro.
 
 ## 1. Volver al deployment anterior (rollback de código)
 
@@ -67,6 +67,9 @@ npx wrangler d1 time-travel restore fisture-db --timestamp=2026-11-03T12:00:00Z
 - GitHub → Actions → **Sync diario** → *Run workflow* (recorre todos los lotes, docs/22 D4).
 - Una competencia: `curl -X POST https://fisture.com/api/admin/sync -H "Authorization: Bearer $ADMIN_SECRET" -H "Content-Type: application/json" -d '{"leagueId":"arg.1"}'`.
 - Un lote: igual con `-d '{"lote":0}'`; la respuesta trae `siguienteLote`.
+- Un lote de calendarios: `-d '{"calendarios":true}'`; la respuesta trae `corte` y `siguiente`. Para seguir el barrido
+  se repite con `"corte": <el corte devuelto>` mientras `siguiente` sea `true`. Desde la terminal:
+  `APP_URL=https://fisture.com ADMIN_SECRET=... node scripts/sync-calendarios.mjs` (docs/17).
 - Sin `Content-Type: application/json` la protección CSRF de Astro responde 403.
 
 ## 5. Revocar y rotar un secret
@@ -75,6 +78,7 @@ npx wrangler d1 time-travel restore fisture-db --timestamp=2026-11-03T12:00:00Z
 | --- | --- | --- |
 | `ADMIN_SECRET` | `npx wrangler pages secret put ADMIN_SECRET --project-name fisture` **y** el secret del mismo nombre en GitHub Actions | Ninguno para usuarios. Sin actualizar GitHub, el sync diario falla con 401 |
 | `OAUTH_STATE_SECRET` | `openssl rand -base64 32 \| npx wrangler pages secret put OAUTH_STATE_SECRET --project-name fisture` | Los logins en curso (10 min) fallan y hay que reintentar |
+| `TOKEN_ENCRYPTION_KEY` | Rotación sin que nadie reconecte: (1) copiar la actual a `TOKEN_ENCRYPTION_KEY_PREVIOUS`, (2) cargar una nueva en `TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`), (3) `POST /api/admin/encrypt-tokens` (Bearer `ADMIN_SECRET`) repetido con el cursor hasta `siguienteCursor: null` y `pendientes: 0` (ver "Cifrado de tokens" más abajo), (4) recién entonces borrar `TOKEN_ENCRYPTION_KEY_PREVIOUS` | Con `PREVIOUS` cargada nada se corta. **Nunca** reemplazar la clave sin dejar la anterior en `PREVIOUS`: los tokens guardados quedan ilegibles y todos tienen que reconectar |
 | `GOOGLE_CLIENT_SECRET` / `MICROSOFT_CLIENT_SECRET` | Generar uno nuevo en Google Cloud / Entra ID, cargarlo en Pages, después borrar el viejo | Ninguno si se hace en ese orden |
 | `CLOUDFLARE_API_TOKEN` (GitHub) | Cloudflare → My Profile → API Tokens: *Roll*; actualizar en GitHub | Deploys fallan hasta actualizarlo |
 
@@ -92,15 +96,107 @@ a las 00:00 UTC (21:00 en Argentina).
 
 ### Login caído
 
-1. `/api/health` con `oauthState: fail` → falta `OAUTH_STATE_SECRET` en Pages (§5).
+1. `/api/health` con `oauthState: fail` → falta `OAUTH_STATE_SECRET` en Pages (§5). Con `tokenKey: fail` → falta
+   `TOKEN_ENCRYPTION_KEY` (o no tiene 32 bytes en base64): el login redirige a `oauth_failed` y se loguea
+   `token_key_missing`. Cargarla en Pages (producción y preview, docs/08 §5) y esperar ~1 minuto.
 2. Errores `redirect_uri_mismatch` en el log → la URI registrada en Google/Entra no coincide con
    `https://fisture.com/api/auth/callback/<provider>`.
 3. Bloqueos del WAF: Security → Events, filtrar por `/api/auth/*` (regla del ASN 32934, docs/20 §10).
+
+### Cifrado de tokens: backfill y rollback (docs/15)
+
+- **Backfill** tras el Release A (con `TOKEN_ENCRYPTION_KEY` ya cargada). Cada llamada mira hasta 20 filas
+  (primero `users`, después `oauth_identities`, ordenadas por id) y responde
+  `{ direccion, cursor, siguienteCursor, procesadas, ilegibles, pendientes }`. Iterar con el cursor hasta que
+  `siguienteCursor` sea `null` **y** `pendientes` sea `0`:
+  `curl -X POST "https://fisture.com/api/admin/encrypt-tokens?cursor=<siguienteCursor>" -H "Authorization: Bearer $ADMIN_SECRET"`
+  (la primera llamada va sin `cursor`). Una pasada completa recorre todas las filas; si `pendientes` no es 0 al
+  final (una fila cambió mientras corría: un login o una renovación), repetir la pasada desde el principio.
+  - `procesadas`: filas realmente escritas. Las escrituras son condicionales sobre lo leído: si la fila cambió
+    entre la lectura y el batch, se saltea y cuenta como pendiente.
+  - `ilegibles`: filas cifradas de esta página que ni la clave actual ni la anterior abren. No se tocan y no
+    cuentan como pendientes. Si son estables (aparecen igual en cada pasada) se resuelven cuando ese usuario
+    reconecta su calendario (el login pisa los tokens con unos nuevos).
+  - `pendientes`: por convertir. Mientras `siguienteCursor` no es `null` cuenta lo que queda después del cursor
+    (más las filas que cambiaron durante la corrida). En la **última página** (`siguienteCursor: null`) cuenta el
+    total real que queda en la dirección pedida (un COUNT por tabla), incluidas las filas salteadas en páginas
+    anteriores: la última respuesta es la verdad. En `decrypt` eso incluye las `ilegibles`, que siguen cifradas
+    (el código viejo tampoco las lee), así que `pendientes` puede no llegar a 0 por ellas. Con
+    `TOKEN_ENCRYPTION_KEY_PREVIOUS` cargada (rotación) sigue siendo una cota superior, porque no se sabe qué filas
+    usan la clave anterior sin leerlas.
+  - `GET /api/admin/status` muestra `tokensSinCifrar` (`usuarios` e `identidades` que siguen en claro).
+  - Errores: `503 token_key_missing` (falta la clave), `503 token_key_previous_invalid` (la clave anterior no
+    tiene 32 bytes en base64: corregirla o borrarla; `/api/health` lo marca `tokenKey: degraded`) y
+    `400 cursor_invalido`.
+  - **`TOKEN_ENCRYPTION_KEY_PREVIOUS` mal formada durante una rotación**: el backfill responde 503, pero el resto
+    de la app sigue andando. El descifrado la trata como ausente y loguea una vez por instancia
+    `token_key_previous_invalid` (warn). Efecto: la clave actual funciona igual; solo las filas cifradas con la clave
+    vieja quedan ilegibles (esos usuarios reconectan), igual que si `PREVIOUS` no estuviera cargada. El
+    barrido de calendarios ya no se corta para todos. `/api/health` la sigue marcando `tokenKey: degraded`:
+    corregir la clave (32 bytes en base64) o borrarla y repetir la rotación.
+- **Rollback del Release A**: el código anterior no entiende `enc:v1:`. Antes de revertir, devolver las filas a
+  texto plano con `POST /api/admin/encrypt-tokens?direction=decrypt`, iterando con el cursor igual que el
+  backfill hasta `siguienteCursor: null` y `pendientes: 0`. **Necesita una ventana de mantenimiento**:
+  mientras corre el `decrypt`, el Release A sigue desplegado y vuelve a cifrar en cada login o renovación. Hacerlo
+  en un horario de poco tráfico, sin pausas largas entre llamadas, y revertir el código apenas termine. Los
+  pocos usuarios que ingresaron o renovaron en el medio quedan con tokens cifrados que el código viejo no lee:
+  verlo en `tokensSinCifrar` (cuenta los que están en claro, así que ahí aparecen como faltantes en el total),
+  y cada uno reconecta su calendario (la UI ya lo pide). No hay pérdida de datos. Una pasada final del
+  `decrypt` justo antes de revertir acota ese número. Por qué no un interruptor de "escribir en claro": agrega
+  un camino de código que guarda tokens sin cifrar, que es justo lo que este diseño evita (docs/15 D6), para
+  cubrir un rollback que ocurre una vez y cuyo costo ya es acotado.
+
+### Un usuario legítimo queda limitado (429 `rate_limited`) o bloqueado por origen (403 `forbidden_origin`)
+
+Diseño: `docs/16`. El usuario ve "Demasiados intentos. Probá de nuevo en N segundos" (429 con `Retry-After`).
+Las ventanas son de 1 minuto a 15 minutos y se reinician solas: **si puede esperar, esperar es la solución**.
+
+1. Confirmar: en el log buscar `rate_limited` (`bucket`, `scope`, `limit`, `retryAfter`; sin IP) con
+   `npx wrangler pages deployment tail --project-name fisture`, o pedir el `x-request-id` de la respuesta.
+   `GET /api/admin/status` trae `rateLimit.ultimas24h`: por bucket, `hits` (hasta `limit + 1` por sujeto y ventana), `blocked`
+   (sujetos-ventana bloqueados) y `subjects`. Si `blocked` es más del 5% de `subjects` en un bucket durante un día, el límite está mal calibrado (subirlo en `lib/rate-limit/policies.ts`,
+   hotfix `fix/*` desde `main`) o hay abuso.
+2. **Apagar el límite de tasa ya (sin deploy ni secret), si afecta a varios usuarios o si D1 se acerca al tope de escrituras:**
+   un secret de Pages solo toma efecto en el siguiente deploy, así que el interruptor es una clave de KV (se lee con caché
+   de 45 s por isolate, más la propagación de KV: tarda 1-2 minutos). Producción:
+   `npx wrangler kv key put "ratelimit:modo" "off" --namespace-id 8a9fc92ed9774806833736d1bec711bb`
+   (agregar `--ttl 3600` para que se reactive solo en una hora). Staging: el mismo comando con
+   `--namespace-id eb9880ef072042d8b93e46a6ca9e49d7`. Para pasar a "solo observar": valor `"observe"`; para forzar el
+   bloqueo aunque un secret diga otra cosa: `"on"`. Al resolverlo, volver al valor de arranque borrando la clave:
+   `npx wrangler kv key delete "ratelimit:modo" --namespace-id 8a9fc92ed9774806833736d1bec711bb`.
+   `RATE_LIMIT_DISABLED` / `RATE_LIMIT_MODE` (secrets) siguen valiendo como arranque cuando la clave no existe (cambiarlos
+   exige un deploy). Con `off` el limitador no escribe en D1. Con wrangler 4, agregar `--remote` a los comandos de KV.
+   El chequeo de origen no se apaga con esto (es un control de seguridad aparte).
+3. **Liberar a un solo usuario o IP** (NAT compartido: colegio, oficina, operadora móvil): borrar su fila.
+   - Por usuario, el `subject` es su `users.id`:
+     `npx wrangler d1 execute fisture-db --remote --command "DELETE FROM rate_limits WHERE subject = '<users.id>'"`.
+   - Por IP, el `subject` es el HMAC de la IP con `RATE_LIMIT_SALT` (o `ADMIN_SECRET` si no está). Una IPv6 se agrupa
+     por su /64: se usa `h1:h2:h3:h4::/64` (los cuatro primeros grupos en minúscula y sin ceros a la izquierda, p. ej.
+     `2001:db8:abcd:12::/64`) en lugar de la IP; una IPv4 va tal cual. Calcularlo en la
+     terminal, sin pegar la IP en ningún issue ni PR:
+     `SAL='<RATE_LIMIT_SALT>' IP='<ip>' node -e "console.log(require('node:crypto').createHmac('sha256',process.env.SAL).update(process.env.IP).digest('base64url').slice(0,22))"`
+     y luego el `DELETE ... WHERE subject = '<hash>'` de arriba.
+4. **403 `forbidden_origin`** en un navegador legítimo: entra por un origen que no es `PUBLIC_APP_URL` y su navegador no
+   manda `Sec-Fetch-Site` (versiones viejas, proxys que lo quitan). Cargar el origen en `ALLOWED_ORIGINS`
+   (`echo 'https://www.fisture.com' | npx wrangler pages secret put ALLOWED_ORIGINS --project-name fisture`).
+5. **`POST /api/admin/sync` o `GET /api/admin/status` responden 429**: hubo 5 Bearer inválidos desde esa IP en los últimos
+   15 minutos (por ejemplo un `ADMIN_SECRET` mal rotado en GitHub, §5). Un Bearer correcto nunca recibe 429, así que si
+   el 429 llega con el secret bien cargado el problema es otro (revisar el `x-request-id`). `sync-por-lotes.sh` corta ante
+   `rate_limited` en vez de seguir. Corregir el secret y esperar 15 minutos, o borrar la fila de `admin_fail` (paso 3).
+   Para ver qué `bucket` es: `SELECT bucket, SUM(count) FROM rate_limits GROUP BY bucket`.
 
 ### Sync en `fail` o `degraded`
 
 `/api/admin/status` muestra los errores por competencia. Un error de ESPN en una competencia deja el run en
 `partial` sin afectar a las demás. Si ESPN cambió un slug, corregirlo en `LEAGUES_CONFIG` (`docs/09`).
+
+Las ligas y los calendarios se miden por separado (`checks.sync` y `checks.calendars` de `/api/health`;
+`runs` y `runsCalendarios` en `/api/admin/status`). `checks.calendars` nunca pasa de `degraded` (un fallo de
+calendarios no debe dar 503 ni bloquear deploys). `degraded` significa: el último lote falló (ver su `error` en
+`runsCalendarios`), el barrido quedó incompleto (llegó al tope de 40 lotes con usuarios pendientes, o un lote no
+alcanzó para procesar ni un evento) o el último barrido exitoso tiene más de 26 h. Acción: lanzar un barrido a
+mano (§4); si el barrido queda incompleto varios días seguidos, hay más usuarios con trabajo que capacidad
+(docs/17 §12). Sin ningún run de calendarios el check está en `ok`.
 
 ### Antes del release con la migración 0010 (identidades OAuth, docs/18): paso obligatorio
 
@@ -171,6 +267,25 @@ que fija el `mail`). La pantalla no dice con qué proveedor está la otra cuenta
    y pedirle que vuelva a entrar con su proveedor: se le crea una cuenta nueva. Si `email_verified = 1` o hay
    actividad, **no se libera**: se le explica que entre con el proveedor original y vincule el otro desde Configuración.
 4. Dejar anotado el caso (sin el email) en el issue de incidente si hay indicios de abuso.
+
+### Calendarios de usuarios sin acceso
+
+`metricas.calendariosSinAcceso` en `/api/admin/status` cuenta los usuarios en `reauth_required`: el proveedor
+falló su token (`invalid_grant`, sin refresh token o sin access token). Un 401 del proveedor que persiste tras renovar no cuenta: la fila se reintenta al día siguiente. Salen de la cola del sync hasta que vuelven a iniciar sesión (el login
+los reactiva). No es un fallo del sistema y no cambia el estado de `/api/health`. Un número que crece de golpe
+suele indicar un problema de credenciales de la app (cliente OAuth revocado o secret rotado): revisar §5.
+
+### Los workflows programados dejaron de correr
+
+GitHub desactiva los `schedule` tras 60 días sin actividad en el repo y no avisa. La inactividad apaga **todos** los
+workflows programados a la vez, `keepalive.yml` incluido, por lo que reactivar ante `disabled_inactivity` sirve de
+poco. Lo que realmente protege es que el `PUT .../enable` de `keepalive.yml` (lunes) reinicie el plazo de 60 días,
+y eso todavía no está verificado (docs/17 §12). Intenta volver a habilitarlos con la API y abre un issue `incidente` si encontró alguno desactivado o si `sync-cron.yml`
+lleva más de 72 h sin terminar bien. Si aun así dejaron de correr (por ejemplo, también se desactivó
+`keepalive.yml`): GitHub → Actions → elegir el workflow → **Enable workflow**, y lanzar **Sync diario** a mano.
+Cualquier commit, PR o deploy reinicia el plazo de 60 días. El respaldo que no depende de GitHub es un monitor
+externo gratuito (por ejemplo UptimeRobot) sobre `https://fisture.com/api/health` con una palabra clave
+(`"status":"ok"`) o alerta ante 503: es una decisión del dueño (docs/17 §12).
 
 ## 7. A quién avisar
 

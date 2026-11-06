@@ -43,6 +43,28 @@ export function mensajeDeError(error: unknown, fallback?: string): string {
   return fallback ?? String(error);
 }
 
+// Errores propios cuyo mensaje es una constante (nunca lleva datos)
+const ERRORES_CON_MENSAJE_FIJO = new Set(["TokenKeyError", "TokenUnreadableError"]);
+
+// Mensajes que son un código de máquina propio (p. ej. "profile_fetch_failed: 403"): no pueden ser un token
+const CODIGO_PROPIO = /^[a-z]+(_[a-z]+)+(: \d{3})?$/;
+
+// Para los caminos con tokens (login OAuth, renovación, backfill): `serializeError` redacta por nombre de
+// campo, no por contenido, así que un mensaje o stack de una librería puede arrastrar un token. Acá solo
+// sale el nombre, el código OAuth (p. ej. invalid_grant), el status y el mensaje de los errores propios.
+export function errorSeguro(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) return { name: "NonError" };
+  const { code, status } = error as { code?: unknown; status?: unknown };
+  return {
+    name: error.name,
+    ...(typeof code === "string" && /^[a-z_]{1,40}$/i.test(code) ? { code } : {}),
+    ...(typeof status === "number" ? { status } : {}),
+    ...(ERRORES_CON_MENSAJE_FIJO.has(error.name) || CODIGO_PROPIO.test(error.message) ? { message: error.message } : {}),
+    // Para diagnosticar: el mensaje de la causa de D1 (sin SQL ni parámetros, ver mensajeDeError)
+    ...(error instanceof DrizzleQueryError ? { message: mensajeDeError(error) } : {}),
+  };
+}
+
 export function serializeError(err: Error): Record<string, unknown> {
   if (err instanceof DrizzleQueryError) {
     const message = `Failed query: ${err.query}`;

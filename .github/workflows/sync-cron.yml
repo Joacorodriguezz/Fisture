@@ -2,8 +2,10 @@ name: Sync diario
 
 # Cloudflare Pages no ejecuta Cron Triggers: este workflow dispara el sync
 # llamando a POST /api/admin/sync (queda registrado en sync_runs como "admin").
-# Workers Free admite 50 subrequests por invocación, así que se sincroniza
-# por lotes de competencias, uno por request (docs/22 D4).
+# Workers Free admite 50 subrequests por invocación, así que todo va por lotes, uno por request:
+#  - ligas: lotes de competencias (docs/22 D4), siguienteLote hasta null.
+#  - calendarios: lotes de usuarios con un presupuesto de subrequests y un corte de barrido
+#    (docs/17), siguiente hasta false. Corre después de las ligas para ver los partidos al día.
 on:
   schedule:
     - cron: "0 9 * * *" # 9:00 UTC = 6:00 Argentina
@@ -12,6 +14,11 @@ on:
 permissions:
   contents: read
   issues: write
+
+# Dos syncs a la vez (un schedule y un disparo manual) pisarían el mismo barrido: el segundo espera
+concurrency:
+  group: sync-diario
+  cancel-in-progress: false
 
 jobs:
   sync:
@@ -39,3 +46,37 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           bash .github/scripts/incidente.sh cerrar "Falla el sync diario" "El sync volvió a completarse: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+  calendarios:
+    name: Reconciliar calendarios
+    needs: [sync]
+    # Las ligas con problemas no impiden corregir los calendarios con lo que ya hay cargado
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Reconciliar calendarios en producción, lote por lote
+        env:
+          APP_URL: ${{ secrets.PUBLIC_APP_URL }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+        run: node scripts/sync-calendarios.mjs
+
+      - name: Avisar por issue si falló
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/scripts/incidente.sh abrir "Falla la reconciliación de calendarios" \
+            "La reconciliación de calendarios falló (${CALENDARIOS_ERROR:-sin dato}). Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Revisar GET /api/admin/status (runsCalendarios) y docs/23-runbook-de-incidentes.md."
+
+      - name: Cerrar el aviso si volvió a andar
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/scripts/incidente.sh cerrar "Falla la reconciliación de calendarios" "La reconciliación volvió a completarse: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

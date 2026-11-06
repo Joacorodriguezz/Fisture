@@ -144,7 +144,7 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
       </div>
       </div>
 
-      {error && <p style={{ margin: 0, color: "var(--rojo)", font: "600 15px/20px var(--font-rotulo)" }}>{error}</p>}
+      {error && <p role="alert" style={{ margin: 0, color: "var(--rojo)", font: "600 15px/20px var(--font-rotulo)" }}>{error}</p>}
 
       {modo === "navegar" ? (
         <div className="fe-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,170px),1fr))", gap: 12 }}>

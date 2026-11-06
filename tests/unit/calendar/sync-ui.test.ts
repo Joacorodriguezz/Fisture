@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { esAccionable, syncView, toSyncStatus } from "../../../src/lib/sync-ui";
+import { esAccionable, mensajeDeLimite, syncView, toSyncStatus } from "../../../src/lib/sync-ui";
 
 describe("estados de sincronización en la UI", () => {
   it("mapea los estados nuevos de la base", () => {
@@ -24,5 +24,17 @@ describe("estados de sincronización en la UI", () => {
   it("los lotes solo intentan none, needs_update y failed", () => {
     expect(["none", "needs_update", "failed"].every((s) => esAccionable(s as never))).toBe(true);
     expect(["synced", "detached", "cancelled", "syncing"].some((s) => esAccionable(s as never))).toBe(false);
+  });
+});
+
+describe("mensajeDeLimite (docs/16 §9)", () => {
+  it("informa la espera que dio el servidor", () => {
+    expect(mensajeDeLimite("37")).toBe("Demasiados intentos. Probá de nuevo en 37 segundos.");
+    expect(mensajeDeLimite(1)).toBe("Demasiados intentos. Probá de nuevo en 1 segundo.");
+  });
+
+  it("sin dato usa un texto genérico", () => {
+    expect(mensajeDeLimite(null)).toBe("Demasiados intentos. Probá de nuevo en un momento.");
+    expect(mensajeDeLimite("abc")).toBe("Demasiados intentos. Probá de nuevo en un momento.");
   });
 });

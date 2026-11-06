@@ -21,17 +21,54 @@ export function decidirAcceso(pathname: string, hayUsuario: boolean): Acceso {
   return coincide(pathname, PAGINAS_PROTEGIDAS) ? "login" : "permitir";
 }
 
-// Defensa contra requests forjadas desde otro sitio: si el navegador manda Origin, debe ser el de
-// la app (PUBLIC_APP_URL). Sin Origin (curl, tests, mismo origen en algunos casos) se deja pasar:
-// la cookie es sameSite=lax y los endpoints sensibles además exigen JSON.
-export function esMismoOrigen(request: Request, env: { PUBLIC_APP_URL?: string }): boolean {
-  const origin = request.headers.get("Origin");
-  if (origin === null) return true;
-  try {
-    return origin === new URL(env.PUBLIC_APP_URL ?? "").origin;
-  } catch {
-    return false;
+// Defensa CSRF de las requests que mutan estado (docs/16 D6). Es la única implementación: la aplica
+// withApi a todo POST/PUT/PATCH/DELETE (salvo las rutas con origin "none").
+// 1. Sec-Fetch-Site same-origin o none (acción directa del usuario): pasa.
+// 2. Sec-Fetch-Site cross-site/same-site, o un Origin presente: el Origin debe ser el de la app
+//    (PUBLIC_APP_URL) o estar en ALLOWED_ORIGINS.
+// 3. Sin ninguna de las dos cabeceras: pasa solo si no hay cookie de sesión (curl, cron con Bearer, tests).
+//    CSRF aplica a credenciales ambientales (cookies), no a Bearer.
+export interface EnvOrigen {
+  PUBLIC_APP_URL?: string;
+  // Orígenes extra separados por comas (alias de Pages, www.). Vacío por defecto
+  ALLOWED_ORIGINS?: string;
+}
+
+function origenesPermitidos(env: EnvOrigen): Set<string> {
+  const out = new Set<string>();
+  for (const valor of [env.PUBLIC_APP_URL ?? "", ...(env.ALLOWED_ORIGINS ?? "").split(",")]) {
+    if (!valor.trim()) continue;
+    try {
+      out.add(new URL(valor.trim()).origin);
+    } catch {
+      // valor inválido: no habilita nada (falla cerrada)
+    }
   }
+  return out;
+}
+
+const COOKIE_DE_SESION = /(?:^|;\s*)session=/;
+
+export function esMismoOrigen(request: Request, env: EnvOrigen): boolean {
+  const origin = request.headers.get("Origin");
+  const sfs = request.headers.get("Sec-Fetch-Site");
+  if (sfs === "same-origin" || sfs === "none") return true;
+  if (sfs || origin !== null) return origin !== null && origenesPermitidos(env).has(origin);
+  return !COOKIE_DE_SESION.test(request.headers.get("Cookie") ?? "");
+}
+
+// Las mutaciones con cuerpo deben ser JSON: un "simple request" cross-origin (text/plain, formulario)
+// llega sin preflight. Sin cuerpo y sin Content-Type (logout, DELETE sin datos) pasa.
+export function contentTypeValido(request: Request): boolean {
+  const tipo = request.headers.get("Content-Type");
+  if (!tipo) {
+    // Sin Content-Type hay cuerpo si Content-Length es mayor que 0 o, sin esa cabecera (chunked), si el
+    // Request trae un stream: no se confía solo en Content-Length
+    const largo = request.headers.get("Content-Length");
+    if (largo !== null) return largo.trim() === "0";
+    return request.body === null;
+  }
+  return /^application\/json\s*(;|$)/i.test(tipo.trim());
 }
 
 const MAX_NEXT = 512;

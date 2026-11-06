@@ -98,7 +98,7 @@ test("navega por ligas, equipos y detalle del partido", async ({ page }, info) =
 test("logout elimina la sesión del KV y rechaza reutilizarla", async ({ page }, info) => {
   await login(page, info, "logout");
   await page.goto("/configuracion");
-  await page.getByRole("link", { name: "Cerrar sesión", exact: true }).click();
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
   await expect(page).toHaveURL("http://127.0.0.1:4322/");
   await login(page, info, "logout");
   await page.goto("/configuracion");
@@ -202,7 +202,7 @@ test("calendario refleja reprogramados, detached y cancelados sin reofrecerlos e
 test("salud, auth administrativa y errores HTTP sobre el worker construido", async ({ request }) => {
   const health = await request.get("/api/health");
   expect(health.status()).toBe(200);
-  expect(await health.json()).toMatchObject({ status: "ok", checks: { db: "ok", kv: "ok", sync: "ok", oauthState: "ok" } });
+  expect(await health.json()).toMatchObject({ status: "ok", checks: { db: "ok", kv: "ok", sync: "ok", oauthState: "ok", tokenKey: "ok" } });
   expect((await request.get("/api/admin/status")).status()).toBe(401);
   const status = await request.get("/api/admin/status", { headers: { Authorization: "Bearer local-e2e-admin" } });
   expect(status.status()).toBe(200);
@@ -370,4 +370,16 @@ test("las pantallas principales no desbordan el viewport", async ({ page }) => {
     const sizes = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
     expect(sizes.content, path).toBeLessThanOrEqual(sizes.viewport + 1);
   }
+});
+
+test("un 429 al agregar al calendario muestra la espera en un mensaje legible", async ({ page }, info) => {
+  await login(page, info, "calendar");
+  await page.route("**/api/calendario/sync", (route) =>
+    route.fulfill({ status: 429, headers: { "Retry-After": "37", "Content-Type": "application/json" }, body: JSON.stringify({ error: "rate_limited", retryAfter: 37 }) })
+  );
+  await page.goto("/partidos/superclasico");
+  const agregar = page.getByRole("button", { name: /^Agregar/ });
+  await ready(page, agregar);
+  await agregar.click();
+  await expect(page.getByText("Demasiados intentos. Probá de nuevo en 37 segundos.")).toBeVisible();
 });

@@ -3,8 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { oauthIdentities } from "../../../../../drizzle/schema";
 import { createDb } from "../../../../lib/db";
 import { isValidProvider } from "../../../../lib/auth/providers";
-import { esMismoOrigen } from "../../../../lib/auth/guards";
 import { revocarAcceso } from "../../../../lib/auth/revoke";
+import { leerTokenOpcional } from "../../../../lib/auth/token-store";
 import { withApi } from "../../../../lib/observability/with-api";
 
 function json(body: unknown, status = 200) {
@@ -13,12 +13,11 @@ function json(body: unknown, status = 200) {
 
 // Desvincula un proveedor de la cuenta con sesión (docs/18 D9). Se rechaza si es la última identidad
 // o la del calendario activo (cambiar de calendario queda fuera de esta versión, §11 del TDD).
-export const DELETE: APIRoute = withApi(async ({ params, request, locals }) => {
+export const DELETE: APIRoute = withApi(async ({ params, locals }) => {
   const user = locals.user;
   if (!user) return json({ error: "Unauthorized" }, 401);
 
   const env = locals.runtime.env;
-  if (!esMismoOrigen(request, env)) return json({ error: "Origen no permitido" }, 403);
 
   const { provider } = params;
   if (!provider || !isValidProvider(provider)) return json({ error: "Provider not supported" }, 400);
@@ -33,7 +32,8 @@ export const DELETE: APIRoute = withApi(async ({ params, request, locals }) => {
   await db.delete(oauthIdentities).where(and(eq(oauthIdentities.id, identidad.id), eq(oauthIdentities.userId, user.id)));
 
   // Después de D1: si falla, la identidad ya no existe y el token no quedó guardado en ningún lado
-  await revocarAcceso(env, { provider, refreshToken: identidad.refreshToken }, locals.logger);
+  const refreshToken = await leerTokenOpcional(env, identidad.refreshToken, identidad.id, "refresh_token");
+  await revocarAcceso(env, { provider, refreshToken }, locals.logger);
 
   locals.logger?.info("identity_unlinked", { provider });
   return json({ ok: true });

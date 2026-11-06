@@ -14,7 +14,7 @@ vi.mock("astro:middleware", () => ({
 }));
 
 import { onRequest } from "../../../src/middleware";
-import { GET as logout } from "../../../src/pages/api/auth/logout";
+import { GET as logoutGet, POST as logout } from "../../../src/pages/api/auth/logout";
 
 describe("middleware y logout con sesiones en D1", () => {
   const t = useTestDb();
@@ -87,13 +87,15 @@ describe("middleware y logout con sesiones en D1", () => {
     expect(r.res.headers.get("X-Frame-Options")).toBe("DENY");
   });
 
-  it("S11: logout borra la fila y la cookie, con 0 operaciones de KV", async () => {
+  it("S11: logout (POST) borra la fila y la cookie, con 0 operaciones de KV", async () => {
     const token = await createSession(t.db, "user-1");
     const cookies = { get: () => ({ value: token }), delete: vi.fn() };
 
     const res = await logout(
       apiCtx({
         url: "https://fisture.test/api/auth/logout",
+        method: "POST",
+        headers: { "sec-fetch-site": "same-origin" },
         env: { DB: t.DB, KV: kv },
         over: { cookies, redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) },
       })
@@ -105,12 +107,57 @@ describe("middleware y logout con sesiones en D1", () => {
     expect(operacionesKv).toEqual([]);
   });
 
+  it("LO1: un GET responde 405 y no cierra la sesión ni redirige", async () => {
+    const token = await createSession(t.db, "user-1");
+    const cookies = { get: () => ({ value: token }), delete: vi.fn() };
+    const res = await logoutGet(
+      apiCtx({ url: "https://fisture.test/api/auth/logout", over: { cookies, redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) } })
+    );
+    expect(res.status).toBe(405);
+    expect(res.headers.get("Allow")).toBe("POST");
+    expect(res.headers.get("Location")).toBeNull();
+    expect((await t.DB.prepare("SELECT COUNT(*) AS n FROM sessions").first<{ n: number }>())!.n).toBe(1);
+    expect(cookies.delete).not.toHaveBeenCalled();
+  });
+
+  it("LO2: un POST cross-site (CSRF) da 403 y no cierra la sesión", async () => {
+    const token = await createSession(t.db, "user-1");
+    const cookies = { get: () => ({ value: token }), delete: vi.fn() };
+    const res = await logout(
+      apiCtx({
+        url: "https://fisture.test/api/auth/logout",
+        method: "POST",
+        headers: { "sec-fetch-site": "cross-site", origin: "https://evil.example", cookie: `session=${token}` },
+        env: { DB: t.DB, KV: kv, PUBLIC_APP_URL: "https://fisture.test" },
+        over: { cookies },
+      })
+    );
+    expect(res.status).toBe(403);
+    expect((await t.DB.prepare("SELECT COUNT(*) AS n FROM sessions").first<{ n: number }>())!.n).toBe(1);
+  });
+
+  it("LO3: el formulario del navegador (urlencoded vacío) pasa y redirige con 303", async () => {
+    const res = await logout(
+      apiCtx({
+        url: "https://fisture.test/api/auth/logout",
+        method: "POST",
+        headers: { "sec-fetch-site": "same-origin", "content-type": "application/x-www-form-urlencoded" },
+        env: { DB: t.DB, KV: kv },
+        over: { cookies: { get: () => undefined, delete: vi.fn() }, redirect: (d: string, s = 302) => new Response(null, { status: s, headers: { Location: d } }) },
+      })
+    );
+    expect(res.status).toBe(303);
+    expect(res.headers.get("Location")).toBe("/");
+  });
+
   it("S11: sin cookie igual redirige a / sin consultar la base", async () => {
     const consultas: string[] = [];
     const DB = { prepare: (sql: string) => (consultas.push(sql), t.DB.prepare(sql)) };
     const res = await logout(
       apiCtx({
         url: "https://fisture.test/api/auth/logout",
+        method: "POST",
+        headers: { "sec-fetch-site": "same-origin" },
         env: { DB, KV: kv },
         over: { cookies: { get: () => undefined, delete: vi.fn() }, redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) },
       })

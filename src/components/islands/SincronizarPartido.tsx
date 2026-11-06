@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { syncView, toSyncStatus, type SyncStatus } from "../../lib/sync-ui";
+import { mensajeDeLimite, syncView, toSyncStatus, type SyncStatus } from "../../lib/sync-ui";
 import { irALogin } from "../../lib/auth/client";
 
 interface Aviso {
@@ -58,6 +58,11 @@ export default function SincronizarPartido({
         body: JSON.stringify({ matchId }),
       });
       if (res.status === 401) return irALogin();
+      if (res.status === 429) {
+        setEstado("failed");
+        setError(mensajeDeLimite(res.headers.get("Retry-After")));
+        return;
+      }
       const data = (await res.json()) as SyncResponse;
       const resultado = data.results?.[0];
 
@@ -81,6 +86,7 @@ export default function SincronizarPartido({
     try {
       const res = await fetch(`/api/calendario/sync?matchId=${matchId}`, { method: "DELETE" });
       const data = (await res.json().catch(() => ({}))) as SyncResponse;
+      if (res.status === 429) throw new Error(mensajeDeLimite(res.headers.get("Retry-After")));
       if (!res.ok) throw new Error(data.error || "No se pudo quitar del calendario");
       setEstado("none");
       setError(null);
@@ -116,8 +122,10 @@ export default function SincronizarPartido({
       </div>
       {vista.estado && (
         <span
+          role="status"
+          className="sp-estado"
           style={{
-            font: compacto ? "700 12px/14px var(--font-rotulo)" : "700 13px/16px var(--font-rotulo)",
+            font: compacto ?"700 12px/14px var(--font-rotulo)" : "700 13px/16px var(--font-rotulo)",
             letterSpacing: ".04em",
             textTransform: "uppercase",
             color: vista.estadoColor,
@@ -128,6 +136,8 @@ export default function SincronizarPartido({
       )}
       {mostrarMotivo && (
         <span
+          role={estado === "failed" ? "alert" : "status"}
+          className="sp-mensaje"
           style={{
             font: "400 14px/19px var(--font-texto)",
             color: "var(--tinta-suave)",
@@ -141,6 +151,7 @@ export default function SincronizarPartido({
       {solapados.length > 0 && (
         <span
           role="status"
+          className="sp-mensaje"
           style={{
             font: "400 14px/19px var(--font-texto)",
             color: "var(--tinta-suave)",
@@ -151,7 +162,7 @@ export default function SincronizarPartido({
           Se superpone con: {solapados.join(", ")}
         </span>
       )}
-      {error && estado !== "failed" && <span className="tb-error">{error}</span>}
+      {error && estado !== "failed" && <span role="alert" className="tb-error sp-mensaje">{error}</span>}
     </div>
   );
 }

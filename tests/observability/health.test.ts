@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "../helpers/use-test-db";
+import { TOKEN_ENCRYPTION_KEY } from "../helpers/token-key";
 import { apiCtx } from "../helpers/ctx";
 import { seedApp } from "../helpers/fixtures";
 import { createSession } from "../../src/lib/auth/session";
@@ -98,9 +99,9 @@ describe("getHealth y endpoints (D1)", () => {
 
   it("getHealth ok con un sync reciente", async () => {
     await syncExitoso(Date.now() - H);
-    const h = await getHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret" });
+    const h = await getHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY });
     expect(h.status).toBe("ok");
-    expect(h.checks).toEqual({ db: "ok", kv: "ok", sync: "ok", oauthState: "ok" });
+    expect(h.checks).toEqual({ db: "ok", kv: "ok", sync: "ok", calendars: "ok", oauthState: "ok", tokenKey: "ok" });
     expect(h.lastSyncAt).toBeTruthy();
   });
 
@@ -118,13 +119,13 @@ describe("getHealth y endpoints (D1)", () => {
   } as any;
 
   it("getHealth: D1 rota => db en fail y estado general fail", async () => {
-    const h = await getHealth({ DB: dbRota, KV: kvOk, OAUTH_STATE_SECRET: "secret" });
+    const h = await getHealth({ DB: dbRota, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY });
     expect(h.checks.db).toBe("fail");
     expect(h.status).toBe("fail");
   });
 
   it("getHealth: sin poder consultar D1 no se evalúa el sync y queda en fail", async () => {
-    const h = await getHealth({ DB: dbRota, KV: kvOk, OAUTH_STATE_SECRET: "secret" });
+    const h = await getHealth({ DB: dbRota, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY });
     expect(h.checks.sync).toBe("fail");
     expect(h.lastSyncAt).toBeNull();
   });
@@ -137,19 +138,19 @@ describe("getHealth y endpoints (D1)", () => {
         return t.DB.prepare(sql);
       },
     } as any;
-    const h = await getHealth({ DB: dbSinRuns, KV: kvOk, OAUTH_STATE_SECRET: "secret" });
+    const h = await getHealth({ DB: dbSinRuns, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY });
     expect(h.checks).toMatchObject({ db: "ok", sync: "fail" });
   });
 
   it("GET /api/health: 200 con base sana", async () => {
     await syncExitoso(Date.now() - H);
-    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret" }));
+    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY }));
     expect(res.status).toBe(200);
     expect(((await res.json()) as any).status).toBe("ok");
   });
 
   it("GET /api/health: 503 si el sync está en fail (sin runs)", async () => {
-    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret" }));
+    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY }));
     expect(res.status).toBe(503);
     expect(((await res.json()) as any).checks.sync).toBe("fail");
   });
@@ -161,35 +162,54 @@ describe("getHealth y endpoints (D1)", () => {
     expect(((await res.json()) as any).checks).toMatchObject({ db: "ok", kv: "ok", sync: "ok", oauthState: "fail" });
   });
 
+  it("K16: sin TOKEN_ENCRYPTION_KEY (o inválida) el check tokenKey falla y /api/health responde 503", async () => {
+    await syncExitoso(Date.now() - H);
+    for (const clave of [undefined, btoa("corta")]) {
+      const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY: clave }));
+      expect(res.status).toBe(503);
+      expect(((await res.json()) as any).checks).toMatchObject({ db: "ok", kv: "ok", sync: "ok", oauthState: "ok", tokenKey: "fail" });
+    }
+  });
+
+  it("una TOKEN_ENCRYPTION_KEY_PREVIOUS mal formada deja tokenKey en degraded (200), no en fail", async () => {
+    await syncExitoso(Date.now() - H);
+    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY, TOKEN_ENCRYPTION_KEY_PREVIOUS: btoa("corta") }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.checks.tokenKey).toBe("degraded");
+    expect(body.status).toBe("degraded");
+  });
+
   it("GET /api/health no expone detalles internos", async () => {
     const id = await startSyncRun(t.db, "cron", Date.now() - H);
     await failSyncRun(t.db, id, new Error("clave secreta de ESPN: abc"), Date.now());
-    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret" }));
+    const res = await healthGET(ctxHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY }));
     const body = (await res.json()) as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(["checks", "lastSyncAt", "status"]);
-    expect(Object.keys(body.checks as object).sort()).toEqual(["db", "kv", "oauthState", "sync"]);
+    expect(Object.keys(body).sort()).toEqual(["checks", "lastCalendarSyncAt", "lastSyncAt", "status"]);
+    expect(Object.keys(body.checks as object).sort()).toEqual(["calendars", "db", "kv", "oauthState", "sync", "tokenKey"]);
     expect(JSON.stringify(body)).not.toContain("clave secreta");
   });
 
   it("GET /api/admin/status: 401 sin token o con token incorrecto", async () => {
-    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3", OAUTH_STATE_SECRET: "secret" };
+    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3", OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY };
     expect((await statusGET(ctxStatus(env))).status).toBe(401);
     expect((await statusGET(ctxStatus(env, "Bearer otro"))).status).toBe(401);
   });
 
   it("GET /api/admin/status: 401 si no hay ADMIN_SECRET configurado", async () => {
-    expect((await statusGET(ctxStatus({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret" }, "Bearer undefined"))).status).toBe(401);
+    expect((await statusGET(ctxStatus({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY }, "Bearer undefined"))).status).toBe(401);
   });
 
   it("GET /api/admin/status: 200 con token y devuelve los runs", async () => {
     await syncExitoso(Date.now() - H);
     await syncExitoso(Date.now() - 2 * H);
-    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3", OAUTH_STATE_SECRET: "secret" };
+    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3", OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY };
     const res = await statusGET(ctxStatus(env, "Bearer s3"));
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.runs).toHaveLength(2);
-    expect(body.runs[0]).toMatchObject({ status: "success", trigger: "cron" });
+    expect(body.runs[0]).toMatchObject({ status: "success", trigger: "cron", kind: "leagues" });
+    expect(body.runsCalendarios).toEqual([]);
     expect(body.health.status).toBe("ok");
     expect(body.metricas).toMatchObject({ usuarios: 0, eventosEnCalendarios: 0 });
   });
@@ -199,7 +219,7 @@ describe("getHealth y endpoints (D1)", () => {
     await seedApp(t.db);
     await createSession(t.db, "user-1");
     await createSession(t.db, "user-1", new Date(Date.now() - 31 * 24 * H));
-    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3", OAUTH_STATE_SECRET: "secret" };
+    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3", OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY };
     const res = await statusGET(ctxStatus(env, "Bearer s3"));
     const body = (await res.json()) as any;
     expect(body.sessions).toEqual({ vigentes: 1, vencidas: 1 });

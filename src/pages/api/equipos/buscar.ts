@@ -5,12 +5,15 @@ import { and, eq, inArray, like } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { withApi } from "../../../lib/observability/with-api";
 
+const MAX_QUERY = 50;
+
 export const GET: APIRoute = withApi(async ({ url, locals }) => {
   // Búsqueda pública: sin sesión devuelve isFollowing=false
   const user = locals.user;
 
   const query = url.searchParams.get("q")?.trim();
-  if (!query || query.length < 2) {
+  // Tope de largo (docs/16 D4): ningún nombre de equipo se acerca, y evita LIKE con textos enormes
+  if (!query || query.length < 2 || query.length > MAX_QUERY) {
     return new Response(JSON.stringify([]), {
       headers: { "Content-Type": "application/json" },
     });
@@ -53,7 +56,8 @@ export const GET: APIRoute = withApi(async ({ url, locals }) => {
     isFollowing: followingSet.has(team.id),
   }));
 
+  // El resultado depende de la sesión (isFollowing): solo la respuesta anónima puede cachearse en común
   return new Response(JSON.stringify(teamsWithFollowStatus), {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Cache-Control": user ? "private, max-age=60" : "public, max-age=60" },
   });
-});
+}, { rateLimit: ["search_public"] });
