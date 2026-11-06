@@ -789,6 +789,13 @@ a:hover {
   }
 }
 
+/* Buscador de equipos: chips de competencias debajo del campo (docs/28) */
+.fe-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* ===== Mobile: Liga, Equipo, Ficha, Calendario, Configuración ===== */
 @media (max-width: 640px) {
   /* Liga → equipos: buscador pegajoso y grilla de 2 columnas */
@@ -803,6 +810,21 @@ a:hover {
     padding: 12px 14px;
     background: var(--papel);
     border-bottom: 2px solid var(--tinta);
+  }
+  /* Una sola fila desplazable: con 12 competencias la grilla empujaba la lista seis filas */
+  .fe-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    margin: 0 -16px;
+    padding: 2px 16px 6px;
+    scrollbar-width: thin;
+  }
+  .fe-chips .tb-chip {
+    flex: none;
+    white-space: nowrap;
+    /* Que el buscador pegajoso no tape el chip enfocado con teclado */
+    scroll-margin-top: 140px;
   }
   .fe-barra .tb-buscador {
     font-size: 18px;

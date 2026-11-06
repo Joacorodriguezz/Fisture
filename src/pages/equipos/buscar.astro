@@ -44,6 +44,11 @@ const seguidos = new Set(
     : []
 );
 
+// Estado del buscador desde la URL (?q=&liga=): recargar, compartir o volver lo conserva (docs/28)
+const consultaInicial = (Astro.url.searchParams.get("q") ?? "").slice(0, 80);
+const ligaPedida = Astro.url.searchParams.get("liga") ?? "";
+const ligaInicial = ligasActivas.has(ligaPedida) ? ligaPedida : "";
+
 const items = todosLosEquipos
   .filter((t) => participacion.has(t.id))
   .map((t) => ({
@@ -79,6 +84,9 @@ const items = todosLosEquipos
         ligas={todasLasLigas.map((l) => ({ id: l.id, nombre: l.name }))}
         modo="seguir"
         placeholder="River, Liverpool, Inter…"
+        consultaInicial={consultaInicial}
+        ligaInicial={ligaInicial}
+        sincronizarUrl
       />
     )}
   </div>
