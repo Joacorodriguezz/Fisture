@@ -1,0 +1,780 @@
+{
+  "generatedAt": "2026-11-05T22:48:13.912Z",
+  "origin": "https://development.fisture.pages.dev",
+  "workspaceBaseCommit": "c1b8cf541f13b74c0d7ed68699b933a96f5d8ef3",
+  "deployedCommit": "No identificado; staging y workspace se evaluaron por separado",
+  "screens": [
+    {
+      "device": "desktop",
+      "path": "/",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 1331,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 1331,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/login",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 1015,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/login",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 1015,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/hoy",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 4517,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/hoy",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 4517,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/ligas",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 1549,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/ligas",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 1549,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/equipos/buscar",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 21321,
+      "screenshotScope": "viewport (página supera 8000px)",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/equipos/buscar",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 21321,
+      "screenshotScope": "viewport (página supera 8000px)",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/calendario",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 900,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/calendario",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 900,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/ayuda",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 2336,
+      "screenshotScope": "fullPage",
+      "violations": [
+        {
+          "id": "link-in-text-block",
+          "impact": "serious",
+          "targets": [
+            [
+              "p:nth-child(20) > a:nth-child(1)"
+            ],
+            [
+              "p:nth-child(20) > a[href$=\"privacidad\"]"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "device": "desktop",
+      "path": "/ayuda",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 2336,
+      "screenshotScope": "fullPage",
+      "violations": [
+        {
+          "id": "link-in-text-block",
+          "impact": "serious",
+          "targets": [
+            [
+              "p:nth-child(20) > a:nth-child(1)"
+            ],
+            [
+              "p:nth-child(20) > a[href$=\"privacidad\"]"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "device": "desktop",
+      "path": "/partidos/9a38c650-df45-4dd6-8ef4-381796a16950",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 1015,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/partidos/9a38c650-df45-4dd6-8ef4-381796a16950",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 1015,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/ligas/a3db4867-2729-4fb2-9ee8-dc1278b0e3ee",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 1425,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/ligas/a3db4867-2729-4fb2-9ee8-dc1278b0e3ee",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 1425,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/equipos/889a4925-0307-45b4-824b-820ddc0ee1f8",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 1145,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "desktop",
+      "path": "/equipos/889a4925-0307-45b4-824b-820ddc0ee1f8",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 1280,
+      "content": 1280,
+      "height": 1145,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 1632,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 1632,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/login",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 920,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/login",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 920,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/hoy",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 5111,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/hoy",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 5111,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/ligas",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 3181,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/ligas",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 3181,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/equipos/buscar",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 21399,
+      "screenshotScope": "viewport (página supera 8000px)",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/equipos/buscar",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 21399,
+      "screenshotScope": "viewport (página supera 8000px)",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/calendario",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 839,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/calendario",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 839,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/ayuda",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 2898,
+      "screenshotScope": "fullPage",
+      "violations": [
+        {
+          "id": "link-in-text-block",
+          "impact": "serious",
+          "targets": [
+            [
+              "p:nth-child(20) > a:nth-child(1)"
+            ],
+            [
+              "p:nth-child(20) > a[href$=\"privacidad\"]"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "device": "android",
+      "path": "/ayuda",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 2898,
+      "screenshotScope": "fullPage",
+      "violations": [
+        {
+          "id": "link-in-text-block",
+          "impact": "serious",
+          "targets": [
+            [
+              "p:nth-child(20) > a:nth-child(1)"
+            ],
+            [
+              "p:nth-child(20) > a[href$=\"privacidad\"]"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "device": "android",
+      "path": "/partidos/9a38c650-df45-4dd6-8ef4-381796a16950",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 940,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/partidos/9a38c650-df45-4dd6-8ef4-381796a16950",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 940,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/ligas/a3db4867-2729-4fb2-9ee8-dc1278b0e3ee",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 2187,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/ligas/a3db4867-2729-4fb2-9ee8-dc1278b0e3ee",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 2187,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/equipos/889a4925-0307-45b4-824b-820ddc0ee1f8",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 1388,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "android",
+      "path": "/equipos/889a4925-0307-45b4-824b-820ddc0ee1f8",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 412,
+      "content": 412,
+      "height": 1388,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 1706,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 1706,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/login",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 959,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/login",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 959,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/hoy",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 5282,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/hoy",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 5282,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/ligas",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 3181,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/ligas",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 3181,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/equipos/buscar",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 21559,
+      "screenshotScope": "viewport (página supera 8000px)",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/equipos/buscar",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 21559,
+      "screenshotScope": "viewport (página supera 8000px)",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/calendario",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 713,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/calendario",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 713,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/ayuda",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 2925,
+      "screenshotScope": "fullPage",
+      "violations": [
+        {
+          "id": "link-in-text-block",
+          "impact": "serious",
+          "targets": [
+            [
+              "p:nth-child(20) > a:nth-child(1)"
+            ],
+            [
+              "p:nth-child(20) > a[href$=\"privacidad\"]"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "device": "webkit",
+      "path": "/ayuda",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 2925,
+      "screenshotScope": "fullPage",
+      "violations": [
+        {
+          "id": "link-in-text-block",
+          "impact": "serious",
+          "targets": [
+            [
+              "p:nth-child(20) > a:nth-child(1)"
+            ],
+            [
+              "p:nth-child(20) > a[href$=\"privacidad\"]"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "device": "webkit",
+      "path": "/partidos/9a38c650-df45-4dd6-8ef4-381796a16950",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 964,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/partidos/9a38c650-df45-4dd6-8ef4-381796a16950",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 964,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/ligas/a3db4867-2729-4fb2-9ee8-dc1278b0e3ee",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 2187,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/ligas/a3db4867-2729-4fb2-9ee8-dc1278b0e3ee",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 2187,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/equipos/889a4925-0307-45b4-824b-820ddc0ee1f8",
+      "theme": "papel",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 1388,
+      "screenshotScope": "fullPage",
+      "violations": []
+    },
+    {
+      "device": "webkit",
+      "path": "/equipos/889a4925-0307-45b4-824b-820ddc0ee1f8",
+      "theme": "nocturna",
+      "status": 200,
+      "viewport": 390,
+      "content": 390,
+      "height": 1388,
+      "screenshotScope": "fullPage",
+      "violations": []
+    }
+  ],
+  "errors": [],
+  "probe": {
+    "viewport": {
+      "width": 375,
+      "height": 667
+    },
+    "search": {
+      "geometry": {
+        "x": 14,
+        "y": 656.796875,
+        "width": 347,
+        "height": 52
+      },
+      "beforeReload": "River",
+      "afterReload": ""
+    },
+    "todayControls": [
+      {
+        "text": "Iniciá sesión",
+        "width": 94.34375,
+        "height": 40
+      },
+      {
+        "text": "Iniciá sesión",
+        "width": 94.34375,
+        "height": 40
+      },
+      {
+        "text": "Iniciá sesión",
+        "width": 94.34375,
+        "height": 40
+      }
+    ]
+  }
+}

@@ -69,7 +69,7 @@ try {
     `INSERT INTO sync_runs (id, trigger, started_at, finished_at, status, duration_ms, results, issues) VALUES ('e2e-sync', 'admin', ${now}, ${now}, 'success', 1, '[]', '[]');`,
   ];
   const sessions = [];
-  for (const project of ["desktop", "mobile"]) {
+  for (const project of ["desktop", "mobile", "webkit-mobile"]) {
     for (const scenario of ["delete-account", "delete-cancel", "follow", "preferences", "calendar", "logout", "navigation", "errors", "calendar-states", "responsive-menu", "responsive-today", "responsive-today-chip", "responsive-today-mine"]) {
       for (let retry = 0; retry <= 1; retry++) {
         const id = `${project}-${scenario}-${retry}`;

@@ -1,14 +1,14 @@
 # Tests y aprobación de releases del backend actual
 
-La suite valida cada PR a `development` y `main`. El check obligatorio `build` agrega el resultado de todos los jobs: tipos, unitarias, integración con D1, cobertura y navegador. Un job fallido o cancelado impide que el check quede verde. No hay filtros de archivos ni tests omitidos en PRs de release.
+La suite valida cada PR a `development` y `main`. El check obligatorio `build` agrega el resultado de todos los jobs: tipos, unitarias, integración con D1, cobertura, navegador y UI/accesibilidad. Un job fallido o cancelado impide que el check quede verde. No hay filtros de archivos ni tests omitidos en PRs de release.
 
 ## Ejecutar localmente
 
-Requiere Node 22 y las dependencias del lockfile:
+Requiere Node 22.12 o posterior de la rama 22 y las dependencias del lockfile:
 
 ```sh
 npm ci
-npx playwright install chromium
+npx playwright install chromium webkit
 npm run check
 ```
 
@@ -23,6 +23,9 @@ Comandos individuales:
 | `npm run test:coverage` | Ambas suites Vitest y umbrales de cobertura |
 | `npm run build && npm run test:e2e` | Aplicación construida sobre Pages local en Chromium de escritorio y móvil |
 | `npm run test:e2e:ui` | Navegador de pruebas interactivo, requiere build previo |
+| `npm run build && npm run test:ux` | Axe, capturas, reflow y recuperación en Chromium de escritorio/móvil y WebKit móvil |
+| `npm run test:ux:report` | Abre el reporte HTML de la última auditoría local |
+| `npm run audit:ux:staging` | Auditoría pública de staging; captura pantallas y guarda hallazgos en `ux-artifacts/staging` |
 | `npm run test:smoke` | Consultas HTTP de solo lectura contra `PUBLIC_APP_URL` explícita |
 
 Los tests existentes de observabilidad se conservan. Los que mezclan funciones puras y D1 corren en el proyecto `integration`; logger y wrapper HTTP corren en `unit`. Las regresiones de la PR #17 se reorganizaron en `tests/unit/calendar` y `tests/integration/calendar`, y las de autenticación en `tests/unit/auth`. Se conserva el comportamiento del backend nuevo.
@@ -38,6 +41,10 @@ El servidor E2E crea un directorio temporal propio con configuración, D1 y KV l
 Con Wrangler 3, el runner conecta al inspector local en un puerto efímero y confirma `Network.disable` antes de anunciar readiness. Es una mitigación del [problema de eventos acumulados en ejecución headless](https://github.com/cloudflare/workers-sdk/issues/14191), no un mock del tráfico de aplicación: las requests y el build siguen siendo reales. Si falla el inspector, el runner falla. Revisar la necesidad de esta mitigación al actualizar Wrangler. El entorno soportado de la suite es Node 22; no se declara validada esta ampliación con Node 24.
 
 Cada escenario, proyecto y reintento tiene su propio usuario y sesión. Las pruebas no reutilizan un servidor existente. El navegador bloquea requests a hosts externos. Las operaciones reales de Google/Microsoft se verifican en integración con HTTP simulado; el consentimiento OAuth real requiere comprobación manual con una cuenta de prueba antes de cambiar scopes o configuración del proveedor. No hay bypass de autenticación en la aplicación.
+
+La auditoría UI usa una configuración separada (`playwright.ux.config.ts`), integrada en `npm run check` y en el job `ux` de la suite de CI. Ese job descarga el mismo build que aprobó los E2E. Los tests viven en `tests/e2e/ux`, excluidos del runner E2E general para evitar duplicarlos. Se permite cargar las fuentes de Google para las capturas; su estado queda en el adjunto de layout. No se permiten llamadas del navegador a OAuth ni a APIs de calendario externas. Los fallos de proveedor se inyectan en la frontera HTTP; las preferencias y el seguimiento que se prueban contra el servidor usan D1 descartable.
+
+Las capturas de UI son evidencia para revisión humana; aún no son imágenes de referencia aprobadas ni comparaciones de píxeles. Los controles de menos de 44px quedan inventariados como candidatos a revisión, sin declararlos automáticamente incumplimientos de WCAG. El escaneo axe no certifica accesibilidad ni sustituye VoiceOver/TalkBack. Alcance, hallazgos y protocolo manual: `docs/27-auditoria-ui-ux.md`.
 
 ## Convenciones de los tests
 

@@ -37,4 +37,6 @@ drizzle/meta/
 # Test reports and isolated E2E data
 coverage/
 playwright-report/
+ux-report/
+ux-artifacts/
 test-results/
