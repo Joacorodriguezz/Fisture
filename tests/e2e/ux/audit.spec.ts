@@ -373,6 +373,75 @@ test("hoy: la tira de días usa texto de al menos 12px", async ({ page, isMobile
   expect(Math.min(...tamanos)).toBeGreaterThanOrEqual(12);
 });
 
+test("buscador: aparece en la primera pantalla, antes de los filtros", async ({ page }, info) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto("/equipos/buscar");
+  const search = page.getByRole("searchbox", { name: "Buscar equipos" });
+  await ready(page, search);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const caja = await search.boundingBox();
+  await info.attach("buscador-375x667", { body: await page.screenshot(), contentType: "image/png" });
+  expect(caja!.y + caja!.height, "El campo debe verse entero sin desplazar").toBeLessThanOrEqual(667);
+  const antes = await search.evaluate((input) => {
+    const chip = document.querySelector("button[aria-pressed]")!;
+    return Boolean(input.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(antes, "El buscador va antes que los chips de competencias").toBe(true);
+});
+
+test("buscador: en móvil los chips ocupan una sola fila", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "La fila desplazable aplica en móvil");
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto("/equipos/buscar");
+  await ready(page, page.getByRole("searchbox", { name: "Buscar equipos" }));
+  const medidas = await page.evaluate(() => ({
+    tops: [...document.querySelectorAll("button[aria-pressed]")].map((chip) => Math.round(chip.getBoundingClientRect().top)),
+    content: document.documentElement.scrollWidth,
+    viewport: document.documentElement.clientWidth,
+  }));
+  expect(medidas.tops.length).toBeGreaterThan(2);
+  expect(new Set(medidas.tops).size, "Todos los chips en la misma fila").toBe(1);
+  expect(medidas.content, "La fila se desplaza dentro de su caja, no la página").toBeLessThanOrEqual(medidas.viewport + 1);
+});
+
+test("buscador: la consulta y la liga se conservan en la URL", async ({ page }) => {
+  await page.goto("/equipos/buscar");
+  const search = page.getByRole("searchbox", { name: "Buscar equipos" });
+  await ready(page, search);
+  const chip = page.locator("button[aria-pressed]").nth(1);
+  const nombreLiga = (await chip.textContent())!.trim();
+  await chip.click();
+  await search.fill("River");
+  await expect(page).toHaveURL(/[?&]q=River(&|$)/);
+  await expect(page).toHaveURL(/[?&]liga=[^&]+/);
+  const resultados = await page.locator(".tb-meta").first().textContent();
+
+  // Recargar conserva todo, sin agregar entradas al historial por cada letra.
+  await page.reload();
+  const tras = page.getByRole("searchbox", { name: "Buscar equipos" });
+  await expect(tras).toHaveValue("River");
+  await expect(page.getByRole("button", { name: nombreLiga, exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".tb-meta").first()).toHaveText(resultados!);
+
+  // Ir a otra pantalla y volver con Atrás.
+  await page.goto("/ligas");
+  await page.goBack();
+  await expect(page.getByRole("searchbox", { name: "Buscar equipos" })).toHaveValue("River");
+
+  // Limpiar filtros también limpia la URL.
+  await ready(page, page.getByRole("searchbox", { name: "Buscar equipos" }));
+  await page.getByRole("button", { name: "Limpiar filtros" }).click();
+  await expect(page).not.toHaveURL(/[?&](q|liga)=/);
+});
+
+test("buscador: el HTML del servidor trae la consulta y descarta ligas desconocidas", async ({ page, request }) => {
+  const html = await (await request.get("/equipos/buscar?q=River")).text();
+  expect(html).toMatch(/<input[^>]*value="River"/);
+  await page.goto("/equipos/buscar?liga=no-existe");
+  await ready(page, page.getByRole("searchbox", { name: "Buscar equipos" }));
+  await expect(page.getByRole("button", { name: "Todas", exact: true })).toHaveAttribute("aria-pressed", "true");
+});
+
 for (const width of [320, 375, 768, 1280]) {
   test(`reflow: pantallas principales a ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });
