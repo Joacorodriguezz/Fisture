@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ventana } from "../../../src/lib/rate-limit/limiter";
-import { COSTO_FIJO_REQUEST, COSTO_PARTIDO_PEOR_CASO, MAX_PARTIDOS_POR_REQUEST, SUBREQUESTS_FREE } from "../../../src/lib/calendar/limites";
+import { COSTO_FIJO_REQUEST, COSTO_PARTIDO_PEOR_CASO, RESERVA_RENOVACION_FORZADA, MAX_PARTIDOS_POR_REQUEST, SUBREQUESTS_FREE } from "../../../src/lib/calendar/limites";
 import { hashIp, ipDe, normalizarIp, saltDe, sujetoIp } from "../../../src/lib/rate-limit/subject";
 import { hitMemory, reiniciarMemoria } from "../../../src/lib/rate-limit/memory";
 import { POLICIES, politicasPorDefecto } from "../../../src/lib/rate-limit/policies";
@@ -94,9 +94,9 @@ describe("limitador en memoria", () => {
 
 describe("tope de partidos por request (subrequests de Workers Free)", () => {
   it("RL11b: el peor caso de un lote completo cabe en las 50 subrequests", () => {
-    expect(MAX_PARTIDOS_POR_REQUEST).toBe(6);
-    expect(COSTO_FIJO_REQUEST + MAX_PARTIDOS_POR_REQUEST * COSTO_PARTIDO_PEOR_CASO).toBeLessThanOrEqual(SUBREQUESTS_FREE);
-    expect(COSTO_FIJO_REQUEST + (MAX_PARTIDOS_POR_REQUEST + 1) * COSTO_PARTIDO_PEOR_CASO).toBeGreaterThan(SUBREQUESTS_FREE);
+    expect(MAX_PARTIDOS_POR_REQUEST).toBe(5);
+    expect(COSTO_FIJO_REQUEST + RESERVA_RENOVACION_FORZADA + MAX_PARTIDOS_POR_REQUEST * COSTO_PARTIDO_PEOR_CASO).toBeLessThanOrEqual(SUBREQUESTS_FREE);
+    expect(COSTO_FIJO_REQUEST + RESERVA_RENOVACION_FORZADA + (MAX_PARTIDOS_POR_REQUEST + 1) * COSTO_PARTIDO_PEOR_CASO).toBeGreaterThan(SUBREQUESTS_FREE);
   });
 });
 
