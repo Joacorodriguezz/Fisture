@@ -22,10 +22,13 @@ export class CalendarApiError extends Error {
   }
 }
 
-export type CalendarErrorClass = "gone" | "auth" | "rate_limit" | "transient" | "conflict" | "permanent" | "config";
+export type CalendarErrorClass = "gone" | "auth" | "scope" | "rate_limit" | "transient" | "conflict" | "permanent" | "config";
 // config: falta o es inválida la clave de cifrado de tokens. Es un error operativo: no marca filas ni usuarios
+// scope: el usuario no concedió el permiso de calendario (consentimiento granular de Google). Renovar el token
+// no lo arregla: tiene que volver a iniciar sesión y marcar la casilla del calendario
 
 const RATE_LIMIT_REASONS = new Set(["rateLimitExceeded", "userRateLimitExceeded", "quotaExceeded"]);
+const SCOPE_REASONS = new Set(["insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT"]);
 
 export function classifyCalendarError(error: unknown): CalendarErrorClass {
   if (error instanceof CalendarApiError) {
@@ -34,7 +37,11 @@ export function classifyCalendarError(error: unknown): CalendarErrorClass {
     if (status === 404 || status === 410) return "gone";
     if (status === 409) return "conflict";
     if (status === 429) return "rate_limit";
-    if (status === 403) return reason && RATE_LIMIT_REASONS.has(reason) ? "rate_limit" : "permanent";
+    if (status === 403) {
+      if (reason && RATE_LIMIT_REASONS.has(reason)) return "rate_limit";
+      if ((reason && SCOPE_REASONS.has(reason)) || /insufficient authentication scopes/i.test(error.message)) return "scope";
+      return "permanent";
+    }
     if (status === 408 || status >= 500) return "transient";
     return "permanent";
   }
