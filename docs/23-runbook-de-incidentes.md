@@ -110,6 +110,8 @@ a las 00:00 UTC (21:00 en Argentina).
   `{ direccion, cursor, siguienteCursor, procesadas, ilegibles, pendientes }`. Iterar con el cursor hasta que
   `siguienteCursor` sea `null` **y** `pendientes` sea `0`:
   `curl -X POST "https://fisture.com/api/admin/encrypt-tokens?cursor=<siguienteCursor>" -H "Authorization: Bearer $ADMIN_SECRET" -H "Content-Type: application/json" -d "{}"` (sin Content-Type, la protección CSRF de Astro responde 403). Más simple: Actions → "Backfill de cifrado de tokens" → Run workflow, que hace todo el recorrido con el secret de GitHub
+  (el entorno por defecto es `staging`; `produccion` solo corre lanzado desde `main`, y `decrypt` en
+  producción exige escribir `produccion` en `confirmar`)
   (la primera llamada va sin `cursor`). Una pasada completa recorre todas las filas; si `pendientes` no es 0 al
   final (una fila cambió mientras corría: un login o una renovación), repetir la pasada desde el principio.
   - `procesadas`: filas realmente escritas. Las escrituras son condicionales sobre lo leído: si la fila cambió
