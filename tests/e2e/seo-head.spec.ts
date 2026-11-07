@@ -157,3 +157,9 @@ test("docs/29: la home nombra la marca en texto y enlaza las secciones públicas
   const [sitio] = await jsonLd(page);
   expect(sitio["@graph"][1].logo.url).toBe(`${BASE}/icon-512.png`);
 });
+
+test("docs/29: meta de verificación de Search Console si está configurada, y la de Bing solo si existe", async ({ page }) => {
+  await page.goto("/ligas");
+  await expect(page.locator('meta[name="google-site-verification"]')).toHaveAttribute("content", "e2e-google-verificacion");
+  await expect(page.locator('meta[name="msvalidate.01"]')).toHaveCount(0);
+});

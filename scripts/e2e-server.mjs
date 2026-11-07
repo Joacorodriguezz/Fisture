@@ -31,6 +31,7 @@ id = "00000000000000000000000000000001"
 [vars]
 ENVIRONMENT = "test"
 PUBLIC_APP_URL = "http://127.0.0.1:4322"
+GOOGLE_SITE_VERIFICATION = "e2e-google-verificacion"
 ADMIN_SECRET = "local-e2e-admin"
 OAUTH_STATE_SECRET = "local-e2e-oauth-state-secret-0123456789"
 TOKEN_ENCRYPTION_KEY = "${randomBytes(32).toString("base64")}"
