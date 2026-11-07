@@ -108,3 +108,22 @@ test("ayuda: preguntas frecuentes con FAQPage y enlazada desde el pie", async ({
   expect(faq["@type"]).toBe("FAQPage");
   expect(faq.mainEntity.length).toBeGreaterThan(5);
 });
+
+test("docs/29: un id inexistente da 404 con noindex, no una redirección (soft 404)", async ({ page, request }) => {
+  for (const ruta of ["/ligas/no-existe", "/equipos/no-existe", "/partidos/no-existe", "/ruta-que-no-existe"]) {
+    const res = await request.get(ruta, { maxRedirects: 0 });
+    expect(res.status(), ruta).toBe(404);
+  }
+  const res = await page.goto("/partidos/ya-se-jugo");
+  expect(res?.status()).toBe(404);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("FUERA DE JUEGO");
+  await page.getByRole("main").getByRole("link", { name: "Próximos partidos" }).click();
+  await expect(page).toHaveURL(`${BASE}/partidos`);
+});
+
+test("docs/29: /equipos redirige con 301 a /ligas", async ({ request }) => {
+  const res = await request.get("/equipos", { maxRedirects: 0 });
+  expect(res.status()).toBe(301);
+  expect(res.headers()["location"]).toBe("/ligas");
+});

@@ -19,7 +19,7 @@ const db = createDb(Astro.locals.runtime.env.DB);
 
 const detalle = id ? await getMatchDetail(db, id) : null;
 if (!detalle) {
-  return Astro.redirect("/partidos");
+  return Astro.rewrite("/404");
 }
 
 const { match, homeTeam, awayTeam, league } = detalle;
