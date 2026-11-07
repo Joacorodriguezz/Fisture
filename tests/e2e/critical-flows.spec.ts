@@ -153,6 +153,17 @@ test("un fallo de auth se informa y permite reintentar sin persistir un falso fa
   await expect(page.getByRole("button", { name: "Agregar al calendario", exact: true })).toBeVisible();
 });
 
+test("agregar desde la lista de partidos responde al toque", async ({ page }, info) => {
+  // En móvil la fila aplana la island con display: contents: tiene que hidratarse igual (regresión).
+  await login(page, info, "list-add");
+  await page.goto("/partidos");
+  const isla = page.locator(".pm-accion astro-island").first();
+  await isla.scrollIntoViewIfNeeded();
+  await expect(isla).not.toHaveAttribute("ssr");
+  await isla.getByRole("button", { name: "Agregar", exact: true }).click();
+  await expect(isla.getByRole("button", { name: "Reintentar", exact: true })).toBeVisible();
+});
+
 test("las copas no destacadas no se listan pero aparecen en el equipo", async ({ page }) => {
   await page.goto("/ligas");
   await expect(page.getByText("Liga E2E", { exact: true })).toBeVisible();
