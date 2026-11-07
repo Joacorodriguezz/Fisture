@@ -22,6 +22,28 @@ export function rutaPublica(seccion: "ligas" | "equipos" | "partidos", id: strin
   return `/${seccion}/${encodeURIComponent(id)}`;
 }
 
+// Dominio único (docs/29): en producción, un pedido que llega por otro host (fisture.pages.dev, www.,
+// el alias de un deploy) se redirige con 301 a la misma ruta en PUBLIC_APP_URL. Así Google ve una sola
+// versión del sitio. Devuelve la URL de destino, o null si el pedido ya está en el dominio canónico.
+// Quedan afuera: otros entornos (staging, test, dev), la API (webhooks y scripts usan su propia URL),
+// los métodos que no son GET/HEAD y los pedidos locales.
+const HOSTS_LOCALES = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+export function destinoDominioCanonico(url: URL, metodo: string, entorno: string, publicAppUrl: string): string | null {
+  if (entorno !== "production") return null;
+  if (metodo !== "GET" && metodo !== "HEAD") return null;
+  if (url.pathname === "/api" || url.pathname.startsWith("/api/")) return null;
+  if (HOSTS_LOCALES.has(url.hostname)) return null;
+  let canonica: URL;
+  try {
+    canonica = new URL(baseUrl(publicAppUrl));
+  } catch {
+    return null;
+  }
+  if (url.host === canonica.host && url.protocol === canonica.protocol) return null;
+  return `${canonica.origin}${url.pathname}${url.search}`;
+}
+
 // Google muestra unos 155-160 caracteres de la descripción: se corta en un espacio y se marca con "…"
 export const LARGO_DESCRIPCION = 160;
 
