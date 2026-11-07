@@ -1,6 +1,6 @@
 # 29 · SEO y posicionamiento de marca (TDD)
 
-Estado: **propuesta, pendiente de revisión**. No hay código implementado todavía.
+Estado: **implementado en código (C1 a C5, más la meta de verificación)**. Quedan las acciones fuera del código (§4.1), C6 y C7.
 
 ## 1. Contexto y problema
 
@@ -124,4 +124,32 @@ Test primero (rojo, verde, refactor), con Vitest y Playwright como el resto del 
 
 ## 9. Notas de implementación
 
-_(vacío: se completa al implementar)_
+Auditoría hecha con el skill `seo-audit` de coreyhaines31/marketingskills (MIT, el más instalado de skills.sh),
+copiado en `.claude/skills/seo-audit/`. Se recorrieron las páginas públicas del build local con Playwright
+(título, descripción, H1, canónica, `alt`, JSON-LD, status).
+
+Hallazgos que no estaban en el plan original:
+
+- **Soft 404**: un id inexistente en `/ligas/[id]`, `/equipos/[id]` y `/partidos/[id]` respondía 302 al listado.
+  Pasa con cada partido que sale de la ventana de 60 días. Ahora se hace `Astro.rewrite("/404")`: página
+  `src/pages/404.astro` propia, status 404 y `noindex`, con enlaces a las secciones. Las rutas desconocidas usan
+  la misma página (antes era la 404 por defecto de Astro, sin layout).
+- `/equipos` redirigía con 302 a `/ligas`: pasa a 301.
+- Siete páginas compartían la descripción genérica, no solo las cinco previstas: también `/privacidad` y
+  `/terminos`.
+
+Desvíos respecto del diseño:
+
+- C1 vive en `destinoDominioCanonico` (`lib/seo.ts`) y en un middleware `dominio` entre `seguridad` y `sesion`:
+  la 301 sale con headers de seguridad y sin consultar D1. Además de pages.dev y www, cubre los alias de cada
+  deploy (`<hash>.fisture.pages.dev`) y http → https. Con una `PUBLIC_APP_URL` inválida no redirige.
+- C2: `sameAs` sale de `PERFILES_DE_MARCA`, que está vacía. La clave no se publica hasta cargar perfiles
+  reales (A5). `Organization` suma `email` de contacto.
+- C3: el logo es un `ImageObject` con `icon-512.png` (512×512).
+- C5: en lugar de un `FAQPage` en la home (ya existe en `/ayuda` y duplicarlo no suma) se agregó la sección
+  "Qué es Fisture" (H2) con la marca en texto, las búsquedas objetivo y enlaces internos a Hoy, Partidos, Ligas
+  y Buscar.
+- Nuevo: `GOOGLE_SITE_VERIFICATION` y `BING_SITE_VERIFICATION` (opcionales, en `[vars]`, no secretas)
+  publican la meta de verificación de cada consola, para quien no quiera verificar por DNS. Nunca en staging.
+- No se hicieron C6 (índice de sitemaps) ni C7 (IndexNow): conviene decidirlos con los datos de Search Console.
+  IndexNow además gasta subrequests del plan Free en el sync.
