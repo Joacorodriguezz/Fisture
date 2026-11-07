@@ -88,7 +88,11 @@ const gruposMovil = grupos.map((g) => ({
 }));
 ---
 
-<Layout title="Partidos del día - FISTURE" pagina={3}>
+<Layout
+  title="Partidos de fútbol de hoy y horarios - FISTURE"
+  pagina={3}
+  descripcion="Los partidos de fútbol de hoy con horario argentino, agrupados por liga: Liga Profesional, Premier, Libertadores, Champions y más. Agregalos a tu calendario."
+>
   <div class="tb-solo-movil hm-sangrado">
     <div class="hm-cab">
       <Volanta tono="tinta">{fechaLarga(rangoDelDia(dia).desde)}</Volanta>

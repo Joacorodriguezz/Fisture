@@ -80,7 +80,11 @@ const proveedor = user ? providerLabel(user.provider) : "Tu calendario";
 const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
 ---
 
-<Layout title="Calendario - FISTURE" pagina={7}>
+<Layout
+  title="Fixture de fútbol en Google Calendar y Outlook - FISTURE"
+  pagina={7}
+  descripcion="Conectá Google Calendar u Outlook y tus partidos aparecen como eventos con avisos 1 hora y 15 minutos antes. Si cambia el horario, el evento se corrige solo."
+>
   {!user ? (
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:20px;max-width:720px">
       <Volanta tono="tinta">Tu calendario</Volanta>

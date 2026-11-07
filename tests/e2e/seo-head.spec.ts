@@ -16,10 +16,10 @@ test("canonical absoluta sin query ni barra final", async ({ page }) => {
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${BASE}/`);
 });
 
-test("meta description por defecto y Open Graph/Twitter", async ({ page }) => {
+test("meta description propia y Open Graph/Twitter", async ({ page }) => {
   await page.goto("/ligas");
-  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /^Sincronizá los partidos/);
-  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Ligas - FISTURE");
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /^Liga Profesional, Brasileirão/);
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Ligas de fútbol: fixture de cada torneo - FISTURE");
   await expect(page.locator('meta[property="og:type"]')).toHaveAttribute("content", "website");
   await expect(page.locator('meta[property="og:locale"]')).toHaveAttribute("content", "es_AR");
   await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute("content", "summary_large_image");
@@ -126,4 +126,24 @@ test("docs/29: /equipos redirige con 301 a /ligas", async ({ request }) => {
   const res = await request.get("/equipos", { maxRedirects: 0 });
   expect(res.status()).toBe(301);
   expect(res.headers()["location"]).toBe("/ligas");
+});
+
+test("docs/29: cada página pública tiene título y descripción propios", async ({ page }) => {
+  const rutas = ["/", "/hoy", "/partidos", "/ligas", "/calendario", "/equipos/buscar", "/ayuda", "/privacidad", "/terminos", "/ligas/e2e-league", "/equipos/river", "/partidos/superclasico"];
+  const titulos = new Set<string>();
+  const descripciones = new Set<string>();
+  for (const ruta of rutas) {
+    await page.goto(ruta);
+    const titulo = await page.title();
+    const descripcion = (await page.locator('meta[name="description"]').getAttribute("content")) ?? "";
+    expect(titulo.length, ruta).toBeLessThanOrEqual(60);
+    expect(descripcion.length, ruta).toBeGreaterThan(50);
+    expect(descripcion.length, ruta).toBeLessThanOrEqual(160);
+    expect(descripcion, ruta).not.toMatch(/^Sincronizá los partidos de tus equipos/);
+    titulos.add(titulo);
+    descripciones.add(descripcion);
+    await expect(page.locator('meta[name="robots"]'), ruta).toHaveCount(0);
+  }
+  expect(titulos.size).toBe(rutas.length);
+  expect(descripciones.size).toBe(rutas.length);
 });
