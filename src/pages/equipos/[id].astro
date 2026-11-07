@@ -94,7 +94,7 @@ const filtros = [
 
 <Layout title={`Fixture de ${team.name} - FISTURE`} pagina={3} descripcion={descripcion} jsonLd={jsonLd}>
   <div style="display:flex;flex-direction:column;gap:32px">
-    <div class="eq-mig" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;font:700 14px/18px var(--font-rotulo);color:var(--tinta-suave)">
+    <div class="eq-mig tb-migas" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;font:700 14px/18px var(--font-rotulo);color:var(--tinta-suave)">
       <a href="/ligas" style="color:var(--tinta);text-decoration:none;letter-spacing:.06em;text-transform:uppercase">Ligas</a>
       <span>/</span>
       {liga && (
@@ -111,7 +111,7 @@ const filtros = [
         <Escudo src={team.logo} nombre={team.name} sigla={team.shortName} size={160} pad={20} />
       </div>
       <div class="eq-titulo" style="flex:1;min-width:280px;display:flex;flex-direction:column;align-items:flex-start;gap:12px">
-        <Volanta tono="rojo">{liga?.name ?? "Liga"}</Volanta>
+        <Volanta tono="rojo">{liga ? <a href={rutaPublica("ligas", liga.id)} class="fp-enlace">{liga.name}</a> : "Liga"}</Volanta>
         <Titular nivel="1">{team.name}</Titular>
         {competencias.length > 1 && (
           <p class="eq-competencias" style="margin:0;font:600 14px/20px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">
@@ -138,6 +138,13 @@ const filtros = [
       <BarraSeccion tono="rojo" extra={`${partidos.length} ${partidos.length === 1 ? "partido" : "partidos"}`}>
         Próximos partidos
       </BarraSeccion>
+
+      {!user && partidos.length > 0 && (
+        <section class="eq-aviso" aria-label="Agregar al calendario">
+          <p>Iniciá sesión para agregar estos partidos a tu calendario.</p>
+          <Boton href={loginHref(Astro.url.pathname + Astro.url.search)} variante="tinta">Iniciá sesión</Boton>
+        </section>
+      )}
 
       <div style="display:flex;flex-wrap:wrap;gap:8px;padding:16px 0 8px">
         {filtros.map((f) => (
@@ -175,14 +182,17 @@ const filtros = [
                     </span>
                   </div>
                 </div>
+                {!user && <span class="eq-flecha" aria-hidden="true">›</span>}
               </a>
-              <SincronizarPartido
-                client:visible
-                anonimo={!user}
-                matchId={m.match.id}
-                status={estado?.status ?? null}
-                errorMessage={estado?.errorMessage ?? null}
-              />
+              {/* Sin sesión la acción está en el aviso de arriba y en la ficha del partido */}
+              {user && (
+                <SincronizarPartido
+                  client:visible
+                  matchId={m.match.id}
+                  status={estado?.status ?? null}
+                  errorMessage={estado?.errorMessage ?? null}
+                />
+              )}
             </div>
           );
         })

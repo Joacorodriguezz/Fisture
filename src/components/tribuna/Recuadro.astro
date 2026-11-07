@@ -3,15 +3,18 @@
 interface Props {
   titulo?: string;
   tono?: "amarillo" | "celeste" | "crema";
+  /** Nivel del título en el esquema de la página: h2 si el recuadro cuelga directo del h1. */
+  nivel?: 2 | 3;
 }
 
-const { titulo, tono = "amarillo" } = Astro.props;
+const { titulo, tono = "amarillo", nivel = 3 } = Astro.props;
+const Titulo = nivel === 2 ? "h2" : "h3";
 const className = ["tb-recuadro", tono !== "amarillo" && `tb-recuadro--${tono}`, tono === "amarillo" && "tb-recuadro--sombra"]
   .filter(Boolean)
   .join(" ");
 ---
 
 <aside class={className}>
-  {titulo && <h3 class="tb-recuadro__titulo">{titulo}</h3>}
+  {titulo && <Titulo class="tb-recuadro__titulo">{titulo}</Titulo>}
   <div class="tb-recuadro__cuerpo"><slot /></div>
 </aside>

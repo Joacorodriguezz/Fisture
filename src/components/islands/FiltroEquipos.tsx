@@ -1,4 +1,4 @@
-import { memo, useDeferredValue, useMemo, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { normalizar } from "./estilos";
 import { irALogin } from "../../lib/auth/client";
 
@@ -28,6 +28,9 @@ interface Props {
   modo: "navegar" | "seguir";
   placeholder?: string;
   ligaInicial?: string;
+  consultaInicial?: string;
+  // Refleja consulta y liga en la URL (?q=&liga=) para que recargar, compartir o volver las conserve
+  sincronizarUrl?: boolean;
   // Visitante sin sesión: seguir un equipo pide iniciar sesión
   anonimo?: boolean;
 }
@@ -58,8 +61,8 @@ const Escudo = memo(function Escudo({ logo, nombre, sigla, size }: { logo: strin
   );
 });
 
-export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Filtrá por nombre", ligaInicial = "", anonimo = false }: Props) {
-  const [consulta, setConsulta] = useState("");
+export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Filtrá por nombre", ligaInicial = "", consultaInicial = "", sincronizarUrl = false, anonimo = false }: Props) {
+  const [consulta, setConsulta] = useState(consultaInicial);
   const [liga, setLiga] = useState(ligaInicial);
   const [seguidos, setSeguidos] = useState<Set<string>>(
     () => new Set(equipos.filter((e) => e.siguiendo).map((e) => e.id))
@@ -75,6 +78,27 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
       (e) => (!liga || e.ligaIds.includes(liga)) && (!q || normalizar(e.nombre).includes(q))
     );
   }, [equipos, consultaDiferida, liga]);
+
+  // replaceState y no pushState: Atrás sale de la pantalla en vez de deshacer letra por letra.
+  // Con demora, porque Safari rechaza más de 100 replaceState cada 30 s.
+  useEffect(() => {
+    if (!sincronizarUrl) return;
+    const id = setTimeout(() => {
+      const url = new URL(window.location.href);
+      const q = consulta.trim();
+      if (q) url.searchParams.set("q", q);
+      else url.searchParams.delete("q");
+      if (liga) url.searchParams.set("liga", liga);
+      else url.searchParams.delete("liga");
+      if (url.href === window.location.href) return;
+      try {
+        window.history.replaceState(window.history.state, "", url);
+      } catch {
+        // Sin la URL actualizada la búsqueda sigue funcionando; solo no se conserva al recargar.
+      }
+    }, 250);
+    return () => clearTimeout(id);
+  }, [consulta, liga, sincronizarUrl]);
 
   async function seguir(teamId: string) {
     if (anonimo) return irALogin();
@@ -101,19 +125,6 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {ligas && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <button type="button" aria-pressed={liga === ""} onClick={() => setLiga("")} className={liga === "" ? "tb-chip tb-chip--activo" : "tb-chip"}>
-            Todas
-          </button>
-          {ligas.map((l) => (
-            <button key={l.id} type="button" aria-pressed={liga === l.id} onClick={() => setLiga(l.id)} className={liga === l.id ? "tb-chip tb-chip--activo" : "tb-chip"}>
-              {l.nombre}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className="fe-barra">
       <input
         type="search"
@@ -143,6 +154,19 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
         )}
       </div>
       </div>
+
+      {ligas && (
+        <div className="fe-chips">
+          <button type="button" aria-pressed={liga === ""} onClick={() => setLiga("")} className={liga === "" ? "tb-chip tb-chip--activo" : "tb-chip"}>
+            Todas
+          </button>
+          {ligas.map((l) => (
+            <button key={l.id} type="button" aria-pressed={liga === l.id} onClick={() => setLiga(l.id)} className={liga === l.id ? "tb-chip tb-chip--activo" : "tb-chip"}>
+              {l.nombre}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && <p role="alert" style={{ margin: 0, color: "var(--rojo)", font: "600 15px/20px var(--font-rotulo)" }}>{error}</p>}
 

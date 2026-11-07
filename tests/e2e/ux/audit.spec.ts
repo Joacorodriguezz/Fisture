@@ -237,6 +237,211 @@ for (const theme of ["papel", "nocturna"]) {
   }
 }
 
+for (const width of [320, 375]) {
+  test(`partido: nombres largos y escudos entran a ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/partidos/superclasico");
+    const titulo = page.getByRole("heading", { level: 1 });
+    await expect(titulo).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    // Nombres reales de ESPN: una palabra de 15 letras no puede partirse por espacios.
+    await titulo.evaluate((element) => { element.textContent = "Hamburger SV vs Borussia Mönchengladbach"; });
+    const medidas = await page.evaluate(() => {
+      const main = document.querySelector("main")!;
+      const padding = parseFloat(getComputedStyle(main).paddingRight);
+      const h1 = document.querySelector("h1")!;
+      return {
+        content: document.documentElement.scrollWidth,
+        viewport: document.documentElement.clientWidth,
+        tituloContent: h1.scrollWidth,
+        tituloWidth: h1.clientWidth,
+        escudosRight: document.querySelector("main .tb-escudo")!.parentElement!.getBoundingClientRect().right,
+        limite: main.getBoundingClientRect().right - padding,
+      };
+    });
+    await info.attach(`partido-largo-${width}px`, { body: await page.screenshot(), contentType: "image/png" });
+    expect(medidas.tituloContent, "El titular debe ajustar dentro de su caja").toBeLessThanOrEqual(medidas.tituloWidth + 1);
+    expect(medidas.content, "Sin desborde horizontal").toBeLessThanOrEqual(medidas.viewport + 1);
+    expect(medidas.escudosRight, "Los escudos deben respetar el margen").toBeLessThanOrEqual(medidas.limite + 1);
+  });
+}
+
+test("partido: equipos y competencia llevan a sus páginas", async ({ page }) => {
+  await page.goto("/partidos/superclasico");
+  const equipos = page.getByRole("heading", { level: 1 }).getByRole("link");
+  await expect(equipos).toHaveCount(2);
+  for (const enlace of await equipos.all()) await expect(enlace).toHaveAttribute("href", /^\/equipos\/[^/]+$/);
+  // Los escudos también se tocan, pero no duplican el enlace para el teclado ni el lector de pantalla.
+  const escudos = page.locator("main a:has(.tb-escudo)");
+  await expect(escudos).toHaveCount(2);
+  for (const escudo of await escudos.all()) {
+    await expect(escudo).toHaveAttribute("tabindex", "-1");
+    await expect(escudo).toHaveAttribute("aria-hidden", "true");
+  }
+  const competencia = page.locator(".tb-volanta a");
+  await expect(competencia).toHaveAttribute("href", /^\/ligas\/[^/]+$/);
+  await expect(page.locator(".tb-recuadro a[href^='/ligas/']")).toHaveCount(1);
+
+  const nombre = (await equipos.first().textContent())!.trim();
+  await equipos.first().click();
+  await expect(page).toHaveURL(/\/equipos\//);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(nombre, { ignoreCase: true });
+  await page.goBack();
+  await competencia.click();
+  await expect(page).toHaveURL(/\/ligas\//);
+});
+
+test("equipo: sin sesión, un solo aviso para iniciar sesión en lugar de uno por partido", async ({ page }, info) => {
+  await page.goto("/equipos/river");
+  const filas = page.locator(".eq-fila");
+  expect(await filas.count()).toBeGreaterThan(0);
+  await expect(filas.getByRole("button")).toHaveCount(0);
+  const aviso = page.getByRole("region", { name: "Agregar al calendario" });
+  await expect(aviso.getByRole("link", { name: "Iniciá sesión", exact: true })).toHaveAttribute("href", "/login?next=%2Fequipos%2Friver");
+  await expect(page.getByRole("button", { name: /Iniciá sesión/ })).toHaveCount(0);
+  await info.attach("equipo-visitante", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+});
+
+for (const conSesion of [false, true]) {
+  test(`equipo: la cabecera usa todo el ancho y la liga es un enlace (${conSesion ? "con sesión" : "visitante"})`, async ({ page, isMobile }, info) => {
+    test.skip(!isMobile, "La grilla de la cabecera es la vista móvil");
+    if (conSesion) await login(page, info, "navigation");
+    await page.goto("/equipos/river");
+    await expect(page.locator(".eq-titulo .tb-volanta a")).toHaveAttribute("href", /^\/ligas\/[^/]+$/);
+    const medidas = await page.evaluate(() => {
+      const caja = (s: string) => document.querySelector(s)!.getBoundingClientRect();
+      const cab = caja(".eq-cab");
+      return {
+        cabIzq: cab.left, cabDer: cab.right,
+        comp: caja(".eq-competencias"),
+        botones: [...document.querySelectorAll(".eq-acciones .tb-boton")].map((b) => { const r = b.getBoundingClientRect(); return { izq: r.left, der: r.right, top: r.top }; }),
+      };
+    });
+    await info.attach("cabecera-equipo", { body: await page.locator(".eq-cab").screenshot(), contentType: "image/png" });
+    expect(medidas.comp.left, "Las competencias no van en la columna del escudo").toBeLessThanOrEqual(medidas.cabIzq + 1);
+    expect(medidas.comp.right, "Las competencias ocupan todo el ancho").toBeGreaterThanOrEqual(medidas.cabDer - 1);
+    expect(medidas.botones.length).toBeGreaterThan(0);
+    // Cada fila de botones llena el ancho: un botón solo ocupa toda la fila; dos la comparten.
+    const filas = new Map<number, { izq: number; der: number }[]>();
+    for (const boton of medidas.botones) filas.set(Math.round(boton.top), [...(filas.get(Math.round(boton.top)) ?? []), boton]);
+    for (const fila of filas.values()) {
+      expect(Math.min(...fila.map((b) => b.izq)), "La fila arranca en el borde").toBeLessThanOrEqual(medidas.cabIzq + 1);
+      expect(Math.max(...fila.map((b) => b.der)), "La fila no deja medio ancho vacío").toBeGreaterThanOrEqual(medidas.cabDer - 1);
+    }
+  });
+}
+
+test("equipo: con sesión, cada partido mantiene su acción y no hay aviso", async ({ page }, info) => {
+  await login(page, info, "navigation");
+  await page.goto("/equipos/river");
+  await expect(page.getByRole("region", { name: "Agregar al calendario" })).toHaveCount(0);
+  const filas = page.locator(".eq-fila");
+  await expect(filas.first().getByRole("button")).toHaveCount(1);
+});
+
+test("partido: la ficha es un h2 bajo el titular", async ({ page }) => {
+  await page.goto("/partidos/superclasico");
+  await expect(page.getByRole("heading", { level: 2, name: "Ficha del partido" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3 })).toHaveCount(0);
+});
+
+test("táctil: los enlaces de navegación miden al menos 44px de alto", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "La zona táctil ampliada aplica solo con puntero grueso");
+  const casos: Array<[string, string]> = [
+    ["/", "main a[href='/ayuda']"],
+    ["/", ".tb-footer__enlace"],
+    ["/partidos/superclasico", ".tb-volver"],
+    ["/equipos/river", ".eq-mig a"],
+  ];
+  for (const [path, selector] of casos) {
+    await page.goto(path);
+    const enlaces = page.locator(selector);
+    expect(await enlaces.count(), `${path} ${selector}`).toBeGreaterThan(0);
+    for (const enlace of await enlaces.all()) {
+      const alto = await enlace.evaluate((element) => element.getBoundingClientRect().height);
+      expect(alto, `${path} ${selector}`).toBeGreaterThanOrEqual(44);
+    }
+  }
+});
+
+test("hoy: la tira de días usa texto de al menos 12px", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "La tira de días es la vista móvil de Hoy");
+  await page.goto("/hoy");
+  const dia = page.locator(".hm-dia").first();
+  await expect(dia).toBeVisible();
+  const tamanos = await page.locator(".hm-dia__sem, .hm-dia__cant").evaluateAll((elements) => elements.map((element) => parseFloat(getComputedStyle(element).fontSize)));
+  expect(Math.min(...tamanos)).toBeGreaterThanOrEqual(12);
+});
+
+test("buscador: aparece en la primera pantalla, antes de los filtros", async ({ page }, info) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto("/equipos/buscar");
+  const search = page.getByRole("searchbox", { name: "Buscar equipos" });
+  await ready(page, search);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const caja = await search.boundingBox();
+  await info.attach("buscador-375x667", { body: await page.screenshot(), contentType: "image/png" });
+  expect(caja!.y + caja!.height, "El campo debe verse entero sin desplazar").toBeLessThanOrEqual(667);
+  const antes = await search.evaluate((input) => {
+    const chip = document.querySelector("button[aria-pressed]")!;
+    return Boolean(input.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(antes, "El buscador va antes que los chips de competencias").toBe(true);
+});
+
+test("buscador: en móvil los chips ocupan una sola fila", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "La fila desplazable aplica en móvil");
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto("/equipos/buscar");
+  await ready(page, page.getByRole("searchbox", { name: "Buscar equipos" }));
+  const medidas = await page.evaluate(() => ({
+    tops: [...document.querySelectorAll("button[aria-pressed]")].map((chip) => Math.round(chip.getBoundingClientRect().top)),
+    content: document.documentElement.scrollWidth,
+    viewport: document.documentElement.clientWidth,
+  }));
+  expect(medidas.tops.length).toBeGreaterThan(2);
+  expect(new Set(medidas.tops).size, "Todos los chips en la misma fila").toBe(1);
+  expect(medidas.content, "La fila se desplaza dentro de su caja, no la página").toBeLessThanOrEqual(medidas.viewport + 1);
+});
+
+test("buscador: la consulta y la liga se conservan en la URL", async ({ page }) => {
+  await page.goto("/equipos/buscar");
+  const search = page.getByRole("searchbox", { name: "Buscar equipos" });
+  await ready(page, search);
+  const chip = page.locator("button[aria-pressed]").nth(1);
+  const nombreLiga = (await chip.textContent())!.trim();
+  await chip.click();
+  await search.fill("River");
+  await expect(page).toHaveURL(/[?&]q=River(&|$)/);
+  await expect(page).toHaveURL(/[?&]liga=[^&]+/);
+  const resultados = await page.locator(".tb-meta").first().textContent();
+
+  // Recargar conserva todo, sin agregar entradas al historial por cada letra.
+  await page.reload();
+  const tras = page.getByRole("searchbox", { name: "Buscar equipos" });
+  await expect(tras).toHaveValue("River");
+  await expect(page.getByRole("button", { name: nombreLiga, exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".tb-meta").first()).toHaveText(resultados!);
+
+  // Ir a otra pantalla y volver con Atrás.
+  await page.goto("/ligas");
+  await page.goBack();
+  await expect(page.getByRole("searchbox", { name: "Buscar equipos" })).toHaveValue("River");
+
+  // Limpiar filtros también limpia la URL.
+  await ready(page, page.getByRole("searchbox", { name: "Buscar equipos" }));
+  await page.getByRole("button", { name: "Limpiar filtros" }).click();
+  await expect(page).not.toHaveURL(/[?&](q|liga)=/);
+});
+
+test("buscador: el HTML del servidor trae la consulta y descarta ligas desconocidas", async ({ page, request }) => {
+  const html = await (await request.get("/equipos/buscar?q=River")).text();
+  expect(html).toMatch(/<input[^>]*value="River"/);
+  await page.goto("/equipos/buscar?liga=no-existe");
+  await ready(page, page.getByRole("searchbox", { name: "Buscar equipos" }));
+  await expect(page.getByRole("button", { name: "Todas", exact: true })).toHaveAttribute("aria-pressed", "true");
+});
+
 for (const width of [320, 375, 768, 1280]) {
   test(`reflow: pantallas principales a ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });
