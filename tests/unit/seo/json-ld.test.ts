@@ -7,6 +7,7 @@ import {
   jsonLdMigas,
   jsonLdPartido,
   jsonLdSitio,
+  PERFILES_DE_MARCA,
   recortarDescripcion,
   rutaPublica,
   serializarJsonLd,
@@ -33,6 +34,21 @@ describe("jsonLdSitio", () => {
     expect(ld["@context"]).toBe("https://schema.org");
     expect(ld["@graph"].map((n) => n["@type"])).toEqual(["WebSite", "Organization", "WebApplication"]);
     expect(ld["@graph"][0].url).toBe(`${BASE}/`);
+  });
+
+  it("marca: nombres alternativos, logo rasterizado de 512 y contacto (docs/29 C2, C3)", () => {
+    const [sitio, organizacion] = jsonLdSitio(BASE)["@graph"] as any[];
+    expect(sitio.alternateName).toContain("Fisture");
+    expect(organizacion.alternateName).toContain("Fisture");
+    expect(organizacion.logo).toEqual({ "@type": "ImageObject", url: `${BASE}/icon-512.png`, width: 512, height: 512 });
+    expect(organizacion.email).toMatch(/@fisture\.com$/);
+  });
+
+  it("sameAs solo con perfiles cargados: sin perfiles no se publica la clave", () => {
+    const organizacion = (jsonLdSitio(BASE)["@graph"] as any[])[1];
+    if (PERFILES_DE_MARCA.length === 0) expect(organizacion).not.toHaveProperty("sameAs");
+    else expect(organizacion.sameAs).toEqual(PERFILES_DE_MARCA);
+    for (const perfil of PERFILES_DE_MARCA) expect(perfil).toMatch(/^https:\/\//);
   });
 });
 
