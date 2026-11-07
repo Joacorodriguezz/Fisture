@@ -34,7 +34,7 @@ const pasos = [
 ---
 
 <Layout
-  title="FISTURE - Tus partidos en tu calendario"
+  title="FISTURE: fixture de fútbol en Google Calendar y Outlook"
   descripcion="El fixture de fútbol en tu Google Calendar u Outlook: Liga Profesional, Premier League, Libertadores y más, con horarios que se actualizan solos."
   jsonLd={[jsonLdSitio(Astro.locals.runtime.env.PUBLIC_APP_URL)]}
 >
@@ -72,6 +72,20 @@ const pasos = [
         ))}
       </div>
     </div>
+
+    <section aria-labelledby="que-es" style="max-width:720px;display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+      <h2 id="que-es" style="margin:0;font:400 32px/1.05 var(--font-titular);text-transform:uppercase">Qué es Fisture</h2>
+      <p style="margin:0;font:400 16px/24px var(--font-texto);color:var(--tinta-suave)">
+        Fisture es una app gratuita que pasa el fixture de fútbol a tu calendario. Seguís a tu equipo o a una liga entera y
+        cada partido aparece en Google Calendar u Outlook con el día, la hora argentina y el estadio. Si un partido se
+        reprograma o se suspende, el evento se corrige solo.
+      </p>
+      <p style="margin:0;font:400 16px/24px var(--font-texto);color:var(--tinta-suave)">
+        Para mirar el fixture no hace falta cuenta: revisá los <a href="/hoy" style="color:var(--tinta);text-decoration:underline;text-underline-offset:3px">partidos de hoy</a>,
+        los <a href="/partidos" style="color:var(--tinta);text-decoration:underline;text-underline-offset:3px">próximos partidos</a>, el fixture de cada
+        <a href="/ligas" style="color:var(--tinta);text-decoration:underline;text-underline-offset:3px">liga</a> o <a href="/equipos/buscar" style="color:var(--tinta);text-decoration:underline;text-underline-offset:3px">buscá tu equipo</a>.
+      </p>
+    </section>
 
     <div style="max-width:720px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;border-left:4px solid var(--tinta);padding-left:16px">
       <span style="font:700 14px/18px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase">¿Por qué pide acceso a mi calendario?</span>

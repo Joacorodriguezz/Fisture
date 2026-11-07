@@ -147,3 +147,13 @@ test("docs/29: cada página pública tiene título y descripción propios", asyn
   expect(titulos.size).toBe(rutas.length);
   expect(descripciones.size).toBe(rutas.length);
 });
+
+test("docs/29: la home nombra la marca en texto y enlaza las secciones públicas", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveTitle(/^FISTURE: fixture de fútbol/);
+  await expect(page.getByRole("heading", { level: 2, name: "Qué es Fisture" })).toBeVisible();
+  const seccion = page.getByRole("region", { name: "Qué es Fisture" });
+  for (const href of ["/hoy", "/partidos", "/ligas", "/equipos/buscar"]) await expect(seccion.locator(`a[href="${href}"]`)).toHaveCount(1);
+  const [sitio] = await jsonLd(page);
+  expect(sitio["@graph"][1].logo.url).toBe(`${BASE}/icon-512.png`);
+});
