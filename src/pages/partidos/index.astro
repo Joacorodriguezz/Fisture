@@ -139,8 +139,10 @@ const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, etiqueta
                     >Iniciá sesión</a>
                   ) : (
                     <div class="pm-accion">
+                      {/* client:idle, no client:visible: en móvil la island va con display: contents (sin caja),
+                          el IntersectionObserver nunca la ve y el botón quedaba sin hidratar. */}
                       <SincronizarPartido
-                        client:visible
+                        client:idle
                         matchId={m.match.id}
                         status={estado?.status ?? null}
                         errorMessage={estado?.errorMessage ?? null}
