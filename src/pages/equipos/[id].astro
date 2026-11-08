@@ -69,7 +69,7 @@ const estados = user
   : new Map<string, { status: string; errorMessage: string | null }>();
 
 const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
-const proximo = todos[0];
+const proximo = todos.find(({ match }) => match.status === "scheduled");
 // Lo distintivo (equipo, liga y próximo partido) va primero: el Layout recorta lo que pase de ~160
 const descripcion = `Fixture de ${team.name}${liga ? ` (${liga.name})` : ""}: ${
   proximo
@@ -116,7 +116,7 @@ const filtros = [
       </div>
       <div class="eq-titulo" style="flex:1;min-width:280px;display:flex;flex-direction:column;align-items:flex-start;gap:12px">
         <Volanta tono="rojo">{liga ? <a href={rutaPublica("ligas", liga.id)} class="fp-enlace">{liga.name}</a> : "Liga"}</Volanta>
-        <Titular nivel="1">{team.name}</Titular>
+        <Titular nivel="1">Fixture de {team.name}</Titular>
         {competencias.length > 1 && (
           <p class="eq-competencias" style="margin:0;font:600 14px/20px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">
             Juega {competencias.map((c) => c.name).join(" · ")}
@@ -137,6 +137,20 @@ const filtros = [
         </div>
       </div>
     </div>
+
+    <section aria-labelledby="proximo-partido" style="border-top:3px solid var(--rojo);padding-top:20px">
+      <h2 id="proximo-partido" style="margin:0;font:400 32px/1.1 var(--font-titular)">Próximo partido</h2>
+      {proximo ? (
+        <p style="margin:12px 0;font:400 18px/1.6 var(--font-texto)">
+          <a href={rutaPublica("partidos", proximo.match.id)} style="color:var(--tinta);text-decoration:underline;text-underline-offset:4px">
+            {proximo.homeTeam.name} vs {proximo.awayTeam.name}
+          </a><br />
+          <time datetime={proximo.match.dateTime.toISOString()}>{fechaCorta(proximo.match.dateTime)} · {hora(proximo.match.dateTime)} hs</time>
+          {" · "}{proximo.league.name}{" · "}{proximo.match.venue ?? "Sede a confirmar"}
+        </p>
+      ) : <p>Todavía no hay un próximo partido programado para mostrar.</p>}
+      <p style="font:400 15px/1.6 var(--font-texto)">Hora de Argentina (UTC−3). <a href="/calendario" style="color:var(--tinta);text-decoration:underline;text-underline-offset:4px">Cómo llevar el fixture a Google Calendar u Outlook</a>.</p>
+    </section>
 
     <div style="display:flex;flex-direction:column">
       <BarraSeccion tono="rojo" extra={`${partidos.length} ${partidos.length === 1 ? "partido" : "partidos"}`}>

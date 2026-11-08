@@ -30,11 +30,11 @@ describe("GET /robots.txt", () => {
     expect(l).toContain("Allow: /");
   });
 
-  it("bloquea la API y las páginas personales o de login", async () => {
+  it("bloquea la API y configuración, pero permite leer el noindex de login", async () => {
     const l = await lineas();
     expect(l).toContain("Disallow: /api/");
     expect(l).toContain("Disallow: /configuracion");
-    expect(l).toContain("Disallow: /login");
+    expect(l).not.toContain("Disallow: /login");
   });
 
   it("apunta al sitemap con la base de PUBLIC_APP_URL", async () => {

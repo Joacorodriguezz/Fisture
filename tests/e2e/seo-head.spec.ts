@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { diaISO } from "../../src/lib/format";
 
 const BASE = "http://127.0.0.1:4322";
 
@@ -37,11 +38,44 @@ test("imagen para compartir, íconos y manifest existen", async ({ page }) => {
 });
 
 test("noindex solo en login (páginas personales o de acceso)", async ({ page }) => {
-  await page.goto("/login");
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+  for (const ruta of ["/login", "/login?next=%2Fcalendario"]) {
+    await page.goto(ruta);
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+  }
+  const robots = await (await page.request.get("/robots.txt")).text();
+  expect(robots).not.toContain("Disallow: /login");
 
   await page.goto("/hoy");
   await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
+});
+
+test("fixture y explicación del calendario son útiles sin JavaScript", async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL: BASE });
+  try {
+    await context.route(/https?:\/\//, (route) => new URL(route.request().url()).hostname === "127.0.0.1" ? route.continue() : route.abort());
+    const page = await context.newPage();
+    await page.goto("/ligas/e2e-league");
+    const fixture = page.getByRole("region", { name: "Próximos partidos", exact: true });
+    await expect(fixture.locator('a[href="/partidos/superclasico"]')).toBeVisible();
+    await expect(fixture.locator('a[href="/partidos/neutral-match"]')).toHaveCount(0);
+    await page.goto("/equipos/river");
+    const proximo = page.getByRole("region", { name: "Próximo partido", exact: true });
+    const enlaceProximo = await proximo.getByRole("link").first().getAttribute("href");
+    expect(enlaceProximo).not.toContain("cancelled");
+    await page.goto("/equipos/river?lado=visitante");
+    await expect(proximo.getByRole("link").first()).toHaveAttribute("href", enlaceProximo!);
+    await expect(proximo.locator("time")).toHaveAttribute("datetime", /T.*Z$/);
+    await expect(proximo.getByRole("link").first()).toHaveAttribute("href", /^\/partidos\//);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${BASE}/equipos/river`);
+    await page.goto("/calendario");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tu fixture en Google Calendar y Outlook");
+    await expect(page.getByRole("region", { name: "Cómo agregar los partidos a tu calendario" }).getByRole("listitem")).toHaveCount(4);
+    await expect(page.getByRole("region", { name: "Descargar el fixture como archivo .ics" })).toContainText("no se actualizan solos");
+    await page.goto("/");
+    await expect(page.getByRole("main").locator('a[href="/equipos/river"]')).toBeVisible();
+  } finally {
+    await context.close();
+  }
 });
 
 test("noindex en /configuracion con sesión", async ({ page }, info) => {
@@ -65,6 +99,12 @@ test("datos estructurados: sitio en la home, SportsEvent en el partido", async (
   expect(migas["@type"]).toBe("BreadcrumbList");
   await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /vs .* por .*: [a-zéá]+ \d+ de /);
   expect(evento.performer).toHaveLength(2);
+  const fecha = diaISO(new Date(evento.startDate)).split("-").reverse().join("/");
+  expect(await page.title()).toContain(fecha);
+  await expect(page.locator('time[datetime]')).toHaveAttribute("datetime", evento.startDate);
+  await expect(page.getByText("Estado:").locator("..")).toContainText("Programado");
+  // El fixture de matches usa el source por defecto, aunque equipos/ligas estén sembrados con ESPN.
+  await expect(page.getByText("Datos:").locator("..")).toContainText("football-data.org");
 });
 
 test("descripciones de hasta 160 caracteres, sin undefined ni null", async ({ page }) => {

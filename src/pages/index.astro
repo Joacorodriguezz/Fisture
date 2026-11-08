@@ -5,7 +5,9 @@ import Titular from "../components/tribuna/Titular.astro";
 import Bajada from "../components/tribuna/Bajada.astro";
 import Boton from "../components/tribuna/Boton.astro";
 import Sello from "../components/tribuna/Sello.astro";
-import { jsonLdSitio } from "../lib/seo";
+import { jsonLdSitio, rutaPublica } from "../lib/seo";
+import { createDb } from "../lib/db";
+import { getEquiposParaExplorar } from "../lib/db/queries";
 
 if (Astro.locals.user) {
   return Astro.redirect("/ligas");
@@ -13,6 +15,7 @@ if (Astro.locals.user) {
 
 // Tras borrar la cuenta, DELETE /api/cuenta lleva acá con ?cuenta=eliminada
 const cuentaEliminada = Astro.url.searchParams.get("cuenta") === "eliminada";
+const equiposParaExplorar = await getEquiposParaExplorar(createDb(Astro.locals.runtime.env.DB));
 
 const pasos = [
   {
@@ -76,7 +79,7 @@ const pasos = [
     <section aria-labelledby="que-es" style="max-width:720px;display:flex;flex-direction:column;align-items:flex-start;gap:12px">
       <h2 id="que-es" style="margin:0;font:400 32px/1.05 var(--font-titular);text-transform:uppercase">Qué es Fisture</h2>
       <p style="margin:0;font:400 16px/24px var(--font-texto);color:var(--tinta-suave)">
-        Fisture es una app gratuita que pasa el fixture de fútbol a tu calendario. Seguís a tu equipo o a una liga entera y
+        Fisture es una app gratuita que pasa el fixture de fútbol a tu calendario. Seguís a tus equipos, activás el auto-sync y
         cada partido aparece en Google Calendar u Outlook con el día, la hora argentina y el estadio. Si un partido se
         reprograma o se suspende, el evento se corrige solo.
       </p>
@@ -87,8 +90,19 @@ const pasos = [
       </p>
     </section>
 
+    {equiposParaExplorar.length > 0 && (
+      <section aria-labelledby="explorar-equipos">
+        <h2 id="explorar-equipos" style="font:400 32px/1.1 var(--font-titular)">Explorá el fixture de los equipos</h2>
+        <ul style="display:flex;flex-wrap:wrap;gap:16px 28px;padding-left:20px;font:600 18px/1.5 var(--font-rotulo)">
+          {equiposParaExplorar.map((equipo) => <li><a href={rutaPublica("equipos", equipo.id)} style="color:var(--tinta);text-decoration:underline;text-underline-offset:4px">Fixture de {equipo.name}</a></li>)}
+        </ul>
+        <a href="/equipos/buscar" style="color:var(--tinta);text-decoration:underline;text-underline-offset:4px">Buscar otro equipo</a>
+      </section>
+    )}
+
     <div style="max-width:720px;display:flex;flex-direction:column;align-items:flex-start;gap:12px;border-left:4px solid var(--tinta);padding-left:16px">
       <span style="font:700 14px/18px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase">¿Por qué pide acceso a mi calendario?</span>
+      <a href="/calendario" style="color:var(--tinta);text-decoration:underline;text-underline-offset:4px">Cómo conectar Google Calendar u Outlook, paso a paso</a>
       <p style="margin:0;font:400 16px/24px var(--font-texto);color:var(--tinta-suave)">
         Para crear los eventos de tus partidos y corregirlos si cambia el horario. Fisture solo toca los eventos que
         crea: no lee tus mails ni tus contactos, y podés quitar el acceso cuando quieras.
