@@ -20,14 +20,14 @@ const user = Astro.locals.user;
 
 const { id } = Astro.params;
 if (!id) {
-  return Astro.redirect("/ligas");
+  return Astro.rewrite("/404");
 }
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
 const team = await db.query.teams.findFirst({ where: eq(teams.id, id) });
 if (!team) {
-  return Astro.redirect("/ligas");
+  return Astro.rewrite("/404");
 }
 
 const liga = await db.query.leagues.findFirst({ where: eq(leagues.id, team.leagueId) });
@@ -94,21 +94,25 @@ const filtros = [
 
 <Layout title={`Fixture de ${team.name} - FISTURE`} pagina={3} descripcion={descripcion} jsonLd={jsonLd}>
   <div style="display:flex;flex-direction:column;gap:32px">
-    <div class="eq-mig tb-migas" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;font:700 14px/18px var(--font-rotulo);color:var(--tinta-suave)">
-      <a href="/ligas" style="color:var(--tinta);text-decoration:none;letter-spacing:.06em;text-transform:uppercase">Ligas</a>
-      <span>/</span>
-      {liga && (
-        <>
-          <a href={`/ligas/${liga.id}`} style="color:var(--tinta);text-decoration:none;letter-spacing:.06em;text-transform:uppercase">{liga.name}</a>
-          <span>/</span>
-        </>
-      )}
-      <span style="letter-spacing:.06em;text-transform:uppercase">{team.name}</span>
-    </div>
+    <nav aria-label="Migas de pan" class="tb-migas">
+      <ol class="eq-mig" style="list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px;font:700 14px/18px var(--font-rotulo);color:var(--tinta-suave)">
+        <li style="display:flex;align-items:center;gap:8px">
+          <a href="/ligas" style="color:var(--tinta);text-decoration:none;letter-spacing:.06em;text-transform:uppercase">Ligas</a>
+          <span aria-hidden="true">/</span>
+        </li>
+        {liga && (
+          <li style="display:flex;align-items:center;gap:8px">
+            <a href={`/ligas/${liga.id}`} style="color:var(--tinta);text-decoration:none;letter-spacing:.06em;text-transform:uppercase">{liga.name}</a>
+            <span aria-hidden="true">/</span>
+          </li>
+        )}
+        <li aria-current="page" style="letter-spacing:.06em;text-transform:uppercase">{team.name}</li>
+      </ol>
+    </nav>
 
     <div class="eq-cab" style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-end">
       <div class="eq-escudo" style="box-shadow:4px 4px 0 var(--rojo)">
-        <Escudo src={team.logo} nombre={team.name} sigla={team.shortName} size={160} pad={20} />
+        <Escudo src={team.logo} nombre={team.name} sigla={team.shortName} size={160} pad={20} prioridad />
       </div>
       <div class="eq-titulo" style="flex:1;min-width:280px;display:flex;flex-direction:column;align-items:flex-start;gap:12px">
         <Volanta tono="rojo">{liga ? <a href={rutaPublica("ligas", liga.id)} class="fp-enlace">{liga.name}</a> : "Liga"}</Volanta>
@@ -154,7 +158,7 @@ const filtros = [
 
       {partidos.length === 0 ? (
         <p style="margin:0;padding:24px 12px;font:400 17px/27px var(--font-texto);color:var(--tinta-suave)">
-          No hay partidos programados. Se cargan automáticamente desde la API.
+          Todavía no hay partidos programados. Aparecen apenas se confirma el fixture.
         </p>
       ) : (
         partidos.map((m) => {
@@ -170,7 +174,7 @@ const filtros = [
               >
                 <div class="eq-hora" style="flex:none;width:96px;display:flex;flex-direction:column">
                   <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">{m.match.round ?? ""}</span>
-                  <span style="font:400 26px/1 var(--font-titular)">{hora(m.match.dateTime)}</span>
+                  <span class="tb-cifra" style="font:400 26px/1 var(--font-titular)">{hora(m.match.dateTime)}</span>
                   <span style="font:600 13px/16px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">{fechaCorta(m.match.dateTime)}</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;min-width:0">

@@ -14,14 +14,14 @@ const user = Astro.locals.user;
 
 const { id } = Astro.params;
 if (!id) {
-  return Astro.redirect("/ligas");
+  return Astro.rewrite("/404");
 }
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
 const liga = await db.query.leagues.findFirst({ where: eq(leagues.id, id) });
 if (!liga) {
-  return Astro.redirect("/ligas");
+  return Astro.rewrite("/404");
 }
 
 // Participantes de la competencia (incluye equipos de otras ligas en las copas)
@@ -69,7 +69,7 @@ const jsonLd = [
 <Layout title={`Fixture de ${liga.name} - FISTURE`} pagina={3} descripcion={descripcion} jsonLd={jsonLd}>
   <div style="display:flex;flex-direction:column;gap:28px">
     <div style="display:flex;flex-direction:column;gap:16px">
-      <a href="/ligas" class="tb-volver">← Ligas</a>
+      <a href="/ligas" class="tb-volver"><span aria-hidden="true">←</span> Ligas</a>
       <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
         <Volanta tono="rojo">{liga.country}</Volanta>
         <Titular nivel="1">{liga.name}</Titular>
@@ -83,10 +83,10 @@ const jsonLd = [
 
       {items.length === 0 ? (
         <div style="background:var(--papel-2);padding:40px 32px;font:400 17px/27px var(--font-texto);text-align:center">
-          No hay equipos cargados para esta liga. Se cargan automáticamente al sincronizar con la API.
+          Todavía no hay equipos cargados para esta liga.
         </div>
       ) : (
-        <FiltroEquipos client:visible equipos={items} modo="navegar" placeholder="Filtrá por nombre" />
+        <FiltroEquipos client:visible equipos={items} modo="navegar" placeholder="Filtrá por nombre…" />
       )}
     </div>
   </div>

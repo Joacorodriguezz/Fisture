@@ -1,4 +1,5 @@
 // Utilidades de SEO compartidas por el layout y el sitemap.
+import { CONTACTO_EMAIL } from "./legal";
 
 // Base absoluta sin barras finales (PUBLIC_APP_URL puede venir con o sin "/")
 export function baseUrl(publicAppUrl: string): string {
@@ -20,6 +21,28 @@ export function urlCanonica(publicAppUrl: string, pathname: string): string {
 // así el sitemap, el JSON-LD y la canónica (Astro.url.pathname) apuntan a la misma dirección.
 export function rutaPublica(seccion: "ligas" | "equipos" | "partidos", id: string): string {
   return `/${seccion}/${encodeURIComponent(id)}`;
+}
+
+// Dominio único (docs/29): en producción, un pedido que llega por otro host (fisture.pages.dev, www.,
+// el alias de un deploy) se redirige con 301 a la misma ruta en PUBLIC_APP_URL. Así Google ve una sola
+// versión del sitio. Devuelve la URL de destino, o null si el pedido ya está en el dominio canónico.
+// Quedan afuera: otros entornos (staging, test, dev), la API (webhooks y scripts usan su propia URL),
+// los métodos que no son GET/HEAD y los pedidos locales.
+const HOSTS_LOCALES = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+export function destinoDominioCanonico(url: URL, metodo: string, entorno: string, publicAppUrl: string): string | null {
+  if (entorno !== "production") return null;
+  if (metodo !== "GET" && metodo !== "HEAD") return null;
+  if (url.pathname === "/api" || url.pathname.startsWith("/api/")) return null;
+  if (HOSTS_LOCALES.has(url.hostname)) return null;
+  let canonica: URL;
+  try {
+    canonica = new URL(baseUrl(publicAppUrl));
+  } catch {
+    return null;
+  }
+  if (url.host === canonica.host && url.protocol === canonica.protocol) return null;
+  return `${canonica.origin}${url.pathname}${url.search}`;
 }
 
 // Google muestra unos 155-160 caracteres de la descripción: se corta en un espacio y se marca con "…"
@@ -48,6 +71,13 @@ export function escaparMarkdown(texto: string): string {
 // Cada función devuelve un objeto plano; JsonLd.astro lo serializa en el <head>.
 
 export const NOMBRE_SITIO = "FISTURE";
+
+// Otras formas en que se busca la marca: Google las usa para el nombre del sitio en los resultados
+export const NOMBRES_ALTERNATIVOS = ["Fisture", "Fisture app", "Fixture Sync"];
+
+// Perfiles oficiales de la marca (Instagram, X, etc.). Le dicen a Google que "fisture" es este sitio y
+// no un error de tipeo de "fissure" (docs/29). Sumar cada perfil acá cuando exista; nunca uno ajeno.
+export const PERFILES_DE_MARCA: string[] = [];
 const DURACION_PARTIDO_MS = 2 * 60 * 60 * 1000;
 
 // JSON dentro de <script>: "<" escapado para que un nombre con "</script>" no cierre la etiqueta
@@ -64,6 +94,7 @@ export function jsonLdSitio(publicAppUrl: string) {
         "@type": "WebSite",
         "@id": `${base}/#sitio`,
         name: NOMBRE_SITIO,
+        alternateName: NOMBRES_ALTERNATIVOS,
         url: `${base}/`,
         inLanguage: "es-AR",
         description: "Sincronizá los partidos de tus equipos y ligas de fútbol con tu calendario personal.",
@@ -73,8 +104,12 @@ export function jsonLdSitio(publicAppUrl: string) {
         "@type": "Organization",
         "@id": `${base}/#organizacion`,
         name: NOMBRE_SITIO,
+        alternateName: NOMBRES_ALTERNATIVOS,
         url: `${base}/`,
-        logo: `${base}/favicon.svg`,
+        // Google pide un logo rasterizado de al menos 112×112: el SVG lo ignora
+        logo: { "@type": "ImageObject", url: `${base}/icon-512.png`, width: 512, height: 512 },
+        email: CONTACTO_EMAIL,
+        ...(PERFILES_DE_MARCA.length > 0 ? { sameAs: PERFILES_DE_MARCA } : {}),
       },
       {
         "@type": "WebApplication",

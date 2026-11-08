@@ -89,12 +89,16 @@ export default function SincronizarTodo({
   const clase = `tb-boton ${variante !== "secundario" ? `tb-boton--${variante}` : ""}`;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }} aria-live="polite">
-      {resumen && <span style={{ font: "700 13px/16px var(--font-rotulo)", letterSpacing: ".04em", textTransform: "uppercase", color: "var(--celeste)" }}>✓ {resumen}</span>}
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+      {/* Región viva fuera del flujo (sr-only): no ocupa lugar ni mueve el botón. */}
+      <span role="status" className="sr-only">
+        {resumen ?? (progreso ? `Sincronizando ${progreso}` : "")}
+      </span>
+      {resumen && <span aria-hidden="true" style={{ font: "700 13px/16px var(--font-rotulo)", letterSpacing: ".04em", textTransform: "uppercase", color: "var(--celeste)" }}>✓ {resumen}</span>}
       <button type="button" className={clase} disabled={cargando || (!anonimo && matchIds.length === 0)} onClick={sincronizar}>
         {cargando ? (progreso ? `${etiquetaCargando.replace("…", "")} ${progreso}…` : etiquetaCargando) : etiqueta}
       </button>
-      {error && <span className="tb-error">{error}</span>}
+      {error && <span role="alert" className="tb-error">{error}</span>}
     </div>
   );
 }

@@ -165,4 +165,19 @@ describe("middleware y logout con sesiones en D1", () => {
     expect(res.headers.get("Location")).toBe("/");
     expect(consultas).toEqual([]);
   });
+  it("docs/29 C1: en producción, otro host da 301 al dominio canónico sin consultar D1 ni seguir", async () => {
+    const consultas: string[] = [];
+    const DB = { prepare: (sql: string) => (consultas.push(sql), t.DB.prepare(sql)) };
+    const locals: Record<string, any> = { runtime: { env: { DB, KV: kv, ENVIRONMENT: "production", PUBLIC_APP_URL: "https://fisture.test" } } };
+    const next = vi.fn(async () => new Response("ok"));
+    const url = new URL("https://fisture.pages.dev/ligas?x=1");
+    const res = await (onRequest as any)(
+      { locals, cookies: { get: () => undefined, delete: vi.fn() }, url, request: new Request(url), redirect: vi.fn() },
+      next
+    );
+    expect(res.status).toBe(301);
+    expect(res.headers.get("Location")).toBe("https://fisture.test/ligas?x=1");
+    expect(next).not.toHaveBeenCalled();
+    expect(consultas).toEqual([]);
+  });
 });

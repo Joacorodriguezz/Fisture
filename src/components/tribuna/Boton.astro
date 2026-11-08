@@ -15,7 +15,11 @@ const classes = ["tb-boton", variante !== "secundario" && `tb-boton--${variante}
 ---
 
 {href ? (
-  <a href={href} class={classes} aria-disabled={disabled || undefined}><slot /></a>
+  disabled ? (
+    <a class={classes} role="link" aria-disabled="true"><slot /></a>
+  ) : (
+    <a href={href} class={classes}><slot /></a>
+  )
 ) : (
   <button type={type} class={classes} disabled={disabled}><slot /></button>
 )}

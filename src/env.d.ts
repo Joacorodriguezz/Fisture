@@ -22,6 +22,10 @@ interface Env {
   API_FOOTBALL_KEY: string;
   FOOTBALL_DATA_API_KEY?: string;
   PUBLIC_APP_URL: string;
+  // Verificación de propiedad en Google Search Console y Bing Webmaster Tools por meta tag (docs/29).
+  // Opcionales y públicas (no son secretos): solo el valor de "content" que da cada consola
+  GOOGLE_SITE_VERIFICATION?: string;
+  BING_SITE_VERIFICATION?: string;
   ADMIN_SECRET?: string;
   // Firma la cookie con el estado del login OAuth (32 bytes aleatorios, secret de Pages)
   OAUTH_STATE_SECRET?: string;

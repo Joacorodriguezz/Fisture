@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import SincronizarPartido from "./SincronizarPartido";
 
 export interface DiaTira {
@@ -49,11 +49,15 @@ interface Props {
 const ALTO_STICKY = 134;
 const CLAVE_CERRADAS = "fisture:hoy:cerradas";
 
+// useLayoutEffect aplica las ligas cerradas antes del pintado, así no hay parpadeo entre la hidratación y el efecto.
+// En el servidor se usa useEffect (que no corre) para no ejecutar un layout effect sin DOM.
+const useEfectoAntesDePintar = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 function Escudo({ equipo }: { equipo: EquipoVista }) {
   const iniciales = (equipo.sigla || equipo.nombre).slice(0, 3).toUpperCase();
   return (
     <span className="hm-escudo">
-      {equipo.logo ? <img src={equipo.logo} alt={equipo.nombre} loading="lazy" decoding="async" /> : iniciales}
+      {equipo.logo ? <img src={equipo.logo} alt="" loading="lazy" decoding="async" /> : <span aria-hidden="true">{iniciales}</span>}
     </span>
   );
 }
@@ -72,8 +76,8 @@ export default function HoyMovil({ dias, grupos, anonimo, soloMios, hrefTodos, h
     }
   }, []);
 
-  // Ligas cerradas: se recuerdan en este navegador (si hay storage)
-  useEffect(() => {
+  // Ligas cerradas: se recuerdan en este navegador (si hay storage). Se leen antes del primer pintado para evitar el parpadeo.
+  useEfectoAntesDePintar(() => {
     try {
       const guardado = JSON.parse(localStorage.getItem(CLAVE_CERRADAS) ?? "[]") as string[];
       setCerradas(new Set(guardado));
@@ -98,20 +102,37 @@ export default function HoyMovil({ dias, grupos, anonimo, soloMios, hrefTodos, h
     guardar(s);
   }
 
-  // Scroll-spy: la liga visible es el último grupo cuyo borde superior ya llegó a la barra pegajosa
+  // Scroll-spy: la liga visible es el último grupo cuyo borde superior ya llegó a la barra pegajosa.
+  // Un IntersectionObserver sobre una franja fina bajo la barra avisa solo cuando un grupo cruza esa línea
+  // (sin medir en cada scroll); al avisar se recalcula cuál es el último que la pasó.
   useEffect(() => {
-    function onScroll() {
+    const linea = ALTO_STICKY + 6;
+    function calcular() {
       let actual = grupos[0]?.id ?? "";
       for (const g of grupos) {
         const el = refs.current.get(g.id);
-        if (el && el.getBoundingClientRect().top <= ALTO_STICKY + 6) actual = g.id;
+        if (el && el.getBoundingClientRect().top <= linea) actual = g.id;
       }
-      setVisible(actual);
+      setVisible((previo) => (previo === actual ? previo : actual));
     }
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [grupos]);
+    let observador: IntersectionObserver | null = null;
+    function observar() {
+      observador?.disconnect();
+      const abajo = Math.max(0, window.innerHeight - linea - 1);
+      observador = new IntersectionObserver(calcular, { rootMargin: `-${linea}px 0px -${abajo}px 0px` });
+      for (const g of grupos) {
+        const el = refs.current.get(g.id);
+        if (el) observador.observe(el);
+      }
+    }
+    calcular();
+    observar();
+    window.addEventListener("resize", observar);
+    return () => {
+      window.removeEventListener("resize", observar);
+      observador?.disconnect();
+    };
+  }, [grupos, cerradas]);
 
   function irA(id: string) {
     if (cerradas.has(id)) {
@@ -120,7 +141,8 @@ export default function HoyMovil({ dias, grupos, anonimo, soloMios, hrefTodos, h
       guardar(s);
     }
     const el = refs.current.get(id);
-    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - ALTO_STICKY, behavior: "smooth" });
+    const reducido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - ALTO_STICKY, behavior: reducido ? "auto" : "smooth" });
   }
 
   return (
@@ -147,6 +169,7 @@ export default function HoyMovil({ dias, grupos, anonimo, soloMios, hrefTodos, h
                 key={g.id}
                 type="button"
                 className={`tb-chip${visible === g.id ? " tb-chip--activo" : ""}`}
+                aria-current={visible === g.id ? "true" : undefined}
                 onClick={() => irA(g.id)}
               >
                 <span className="hm-chip__nombre">{g.nombre}</span> <b>{g.items.length}</b>
@@ -178,28 +201,31 @@ export default function HoyMovil({ dias, grupos, anonimo, soloMios, hrefTodos, h
                   if (el) refs.current.set(g.id, el);
                 }}
               >
-                <button
-                  type="button"
-                  className="tb-barra tb-barra--rojo hm-barra"
-                  aria-expanded={!cerrada}
-                  onClick={() => alternar(g.id)}
-                >
-                  <span>
-                    <span className="hm-barra__flecha" aria-hidden="true">{cerrada ? "▸" : "▾"}</span>
-                    {g.nombre}
-                  </span>
-                  <span className="tb-barra__extra">{g.items.length === 1 ? "1 partido" : `${g.items.length} partidos`}</span>
-                </button>
+                <h2 className="hm-titulo">
+                  <button
+                    type="button"
+                    className="tb-barra tb-barra--rojo hm-barra"
+                    aria-expanded={!cerrada}
+                    onClick={() => alternar(g.id)}
+                  >
+                    <span>
+                      <span className="hm-barra__flecha" aria-hidden="true">{cerrada ? "▸" : "▾"}</span>
+                      {g.nombre}
+                    </span>
+                    <span className="tb-barra__extra">{g.items.length === 1 ? "1 partido" : `${g.items.length} partidos`}</span>
+                  </button>
+                </h2>
                 {!cerrada &&
                   g.items.map((m) => (
                     <div key={m.id} className={`hm-partido${m.mio ? " hm-partido--mio" : ""}`}>
-                      <a href={`/partidos/${m.id}`} className="hm-partido__hora" style={{ textDecoration: "none" }}>{m.hora}</a>
+                      <a href={`/partidos/${m.id}`} className="hm-partido__hora tb-cifra" style={{ textDecoration: "none" }} tabIndex={-1} aria-hidden="true">{m.hora}</a>
                       <a href={`/partidos/${m.id}`} className="hm-partido__cuerpo" style={{ textDecoration: "none" }}>
+                        <span className="sr-only">{m.hora} · </span>
                         <span className="hm-equipo"><Escudo equipo={m.local} /><span>{m.local.nombre}</span></span>
                         <span className="hm-equipo"><Escudo equipo={m.visitante} /><span>{m.visitante.nombre}</span></span>
                         <span className="hm-meta">
                           {m.meta}
-                          {m.mio && <b> · ★ Tu equipo</b>}
+                          {m.mio && <b> · <span aria-hidden="true">★</span> Tu equipo</b>}
                         </span>
                       </a>
                       <SincronizarPartido

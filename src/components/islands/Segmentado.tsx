@@ -77,7 +77,7 @@ export default function Segmentado({ opciones, valor, endpoint, campo, ariaLabel
       </div>
       <span aria-live="polite">
         {guardando && <span className="tb-meta">Guardando…</span>}
-        {guardado && <span className="tb-ok">✓ Guardado</span>}
+        {guardado && <span className="tb-ok"><span aria-hidden="true">✓</span> Guardado</span>}
         {error && <span className="tb-error">{error}</span>}
       </span>
     </div>

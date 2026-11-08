@@ -1,4 +1,5 @@
 ---
 // "Mis equipos" pasó a ser la pantalla de Ligas (ver src/pages/ligas/index.astro)
-return Astro.redirect("/ligas");
+// 301: la dirección vieja quedó en favoritos y en el índice de Google
+return Astro.redirect("/ligas", 301);
 ---

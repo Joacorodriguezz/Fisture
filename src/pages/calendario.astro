@@ -80,7 +80,11 @@ const proveedor = user ? providerLabel(user.provider) : "Tu calendario";
 const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
 ---
 
-<Layout title="Calendario - FISTURE" pagina={7}>
+<Layout
+  title="Fixture de fútbol en Google Calendar y Outlook - FISTURE"
+  pagina={7}
+  descripcion="Conectá Google Calendar u Outlook y tus partidos aparecen como eventos con avisos 1 hora y 15 minutos antes. Si cambia el horario, el evento se corrige solo."
+>
   {!user ? (
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:20px;max-width:720px">
       <Volanta tono="tinta">Tu calendario</Volanta>
@@ -119,7 +123,7 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
     <div class="cal-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:0;background:var(--celeste-claro);border:2px solid var(--celeste)">
       {stats.map((s, i) => (
         <div style={`padding:20px 16px;border-right:${i < stats.length - 1 ? "1px solid var(--linea)" : "0"};display:flex;flex-direction:column;gap:6px`}>
-          <span class="cal-cifra" style={`font:400 64px/.92 var(--font-titular);color:${s.color}`}>{s.n}</span>
+          <span class="cal-cifra tb-cifra" style={`font:400 64px/.92 var(--font-titular);color:${s.color}`}>{s.n}</span>
           <span style="font:700 14px/18px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase">{s.label}</span>
           <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">{s.detalle}</span>
         </div>
@@ -139,7 +143,7 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
             <div class="cal-rev" style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:14px 12px;border-bottom:1px solid var(--linea)">
               <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px">
                 <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-suave)">
-                  {m.league.name} · {fechaCorta(m.match.dateTime)} {hora(m.match.dateTime)}
+                  {m.league.name} · {fechaCorta(m.match.dateTime)} <span class="tb-cifra">{hora(m.match.dateTime)}</span>
                 </span>
                 <a href={`/partidos/${m.match.id}`} style="font:700 17px/20px var(--font-rotulo);text-transform:uppercase;color:var(--tinta);text-decoration:none">
                   {m.homeTeam.name} vs {m.awayTeam.name}

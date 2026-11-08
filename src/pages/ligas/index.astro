@@ -50,14 +50,18 @@ const tarjetas = allLeagues.map((liga) => {
 });
 ---
 
-<Layout title="Ligas - FISTURE" pagina={2}>
+<Layout
+  title="Ligas de fútbol: fixture de cada torneo - FISTURE"
+  pagina={2}
+  descripcion="Liga Profesional, Brasileirão, Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Libertadores y Champions: elegí la liga y mirá el fixture de cada equipo."
+>
   <div style="display:flex;flex-direction:column;gap:40px">
     <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px">
       <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
         <Volanta tono="tinta">Ligas</Volanta>
         <Titular nivel="1">ELEGÍ TU LIGA</Titular>
       </div>
-      <div class="mv-bloque"><Boton variante="primario" href="/equipos/buscar">Buscar equipo →</Boton></div>
+      <div class="mv-bloque"><Boton variante="primario" href="/equipos/buscar">Buscar equipo <span aria-hidden="true">→</span></Boton></div>
     </div>
 
     {user && (
@@ -87,7 +91,7 @@ const tarjetas = allLeagues.map((liga) => {
       {tarjetas.map(({ liga, total, siguiendo, muestra }) => (
         <a
           href={`/ligas/${liga.id}`}
-          style="cursor:pointer;border-top:4px solid var(--rojo);background:var(--papel-2);padding:20px;display:flex;flex-direction:column;gap:14px;color:var(--tinta);text-decoration:none"
+          class="lg-tarjeta"
         >
           <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">{liga.country}</span>
           <span class="lg-nombre" style="font:400 40px/1 var(--font-titular);text-transform:uppercase">{liga.name}</span>
@@ -103,7 +107,7 @@ const tarjetas = allLeagues.map((liga) => {
                 {siguiendo ? `Seguís ${siguiendo}` : "Sin equipos"}
               </span>
             )}
-            <span style="font-size:20px">→</span>
+            <span aria-hidden="true" style="font-size:20px">→</span>
           </div>
         </a>
       ))}
