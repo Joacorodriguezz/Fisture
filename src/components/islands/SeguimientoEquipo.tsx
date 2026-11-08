@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Segmentado from "./Segmentado";
 import { irALogin } from "../../lib/auth/client";
 
@@ -17,6 +17,19 @@ export default function SeguimientoEquipo({ teamId, nombre, siguiendo: siguiendo
   const [siguiendo, setSiguiendo] = useState(siguiendoInicial);
   const [confirmando, setConfirmando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
+  // Los botones de la confirmación se desmontan: el foco se mueve a mano para no caer en <body>.
+  const botonDisparador = useRef<HTMLButtonElement>(null);
+  const botonCancelar = useRef<HTMLButtonElement>(null);
+  const botonSeguir = useRef<HTMLButtonElement>(null);
+  const primeraVez = useRef(true);
+
+  useEffect(() => {
+    if (primeraVez.current) {
+      primeraVez.current = false;
+      return;
+    }
+    (confirmando ? botonCancelar : (botonDisparador.current ? botonDisparador : botonSeguir)).current?.focus();
+  }, [confirmando]);
   const [error, setError] = useState<string | null>(null);
 
   async function seguir() {
@@ -49,6 +62,7 @@ export default function SeguimientoEquipo({ teamId, nombre, siguiendo: siguiendo
       setConfirmando(false);
     } catch {
       setError("No se pudo dejar de seguir. Probá de nuevo.");
+      setConfirmando(false);
     } finally {
       setOcupado(false);
     }
@@ -57,7 +71,7 @@ export default function SeguimientoEquipo({ teamId, nombre, siguiendo: siguiendo
   if (!siguiendo) {
     return (
       <div className="seg" style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" }}>
-        <button type="button" className="tb-boton tb-boton--primario" disabled={ocupado} onClick={seguir}>
+        <button ref={botonSeguir} type="button" className="tb-boton tb-boton--primario" disabled={ocupado} onClick={seguir}>
           {ocupado ? "Siguiendo…" : "Seguir equipo"}
         </button>
         {error && <span className="tb-error">{error}</span>}
@@ -84,17 +98,17 @@ export default function SeguimientoEquipo({ teamId, nombre, siguiendo: siguiendo
       </div>
 
       {confirmando ? (
-        <div className="seg__confirmar" role="alertdialog" aria-label={`Confirmar: dejar de seguir a ${nombre}`} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+        <div className="seg__confirmar" role="group" aria-label={`Confirmar: dejar de seguir a ${nombre}`} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
           <span style={{ font: "700 14px/18px var(--font-rotulo)", textTransform: "uppercase" }}>¿Dejar de seguir a {nombre}?</span>
           <button type="button" className="tb-boton tb-boton--primario" disabled={ocupado} onClick={dejarDeSeguir}>
             Sí, dejar de seguir
           </button>
-          <button type="button" className="tb-boton" disabled={ocupado} onClick={() => setConfirmando(false)}>
+          <button ref={botonCancelar} type="button" className="tb-boton" disabled={ocupado} onClick={() => setConfirmando(false)}>
             Cancelar
           </button>
         </div>
       ) : (
-        <button type="button" className="tb-boton" disabled={ocupado} onClick={() => setConfirmando(true)}>
+        <button ref={botonDisparador} type="button" className="tb-boton" disabled={ocupado} onClick={() => setConfirmando(true)}>
           Dejar de seguir
         </button>
       )}

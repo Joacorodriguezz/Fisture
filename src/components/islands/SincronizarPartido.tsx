@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { mensajeDeLimite, syncView, toSyncStatus, type SyncStatus } from "../../lib/sync-ui";
 import { irALogin } from "../../lib/auth/client";
 
@@ -39,6 +39,25 @@ export default function SincronizarPartido({
   const [estado, setEstado] = useState<SyncStatus>(toSyncStatus(status));
   const [error, setError] = useState<string | null>(errorMessage);
   const [quitando, setQuitando] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
+  // Los botones de la confirmación se desmontan: el foco se mueve a mano para no caer en <body>.
+  const botonAgregar = useRef<HTMLButtonElement>(null);
+  const botonQuitar = useRef<HTMLButtonElement>(null);
+  const botonCancelar = useRef<HTMLButtonElement>(null);
+  const devolverFoco = useRef<"quitar" | "agregar" | null>(null);
+
+  useEffect(() => {
+    if (confirmando) botonCancelar.current?.focus();
+    else if (devolverFoco.current) {
+      (devolverFoco.current === "agregar" ? botonAgregar : botonQuitar).current?.focus();
+      devolverFoco.current = null;
+    }
+  }, [confirmando]);
+
+  function cancelarQuitar() {
+    devolverFoco.current = "quitar";
+    setConfirmando(false);
+  }
   // Títulos de eventos propios del usuario que se superponen con el partido (solo se muestran, no se guardan)
   const [solapados, setSolapados] = useState<string[]>([]);
 
@@ -63,7 +82,7 @@ export default function SincronizarPartido({
         setError(mensajeDeLimite(res.headers.get("Retry-After")));
         return;
       }
-      const data = (await res.json()) as SyncResponse;
+      const data = (await res.json().catch(() => ({}))) as SyncResponse;
       const resultado = data.results?.[0];
 
       if (res.ok && resultado?.success) {
@@ -72,11 +91,11 @@ export default function SincronizarPartido({
         setSolapados(choque ? choque.items.map((i) => i.title) : []);
       } else {
         setEstado("failed");
-        setError(resultado?.error || data.error || "Error al sincronizar");
+        setError(resultado?.error || data.error || "No se pudo agregar al calendario. Probá de nuevo.");
       }
     } catch {
       setEstado("failed");
-      setError("Error de conexión");
+      setError("Sin conexión. Revisá tu internet y probá de nuevo.");
     }
   }
 
@@ -84,15 +103,19 @@ export default function SincronizarPartido({
     if (quitando) return;
     setQuitando(true);
     try {
-      const res = await fetch(`/api/calendario/sync?matchId=${matchId}`, { method: "DELETE" });
+      const res = await fetch(`/api/calendario/sync?matchId=${encodeURIComponent(matchId)}`, { method: "DELETE" });
       const data = (await res.json().catch(() => ({}))) as SyncResponse;
       if (res.status === 429) throw new Error(mensajeDeLimite(res.headers.get("Retry-After")));
       if (!res.ok) throw new Error(data.error || "No se pudo quitar del calendario");
       setEstado("none");
       setError(null);
       setSolapados([]);
+      devolverFoco.current = "agregar";
+      setConfirmando(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo quitar del calendario");
+      devolverFoco.current = "quitar";
+      setConfirmando(false);
     } finally {
       setQuitando(false);
     }
@@ -111,14 +134,24 @@ export default function SincronizarPartido({
       }}
     >
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-        <button type="button" className={clase} disabled={vista.disabled} onClick={agregar}>
+        <button ref={botonAgregar} type="button" className={clase} disabled={vista.disabled} onClick={agregar}>
           {anonimo && estado === "none" ? (compacto ? "Iniciá sesión" : "Iniciá sesión para agregar") : grande ? vista.labelLargo : vista.label}
         </button>
-        {permitirQuitar && estado === "synced" && (
-          <button type="button" className="tb-boton" disabled={quitando} onClick={quitar}>
+        {permitirQuitar && estado === "synced" && (confirmando ? (
+          <div role="group" aria-label="Confirmar: quitar del calendario" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+            <span style={{ font: "700 14px/18px var(--font-rotulo)", textTransform: "uppercase" }}>¿Quitar del calendario?</span>
+            <button type="button" className="tb-boton tb-boton--primario" disabled={quitando} onClick={quitar}>
+              {quitando ? "Quitando…" : "Sí, quitar"}
+            </button>
+            <button ref={botonCancelar} type="button" className="tb-boton" disabled={quitando} onClick={cancelarQuitar}>
+              Cancelar
+            </button>
+          </div>
+        ) : (
+          <button ref={botonQuitar} type="button" className="tb-boton" onClick={() => setConfirmando(true)}>
             Quitar del calendario
           </button>
-        )}
+        ))}
       </div>
       {vista.estado && (
         <span
