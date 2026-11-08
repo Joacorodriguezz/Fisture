@@ -30,7 +30,7 @@ const { volanta, nombre = "Fisture", numero, numeroHref, fecha, fechaMovil, secc
 <header class="tb-cabecera">
   {volanta && <div class="tb-cabecera__volanta">{volanta}</div>}
   <div class="tb-cabecera__cuerpo">
-    <p class="tb-cabecera__nombre"><a class="tb-cabecera__enlace" href="/" aria-label="Fisture, ir al inicio">{nombre}</a></p>
+    <p class="tb-cabecera__nombre"><a class="tb-cabecera__enlace" href="/" translate="no" aria-label="Fisture, ir al inicio">{nombre}</a></p>
     {(numero || fecha) && (
       <div class="tb-cabecera__datos">
         {numero && <div>{numeroHref ? <a class="tb-cabecera__enlace" href={numeroHref} title="Ir a tu configuración">{numero}</a> : numero}</div>}

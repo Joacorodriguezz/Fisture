@@ -8,7 +8,7 @@ interface Props {
 const { tono = "rojo", extra } = Astro.props;
 ---
 
-<div class:list={["tb-barra", `tb-barra--${tono}`]} role="heading" aria-level="2">
+<h2 class:list={["tb-barra", `tb-barra--${tono}`]}>
   <span><slot /></span>
   {extra && <span class="tb-barra__extra">{extra}</span>}
-</div>
+</h2>

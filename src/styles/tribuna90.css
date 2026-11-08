@@ -2,6 +2,7 @@
    Tokens de color y tipografía, tema nocturna y componentes tb-*. */
 /* Tribuna 90 — color. Tema papel (default) y nocturna. */
 :root{
+  color-scheme: light;
   --papel: #f1e9dc;
   --papel-2: #e6d9c4;
   --tinta: #1a1412;
@@ -38,6 +39,7 @@
 /* Nocturna: fondo gris cálido (no negro puro), capas más claras para dar relieve,
    acentos desaturados y el rojo de superficie separado del rojo de texto. */
 [data-theme="nocturna"]{
+  color-scheme: dark;
   --papel: #14110f;
   --papel-2: #1e1915;
   --tinta: #ece3d6;
@@ -195,7 +197,7 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 .tb-volanta--tinta { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
 .tb-volanta--texto { padding: 0; color: var(--rojo); }
 /* Titular */
-.tb-titular { margin: 0; font-family: var(--font-titular); font-weight: 400; text-transform: uppercase; color: var(--tinta); overflow-wrap: anywhere; }
+.tb-titular { margin: 0; font-family: var(--font-titular); font-weight: 400; text-transform: uppercase; color: var(--tinta); overflow-wrap: anywhere; text-wrap: balance; }
 .tb-titular--tapa { font-size: 96px; line-height: .88; }
 .tb-titular--1 { font-size: 64px; line-height: .92; }
 .tb-titular--2 { font-size: 40px; line-height: 1; }
@@ -221,7 +223,7 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 .tb-epigrafe__credito { display: block; margin-top: var(--space-1); font: 600 12px/16px var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; color: var(--tinta-suave); }
 .tb-epigrafe--invertido .tb-epigrafe__credito { color: var(--crema-sobre-oscuro); }
 /* Barra de sección */
-.tb-barra { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); font: 700 17px/20px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; }
+.tb-barra { margin: 0; display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); font: 700 17px/20px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; }
 .tb-barra--rojo { background: var(--rojo-fondo); color: var(--on-rojo); }
 .tb-barra--tinta { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
 .tb-barra__extra { font-weight: 600; font-size: 14px; letter-spacing: .03em; }
@@ -256,7 +258,7 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 .tb-boton--primario { background: var(--rojo-fondo); border-color: var(--rojo-fondo); color: var(--on-rojo); }
 .tb-boton--primario:active { background: var(--rojo-profundo); border-color: var(--rojo-profundo); color: var(--crema-sobre-oscuro); }
 .tb-boton--tinta { background: var(--barra-tinta); border-color: var(--tinta); color: var(--crema-sobre-oscuro); }
-.tb-boton[disabled] { opacity: .5; cursor: not-allowed; box-shadow: none; transform: none; }
+.tb-boton[disabled], .tb-boton[aria-disabled="true"] { opacity: .5; cursor: not-allowed; box-shadow: none; transform: none; }
 /* NotaCard */
 .tb-nota-card { display: flex; flex-direction: column; background: var(--papel); color: var(--tinta); border-top: 4px solid var(--rojo); text-decoration: none; max-width: 360px; transition: box-shadow .08s, transform .08s; }
 .tb-nota-card:hover { box-shadow: var(--sombra-registro); transform: translate(-2px, -2px); }
@@ -292,7 +294,7 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 .tb-rotulo--celeste .tb-rotulo__palabra:nth-child(odd) { background: var(--celeste); color: var(--on-celeste); }
 /* Cabezal de sección fija */
 .tb-cabezal { margin: 0; }
-.tb-cabezal__barra { background: var(--azul); color: var(--on-azul); text-align: center; font: italic 700 30px/34px var(--font-rotulo); padding: var(--space-2) var(--space-4) 10px; text-transform: lowercase; }
+.tb-cabezal__barra { margin: 0; background: var(--azul); color: var(--on-azul); text-align: center; font: italic 700 30px/34px var(--font-rotulo); padding: var(--space-2) var(--space-4) 10px; text-transform: lowercase; }
 .tb-cabezal__franja { height: 10px; background: linear-gradient(var(--rojo) 0 4px, var(--papel) 4px 6px, var(--rojo) 6px 10px); }
 .tb-cabezal__firma { margin-top: var(--space-2); text-align: center; font: 600 14px/18px var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; color: var(--tinta-suave); }
 /* Titular mixto */
@@ -359,7 +361,9 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 
 /* Chips y segmentos (filtros y opciones). Activo = tinta, inactivo = papel. */
 .tb-chip { display: inline-block; cursor: pointer; border: 2px solid var(--tinta); border-radius: var(--radius-sm); padding: 6px 12px; font: 700 13px/16px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; text-decoration: none; background: var(--papel); color: var(--tinta); }
-.tb-chip:hover { color: var(--tinta); }
+@media (hover: hover) { .tb-chip:not(.tb-chip--activo):hover { background: var(--papel-2); color: var(--tinta); } }
+.tb-chip--activo:hover { color: var(--crema-sobre-oscuro); }
+.tb-chip:not(.tb-chip--activo):active, .tb-segmento:not(.tb-chip--activo):active { background: var(--papel-2); }
 .tb-chip--activo { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
 .tb-segmento { cursor: pointer; border: 2px solid var(--tinta); border-radius: var(--radius-sm); margin-left: -2px; padding: 8px 14px; font: 700 14px/16px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; background: var(--papel); color: var(--tinta); }
 .tb-segmento.tb-chip--activo { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
@@ -407,6 +411,14 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 }
 /* Sin la demora del doble toque para hacer zoom; el zoom con pellizco sigue disponible. */
 a, button, input, select, textarea, summary, label { touch-action: manipulation; }
+/* Sin el destello gris del navegador al tocar; el feedback del toque lo dan los estilos :active propios de cada control. */
+a, button { -webkit-tap-highlight-color: transparent; }
+.tb-cifra { font-variant-numeric: tabular-nums; }
+/* Sin movimiento si el sistema lo pide */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .tb-boton, .tb-boton:hover, .tb-nota-card, .tb-nota-card:hover, .tb-opcion, .tb-opcion:hover, .fe-tarjeta, .fe-tarjeta:hover, .lg-tarjeta, .lg-tarjeta:hover { transition: none; transform: none; }
+}
 @media (max-width: 640px) {
   .tb-cabecera__nombre { font-size: 44px; }
 }

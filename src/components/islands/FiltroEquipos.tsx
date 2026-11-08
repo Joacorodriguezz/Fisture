@@ -53,15 +53,15 @@ const Escudo = memo(function Escudo({ logo, nombre, sigla, size }: { logo: strin
       }}
     >
       {logo ? (
-        <img src={logo} alt={nombre} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+        <img src={logo} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
       ) : (
-        <span style={{ font: "400 16px/1 var(--font-titular)" }}>{(sigla || nombre).slice(0, 3).toUpperCase()}</span>
+        <span aria-hidden="true" style={{ font: "400 16px/1 var(--font-titular)" }}>{(sigla || nombre).slice(0, 3).toUpperCase()}</span>
       )}
     </span>
   );
 });
 
-export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Filtrá por nombre", ligaInicial = "", consultaInicial = "", sincronizarUrl = false, anonimo = false }: Props) {
+export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Filtrá por nombre…", ligaInicial = "", consultaInicial = "", sincronizarUrl = false, anonimo = false }: Props) {
   const [consulta, setConsulta] = useState(consultaInicial);
   const [liga, setLiga] = useState(ligaInicial);
   const [seguidos, setSeguidos] = useState<Set<string>>(
@@ -130,6 +130,9 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
         type="search"
         value={consulta}
         onChange={(e) => setConsulta(e.target.value)}
+        name="q"
+        autoComplete="off"
+        spellCheck={false}
         placeholder={placeholder}
         aria-label="Buscar equipos"
         className="tb-buscador"
@@ -178,33 +181,14 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
               <a
                 key={e.id}
                 href={`/equipos/${e.id}`}
-                style={{
-                  cursor: "pointer",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "18px 10px 14px",
-                  background: siguiendo ? "var(--papel-2)" : "var(--papel)",
-                  border: `2px solid ${siguiendo ? "var(--rojo)" : "var(--linea)"}`,
-                  textAlign: "center",
-                  color: "var(--tinta)",
-                  textDecoration: "none",
-                }}
+                className={`fe-tarjeta${siguiendo ? " fe-tarjeta--siguiendo" : ""}`}
               >
                 <Escudo logo={e.logo} nombre={e.nombre} sigla={e.sigla} size={72} />
-                <span style={{ font: "700 16px/19px var(--font-rotulo)", letterSpacing: ".02em", textTransform: "uppercase" }}>
+                <span className="fe-tarjeta__nombre">
                   {e.nombre}
                 </span>
-                <span
-                  style={{
-                    font: "700 13px/16px var(--font-rotulo)",
-                    letterSpacing: ".06em",
-                    textTransform: "uppercase",
-                    color: siguiendo ? "var(--rojo)" : "var(--tinta-suave)",
-                  }}
-                >
-                  {siguiendo ? "✓ Siguiendo" : "Ver equipo"}
+                <span className="fe-tarjeta__estado">
+                  {siguiendo ? <><span aria-hidden="true">✓</span> Siguiendo</> : "Ver equipo"}
                 </span>
               </a>
             );
@@ -217,18 +201,19 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
             return (
               <div
                 key={e.id}
+                className="fe-fila"
                 style={{ display: "flex", alignItems: "center", gap: 16, padding: 12, borderBottom: "1px solid var(--linea)" }}
               >
                 <Escudo logo={e.logo} nombre={e.nombre} sigla={e.sigla} size={44} />
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ font: "700 17px/20px var(--font-rotulo)", letterSpacing: ".02em", textTransform: "uppercase" }}>
+                  <span style={{ font: "700 17px/20px var(--font-rotulo)", letterSpacing: ".02em", textTransform: "uppercase", overflowWrap: "anywhere" }}>
                     {e.nombre}
                   </span>
                   <span style={{ font: "500 14px/18px var(--font-rotulo)", color: "var(--tinta-suave)" }}>{e.liga}</span>
                 </div>
                 {siguiendo ? (
                   <span style={{ display: "flex", alignItems: "center", gap: 8, font: "700 14px/18px var(--font-rotulo)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--rojo)" }}>
-                    ✓ Siguiendo
+                    <span aria-hidden="true">✓</span> Siguiendo
                   </span>
                 ) : (
                   <button

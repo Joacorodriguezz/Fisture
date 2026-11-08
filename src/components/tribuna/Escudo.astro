@@ -6,9 +6,11 @@ interface Props {
   sigla?: string | null;
   size?: number;
   pad?: number;
+  // Escudo principal de la página: se carga sin demora (LCP).
+  prioridad?: boolean;
 }
 
-const { src, nombre, sigla, size = 44, pad = 4 } = Astro.props;
+const { src, nombre, sigla, size = 44, pad = 4, prioridad = false } = Astro.props;
 const iniciales = (sigla || nombre).slice(0, 3).toUpperCase();
 ---
 
@@ -17,7 +19,7 @@ const iniciales = (sigla || nombre).slice(0, 3).toUpperCase();
   style={`flex:none;width:var(--escudo-tamano, ${size}px);height:var(--escudo-tamano, ${size}px);background:var(--crema-sobre-oscuro);border:2px solid var(--tinta);display:flex;align-items:center;justify-content:center;padding:${pad}px;overflow:hidden`}
 >
   {src ? (
-    <img src={src} alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:contain;display:block" />
+    <img src={src} alt="" loading={prioridad ? "eager" : "lazy"} fetchpriority={prioridad ? "high" : undefined} decoding="async" style="width:100%;height:100%;object-fit:contain;display:block" />
   ) : (
     <span aria-hidden="true" style="font:400 18px/1 var(--font-titular);color:var(--on-amarillo)">{iniciales}</span>
   )}

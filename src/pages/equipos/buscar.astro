@@ -68,7 +68,7 @@ const items = todosLosEquipos
   descripcion="Buscá tu equipo de fútbol y mirá su fixture completo con día y hora: liga, copas nacionales e internacionales. Seguilo para tenerlo en tu calendario."
 >
   <div style="max-width:760px;display:flex;flex-direction:column;gap:24px">
-    <a href="/ligas" class="tb-volver">← Ligas</a>
+    <a href="/ligas" class="tb-volver"><span aria-hidden="true">←</span> Ligas</a>
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
       <Volanta tono="tinta">Todos los equipos</Volanta>
       <Titular nivel="1">BUSCAR EQUIPOS</Titular>
@@ -78,7 +78,7 @@ const items = todosLosEquipos
 
     {items.length === 0 ? (
       <p style="margin:0;font:400 17px/27px var(--font-texto);color:var(--tinta-suave)">
-        Todavía no hay equipos cargados. Se cargan al sincronizar las ligas.
+        Todavía no hay equipos cargados.
       </p>
     ) : (
       <FiltroEquipos

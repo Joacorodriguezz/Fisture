@@ -50,15 +50,15 @@ const jsonLd = [
 
 <Layout title={`${homeTeam.name} vs ${awayTeam.name} - FISTURE`} pagina={6} descripcion={descripcion} jsonLd={jsonLd}>
   <div style="display:flex;flex-direction:column;gap:28px">
-    <a href="/partidos" class="tb-volver">← Partidos</a>
+    <a href="/partidos" class="tb-volver"><span aria-hidden="true">←</span> Partidos</a>
 
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:16px">
       <Volanta tono="rojo"><a href={rutaLiga} class="fp-enlace">{league.name}</a>{match.round ? ` · ${match.round}` : ""}</Volanta>
       <div class="fp-duelo" style="display:flex;align-items:center;gap:20px">
         {/* El escudo se toca, pero el enlace accesible es el nombre del titular: no se duplica para teclado ni lector */}
-        <a href={rutaLocal} tabindex="-1" aria-hidden="true" class="fp-escudo"><Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={112} pad={14} /></a>
+        <a href={rutaLocal} tabindex="-1" aria-hidden="true" class="fp-escudo"><Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={112} pad={14} prioridad /></a>
         <span style="font:400 40px/1 var(--font-titular);color:var(--rojo)">VS</span>
-        <a href={rutaVisitante} tabindex="-1" aria-hidden="true" class="fp-escudo"><Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={112} pad={14} /></a>
+        <a href={rutaVisitante} tabindex="-1" aria-hidden="true" class="fp-escudo"><Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={112} pad={14} prioridad /></a>
       </div>
       <Titular nivel="tapa"><a href={rutaLocal} class="fp-equipo">{homeTeam.name}</a> vs <a href={rutaVisitante} class="fp-equipo">{awayTeam.name}</a></Titular>
     </div>
