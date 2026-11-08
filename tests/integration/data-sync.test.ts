@@ -170,6 +170,51 @@ describe("ingesta ESPN a D1", () => {
       expect(vieja.isActive).toBe(false);
     });
 
+    // docs/30 D3: el DISTINCT de equipos conocidos lee ~2.700 filas; antes corría una vez por copa
+    describe("equipos conocidos", () => {
+      const conConsultas = () => {
+        const sqls: string[] = [];
+        const DB = new Proxy(t.DB, {
+          get(target, prop) {
+            if (prop === "prepare") return (q: string) => (sqls.push(q), target.prepare(q));
+            const valor = Reflect.get(target, prop);
+            return typeof valor === "function" ? valor.bind(target) : valor;
+          },
+        });
+        return { DB, distintos: () => sqls.filter((q) => q.startsWith("select distinct")).length };
+      };
+      const loteDe = (externalId: string) => lotesDeSync().findIndex((l) => l.some((c) => c.externalId === externalId));
+
+      // Cada competencia recibe un partido propio, así las copas no chocan con el de la liga
+      beforeEach(() => {
+        vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+          const copia = structuredClone(data);
+          copia.events[0].id = `${copia.events[0].id}-${new URL(url).pathname.split("/").slice(-2, -1)[0]}`;
+          return Response.json(copia);
+        }));
+      });
+
+      it("un lote de copas los consulta una sola vez", async () => {
+        await sync();
+        const { DB, distintos } = conConsultas();
+        const lote = loteDe("eng.fa");
+        expect(lotesDeSync()[lote].filter((c) => !c.destacada).length).toBeGreaterThan(1);
+
+        await syncLote({ DB }, lote);
+        expect(distintos()).toBe(1);
+      });
+
+      it("una copa ve los equipos que cargó una competencia destacada del mismo lote", async () => {
+        const lote = loteDe("conmebol.libertadores");
+        const { DB, distintos } = conConsultas();
+
+        await syncLote({ DB }, lote);
+        expect(distintos()).toBe(1);
+        const [qual] = await t.db.select().from(leagues).where(eq(leagues.externalId, "uefa.champions_qual"));
+        expect(await t.db.select().from(matches).where(eq(matches.leagueId, qual.id))).toHaveLength(1);
+      });
+    });
+
     it.each([-1, 1.5, 999])("un lote inexistente (%s) es un error", async (lote) => {
       await expect(syncLote({ DB: t.DB }, lote)).rejects.toThrow(RangeError);
     });

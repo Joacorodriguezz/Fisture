@@ -96,6 +96,31 @@ describe("runSync", () => {
     expect(r.results.map((x) => x.league)).toEqual(["Liga A"]);
   });
 
+  // docs/30 D1: los chequeos miran la base entera; correrlos en cada lote repetía ~60 k lecturas
+  describe("chequeos de consistencia por lotes", () => {
+    const loteDeps = (siguienteLote: number | null) => ({
+      ...deps(),
+      syncLote: async (_e: unknown, n: number) => ({ lote: n, totalLotes: 4, siguienteLote, results: [res("Liga A")] }),
+    });
+
+    beforeEach(async () => {
+      await t.DB.prepare("INSERT INTO leagues (id, name, country, external_id, season, is_active) VALUES ('vacia', 'V', 'AR', 'v', 2026, 1)").run();
+    });
+
+    it("un lote intermedio no corre los chequeos y guarda el run sin hallazgos", async () => {
+      const r = await runSync(env, "admin", { lote: 1, deps: loteDeps(2), logger });
+      expect(r.issues).toEqual([]);
+      const [run] = await getLatestRuns(t.db, 1);
+      expect(run.issues).toEqual([]);
+      expect(lineas.some((l) => l.data.msg === "consistency_skipped")).toBe(true);
+    });
+
+    it("el último lote corre los chequeos", async () => {
+      const r = await runSync(env, "admin", { lote: 3, deps: loteDeps(null), logger });
+      expect(r.issues.map((i) => i.code)).toContain("empty_league");
+    });
+  });
+
   it("sin lote no informa lote", async () => {
     const r = await runSync(env, "admin", { deps: deps(), logger });
     expect(r).not.toHaveProperty("lote");
