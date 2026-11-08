@@ -46,6 +46,11 @@ const canonical = urlCanonica(Astro.locals.runtime.env.PUBLIC_APP_URL, Astro.url
 // WhatsApp, X e Instagram exigen una URL absoluta para la imagen de vista previa
 const ogImagen = urlCanonica(Astro.locals.runtime.env.PUBLIC_APP_URL, "/og-image.png");
 
+// Verificación de Search Console y Bing por meta tag (docs/29); con la de DNS no hacen falta. Nunca en staging
+const verificacion = esStaging
+  ? {}
+  : { google: Astro.locals.runtime.env.GOOGLE_SITE_VERIFICATION?.trim(), bing: Astro.locals.runtime.env.BING_SITE_VERIFICATION?.trim() };
+
 const user = Astro.locals.user;
 const prefs = user
   ? await getPreferences(createDb(Astro.locals.runtime.env.DB), user.id)
@@ -86,6 +91,8 @@ const fechaCorta = fechaMovil(new Date());
     <meta name="description" content={descripcion} />
     {(noindex || esStaging) && <meta name="robots" content="noindex" />}
     <link rel="canonical" href={canonical} />
+    {verificacion.google && <meta name="google-site-verification" content={verificacion.google} />}
+    {verificacion.bing && <meta name="msvalidate.01" content={verificacion.bing} />}
     <meta property="og:title" content={title} />
     <meta property="og:description" content={descripcion} />
     <meta property="og:type" content="website" />

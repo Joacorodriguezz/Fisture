@@ -14,14 +14,14 @@ const user = Astro.locals.user;
 
 const { id } = Astro.params;
 if (!id) {
-  return Astro.redirect("/ligas");
+  return Astro.rewrite("/404");
 }
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
 const liga = await db.query.leagues.findFirst({ where: eq(leagues.id, id) });
 if (!liga) {
-  return Astro.redirect("/ligas");
+  return Astro.rewrite("/404");
 }
 
 // Participantes de la competencia (incluye equipos de otras ligas en las copas)

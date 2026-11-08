@@ -16,10 +16,10 @@ test("canonical absoluta sin query ni barra final", async ({ page }) => {
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${BASE}/`);
 });
 
-test("meta description por defecto y Open Graph/Twitter", async ({ page }) => {
+test("meta description propia y Open Graph/Twitter", async ({ page }) => {
   await page.goto("/ligas");
-  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /^Sincronizá los partidos/);
-  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Ligas - FISTURE");
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /^Liga Profesional, Brasileirão/);
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Ligas de fútbol: fixture de cada torneo - FISTURE");
   await expect(page.locator('meta[property="og:type"]')).toHaveAttribute("content", "website");
   await expect(page.locator('meta[property="og:locale"]')).toHaveAttribute("content", "es_AR");
   await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute("content", "summary_large_image");
@@ -107,4 +107,59 @@ test("ayuda: preguntas frecuentes con FAQPage y enlazada desde el pie", async ({
   const [faq] = await jsonLd(page);
   expect(faq["@type"]).toBe("FAQPage");
   expect(faq.mainEntity.length).toBeGreaterThan(5);
+});
+
+test("docs/29: un id inexistente da 404 con noindex, no una redirección (soft 404)", async ({ page, request }) => {
+  for (const ruta of ["/ligas/no-existe", "/equipos/no-existe", "/partidos/no-existe", "/ruta-que-no-existe"]) {
+    const res = await request.get(ruta, { maxRedirects: 0 });
+    expect(res.status(), ruta).toBe(404);
+  }
+  const res = await page.goto("/partidos/ya-se-jugo");
+  expect(res?.status()).toBe(404);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("FUERA DE JUEGO");
+  await page.getByRole("main").getByRole("link", { name: "Próximos partidos" }).click();
+  await expect(page).toHaveURL(`${BASE}/partidos`);
+});
+
+test("docs/29: /equipos redirige con 301 a /ligas", async ({ request }) => {
+  const res = await request.get("/equipos", { maxRedirects: 0 });
+  expect(res.status()).toBe(301);
+  expect(res.headers()["location"]).toBe("/ligas");
+});
+
+test("docs/29: cada página pública tiene título y descripción propios", async ({ page }) => {
+  const rutas = ["/", "/hoy", "/partidos", "/ligas", "/calendario", "/equipos/buscar", "/ayuda", "/privacidad", "/terminos", "/ligas/e2e-league", "/equipos/river", "/partidos/superclasico"];
+  const titulos = new Set<string>();
+  const descripciones = new Set<string>();
+  for (const ruta of rutas) {
+    await page.goto(ruta);
+    const titulo = await page.title();
+    const descripcion = (await page.locator('meta[name="description"]').getAttribute("content")) ?? "";
+    expect(titulo.length, ruta).toBeLessThanOrEqual(60);
+    expect(descripcion.length, ruta).toBeGreaterThan(50);
+    expect(descripcion.length, ruta).toBeLessThanOrEqual(160);
+    expect(descripcion, ruta).not.toMatch(/^Sincronizá los partidos de tus equipos/);
+    titulos.add(titulo);
+    descripciones.add(descripcion);
+    await expect(page.locator('meta[name="robots"]'), ruta).toHaveCount(0);
+  }
+  expect(titulos.size).toBe(rutas.length);
+  expect(descripciones.size).toBe(rutas.length);
+});
+
+test("docs/29: la home nombra la marca en texto y enlaza las secciones públicas", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveTitle(/^FISTURE: fixture de fútbol/);
+  await expect(page.getByRole("heading", { level: 2, name: "Qué es Fisture" })).toBeVisible();
+  const seccion = page.getByRole("region", { name: "Qué es Fisture" });
+  for (const href of ["/hoy", "/partidos", "/ligas", "/equipos/buscar"]) await expect(seccion.locator(`a[href="${href}"]`)).toHaveCount(1);
+  const [sitio] = await jsonLd(page);
+  expect(sitio["@graph"][1].logo.url).toBe(`${BASE}/icon-512.png`);
+});
+
+test("docs/29: meta de verificación de Search Console si está configurada, y la de Bing solo si existe", async ({ page }) => {
+  await page.goto("/ligas");
+  await expect(page.locator('meta[name="google-site-verification"]')).toHaveAttribute("content", "e2e-google-verificacion");
+  await expect(page.locator('meta[name="msvalidate.01"]')).toHaveCount(0);
 });

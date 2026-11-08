@@ -55,7 +55,11 @@ const prefijo = (dia: string) => (dia === hoyTxt ? "Hoy · " : dia === mananaTxt
 const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, etiqueta: `${prefijo(dia)}${dia}`, items }));
 ---
 
-<Layout title="Próximos partidos - FISTURE" pagina={5}>
+<Layout
+  title="Próximos partidos de fútbol: fixture y horarios - FISTURE"
+  pagina={5}
+  descripcion="Fixture de fútbol de los próximos días con día, hora argentina y sede. Elegí los partidos y sumalos a Google Calendar u Outlook con recordatorios."
+>
   <div style="display:flex;flex-direction:column;gap:28px">
     <CabezalSeccion firma="Tu fixture">la jornada está aquí</CabezalSeccion>
 

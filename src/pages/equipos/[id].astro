@@ -20,14 +20,14 @@ const user = Astro.locals.user;
 
 const { id } = Astro.params;
 if (!id) {
-  return Astro.redirect("/ligas");
+  return Astro.rewrite("/404");
 }
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
 const team = await db.query.teams.findFirst({ where: eq(teams.id, id) });
 if (!team) {
-  return Astro.redirect("/ligas");
+  return Astro.rewrite("/404");
 }
 
 const liga = await db.query.leagues.findFirst({ where: eq(leagues.id, team.leagueId) });
