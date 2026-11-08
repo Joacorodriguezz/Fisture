@@ -152,6 +152,7 @@ a:hover {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    overscroll-behavior: contain;
     background: var(--rojo-fondo);
     color: var(--on-rojo);
   }
@@ -455,10 +456,15 @@ a:hover {
   gap: 16px;
   padding-top: 16px;
 }
-.hm-barra {
+/* El h2 es el que queda pegado (su bloque contenedor es la sección); el botón llena la barra. */
+.hm-titulo {
   position: sticky;
   top: 134px;
   z-index: 3;
+  margin: 0;
+}
+
+.hm-barra {
   width: 100%;
   min-height: 48px;
   box-sizing: border-box;
@@ -794,6 +800,97 @@ a:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Tarjeta de equipo (modo navegar) y fila (modo seguir): hover y foco visibles; las que quedan fuera de pantalla no se pintan. */
+.fe-tarjeta {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 10px 14px;
+  background: var(--papel);
+  border: 2px solid var(--linea);
+  text-align: center;
+  color: var(--tinta);
+  text-decoration: none;
+  transition: transform 0.08s, box-shadow 0.08s, border-color 0.08s;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
+}
+.fe-tarjeta--siguiendo {
+  background: var(--papel-2);
+  border-color: var(--rojo);
+}
+@media (hover: hover) {
+  .fe-tarjeta:hover {
+    color: var(--tinta);
+    border-color: var(--tinta);
+    transform: translate(-2px, -2px);
+    box-shadow: var(--sombra-registro);
+  }
+  .fe-tarjeta--siguiendo:hover {
+    border-color: var(--rojo);
+  }
+}
+.fe-tarjeta:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
+}
+.fe-tarjeta__nombre {
+  font: 700 16px/19px var(--font-rotulo);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.fe-tarjeta__estado {
+  font: 700 13px/16px var(--font-rotulo);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-suave);
+}
+.fe-tarjeta--siguiendo .fe-tarjeta__estado {
+  color: var(--rojo);
+}
+.fe-fila {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 69px;
+}
+
+/* Tarjeta de liga (/ligas) */
+.lg-tarjeta {
+  cursor: pointer;
+  border-top: 4px solid var(--rojo);
+  border-bottom: 2px solid transparent;
+  background: var(--papel-2);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--tinta);
+  text-decoration: none;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+@media (hover: hover) {
+  .lg-tarjeta:hover {
+    color: var(--tinta);
+    transform: translate(-2px, -2px);
+    box-shadow: var(--sombra-registro);
+  }
+}
+/* Feedback al tocar (sin el destello del navegador) */
+.fe-tarjeta:active,
+.lg-tarjeta:active,
+.tb-opcion:active,
+.hm-dia:not([aria-current="date"]):active {
+  background: var(--papel-2);
+  transform: none;
+  box-shadow: none;
+}
+.lg-tarjeta:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
 }
 
 /* ===== Mobile: Liga, Equipo, Ficha, Calendario, Configuración ===== */

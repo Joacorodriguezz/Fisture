@@ -46,7 +46,7 @@ test("busca, sigue y deja de seguir un equipo con persistencia", async ({ page }
   await ready(page, unfollow);
   await expect(page.getByRole("group", { name: "Auto-sync del equipo" }).getByRole("button", { name: /No$/ })).toHaveAttribute("aria-pressed", "true");
   await unfollow.click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Sí, dejar de seguir" }).click();
+  await page.getByRole("group", { name: /Confirmar: dejar de seguir/ }).getByRole("button", { name: "Sí, dejar de seguir" }).click();
   await expect(page.getByRole("button", { name: "Seguir equipo", exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("button", { name: "Seguir equipo", exact: true })).toBeVisible();
@@ -393,4 +393,78 @@ test("un 429 al agregar al calendario muestra la espera en un mensaje legible", 
   await ready(page, agregar);
   await agregar.click();
   await expect(page.getByText("Demasiados intentos. Probá de nuevo en 37 segundos.")).toBeVisible();
+});
+
+test("quitar del calendario: Cancelar devuelve el foco, el error permite reintentar y confirmar vuelve a Agregar", async ({ page }, info) => {
+  await login(page, info, "quit");
+  let borrados = 0;
+  let liberar!: () => void;
+  const espera = new Promise<void>((resolve) => { liberar = resolve; });
+  await page.route("**/api/calendario/sync**", async (route) => {
+    const metodo = route.request().method();
+    if (metodo === "POST") return route.fulfill({ json: { results: [{ matchId: "superclasico", success: true }] } });
+    borrados++;
+    if (borrados === 1) return route.fulfill({ status: 500, json: { error: "boom" } });
+    await espera;
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.goto("/partidos/superclasico");
+  const agregar = page.getByRole("button", { name: "Agregar al calendario", exact: true });
+  await ready(page, agregar);
+  await agregar.click();
+  const quitar = page.getByRole("button", { name: "Quitar del calendario", exact: true });
+  await expect(quitar).toBeVisible();
+
+  // Cancelar vuelve al estado inicial con el foco en el disparador
+  await quitar.click();
+  const grupo = page.getByRole("group", { name: "Confirmar: quitar del calendario" });
+  await expect(grupo.getByRole("button", { name: "Cancelar", exact: true })).toBeFocused();
+  await grupo.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(grupo).toHaveCount(0);
+  await expect(quitar).toBeFocused();
+
+  // Un error cierra la confirmación, muestra el mensaje y deja reintentar
+  await quitar.click();
+  await grupo.getByRole("button", { name: "Sí, quitar", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText("boom");
+  await expect(quitar).toBeFocused();
+
+  // Confirmar: "Quitando…" y después vuelve el botón de agregar con el foco
+  await quitar.click();
+  await grupo.getByRole("button", { name: "Sí, quitar", exact: true }).click();
+  await expect(grupo.getByRole("button", { name: "Quitando…", exact: true })).toBeDisabled();
+  liberar();
+  await expect(agregar).toBeVisible();
+  await expect(agregar).toBeFocused();
+  await expect(quitar).toHaveCount(0);
+});
+
+test("desvincular un proveedor: Cancelar devuelve el foco, el error permite reintentar y confirmar desvincula", async ({ page }, info) => {
+  await login(page, info, "unlink");
+  let intentos = 0;
+  await page.route("**/api/auth/identidades/microsoft", (route) => {
+    intentos++;
+    return intentos === 1 ? route.fulfill({ status: 500, json: { error: "boom" } }) : route.continue();
+  });
+  await page.goto("/configuracion");
+  const desvincular = page.getByRole("button", { name: "Desvincular", exact: true });
+  await ready(page, desvincular);
+
+  await desvincular.click();
+  const grupo = page.getByRole("group", { name: "Confirmar: desvincular Microsoft" });
+  await expect(grupo.getByRole("button", { name: "Cancelar", exact: true })).toBeFocused();
+  await grupo.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(grupo).toHaveCount(0);
+  await expect(desvincular).toBeFocused();
+
+  await desvincular.click();
+  await grupo.getByRole("button", { name: "Sí, desvincular", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "No se pudo desvincular" })).toBeVisible();
+  await expect(desvincular).toBeFocused();
+
+  await desvincular.click();
+  await grupo.getByRole("button", { name: "Sí, desvincular", exact: true }).click();
+  await expect(page).toHaveURL(/\/configuracion$/);
+  await expect(page.getByText("Sin vincular").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Desvincular", exact: true })).toHaveCount(0);
 });

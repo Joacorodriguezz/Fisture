@@ -66,7 +66,14 @@ export default function EliminarCuenta({ email, provider }: Props) {
         }}
         style={{ maxWidth: 520, width: "calc(100% - 32px)", boxSizing: "border-box", padding: 24, border: "4px solid var(--tinta)", background: "var(--papel)", color: "var(--tinta)" }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            eliminar();
+          }}
+          style={{ display: "flex", flexDirection: "column", gap: 16 }}
+        >
           <h2 id="eliminar-cuenta-titulo" style={{ margin: 0, font: "400 28px/1.05 var(--font-titular)", textTransform: "uppercase" }}>
             ¿Eliminar tu cuenta?
           </h2>
@@ -83,15 +90,11 @@ export default function EliminarCuenta({ email, provider }: Props) {
             Escribí tu email para confirmar ({email})
             <input
               type="email"
+              name="confirmar"
               autoComplete="off"
+              spellCheck={false}
               value={confirmacion}
               onChange={(e) => setConfirmacion(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  eliminar();
-                }
-              }}
               style={{ font: "400 16px/22px var(--font-texto)", padding: "10px 12px", border: "2px solid var(--tinta)", textTransform: "none" }}
             />
           </label>
@@ -101,14 +104,14 @@ export default function EliminarCuenta({ email, provider }: Props) {
             </span>
           )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-            <button type="button" className="tb-boton tb-boton--primario" disabled={!coincide || ocupado} onClick={eliminar}>
+            <button type="submit" className="tb-boton tb-boton--primario" disabled={!coincide || ocupado}>
               {ocupado ? "Eliminando…" : "Eliminar definitivamente"}
             </button>
             <button type="button" className="tb-boton" disabled={ocupado} onClick={cerrar}>
               Cancelar
             </button>
           </div>
-        </div>
+        </form>
       </dialog>
     </div>
   );

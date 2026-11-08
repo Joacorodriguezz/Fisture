@@ -61,7 +61,7 @@ const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, etiqueta
   descripcion="Fixture de fútbol de los próximos días con día, hora argentina y sede. Elegí los partidos y sumalos a Google Calendar u Outlook con recordatorios."
 >
   <div style="display:flex;flex-direction:column;gap:28px">
-    <CabezalSeccion firma="Tu fixture">la jornada está aquí</CabezalSeccion>
+    <CabezalSeccion as="p" firma="Tu fixture">la jornada está aquí</CabezalSeccion>
 
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
       <Volanta tono="tinta">Lo que viene</Volanta>
@@ -114,7 +114,7 @@ const grupos = Array.from(dias.entries()).map(([dia, items]) => ({ dia, etiqueta
                     href={`/partidos/${m.match.id}`}
                     class="pm-enlace" style="flex:1;min-width:240px;display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:16px;color:var(--tinta);text-decoration:none"
                   >
-                    <span class="pm-hora" style="font:400 40px/1 var(--font-titular)">{hora(m.match.dateTime)}</span>
+                    <span class="pm-hora tb-cifra" style="font:400 40px/1 var(--font-titular)">{hora(m.match.dateTime)}</span>
                     <div class="pm-info" style="min-width:0;display:flex;flex-direction:column;gap:4px">
                       <span class="pm-competencia" style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">
                         {m.league.name}{m.match.round ? ` · ${m.match.round}` : ""}

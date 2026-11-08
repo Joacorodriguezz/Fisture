@@ -30,7 +30,7 @@ const DETALLE: Record<string, { detalle: string; pagina: string }> = {
   <dialog id="tb-menu-panel" class="tb-menu__panel" aria-label="Menú" hidden>
     <div class="tb-menu__cab">
       <span class="tb-menu__nombre">Fisture</span>
-      <button type="button" class="tb-menu__cerrar" data-menu-cerrar>Cerrar ✕</button>
+      <button type="button" class="tb-menu__cerrar" data-menu-cerrar>Cerrar <span aria-hidden="true">✕</span></button>
     </div>
     <div class="tb-menu__sumario"><span>Sumario</span>{fecha && <span>{fecha}</span>}</div>
     <nav class="tb-menu__nav" aria-label="Secciones">
@@ -42,7 +42,7 @@ const DETALLE: Record<string, { detalle: string; pagina: string }> = {
               <span class="tb-menu__titulo">{s.label}</span>
               {extra && <span class="tb-menu__detalle">{extra.detalle}</span>}
             </span>
-            {s.actual ? <span class="tb-menu__aca">Estás acá</span> : extra && <span class="tb-menu__pagina">{extra.pagina}</span>}
+            {s.actual ? <span class="tb-menu__aca">Estás acá</span> : extra && <span class="tb-menu__pagina" aria-hidden="true">{extra.pagina}</span>}
           </a>
         );
       })}

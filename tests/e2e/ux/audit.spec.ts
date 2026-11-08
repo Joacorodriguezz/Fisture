@@ -137,7 +137,7 @@ test("sincronizar: muestra progreso, bloquea duplicados y recupera un fallo de r
     expect(calls).toBe(1);
     await info.attach("sincronizacion-en-progreso", { body: await page.screenshot(), contentType: "image/png" });
   } finally { release(); }
-  await expect(page.getByRole("alert")).toHaveText("Error de conexión");
+  await expect(page.getByRole("alert")).toHaveText("Sin conexión. Revisá tu internet y probá de nuevo.");
   await page.getByRole("button", { name: "Reintentar", exact: true }).click();
   await expect(page.getByRole("button", { name: "En tu calendario", exact: true })).toBeDisabled();
   await expect(page.getByRole("status").filter({ hasText: "En tu calendario" })).toBeVisible();
