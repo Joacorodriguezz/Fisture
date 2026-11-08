@@ -26,6 +26,7 @@ const screens = [
   { name: "privacidad", path: "/privacidad", session: false },
   { name: "terminos", path: "/terminos", session: false },
   { name: "ligas", path: "/ligas", session: false },
+  { name: "liga-fixture", path: "/ligas/e2e-league", session: false },
   { name: "buscar", path: "/equipos/buscar", session: false },
   { name: "equipo", path: "/equipos/river", session: false },
   { name: "proximos-partidos", path: "/partidos", session: false },

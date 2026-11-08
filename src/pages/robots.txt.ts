@@ -8,6 +8,7 @@ export async function GET({ locals }: APIContext): Promise<Response> {
     return new Response("User-agent: *\nDisallow: /\n", { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
   const base = baseUrl(locals.runtime.env.PUBLIC_APP_URL);
-  const texto = `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /configuracion\nDisallow: /login\n\nSitemap: ${base}/sitemap.xml\n`;
+  // Login debe poder rastrearse para que Google lea su meta noindex (incluido ?next=).
+  const texto = `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /configuracion\n\nSitemap: ${base}/sitemap.xml\n`;
   return new Response(texto, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }

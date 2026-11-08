@@ -1,20 +1,17 @@
 # 29 · SEO y posicionamiento de marca (TDD)
 
-Estado: **implementado en código (C1 a C5, más la meta de verificación)**. Quedan las acciones fuera del código (§4.1), C6 y C7.
+Estado: **implementado en código (C1 a C5, más la meta de verificación)**. Diagnóstico actualizado el 08/11/2026 con Search Console; ver [plan posterior](30-plan-seo-antes-del-release-tdd.md). C6 y C7 quedan diferidos.
 
 ## 1. Contexto y problema
 
-Al buscar "fisture" en Google, el sitio no aparece. Una búsqueda de prueba (noviembre 2026) devuelve solo
-resultados sobre "fissure" y "fistula": el buscador trata la palabra como un error de tipeo.
+El diagnóstico inicial partió de una búsqueda manual donde Google sugería palabras similares a "fisture".
+La evidencia de Search Console del 08/11/2026 confirma que la home está indexada, la propiedad está
+verificada y el sitemap fue procesado correctamente. La consulta exacta `fisture` registra 14 impresiones,
+2 clics y posición media 4,57. No corresponde inferir ausencia de indexación a partir de una búsqueda manual.
 
-El SEO *on-page* ya está bastante cuidado (ver §2), así que el problema no es de etiquetas sino de tres cosas:
-
-1. **Google probablemente no tiene el sitio indexado** (o lo tiene muy poco): no hay evidencia en el repo de que
-   `fisture.com` esté verificado en Google Search Console ni de que se haya enviado el sitemap.
-2. **La marca no existe todavía como entidad**: "fisture" se parece a "fissure", no hay enlaces externos ni perfiles
-   que digan "Fisture es esta app". Sin esas señales Google corrige la consulta hacia la palabra conocida.
-3. **Hay detalles técnicos menores** que restan: contenido duplicado en `fisture.pages.dev`, páginas públicas sin
-   descripción propia y un logo en SVG que Google no acepta para el panel de marca.
+El paquete inicial mejora la consolidación del dominio, las descripciones y el texto visible de marca.
+La siguiente etapa mejora contenido y enlaces internos. Google admite SVG: el PNG elegido es una opción
+compatible, no una reparación de un formato prohibido. El reporte de cobertura aún no estaba disponible.
 
 ## 2. Lo que ya está bien (no tocar)
 
@@ -31,7 +28,7 @@ El SEO *on-page* ya está bastante cuidado (ver §2), así que el problema no es
 
 **Objetivos**
 
-- Que "fisture" y "fisture app" devuelvan `fisture.com` en el primer resultado en 4 a 8 semanas.
+- Mejorar la visibilidad de "fisture" y "fisture app", midiendo periodos comparables sin prometer posiciones ni plazos.
 - Que Google indexe la home, las ligas y los equipos (medido en Search Console → Páginas).
 - Aparecer por búsquedas de cola larga: "fixture de River en Google Calendar", "partidos de la Premier en mi
   calendario", "fixture Liga Profesional calendario".
@@ -48,9 +45,9 @@ El SEO *on-page* ya está bastante cuidado (ver §2), así que el problema no es
 
 | # | Acción | Por qué |
 |---|--------|---------|
-| A1 | **Verificar `fisture.com` en Google Search Console** como *propiedad de dominio* (registro TXT en el DNS de Cloudflare). | Sin esto no hay forma de saber qué ve Google ni de pedir indexación. Por DNS no hace falta tocar código. |
-| A2 | **Enviar `https://fisture.com/sitemap.xml`** en Search Console → Sitemaps. | Acelera el descubrimiento de las páginas de ligas y equipos. |
-| A3 | **Inspección de URL → "Solicitar indexación"** para `/`, `/ligas`, `/hoy`, `/partidos` y `/ayuda`. | Fuerza el primer rastreo de las páginas clave. |
+| A1 | **Completado: propiedad de dominio verificada en Search Console.** | Usar los informes existentes para medir cobertura y rendimiento. |
+| A2 | **Completado: sitemap enviado y con estado Success.** | 860 URLs descubiertas en la lectura del 06/11; no equivale a 860 indexadas. |
+| A3 | **Inspeccionar las páginas clave después de cambios significativos.** | Solicitar indexación puede avisar de cambios; no garantiza rastreo inmediato ni indexación. La home ya está indexada. |
 | A4 | **Bing Webmaster Tools**: importar la propiedad desde Search Console. | Bing alimenta a DuckDuckGo, Ecosia, Copilot y ChatGPT search. Dos minutos de trabajo. |
 | A5 | **Crear perfiles de marca** con el nombre "Fisture" y enlace a `fisture.com`: Instagram, X, TikTok, LinkedIn y GitHub (README del repo). | Son las señales que le enseñan a Google que "fisture" es una marca y no un error de tipeo. Se enlazan desde el JSON-LD (`sameAs`, §4.2). |
 | A6 | **Conseguir los primeros enlaces externos**: Product Hunt, publicaciones en Reddit (r/futbol, r/argentina, subreddits de clubes), foros de hinchas, grupos de WhatsApp/Telegram, directorios de apps (AlternativeTo, SaaSHub), Google Business Profile si aplica. | Un sitio nuevo sin enlaces entrantes tarda mucho en rankear, incluso por su propio nombre. |
@@ -62,10 +59,10 @@ El SEO *on-page* ya está bastante cuidado (ver §2), así que el problema no es
 |---|--------|---------|------------------------|
 | C1 | **Redirigir 301 `fisture.pages.dev` → `fisture.com`** en el middleware cuando `ENVIRONMENT === "production"` y el host no coincide con `PUBLIC_APP_URL`. | Hoy el mismo sitio se sirve en dos dominios. La canónica ayuda, pero una 301 consolida todo y evita que Google indexe el subdominio de Pages. | Una regla de *Bulk Redirects* en Cloudflare: funciona igual, pero queda fuera del repo y sin test. Queda como respaldo. |
 | C2 | **`alternateName` y `sameAs` en `Organization` y `WebSite`** (`jsonLdSitio`): `alternateName: ["Fisture", "Fisture app", "Fixture Sync"]` y `sameAs` con los perfiles de A5. | Le dice explícitamente a Google cómo se llama el sitio y qué perfiles son suyos; ayuda a mostrar "Fisture" como nombre del sitio en los resultados. | Ninguna: es la vía documentada por Google. |
-| C3 | **Logo raster en `Organization.logo`** (`/icon-512.png` en vez de `/favicon.svg`). | Google pide un logo de al menos 112×112 en formato rasterizado; el SVG se ignora. | — |
+| C3 | **Logo PNG en `Organization.logo`** (`/icon-512.png`). | Imagen de marca con dimensiones explícitas. SVG también es compatible; se mantiene la decisión de usar PNG. | — |
 | C4 | **Descripciones propias** en `/hoy`, `/partidos`, `/ligas`, `/calendario` y `/equipos/buscar`. | Hoy heredan la descripción genérica del layout: Google ve páginas casi iguales. | — |
 | C5 | **Texto en la home que contenga la marca y las búsquedas objetivo**: un `<h1>` o bajada con "Fisture" escrito como palabra (no solo como logo) y un párrafo con "fixture de fútbol en Google Calendar / Outlook". Sumar a la home un bloque de preguntas frecuentes con `FAQPage` (las de `/ayuda`). | La palabra "Fisture" tiene que aparecer en texto. Las preguntas atrapan búsquedas de cola larga. | Una landing aparte por liga: se evalúa con datos de Search Console. |
-| C6 | **`lastmod` en el sitemap solo para las páginas fijas** (fecha del build) y separar el sitemap en un índice (`sitemap-index.xml` → páginas, ligas, equipos, partidos). | Search Console muestra la cobertura por archivo, lo que facilita ver qué se indexa. | Mantener un solo archivo: funciona, pero se pierde ese diagnóstico. |
+| C6 | **Diferido: índice de sitemaps y `lastmod` fiable.** | Mantener un archivo mientras alcance. `lastmod` debe corresponder a cambios significativos del contenido; la fecha del build no sirve como sustituto. Por ahora se omite. | Dividirlo cuando ayude a medir cobertura o por límites de tamaño. |
 | C7 | (Opcional) **IndexNow**: avisar a Bing/Yandex de las URLs nuevas al terminar el sync diario. | Indexación casi inmediata en Bing. Google no lo usa. | — |
 
 ### 4.3 Herramientas y skills
@@ -131,7 +128,7 @@ copiado en `.claude/skills/seo-audit/`. Se recorrieron las páginas públicas de
 Hallazgos que no estaban en el plan original:
 
 - **Soft 404**: un id inexistente en `/ligas/[id]`, `/equipos/[id]` y `/partidos/[id]` respondía 302 al listado.
-  Pasa con cada partido que sale de la ventana de 60 días. Ahora se hace `Astro.rewrite("/404")`: página
+  Salir de la ventana de 60 días del sitemap no elimina la ficha: `getMatchDetail` busca por ID. Para IDs inexistentes se hace `Astro.rewrite("/404")`: página
   `src/pages/404.astro` propia, status 404 y `noindex`, con enlaces a las secciones. Las rutas desconocidas usan
   la misma página (antes era la 404 por defecto de Astro, sin layout).
 - `/equipos` redirigía con 302 a `/ligas`: pasa a 301.

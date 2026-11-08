@@ -5,8 +5,8 @@ import Titular from "../components/tribuna/Titular.astro";
 import Bajada from "../components/tribuna/Bajada.astro";
 import Boton from "../components/tribuna/Boton.astro";
 
-// Página no encontrada (docs/29): status 404 real, no una redirección, para que Google saque de su índice
-// los partidos que ya pasaron y las URLs que no existen (una 302 a un listado es un "soft 404").
+// Página no encontrada (docs/29): status 404 real para URLs inexistentes, no una redirección.
+// Salir de la ventana del sitemap no elimina un partido de la base ni de su ficha.
 // La usan las rutas desconocidas y las páginas de liga, equipo o partido con un id que no está en la base.
 Astro.response.status = 404;
 ---
@@ -16,8 +16,7 @@ Astro.response.status = 404;
     <Volanta tono="rojo">Error 404</Volanta>
     <Titular nivel="1">FUERA DE JUEGO</Titular>
     <Bajada>
-      Esta página no existe o el partido ya no está en el fixture: mostramos los próximos 60 días. Probá con alguna de estas
-      secciones.
+      No encontramos esta página. Revisá la dirección o buscá el equipo o partido desde alguna de estas secciones.
     </Bajada>
     <div class="mv-bloque" style="display:flex;flex-wrap:wrap;gap:12px">
       <Boton variante="primario" href="/hoy">Partidos de hoy</Boton>

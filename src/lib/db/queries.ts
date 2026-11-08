@@ -1,4 +1,4 @@
-import { eq, and, gte, lt, or, inArray, asc } from "drizzle-orm";
+import { eq, and, gte, lt, or, inArray, asc, exists } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import {
   matches,
@@ -12,6 +12,30 @@ import type { Database } from "./index";
 import { diaISO } from "../format";
 
 const awayTeams = alias(teams, "away_team");
+
+// Fixture público de una competencia: una consulta con joins, rango acotado y orden estable.
+export async function getLeagueUpcomingMatches(db: Database, leagueId: string, ahora = new Date()) {
+  const hasta = new Date(ahora.getTime() + 30 * 24 * 60 * 60 * 1000);
+  return db.select({ match: matches, homeTeam: teams, awayTeam: awayTeams, league: leagues })
+    .from(matches)
+    .innerJoin(teams, eq(matches.homeTeamId, teams.id))
+    .innerJoin(awayTeams, eq(matches.awayTeamId, awayTeams.id))
+    .innerJoin(leagues, eq(matches.leagueId, leagues.id))
+    .where(and(eq(matches.leagueId, leagueId), eq(leagues.isActive, true),
+      eq(matches.status, "scheduled"), gte(matches.dateTime, ahora), lt(matches.dateTime, hasta)))
+    .orderBy(asc(matches.dateTime), asc(matches.id)).limit(20);
+}
+
+// Selección alfabética para explorar, no ranking de popularidad. Sin UUID propios de un entorno.
+export async function getEquiposParaExplorar(db: Database) {
+  // EXISTS evita multiplicar equipos por competencia y ordenar todas las participaciones.
+  return db.select({ id: teams.id, name: teams.name })
+    .from(teams)
+    .where(exists(db.select({ teamId: leagueTeams.teamId }).from(leagueTeams)
+      .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))
+      .where(and(eq(leagueTeams.teamId, teams.id), eq(leagues.isActive, true), eq(leagues.isFeatured, true)))))
+    .orderBy(asc(teams.name), asc(teams.id)).limit(6);
+}
 
 // Equipos que sigue el usuario
 async function getFollowedTeamIds(db: Database, userId: string): Promise<string[]> {
