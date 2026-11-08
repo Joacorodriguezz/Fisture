@@ -11,8 +11,13 @@ Revisarla en cada release que cambie el patrón de consultas. Lo medido sale de 
   estáticos de Pages (`/_astro/*`, imágenes) no cuentan como requests de Workers.
 - Cada página SSR lee en promedio **~150 filas** de D1 (medido: listados de `/hoy` y `/partidos` son los más caros).
 - Escrituras por activo: ~5 por día (sesión, seguir equipos, estados de `calendar_syncs`).
-- Sync diario: ~9 invocaciones (docs/22 D4), ~45.000 filas leídas y ~2.000 escritas en un día normal
-  (solo escribe lo que cambia); el primer sync después de sumar competencias escribe ~20.000.
+- Sync diario: ~9 invocaciones (docs/22 D4) y ~2.000 escritas en un día normal (solo escribe lo que
+  cambia); el primer sync después de sumar competencias escribe ~20.000. **Lecturas: el sync domina.**
+  La estimación anterior (~45.000 filas) no contaba los chequeos de consistencia. Medido en noviembre
+  de 2026: cada barrido leía de 1 M a 1,5 M filas, porque los chequeos corrían en cada lote y las
+  búsquedas por competencia recorrían `matches` entera. Con docs/30 corren una vez por barrido y hay
+  índice. Staging comparte la cuota de la cuenta y antes resincronizaba en cada push a `development`:
+  el 6/11 eso agotó los 5 M (docs/30 §1).
 - Reconciliación de calendarios (docs/17): hasta 40 invocaciones por día más (una por lote de ~3 a 4 usuarios con trabajo, 45 subrequests cada una). Sumadas a las ~9 del sync de ligas siguen muy por debajo de las 100.000 requests diarias.
 - Bots y crawlers: se suman ~3.000 requests/día (sitemap con ~1.500 URLs, más buscadores e IA).
 
@@ -23,7 +28,7 @@ Revisarla en cada release que cambie el patrón de consultas. Lo medido sale de 
 | Requests a Workers/Functions (100.000/día) | a medir (dashboard) | ~3.600 | ~9.000 | ~63.000 ⚠ |
 | CPU por request (10 ms) | OK salvo el sync completo | OK | OK | OK |
 | Subrequests por invocación (50) | El sync completo ya no entra: por lotes | — | — | — |
-| D1 filas leídas (5 M/día) | 90 k–226 k/día | ~0,6 M | ~1,4 M | ~9,5 M ❌ |
+| D1 filas leídas (5 M/día) | ~0,8 M/día en producción y hasta ~2 M/día más en staging (nov-2026, antes de docs/30) | ~0,6 M | ~1,4 M | ~9,5 M ❌ |
 | D1 filas escritas (100 k/día) | < 300/día (20 k el día de carga) | ~2.200 | ~3.500 | ~17.000 |
 | D1 almacenamiento (5 GB) | a medir (`wrangler d1 info fisture-db`) | < 100 MB | < 200 MB | < 1 GB |
 | KV escrituras (1.000/día) | ~0 desde docs/20 y docs/21 | ~0 | ~0 | ~0 |

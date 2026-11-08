@@ -67,11 +67,30 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          # El commit anterior, para ver qué tocó el push
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
+      # Un barrido lee 1 M a 1,5 M filas de D1, de la cuota de 5 M por día que comparte con
+      # producción (docs/30 D4). En un push solo se resincroniza si el commit puede cambiar los
+      # datos; el schedule y workflow_dispatch sincronizan siempre. Los merges son squash: un commit.
+      - name: Decidir si hace falta sincronizar
+        id: decidir
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "sync=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only HEAD^ HEAD | grep -qE '^(src/lib/data-providers/|drizzle/migrations/|src/lib/observability/consistency\.ts$)'; then
+            echo "sync=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sync=false" >> "$GITHUB_OUTPUT"
+            echo "Sin cambios en el sync ni en las migraciones: no se resincroniza staging." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Sync de competencias en staging
+        if: steps.decidir.outputs.sync == 'true'
         env:
           APP_URL: ${{ env.STAGING_URL }}
           ADMIN_SECRET: ${{ secrets.STAGING_ADMIN_SECRET }}
