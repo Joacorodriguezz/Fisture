@@ -44,13 +44,13 @@ const opciones = [
 
 <Layout title="Iniciar sesión - FISTURE" showNavbar={false} noindex>
   <div class="lg-col" style="max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:20px;padding:24px 0">
-    <a href={next ?? "/"} class="tb-volver">← Volver</a>
+    <a href={next ?? "/"} class="tb-volver"><span aria-hidden="true">←</span> Volver</a>
     <Volanta tono="tinta">Iniciá sesión</Volanta>
     <Titular nivel="1">ENTRÁ A LA CANCHA</Titular>
     <Bajada>Usá la cuenta del calendario donde querés ver los partidos.</Bajada>
 
     {error && (
-      <div style="background:var(--rojo-fondo);color:var(--on-rojo);padding:12px 16px;font:600 15px/20px var(--font-rotulo);letter-spacing:.02em">
+      <div role="alert" style="background:var(--rojo-fondo);color:var(--on-rojo);padding:12px 16px;font:600 15px/20px var(--font-rotulo);letter-spacing:.02em">
         {error}
       </div>
     )}
@@ -71,7 +71,7 @@ const opciones = [
             <span style="font:700 17px/20px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase">Continuar con {o.label}</span>
             <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">{o.detalle}</span>
           </span>
-          <span style="font:700 20px/1 var(--font-rotulo)">→</span>
+          <span aria-hidden="true" style="font:700 20px/1 var(--font-rotulo)">→</span>
         </a>
       ))}
     </div>

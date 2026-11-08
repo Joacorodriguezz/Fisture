@@ -15,7 +15,7 @@ const { volanta, titulo, bajada } = Astro.props;
 ---
 
 <article class="tb-legal">
-  <a href="/" class="tb-volver">← Volver</a>
+  <a href="/" class="tb-volver"><span aria-hidden="true">←</span> Volver</a>
   <Volanta tono="tinta">{volanta}</Volanta>
   <Titular nivel="1">{titulo}</Titular>
   <Bajada>{bajada}</Bajada>

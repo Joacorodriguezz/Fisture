@@ -2,13 +2,15 @@
 // CabezalSeccion.astro: cabezal grande de sección, con franja y firma
 interface Props {
   firma?: string;
+  // "p" cuando la página ya tiene su h1 más abajo y el cabezal va antes.
+  as?: "h2" | "p";
 }
 
-const { firma } = Astro.props;
+const { firma, as: Etiqueta = "h2" } = Astro.props;
 ---
 
 <header class="tb-cabezal">
-  <h2 class="tb-cabezal__barra"><slot /></h2>
+  <Etiqueta class="tb-cabezal__barra"><slot /></Etiqueta>
   <div class="tb-cabezal__franja" aria-hidden="true"></div>
   {firma && <div class="tb-cabezal__firma">{firma}</div>}
 </header>

@@ -146,9 +146,9 @@ const gruposMovil = grupos.map((g) => ({
 
     <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px">
       <nav aria-label="Cambiar de día" style="display:flex;flex-wrap:wrap;gap:8px">
-        <a class="tb-chip" href={enlace(sumarDias(dia, -1))}>← Día anterior</a>
+        <a class="tb-chip" href={enlace(sumarDias(dia, -1))}><span aria-hidden="true">←</span> Día anterior</a>
         {dia !== hoy && <a class="tb-chip" href={enlace(hoy)}>Hoy</a>}
-        <a class="tb-chip" href={enlace(sumarDias(dia, 1))}>Día siguiente →</a>
+        <a class="tb-chip" href={enlace(sumarDias(dia, 1))}>Día siguiente <span aria-hidden="true">→</span></a>
       </nav>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         <a href={enlaceFiltro(false)} aria-current={!soloMios ? "true" : undefined} class={!soloMios ? "tb-chip tb-chip--activo" : "tb-chip"}>Todos</a>
@@ -186,7 +186,7 @@ const gruposMovil = grupos.map((g) => ({
                     href={`/partidos/${m.match.id}`}
                     style="flex:1;min-width:240px;display:grid;grid-template-columns:80px minmax(0,1fr);align-items:center;gap:16px;color:var(--tinta);text-decoration:none"
                   >
-                    <span style="font:400 36px/1 var(--font-titular)">{hora(m.match.dateTime)}</span>
+                    <span class="tb-cifra" style="font:400 36px/1 var(--font-titular)">{hora(m.match.dateTime)}</span>
                     <div style="min-width:0;display:flex;flex-direction:column;gap:4px">
                       <span style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;font:400 24px/1.05 var(--font-titular);text-transform:uppercase">
                         <Escudo src={m.homeTeam.logo} nombre={m.homeTeam.name} sigla={m.homeTeam.shortName} size={36} />
@@ -197,7 +197,7 @@ const gruposMovil = grupos.map((g) => ({
                       </span>
                       <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
                         {m.match.round ? `${m.match.round} · ` : ""}{m.match.venue ?? "Sede a confirmar"}
-                        {esMio(m) && <b style="color:var(--rojo);font-family:var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase"> · ★ Tu equipo</b>}
+                        {esMio(m) && <b style="color:var(--rojo);font-family:var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase"> · <span aria-hidden="true">★</span> Tu equipo</b>}
                       </span>
                     </div>
                   </a>

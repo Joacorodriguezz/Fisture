@@ -71,13 +71,17 @@ try {
   ];
   const sessions = [];
   for (const project of ["desktop", "mobile", "webkit-mobile"]) {
-    for (const scenario of ["delete-account", "delete-cancel", "follow", "preferences", "calendar", "logout", "navigation", "errors", "list-add", "calendar-states", "responsive-menu", "responsive-today", "responsive-today-chip", "responsive-today-mine"]) {
+    for (const scenario of ["delete-account", "delete-cancel", "follow", "preferences", "calendar", "logout", "navigation", "errors", "list-add", "calendar-states", "responsive-menu", "responsive-today", "responsive-today-chip", "responsive-today-mine", "quit", "unlink"]) {
       for (let retry = 0; retry <= 1; retry++) {
         const id = `${project}-${scenario}-${retry}`;
         sql.push(`INSERT INTO users (id, email, name, provider, provider_id) VALUES ('${id}', '${id}@example.test', 'Persona E2E', 'google', '${id}');`);
         sessions.push(id);
         if (["calendar", "navigation", "errors", "list-add", "calendar-states", "responsive-today", "responsive-today-chip", "responsive-today-mine"].includes(scenario)) {
           sql.push(`INSERT INTO user_teams (id, user_id, team_id, auto_sync) VALUES ('follow-${id}', '${id}', 'river', 0);`);
+        }
+        if (scenario === "unlink") {
+          // Dos proveedores vinculados: Google es el calendario activo y Microsoft se puede desvincular
+          sql.push(`INSERT INTO oauth_identities (id, user_id, provider, provider_id, email) VALUES ('${id}', '${id}', 'google', '${id}', '${id}@example.test'), ('ms-${id}', '${id}', 'microsoft', 'ms-${id}', '${id}@example.test');`);
         }
         if (scenario === "calendar-states") {
           for (const state of ["detached", "cancelled", "synced"]) {
