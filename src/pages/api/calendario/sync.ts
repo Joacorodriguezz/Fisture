@@ -3,7 +3,9 @@ import { createDb } from "../../../lib/db";
 import {
   syncMatches,
   removeMatchFromCalendar,
+  MENSAJES_CORTE,
 } from "../../../lib/calendar/sync-service";
+import { CalendarApiError, classifyCalendarError } from "../../../lib/calendar/errors";
 import { withApi } from "../../../lib/observability/with-api";
 import { mensajeDeError } from "../../../lib/observability/logger";
 import { MAX_PARTIDOS_POR_REQUEST } from "../../../lib/calendar/limites";
@@ -61,6 +63,16 @@ export const DELETE: APIRoute = withApi(async ({ url, locals }) => {
     await removeMatchFromCalendar(db, env, user, matchId);
     return json({ success: true });
   } catch (error) {
+    // Reconectar (token ilegible, 401 o falta de permiso): misma señal que POST (code y tokenInvalido, docs/11 D4),
+    // pero 401 y no 207: un 2xx lo tomaría el cliente como "quitado". La fila se conserva: el evento sigue en el
+    // calendario del usuario y, al reconectar, el próximo "Quitar" lo borra. No marca reauth_required: como en
+    // POST, lo hace el cron (reconcile) al ver el mismo token
+    const code = classifyCalendarError(error);
+    if (code === "auth" || code === "scope") {
+      const tokenInvalido = (code === "auth" && !(error instanceof CalendarApiError)) || code === "scope";
+      locals.logger?.warn("calendar_remove_reauth", { matchId, code });
+      return json({ success: false, error: MENSAJES_CORTE[code], code, ...(tokenInvalido && { tokenInvalido }) }, 401);
+    }
     const message = mensajeDeError(error, "Error desconocido");
     return json({ success: false, error: message }, 500);
   }
