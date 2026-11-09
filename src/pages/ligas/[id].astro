@@ -4,6 +4,8 @@ import Volanta from "../../components/tribuna/Volanta.astro";
 import Titular from "../../components/tribuna/Titular.astro";
 import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
 import FiltroEquipos from "../../components/islands/FiltroEquipos";
+import { getLeagueUpcomingMatches } from "../../lib/db/queries";
+import { fechaLarga, hora } from "../../lib/format";
 import { createDb } from "../../lib/db";
 import { asc, eq } from "drizzle-orm";
 import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
@@ -51,6 +53,7 @@ const items = equiposLiga.map((t) => ({
 }));
 
 const cantidadSeguidos = items.filter((i) => i.siguiendo).length;
+const proximos = await getLeagueUpcomingMatches(db, liga.id);
 
 const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
 // El país solo si no está en el nombre ("Liga Profesional Argentina (Argentina)") y la cantidad solo si hay equipos
@@ -72,9 +75,25 @@ const jsonLd = [
       <a href="/ligas" class="tb-volver"><span aria-hidden="true">←</span> Ligas</a>
       <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
         <Volanta tono="rojo">{liga.country}</Volanta>
-        <Titular nivel="1">{liga.name}</Titular>
+        <Titular nivel="1">Fixture de {liga.name}</Titular>
       </div>
     </div>
+
+    <section aria-labelledby="fixture-liga" class="fixture-publico">
+      <h2 id="fixture-liga">Próximos partidos</h2>
+      <p>Hasta 20 encuentros programados en los próximos 30 días. Hora de Argentina (UTC−3).</p>
+      {proximos.length > 0 ? (
+        <ul>
+          {proximos.map(({ match, homeTeam, awayTeam }) => (
+            <li><a href={rutaPublica("partidos", match.id)}>
+              <span>{homeTeam.name} vs {awayTeam.name}</span>
+              <time datetime={match.dateTime.toISOString()}>{fechaLarga(match.dateTime)} · {hora(match.dateTime)} hs</time>
+            </a></li>
+          ))}
+        </ul>
+      ) : <p>No hay partidos programados para mostrar en los próximos 30 días. Podés explorar los equipos de esta competencia abajo.</p>}
+      <a href="/calendario">Cómo agregar estos partidos a tu calendario</a>
+    </section>
 
     <div style="display:flex;flex-direction:column;gap:16px">
       <BarraSeccion tono="tinta" extra={`${items.length} equipos${cantidadSeguidos ? ` · seguís ${cantidadSeguidos}` : ""}`}>
@@ -91,3 +110,17 @@ const jsonLd = [
     </div>
   </div>
 </Layout>
+
+<style>
+  .fixture-publico { border-top: 3px solid var(--rojo); padding-top: 20px; }
+  .fixture-publico h2 { margin: 0; font: 400 32px/1.1 var(--font-titular); }
+  .fixture-publico p { font: 400 16px/1.6 var(--font-texto); }
+  .fixture-publico ul { list-style: none; padding: 0; }
+  .fixture-publico li { border-bottom: 1px solid var(--linea); }
+  .fixture-publico li a { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding: 16px 0; }
+  .fixture-publico a { color: var(--tinta); text-decoration: underline; text-underline-offset: 4px; }
+  .fixture-publico li a { text-decoration: none; }
+  .fixture-publico li span { text-decoration: underline; text-underline-offset: 4px; }
+  .fixture-publico li span { font: 700 18px/1.4 var(--font-rotulo); }
+  .fixture-publico time { font: 500 15px/1.6 var(--font-rotulo); }
+</style>

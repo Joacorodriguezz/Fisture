@@ -86,11 +86,16 @@ export async function runSync(env: RunSyncEnv, trigger: SyncTrigger, options: Ru
 
     const issues: ConsistencyIssue[] = [];
 
-    try {
-      issues.push(...(await checkConsistency(db)));
-    } catch (err) {
-      logger.error("consistency_check_failed", { err });
-      issues.push({ code: "consistency_check_failed", severity: "error", count: 1, sample: [] });
+    // Los chequeos miran la base entera: en un barrido por lotes corren solo al cerrarlo (docs/30 D1)
+    if (lote && lote.siguienteLote !== null) {
+      logger.info("consistency_skipped", { lote: lote.lote, siguienteLote: lote.siguienteLote });
+    } else {
+      try {
+        issues.push(...(await checkConsistency(db)));
+      } catch (err) {
+        logger.error("consistency_check_failed", { err });
+        issues.push({ code: "consistency_check_failed", severity: "error", count: 1, sample: [] });
+      }
     }
     for (const issue of issues) {
       const nivel = issue.severity === "error" ? "error" : "warn";

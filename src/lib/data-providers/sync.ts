@@ -132,6 +132,7 @@ export async function syncSingleLeague(env: SyncEnv, leagueExternalId: string): 
 async function syncLeagues(env: SyncEnv, configs: LeagueConfig[]): Promise<SyncResult[]> {
   const db = createDb(env.DB);
   const providers = new Map<string, DataProvider | null>();
+  const conocidos: CacheConocidos = new Map();
   const results: SyncResult[] = [];
 
   for (const config of configs) {
@@ -143,7 +144,9 @@ async function syncLeagues(env: SyncEnv, configs: LeagueConfig[]): Promise<SyncR
       continue;
     }
 
-    results.push(await syncLeague(db, provider, config));
+    results.push(await syncLeague(db, provider, config, conocidos));
+    // Una competencia destacada puede sumar equipos conocidos: la próxima copa los recalcula
+    if (config.destacada) conocidos.delete(config.source);
   }
 
   return results;
@@ -154,6 +157,9 @@ async function desactivarLigasObsoletas(db: Database): Promise<void> {
   const activas = LEAGUES_CONFIG.map((l) => l.externalId);
   await db.update(leagues).set({ isActive: false }).where(notInArray(leagues.externalId, activas));
 }
+
+// Equipos conocidos por fuente, calculados una vez por invocación (docs/30 D3)
+type CacheConocidos = Map<string, Set<string>>;
 
 // Equipos (externalId) que participan de alguna competencia destacada activa de la fuente.
 // Una copa no destacada solo guarda los partidos de estos equipos: así la FA Cup no carga
@@ -188,7 +194,12 @@ function partir<T>(items: T[], tamano: number): T[][] {
   return grupos;
 }
 
-async function syncLeague(db: Database, provider: DataProvider, config: LeagueConfig): Promise<SyncResult> {
+async function syncLeague(
+  db: Database,
+  provider: DataProvider,
+  config: LeagueConfig,
+  conocidos: CacheConocidos
+): Promise<SyncResult> {
   const result = resultadoVacio(config);
 
   try {
@@ -225,7 +236,7 @@ async function syncLeague(db: Database, provider: DataProvider, config: LeagueCo
           teams: await provider.getTeams(config.externalId),
           matches: await provider.getMatches(config.externalId, { from: desde() }),
         };
-    const fixture = config.destacada ? completo : await soloEquiposConocidos(db, config, completo);
+    const fixture = config.destacada ? completo : await soloEquiposConocidos(db, config, completo, conocidos);
 
     // 3. Equipos: participantes de la temporada y los que aparecen en partidos que se guardan
     const participantesExternos = new Set(fixture.participantIds ?? fixture.teams.map((t) => t.externalId));
@@ -268,9 +279,14 @@ async function syncLeague(db: Database, provider: DataProvider, config: LeagueCo
 async function soloEquiposConocidos(
   db: Database,
   config: LeagueConfig,
-  fixture: { teams: ProviderTeam[]; matches: ProviderMatch[] }
+  fixture: { teams: ProviderTeam[]; matches: ProviderMatch[] },
+  cache: CacheConocidos
 ): Promise<{ teams: ProviderTeam[]; matches: ProviderMatch[]; participantIds: string[] }> {
-  const conocidos = await equiposConocidos(db, config.source);
+  let conocidos = cache.get(config.source);
+  if (!conocidos) {
+    conocidos = await equiposConocidos(db, config.source);
+    cache.set(config.source, conocidos);
+  }
   const partidos = fixture.matches.filter(
     (m) => conocidos.has(m.homeTeamExternalId) || conocidos.has(m.awayTeamExternalId)
   );

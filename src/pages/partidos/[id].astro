@@ -8,7 +8,7 @@ import SincronizarPartido from "../../components/islands/SincronizarPartido";
 import { createDb } from "../../lib/db";
 import { getMatchDetail, getSyncStates } from "../../lib/db/queries";
 import { getPreferences } from "../../lib/db/preferences";
-import { fechaCorta, fechaLarga, hora, horaFin, providerLabel } from "../../lib/format";
+import { diaISO, fechaCorta, fechaLarga, hora, horaFin, providerLabel } from "../../lib/format";
 import { jsonLdMigas, jsonLdPartido, rutaPublica } from "../../lib/seo";
 
 // Página pública: el estado en el calendario y los avisos solo aplican con sesión
@@ -34,6 +34,14 @@ const rutaLiga = rutaPublica("ligas", league.id);
 const rutaLocal = rutaPublica("equipos", homeTeam.id);
 const rutaVisitante = rutaPublica("equipos", awayTeam.id);
 const fin = horaFin(match.dateTime);
+const fecha = diaISO(match.dateTime).split("-").reverse().join("/");
+const estadosPartido: Record<string, string> = {
+  scheduled: "Programado", live: "En juego", finished: "Finalizado",
+  postponed: "Postergado", cancelled: "Cancelado",
+};
+const estadoPartido = estadosPartido[match.status ?? ""] ?? "Estado a confirmar";
+const fuentes: Record<string, string> = { espn: "ESPN", "football-data": "football-data.org", promiedos: "Promiedos" };
+const fuente = fuentes[match.source];
 
 const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
 // Después de los dos puntos va en minúscula: "por Liga Profesional: sábado 10 de octubre a las 15:00"
@@ -48,7 +56,7 @@ const jsonLd = [
 ];
 ---
 
-<Layout title={`${homeTeam.name} vs ${awayTeam.name} - FISTURE`} pagina={6} descripcion={descripcion} jsonLd={jsonLd}>
+<Layout title={`${homeTeam.name} vs ${awayTeam.name}, ${fecha} - FISTURE`} pagina={6} descripcion={descripcion} jsonLd={jsonLd}>
   <div style="display:flex;flex-direction:column;gap:28px">
     <a href="/partidos" class="tb-volver"><span aria-hidden="true">←</span> Partidos</a>
 
@@ -67,13 +75,16 @@ const jsonLd = [
       <div style="display:flex;flex-direction:column;gap:24px">
         <Recuadro titulo="Ficha del partido" nivel={2}>
           <div style="display:flex;flex-direction:column;gap:8px">
-            <div><b>Día:</b> {fechaLarga(match.dateTime)}</div>
-            <div><b>Hora:</b> {hora(match.dateTime)} a {fin} hs (Buenos Aires)</div>
+            <div><b>Día:</b> <time datetime={match.dateTime.toISOString()}>{fechaLarga(match.dateTime)} ({fecha})</time></div>
+            <div><b>Hora:</b> {hora(match.dateTime)} hs de Argentina (UTC−3). Fin estimado: {fin} hs.</div>
+            <div><b>Estado:</b> {estadoPartido}</div>
+            {fuente && <div><b>Datos:</b> {fuente}</div>}
             <div><b>Estadio:</b> {venue}</div>
             <div><b>Torneo:</b> <a href={rutaLiga} class="fp-enlace">{league.name}</a>{match.round ? ` · ${match.round}` : ""}</div>
             {user && <div><b>Avisos:</b> {avisosTxt}</div>}
           </div>
         </Recuadro>
+        <p style="margin:0;font:400 16px/1.6 var(--font-texto)">Los horarios pueden cambiar según la programación del torneo. <a href="/calendario" class="fp-enlace">Cómo recibir las actualizaciones en tu calendario</a>.</p>
 
         {user && (
         <div style="display:flex;flex-direction:column;gap:8px">

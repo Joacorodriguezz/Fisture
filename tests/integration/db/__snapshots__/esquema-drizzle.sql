@@ -61,6 +61,7 @@ CREATE UNIQUE INDEX `matches_external_id_unique` ON `matches` (`external_id`);--
 CREATE INDEX `idx_matches_date` ON `matches` (`date_time`);--> statement-breakpoint
 CREATE INDEX `idx_matches_home_team` ON `matches` (`home_team_id`);--> statement-breakpoint
 CREATE INDEX `idx_matches_away_team` ON `matches` (`away_team_id`);--> statement-breakpoint
+CREATE INDEX `idx_matches_league_source` ON `matches` (`league_id`,`source`);--> statement-breakpoint
 CREATE TABLE `oauth_identities` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,

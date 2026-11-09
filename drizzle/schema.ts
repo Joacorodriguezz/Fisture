@@ -195,6 +195,8 @@ export const matches = sqliteTable(
     dateIdx: index("idx_matches_date").on(table.dateTime),
     homeIdx: index("idx_matches_home_team").on(table.homeTeamId),
     awayIdx: index("idx_matches_away_team").on(table.awayTeamId),
+    // Sync de partidos por competencia y chequeo empty_league (docs/30 D2)
+    leagueSourceIdx: index("idx_matches_league_source").on(table.leagueId, table.source),
   })
 );
 

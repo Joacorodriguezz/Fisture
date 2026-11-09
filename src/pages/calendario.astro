@@ -17,7 +17,7 @@ import { toSyncStatus } from "../lib/sync-ui";
 import { loginHref } from "../lib/auth/guards";
 import { fechaCorta, fechaHora, hora, providerLabel } from "../lib/format";
 
-// Página pública: sin sesión muestra una invitación a iniciar sesión (el estado del calendario es personal)
+// Página pública: sin sesión explica la conexión; el estado del calendario es personal.
 const user = Astro.locals.user;
 
 const db = createDb(Astro.locals.runtime.env.DB);
@@ -88,7 +88,7 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
   {!user ? (
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:20px;max-width:720px">
       <Volanta tono="tinta">Tu calendario</Volanta>
-      <Titular nivel="1">TODO EN HORARIO</Titular>
+      <Titular nivel="1">Tu fixture en Google Calendar y Outlook</Titular>
       <Bajada>
         Iniciá sesión con Google o Microsoft para ver qué partidos ya están en tu calendario, cuáles faltan y sincronizarlos.
         Mientras tanto podés recorrer los partidos y las ligas sin cuenta.
@@ -97,6 +97,31 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
         <Boton variante="primario" href={loginHref("/calendario")}>Iniciar sesión</Boton>
         <Boton href="/hoy">Ver partidos de hoy</Boton>
       </div>
+      <section class="cal-guia" aria-labelledby="conectar-calendario">
+        <h2 id="conectar-calendario">Cómo agregar los partidos a tu calendario</h2>
+        <ol>
+          <li><strong>Conectá tu cuenta.</strong> Iniciá sesión con Google para usar Google Calendar o con Microsoft para usar Outlook. Autorizá el acceso al calendario para que Fisture pueda crear y actualizar los eventos.</li>
+          <li><strong>Elegí tus equipos.</strong> Buscalos en <a href="/equipos/buscar">el buscador de equipos</a> o recorré <a href="/ligas">las ligas</a>. Entrá a la ficha de cada equipo y elegí Seguir.</li>
+          <li><strong>Activá el auto-sync.</strong> Seguir un equipo organiza tu fixture; activar además el auto-sync permite agregar sus próximos partidos automáticamente. También podés agregar un partido individual desde su ficha.</li>
+          <li><strong>Revisá tu calendario.</strong> Al volver a esta página con sesión, vas a ver qué encuentros ya están sincronizados, cuáles faltan y cuáles necesitan una actualización. Usá Sincronizar ahora para procesar los pendientes.</li>
+        </ol>
+      </section>
+      <section class="cal-guia" aria-labelledby="cambios-horario">
+        <h2 id="cambios-horario">Horarios, cambios y recordatorios</h2>
+        <p>El fixture se actualiza todos los días a las 6 hs de Argentina. Si cambia la fecha, la hora o el estadio de un partido que agregaste, Fisture actualiza el evento cuando procesa la sincronización. No es una actualización en tiempo real.</p>
+        <p>En la web mostramos la hora de Argentina (UTC−3). Google Calendar y Outlook muestran el evento según la zona horaria de tu calendario. Podés configurar avisos de 1 hora y 15 minutos antes desde Configuración.</p>
+        <p>Si eliminás un evento desde tu calendario, Fisture no lo vuelve a crear automáticamente. Para recuperarlo, abrí el partido y elegí Agregar al calendario.</p>
+      </section>
+      <section class="cal-guia" aria-labelledby="descargar-ics">
+        <h2 id="descargar-ics">Descargar el fixture como archivo .ics</h2>
+        <p>Después de iniciar sesión, podés descargar un archivo .ics desde la ficha de un equipo o desde tu calendario e importarlo en una aplicación compatible, como Apple Calendar.</p>
+        <p>El archivo es una copia de los horarios al momento de descargarlo: los cambios posteriores no se actualizan solos. Para mantener los eventos sincronizados, conectá Google Calendar u Outlook.</p>
+      </section>
+      <section class="cal-guia" aria-labelledby="permisos-calendario">
+        <h2 id="permisos-calendario">Permisos y control de tu cuenta</h2>
+        <p>Fisture necesita permisos de calendario para agregar los partidos y corregir sus horarios. Podés administrar tu conexión desde Configuración y revocar el acceso desde tu cuenta de Google o Microsoft.</p>
+        <p>Encontrá el detalle de los permisos y las respuestas a problemas habituales en <a href="/ayuda">Ayuda</a>, y cómo tratamos tus datos en <a href="/privacidad">Privacidad</a>.</p>
+      </section>
     </div>
   ) : (
   <div style="display:flex;flex-direction:column;gap:32px">
@@ -178,3 +203,13 @@ const estadoRevision = (id: string) => toSyncStatus(estados.get(id)?.status);
   </div>
 )}
 </Layout>
+
+<style>
+  .cal-guia { width: 100%; border-top: 2px solid var(--linea); padding-top: 20px; }
+  .cal-guia h2 { margin: 0 0 12px; font: 400 30px/1.15 var(--font-titular); }
+  .cal-guia p, .cal-guia li { font: 400 17px/1.65 var(--font-texto); }
+  .cal-guia p { margin: 12px 0 0; }
+  .cal-guia ol { list-style: decimal; padding-left: 24px; margin-bottom: 0; }
+  .cal-guia li + li { margin-top: 14px; }
+  .cal-guia a { color: var(--tinta); text-decoration: underline; text-underline-offset: 4px; }
+</style>

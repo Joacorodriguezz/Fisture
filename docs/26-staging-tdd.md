@@ -61,7 +61,7 @@ Recursos creados: D1 `fisture-staging` (`4cfee6a5-…`), KV `fisture-staging` (`
 | Riesgo | Mitigación |
 | --- | --- |
 | Un secret de preview cambia y el deploy viejo sigue con el anterior | En Pages los secrets se aplican en el próximo deploy: redeployar después de cambiarlos |
-| Staging y producción comparten cuota del plan Free (requests, CPU) | Staging tiene un sync diario y casi no tiene tráfico (D4) |
+| Staging y producción comparten cuota del plan Free (requests, CPU, lecturas de D1) | Staging tiene un sync diario y casi no tiene tráfico (D4). En un push solo resincroniza si el commit toca el sync, las migraciones o los chequeos de consistencia (docs/30 D4) |
 | La URL es pública | `noindex` y franja; si hace falta, Cloudflare Access sobre `development.fisture.pages.dev` |
 
 ## 7. Plan de implementación
