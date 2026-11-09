@@ -138,8 +138,8 @@ a las 00:00 UTC (21:00 en Argentina).
     vieja quedan ilegibles (esos usuarios reconectan), igual que si `PREVIOUS` no estuviera cargada. El
     barrido de calendarios ya no se corta para todos. `/api/health` la sigue marcando `tokenKey: degraded`:
     corregir la clave (32 bytes en base64) o borrarla y repetir la rotación.
-- **Rollback del Release A** (sigue vigente tras el Release B; si hace falta revertir hasta antes del cifrado, primero el B y después el A): el código anterior no entiende `enc:v1:`. Antes de revertir, devolver las filas a
-  texto plano con `POST /api/admin/encrypt-tokens?direction=decrypt`, iterando con el cursor igual que el
+- **Rollback del Release A** (sigue vigente tras el Release B; si hace falta revertir hasta antes del cifrado, **primero el B, después `decrypt` y por último el A**): el código anterior no entiende `enc:v1:`. **Con el Release B desplegado, `decrypt` está bloqueado**: responde `409 decrypt_requiere_release_a` (el B ya no lee texto plano, así que dejaría a todos con "reconectar"). Solo se pasa `&confirmar=release-b-revertido` (o se marca `release_b_revertido` en el workflow) cuando el B ya fue revertido (§1). Antes de revertir el A, devolver las filas a
+  texto plano con `POST /api/admin/encrypt-tokens?direction=decrypt&confirmar=release-b-revertido`, iterando con el cursor igual que el
   backfill hasta `siguienteCursor: null` y `pendientes: 0`. **Necesita una ventana de mantenimiento**:
   mientras corre el `decrypt`, el Release A sigue desplegado y vuelve a cifrar en cada login o renovación. Hacerlo
   en un horario de poco tráfico, sin pausas largas entre llamadas, y revertir el código apenas termine. Los
