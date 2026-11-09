@@ -6,7 +6,7 @@ import { getValidAccessToken } from "../../src/lib/auth/tokens";
 import { oauthIdentities, users } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { claro, ENV_CON_CLAVE } from "../helpers/token-key";
-import { encryptToken, TokenKeyError, TokenUnreadableError } from "../../src/lib/auth/token-crypto";
+import { encryptToken, esCifrado, TokenKeyError, TokenUnreadableError } from "../../src/lib/auth/token-crypto";
 import { classifyCalendarError } from "../../src/lib/calendar/errors";
 import { createLogger, errorSeguro } from "../../src/lib/observability/logger";
 
@@ -25,7 +25,15 @@ describe("renovación de permisos de calendario", () => {
     refresh.mockReset();
   });
 
-  const vencido = (user: typeof fixtures.user, extra: Record<string, unknown> = {}) => ({ ...user, tokenExpiresAt: AHORA.getTime() - 1000, ...extra });
+  // Los tokens que se pasan en claro en `extra` se cifran para la fila del usuario: desde el Release B un valor en claro es ilegible (K18)
+  const vencido = async (user: typeof fixtures.user, extra: Record<string, unknown> = {}) => {
+    const cifrados = { ...extra };
+    for (const [clave, columna] of [["accessToken", "access_token"], ["refreshToken", "refresh_token"]] as const) {
+      const valor = extra[clave];
+      if (typeof valor === "string" && !esCifrado(valor)) cifrados[clave] = await encryptToken(ENV_CON_CLAVE, valor, `${user.id}:${columna}`);
+    }
+    return { ...user, tokenExpiresAt: AHORA.getTime() - 1000, ...cifrados };
+  };
   const descifrada = async <T extends { id: string; accessToken: string | null; refreshToken: string | null }>(f: T | undefined) =>
     f && { ...f, accessToken: await claro(f.accessToken, f.id, "access_token"), refreshToken: await claro(f.refreshToken, f.id, "refresh_token") };
   const cruda = (id: string) => t.db.query.users.findFirst({ where: (users, { eq }) => eq(users.id, id) });
@@ -38,7 +46,7 @@ describe("renovación de permisos de calendario", () => {
 
   describe.each(["google", "microsoft"])("%s", (provider) => {
     it("renueva el token vencido y persiste la nueva expiración", async () => {
-      const user = vencido(provider === "google" ? fixtures.user : fixtures.other, { refreshToken: "original-refresh" });
+      const user = await vencido(provider === "google" ? fixtures.user : fixtures.other, { refreshToken: "original-refresh" });
       const expires = new Date(AHORA.getTime() + HORA_MS);
       refresh.mockResolvedValue({ accessToken: () => "new-access", accessTokenExpiresAt: () => expires, refreshToken: () => "new-refresh" });
 
@@ -49,7 +57,7 @@ describe("renovación de permisos de calendario", () => {
 
   it("conserva el refresh token cuando Google no entrega otro", async () => {
     refresh.mockResolvedValue({ accessToken: () => "new", accessTokenExpiresAt: () => null, refreshToken: () => { throw new Error("No refresh token"); } });
-    await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: "keep-me" }));
+    await getValidAccessToken(ENV_CON_CLAVE, t.db, await vencido(fixtures.user, { refreshToken: "keep-me" }));
     expect(await guardado(fixtures.user.id)).toMatchObject({ accessToken: "new", refreshToken: "keep-me", tokenExpiresAt: null });
   });
 
@@ -59,11 +67,11 @@ describe("renovación de permisos de calendario", () => {
     });
 
     it("token vencido y sin refresh token", async () => {
-      await expect(getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user))).rejects.toThrow("Calendar permission expired");
+      await expect(getValidAccessToken(ENV_CON_CLAVE, t.db, await vencido(fixtures.user))).rejects.toThrow("Calendar permission expired");
     });
 
     it("proveedor no soportado", async () => {
-      await expect(getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { provider: "unknown", refreshToken: "r" }))).rejects.toThrow("Unsupported provider");
+      await expect(getValidAccessToken(ENV_CON_CLAVE, t.db, await vencido(fixtures.user, { provider: "unknown", refreshToken: "r" }))).rejects.toThrow("Unsupported provider");
     });
   });
 
@@ -76,7 +84,7 @@ describe("renovación de permisos de calendario", () => {
 
     it("K11: al renovar guarda ambos tokens cifrados y devuelve el nuevo en claro", async () => {
       refresh.mockResolvedValue({ accessToken: () => "new-access", accessTokenExpiresAt: () => null, refreshToken: () => "new-refresh" });
-      expect(await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: "viejo" }))).toBe("new-access");
+      expect(await getValidAccessToken(ENV_CON_CLAVE, t.db, await vencido(fixtures.user, { refreshToken: "viejo" }))).toBe("new-access");
       const fila = await cruda("user-1");
       expect(fila?.accessToken).toMatch(/^enc:v1:/);
       expect(fila?.refreshToken).toMatch(/^enc:v1:/);
@@ -87,23 +95,31 @@ describe("renovación de permisos de calendario", () => {
     it("K11: renueva con un refresh token cifrado y conserva ese valor si el proveedor no manda otro", async () => {
       const refreshCifrado = await encryptToken(ENV_CON_CLAVE, "rt-guardado", "user-1:refresh_token");
       refresh.mockResolvedValue({ accessToken: () => "nuevo", accessTokenExpiresAt: () => null, refreshToken: () => { throw new Error("sin refresh"); } });
-      await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: refreshCifrado }));
+      await getValidAccessToken(ENV_CON_CLAVE, t.db, await vencido(fixtures.user, { refreshToken: refreshCifrado }));
       expect(refresh).toHaveBeenCalledWith("rt-guardado");
       expect(await guardado("user-1")).toMatchObject({ accessToken: "nuevo", refreshToken: "rt-guardado" });
     });
 
-    it("K12: una fila legada en claro se lee bien y pasa a cifrada al renovar", async () => {
-      refresh.mockResolvedValue({ accessToken: () => "nuevo", accessTokenExpiresAt: () => null, refreshToken: () => "rt-nuevo" });
-      expect(await getValidAccessToken(ENV_CON_CLAVE, t.db, fixtures.user)).toBe("test-token");
-      await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: "legado" }));
-      expect((await cruda("user-1"))?.accessToken).toMatch(/^enc:v1:/);
+    it("K18: un access token legado en claro no se usa: es ilegible y se clasifica auth (reconectar)", async () => {
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, { ...fixtures.user, accessToken: "test-token" }).catch((e) => e);
+      expect(error).toBeInstanceOf(TokenUnreadableError);
+      expect(classifyCalendarError(error)).toBe("auth");
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("K18: un refresh token legado en claro no se envía al proveedor", async () => {
+      const at = await encryptToken(ENV_CON_CLAVE, "at", "user-1:access_token");
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, { ...fixtures.user, tokenExpiresAt: AHORA.getTime() - 1000, accessToken: at, refreshToken: "legado" }).catch((e) => e);
+      expect(error).toBeInstanceOf(TokenUnreadableError);
+      expect(classifyCalendarError(error)).toBe("auth");
+      expect(refresh).not.toHaveBeenCalled();
     });
 
     it("K7: sin la clave renovar lanza y no guarda nada en claro", async () => {
       refresh.mockResolvedValue({ accessToken: () => "nuevo", accessTokenExpiresAt: () => null, refreshToken: () => "rt-nuevo" });
       await t.db.update(users).set({ refreshToken: "legado" }).where(eq(users.id, "user-1"));
-      await expect(getValidAccessToken({} as Env, t.db, vencido(fixtures.user, { refreshToken: "legado" }))).rejects.toThrow("token_key_missing");
-      expect(await cruda("user-1")).toMatchObject({ accessToken: "test-token", refreshToken: "legado" });
+      await expect(getValidAccessToken({} as Env, t.db, await vencido(fixtures.user, { refreshToken: "legado" }))).rejects.toThrow("token_key_missing");
+      expect(await cruda("user-1")).toMatchObject({ accessToken: fixtures.user.accessToken, refreshToken: "legado" });
     });
 
     it("un token cifrado sin la clave no se puede leer", async () => {
@@ -126,7 +142,7 @@ describe("renovación de permisos de calendario", () => {
     });
 
     it("sin clave no hace ninguna llamada de red ni rota el refresh token (legado)", async () => {
-      await expect(getValidAccessToken({} as Env, t.db, vencido(fixtures.user, { refreshToken: "legado" }))).rejects.toBeInstanceOf(TokenKeyError);
+      await expect(getValidAccessToken({} as Env, t.db, await vencido(fixtures.user, { refreshToken: "legado" }))).rejects.toBeInstanceOf(TokenKeyError);
       expect(refresh).not.toHaveBeenCalled();
     });
 
@@ -140,7 +156,7 @@ describe("renovación de permisos de calendario", () => {
 
     it("un refresh ilegible también es auth y no llama al proveedor", async () => {
       const ajeno = await encryptToken(ENV_CON_CLAVE, "rt", "user-2:refresh_token");
-      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: ajeno })).catch((e) => e);
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, await vencido(fixtures.user, { refreshToken: ajeno })).catch((e) => e);
       expect(classifyCalendarError(error)).toBe("auth");
       expect(refresh).not.toHaveBeenCalled();
     });
@@ -152,7 +168,7 @@ describe("renovación de permisos de calendario", () => {
 
     it("K15: un error del proveedor con un secreto en el mensaje no sale en el error ni en el log", async () => {
       refresh.mockRejectedValue(new Error("fallo con rt-secreto-xyz y ya29.abc"));
-      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: "rt-secreto-xyz" })).catch((e) => e);
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, await vencido(fixtures.user, { refreshToken: "rt-secreto-xyz" })).catch((e) => e);
       const lineas: string[] = [];
       createLogger({ write: (_n, l) => lineas.push(l) }).error("x", { err: errorSeguro(error) });
       for (const prohibido of ["rt-secreto-xyz", "ya29.abc"]) {
@@ -164,20 +180,20 @@ describe("renovación de permisos de calendario", () => {
 
     it("conserva el código OAuth con forma de código y descarta el resto del mensaje", async () => {
       refresh.mockRejectedValue(Object.assign(new Error("fallo con rt-secreto-xyz"), { code: "invalid_client" }));
-      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: "rt-secreto-xyz" })).catch((e) => e);
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, await vencido(fixtures.user, { refreshToken: "rt-secreto-xyz" })).catch((e) => e);
       expect(error.message).toBe("refresh_failed: invalid_client");
       expect(classifyCalendarError(error)).toBe("transient");
     });
 
     it("descarta un código con forma de token", async () => {
       refresh.mockRejectedValue(Object.assign(new Error("x"), { code: "ya29.A0Af-secreto" }));
-      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: "rt" })).catch((e) => e);
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, await vencido(fixtures.user, { refreshToken: "rt" })).catch((e) => e);
       expect(error.message).toBe("refresh_failed");
     });
 
     it("un invalid_grant del proveedor sigue siendo auth", async () => {
       refresh.mockRejectedValue(new Error("invalid_grant"));
-      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, vencido(fixtures.user, { refreshToken: "rt" })).catch((e) => e);
+      const error = await getValidAccessToken(ENV_CON_CLAVE, t.db, await vencido(fixtures.user, { refreshToken: "rt" })).catch((e) => e);
       expect(classifyCalendarError(error)).toBe("auth");
     });
 
@@ -190,8 +206,14 @@ describe("renovación de permisos de calendario", () => {
   // docs/18 D4: los tokens salen de la identidad del proveedor de calendario activo (users.provider)
   describe("tokens por identidad", () => {
     const vence = () => AHORA.getTime() - 1000;
-    const identidad = (id: string, userId: string, provider: string, extra: Record<string, unknown> = {}) =>
-      t.db.insert(oauthIdentities).values({ id, userId, provider, providerId: `p-${id}`, accessToken: `at-${id}`, refreshToken: `rt-${id}`, tokenExpiresAt: AHORA.getTime() + HORA_MS, ...extra });
+    const identidad = async (id: string, userId: string, provider: string, extra: Record<string, unknown> = {}) => {
+      const { accessToken = `at-${id}`, refreshToken = `rt-${id}`, ...resto } = extra as { accessToken?: string; refreshToken?: string };
+      await t.db.insert(oauthIdentities).values({
+        id, userId, provider, providerId: `p-${id}`, tokenExpiresAt: AHORA.getTime() + HORA_MS, ...resto,
+        accessToken: await encryptToken(ENV_CON_CLAVE, accessToken, `${id}:access_token`),
+        refreshToken: await encryptToken(ENV_CON_CLAVE, refreshToken, `${id}:refresh_token`),
+      });
+    };
     const identidadCruda = (id: string) => t.db.query.oauthIdentities.findFirst({ where: (i, { eq }) => eq(i.id, id) });
     const identidadGuardada = async (id: string) => descifrada(await identidadCruda(id));
 
@@ -203,7 +225,7 @@ describe("renovación de permisos de calendario", () => {
 
     it("el token de la identidad manda sobre el copiado en users.* (doble escritura)", async () => {
       await identidad("user-1", "user-1", "google", { accessToken: "at-identidad" });
-      expect(await getValidAccessToken(ENV_CON_CLAVE, t.db, { ...fixtures.user, accessToken: "at-viejo" })).toBe("at-identidad");
+      expect(await getValidAccessToken(ENV_CON_CLAVE, t.db, { ...fixtures.user, accessToken: await encryptToken(ENV_CON_CLAVE, "at-viejo", "user-1:access_token") })).toBe("at-identidad");
     });
 
     it("renueva con el refresh token de la identidad, la actualiza y escribe users.*; no toca las demás", async () => {

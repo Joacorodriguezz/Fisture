@@ -24,10 +24,10 @@ describe("DELETE /api/auth/identidades/[provider]", () => {
     const { microsoft = true, google = true, activo = "google" } = opts;
     await t.DB.prepare("INSERT INTO users (id, email, email_verified, provider, provider_id) VALUES ('ana', 'ana@example.com', 1, ?1, 'p-1')").bind(activo).run();
     if (google) {
-      await t.DB.prepare("INSERT INTO oauth_identities (id, user_id, provider, provider_id, refresh_token) VALUES ('ana', 'ana', 'google', 'g-1', 'rt-google')").run();
+      await t.DB.prepare("INSERT INTO oauth_identities (id, user_id, provider, provider_id, refresh_token) VALUES ('ana', 'ana', 'google', 'g-1', ?1)").bind(await encryptToken(ENV_CON_CLAVE, 'rt-google', 'ana:refresh_token')).run();
     }
     if (microsoft) {
-      await t.DB.prepare("INSERT INTO oauth_identities (id, user_id, provider, provider_id, refresh_token) VALUES ('id-ms', 'ana', 'microsoft', 'm-1', 'rt-ms')").run();
+      await t.DB.prepare("INSERT INTO oauth_identities (id, user_id, provider, provider_id, refresh_token) VALUES ('id-ms', 'ana', 'microsoft', 'm-1', ?1)").bind(await encryptToken(ENV_CON_CLAVE, 'rt-ms', 'id-ms:refresh_token')).run();
     }
   };
   const identidades = async () => (await t.DB.prepare("SELECT provider FROM oauth_identities ORDER BY provider").all<{ provider: string }>()).results.map((i) => i.provider);

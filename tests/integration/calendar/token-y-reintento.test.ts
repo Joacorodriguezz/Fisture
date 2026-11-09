@@ -10,6 +10,7 @@ import { CalendarApiError } from "../../../src/lib/calendar/errors";
 import { Presupuesto } from "../../../src/lib/calendar/presupuesto";
 import { ENV_VACIO } from "../../helpers/fixtures";
 import { claro } from "../../helpers/token-key";
+import { encryptToken } from "../../../src/lib/auth/token-crypto";
 
 const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock("../../../src/lib/auth/providers", () => ({
@@ -26,10 +27,12 @@ describe("token y reintento ante 401", () => {
   let falso: ReturnType<typeof clienteFalso>;
 
   const nuevoToken = (n: number) => ({ accessToken: () => `nuevo-${n}`, accessTokenExpiresAt: () => new Date(AHORA.getTime() + 3_600_000), refreshToken: () => `rt-${n}` });
-  const vencerToken = () =>
-    t.DB.prepare("UPDATE users SET access_token = 'viejo', refresh_token = 'rt-0', token_expires_at = ? WHERE id = 'u1'").bind(AHORA.getTime() - 1000).run();
-  const vigenteToken = () =>
-    t.DB.prepare("UPDATE users SET access_token = 'vigente', refresh_token = 'rt-0', token_expires_at = ? WHERE id = 'u1'").bind(AHORA.getTime() + 3_600_000).run();
+  // Los tokens se guardan cifrados: desde el Release B un valor en claro es ilegible (docs/15 K18)
+  const cifrar = (valor: string | null, columna: "access_token" | "refresh_token") => (valor === null ? null : encryptToken(ENV_VACIO, valor, `u1:${columna}`));
+  const guardarTokens = async (access: string, refreshT: string | null, expira: number) =>
+    t.DB.prepare("UPDATE users SET access_token = ?, refresh_token = ?, token_expires_at = ? WHERE id = 'u1'").bind(await cifrar(access, "access_token"), await cifrar(refreshT, "refresh_token"), expira).run();
+  const vencerToken = () => guardarTokens("viejo", "rt-0", AHORA.getTime() - 1000);
+  const vigenteToken = () => guardarTokens("vigente", "rt-0", AHORA.getTime() + 3_600_000);
   const columna = async (col: string) => (await t.DB.prepare(`SELECT ${col} AS v FROM users WHERE id = 'u1'`).first<{ v: unknown }>())?.v;
   const sync = async (ids: string[], opciones: { mode?: "auto" | "manual"; presupuesto?: Presupuesto } = {}) =>
     syncMatches(db, ENV_VACIO, await usuario(db, "u1"), ids, { mode: opciones.mode ?? "auto", presupuesto: opciones.presupuesto, deps: { client: falso.client } });
@@ -116,7 +119,7 @@ describe("token y reintento ante 401", () => {
   });
 
   it("I2: un 401 sin refresh token es auth sin intentar renovar", async () => {
-    await t.DB.prepare("UPDATE users SET access_token = 'vigente', refresh_token = NULL, token_expires_at = ? WHERE id = 'u1'").bind(AHORA.getTime() + 3_600_000).run();
+    await guardarTokens("vigente", null, AHORA.getTime() + 3_600_000);
     await insertarSync(t, { id: "s1", match: "m1" });
     await setMatch(t, "m1", { dateTime: T0 + 60 });
     falso.fallos.update = () => new CalendarApiError("unauthorized", 401);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decryptToken, decryptTokenInfo, encryptToken, esCifrado, TokenKeyError } from "../../../src/lib/auth/token-crypto";
+import { decryptToken, decryptTokenInfo, encryptToken, esCifrado, TokenKeyError, TokenUnreadableError } from "../../../src/lib/auth/token-crypto";
 
 const clave = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
 const envCon = (actual?: string, anterior?: string) => ({ TOKEN_ENCRYPTION_KEY: actual, TOKEN_ENCRYPTION_KEY_PREVIOUS: anterior }) as Env;
@@ -67,10 +67,12 @@ describe("token-crypto", () => {
     await expect(decryptToken(envCon(undefined), cifrado, AAD)).rejects.toBeInstanceOf(TokenKeyError);
   });
 
-  it("K12: un valor legado en claro se lee tal cual, incluso sin clave", async () => {
+  it("K18: un valor sin prefijo enc:v1: es ilegible, con o sin clave, y nunca se devuelve como token", async () => {
     expect(esCifrado("ya29.legado")).toBe(false);
-    expect(await decryptToken(envCon(undefined), "ya29.legado", AAD)).toBe("ya29.legado");
-    expect(await decryptTokenInfo(envCon(undefined), "ya29.legado", AAD)).toEqual({ valor: "ya29.legado", clave: "claro" });
+    for (const env of [envCon(clave()), envCon(undefined)]) {
+      await expect(decryptToken(env, "ya29.legado", AAD)).rejects.toBeInstanceOf(TokenUnreadableError);
+      await expect(decryptTokenInfo(env, "ya29.legado", AAD)).rejects.toBeInstanceOf(TokenUnreadableError);
+    }
   });
 
   it("un valor con prefijo mal formado lanza", async () => {
