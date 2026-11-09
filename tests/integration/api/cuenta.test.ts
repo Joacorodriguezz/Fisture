@@ -48,7 +48,7 @@ describe("DELETE /api/cuenta", () => {
       await t.db.insert(userPreferences).values({ userId: id });
       await t.db.insert(calendarSyncs).values({ userId: id, matchId: "superclasico", provider: id === "user-1" ? "google" : "microsoft", status: "synced" });
     }
-    await t.db.update(users).set({ refreshToken: "rt-secreto" }).where(eq(users.id, "user-1"));
+    await t.db.update(users).set({ refreshToken: await encryptToken(ENV_CON_CLAVE, "rt-secreto", "user-1:refresh_token") }).where(eq(users.id, "user-1"));
   });
 
   const llamar = (
@@ -159,7 +159,8 @@ describe("DELETE /api/cuenta", () => {
 
   describe("revocación en el proveedor", () => {
     const conToken = async (id: string, refreshToken: string | null) => {
-      await t.db.update(users).set({ refreshToken }).where(eq(users.id, id));
+      const guardado = refreshToken === null || refreshToken.startsWith("enc:v1:") ? refreshToken : await encryptToken(ENV_CON_CLAVE, refreshToken, `${id}:refresh_token`);
+      await t.db.update(users).set({ refreshToken: guardado }).where(eq(users.id, id));
       return (await t.db.query.users.findFirst({ where: eq(users.id, id) }))!;
     };
 
@@ -227,8 +228,8 @@ describe("DELETE /api/cuenta", () => {
     });
 
     // docs/18 V-22: con varias identidades se revoca el acceso de todas, y caen por cascade
-    const identidad = (id: string, userId: string, provider: string, refreshToken: string | null) =>
-      t.DB.prepare("INSERT INTO oauth_identities (id, user_id, provider, provider_id, refresh_token) VALUES (?, ?, ?, ?, ?)").bind(id, userId, provider, `p-${id}`, refreshToken).run();
+    const identidad = async (id: string, userId: string, provider: string, refreshToken: string | null) =>
+      t.DB.prepare("INSERT INTO oauth_identities (id, user_id, provider, provider_id, refresh_token) VALUES (?, ?, ?, ?, ?)").bind(id, userId, provider, `p-${id}`, refreshToken === null ? null : await encryptToken(ENV_CON_CLAVE, refreshToken, `${id}:refresh_token`)).run();
     const identidadesDe = async (userId: string) =>
       (await t.DB.prepare("SELECT COUNT(*) AS n FROM oauth_identities WHERE user_id = ?").bind(userId).first<{ n: number }>())!.n;
 

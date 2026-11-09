@@ -105,6 +105,8 @@ a las 00:00 UTC (21:00 en Argentina).
 
 ### Cifrado de tokens: backfill y rollback (docs/15)
 
+- **Release B (K18)**: desde este release un token sin el prefijo `enc:v1:` ya no se lee: el usuario ve "reconectar el calendario". Antes de mergearlo hay que ver `tokensSinCifrar` en 0 (usuarios e identidades) en `GET /api/admin/status`; si no, correr el backfill `encrypt` (el recorrido sí cifra los valores en claro). Para revertirlo basta con volver al deployment anterior (§1): los datos no cambian. El backfill de producción del 2026-11-09 dio `pendientes: 0`.
+
 - **Backfill** tras el Release A (con `TOKEN_ENCRYPTION_KEY` ya cargada). Cada llamada mira hasta 20 filas
   (primero `users`, después `oauth_identities`, ordenadas por id) y responde
   `{ direccion, cursor, siguienteCursor, procesadas, ilegibles, pendientes }`. Iterar con el cursor hasta que
@@ -136,7 +138,7 @@ a las 00:00 UTC (21:00 en Argentina).
     vieja quedan ilegibles (esos usuarios reconectan), igual que si `PREVIOUS` no estuviera cargada. El
     barrido de calendarios ya no se corta para todos. `/api/health` la sigue marcando `tokenKey: degraded`:
     corregir la clave (32 bytes en base64) o borrarla y repetir la rotación.
-- **Rollback del Release A**: el código anterior no entiende `enc:v1:`. Antes de revertir, devolver las filas a
+- **Rollback del Release A** (sigue vigente tras el Release B; si hace falta revertir hasta antes del cifrado, primero el B y después el A): el código anterior no entiende `enc:v1:`. Antes de revertir, devolver las filas a
   texto plano con `POST /api/admin/encrypt-tokens?direction=decrypt`, iterando con el cursor igual que el
   backfill hasta `siguienteCursor: null` y `pendientes: 0`. **Necesita una ventana de mantenimiento**:
   mientras corre el `decrypt`, el Release A sigue desplegado y vuelve a cifrar en cada login o renovación. Hacerlo
