@@ -8,7 +8,9 @@ import { CursorInvalidoError, procesarTokens, type Direccion } from "../../../li
 // Backfill del cifrado de tokens (docs/15 D5). Bearer ADMIN_SECRET. Cada llamada procesa un lote acotado de filas:
 // repetir con `?cursor=<siguienteCursor>` hasta que `siguienteCursor` sea null y `pendientes` 0. Idempotente.
 // `?direction=decrypt` devuelve las filas a texto plano y existe solo para el rollback del Release A, que
-// necesita una ventana de mantenimiento (docs/23).
+// necesita una ventana de mantenimiento (docs/23). Desde el Release B el código ya no lee texto plano: decrypt
+// responde 409 salvo con `&confirmar=release-b-revertido`, que se pasa solo con el Release B ya revertido (docs/15 §9).
+const CONFIRMAR_DECRYPT = "release-b-revertido";
 export const POST: APIRoute = withApi(async ({ request, url, locals }) => {
   const env = locals.runtime.env;
   const rechazo = await verificarAdmin(request, env, { logger: locals.logger, requestId: locals.requestId });
@@ -16,6 +18,12 @@ export const POST: APIRoute = withApi(async ({ request, url, locals }) => {
 
   const direccion: Direccion = url.searchParams.get("direction") === "decrypt" ? "decrypt" : "encrypt";
   const headers = { "Cache-Control": "no-store" };
+
+  // Antes de mirar la clave o la base: con el Release B desplegado, el texto plano que escribe decrypt es ilegible
+  if (direccion === "decrypt" && url.searchParams.get("confirmar") !== CONFIRMAR_DECRYPT) {
+    locals.logger?.warn("token_decrypt_rechazado", { origen: "backfill" });
+    return Response.json({ error: "decrypt_requiere_release_a" }, { status: 409, headers });
+  }
 
   // Sin clave no se puede cifrar ni descifrar: se corta antes de tocar la base
   if (!claveValida(env)) {
