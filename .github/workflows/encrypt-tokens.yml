@@ -2,7 +2,7 @@ name: Backfill de cifrado de tokens
 
 # Recorre POST /api/admin/encrypt-tokens con el cursor hasta siguienteCursor null (docs/15 D5, docs/23).
 # Manual: se usa después del release del cifrado, al rotar la clave (TOKEN_ENCRYPTION_KEY_PREVIOUS) o, con
-# direction=decrypt, en el rollback (con ventana de mantenimiento). Solo imprime conteos, nunca tokens.
+# direction=decrypt, en el rollback del Release A (con ventana de mantenimiento y el Release B ya revertido). Solo imprime conteos, nunca tokens.
 on:
   workflow_dispatch:
     inputs:
@@ -12,7 +12,7 @@ on:
         options: [staging, produccion]
         default: staging
       direction:
-        description: "encrypt (normal) o decrypt (solo rollback)"
+        description: "encrypt (normal) o decrypt (solo rollback del Release A; exige release_b_revertido)"
         type: choice
         options: [encrypt, decrypt]
         default: encrypt
@@ -20,6 +20,10 @@ on:
         description: "Para decrypt en produccion, escribir: produccion"
         type: string
         default: ""
+      release_b_revertido:
+        description: "Solo decrypt: confirmo que el Release B (rechazo de texto plano) ya fue revertido (docs/15 §9)"
+        type: boolean
+        default: false
 
 concurrency:
   group: encrypt-tokens-${{ inputs.entorno }}
@@ -39,7 +43,12 @@ jobs:
           ENTORNO: ${{ inputs.entorno }}
           DIRECTION: ${{ inputs.direction }}
           CONFIRMAR: ${{ inputs.confirmar }}
+          RELEASE_B_REVERTIDO: ${{ inputs.release_b_revertido }}
         run: |
+          # Con el Release B el código no lee texto plano: decrypt dejaría a todos sin calendario (docs/15 §9)
+          if [ "$DIRECTION" = "decrypt" ] && [ "$RELEASE_B_REVERTIDO" != "true" ]; then
+            echo "::error::decrypt exige release_b_revertido (el Release B no puede estar desplegado)"; exit 1
+          fi
           if [ "$ENTORNO" = "produccion" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
             echo "::error::Producción solo se lanza desde main (ref: $GITHUB_REF)"; exit 1
           fi
@@ -53,9 +62,11 @@ jobs:
           DIRECTION: ${{ inputs.direction }}
         run: |
           set -euo pipefail
+          extra=""
+          [ "$DIRECTION" = "decrypt" ] && extra="&confirmar=release-b-revertido"
           llamar() {
             curl --fail-with-body --silent --show-error --max-time 60 --retry 2 --retry-delay 10 \
-              -X POST "${APP_URL%/}/api/admin/encrypt-tokens?direction=${DIRECTION}${1:+&cursor=$1}" \
+              -X POST "${APP_URL%/}/api/admin/encrypt-tokens?direction=${DIRECTION}${extra}${1:+&cursor=$1}" \
               -H "Authorization: Bearer $ADMIN_SECRET" -H "Content-Type: application/json" -d "{}"
           }
           cursor=""

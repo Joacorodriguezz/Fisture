@@ -1,6 +1,6 @@
 # TDD: Cifrado de tokens OAuth en reposo
 
-> Technical Design Document. Estado: **implementado el Release A (2026-11-05)**; el Release B (quitar la lectura de texto plano) queda pendiente, ver §9. Fecha del diseño: 2026-10-22. Rama de implementación: `feat/cifrado-de-tokens-a`, desde `development` (el borrado de cuenta y la vinculación de cuentas, docs/14 y docs/18, ya estaban mergeados).
+> Technical Design Document. Estado: **Release A implementado (2026-11-05); backfill de producción corrido el 2026-11-09 (`pendientes: 0`); Release B (quitar la lectura de texto plano) mergeado en `development` el 2026-11-09 (PR #80, en staging); pendiente de llegar a `main` tras verificar `tokensSinCifrar` en 0**, ver §9. Fecha del diseño: 2026-10-22. Rama de implementación: `feat/cifrado-de-tokens-a`, desde `development` (el borrado de cuenta y la vinculación de cuentas, docs/14 y docs/18, ya estaban mergeados).
 >
 > Este documento registra **qué problema hay hoy, qué decidimos y por qué**. El código y los tests se escriben después de que se apruebe, siguiendo el orden del §6.
 
@@ -104,13 +104,13 @@ AES-GCM sobre unos cientos de bytes es despreciable frente a una llamada HTTP al
 | K9 | Reingreso de usuario existente | Se re-cifran con la clave actual |
 | K10 | `getValidAccessToken` con token vigente | Descifra y devuelve el access token |
 | K11 | `getValidAccessToken` con token vencido | Renueva, guarda **cifrado** y devuelve el nuevo en claro |
-| K12 | Fila legada en claro (sin prefijo), antes del Release B | Se lee bien; al renovar o en el backfill pasa a cifrada |
+| K12 | Fila legada en claro (sin prefijo), antes del Release B | Se lee bien; al renovar o en el backfill pasa a cifrada. **Reemplazado por K18 en el Release B** |
 | K13 | Backfill | Cifra las filas legadas y las de la clave anterior; segunda corrida: `pendientes: 0` y no cambia nada |
 | K14 | Backfill sin Bearer o con uno incorrecto | `401`, no toca la base |
 | K15 | Logs de login, renovación y backfill | No contienen ningún token, ni en claro ni cifrado |
 | K16 | `/api/health` sin clave | `fail` en `tokenKey` |
 | K17 | Borrado de cuenta (TDD 14) con token cifrado | La revocación recibe el token descifrado |
-| K18 | Release B: valor sin prefijo | Error tratado como "reconectar" |
+| K18 | Release B: valor sin prefijo | Error tratado como "reconectar" (`TokenUnreadableError`, clase `auth`); nunca se usa como token |
 
 ## 5. Estrategia de tests (test primero)
 
@@ -150,7 +150,7 @@ Rojo, verde, refactor. Los tests inyectan una clave fija de prueba en el `Env` (
 
 **Rollback:**
 - El código anterior no entiende el prefijo `enc:v1:`: usaría el valor cifrado como si fuera el token y el proveedor respondería 401. Revertir el Release A deja afectados a los usuarios cuyos tokens ya se cifraron (los que iniciaron sesión o renovaron después del deploy, y todos si ya se corrió el backfill). Esos usuarios tienen que volver a iniciar sesión; el flujo ya clasifica el caso como `auth` y la UI pide reconectar, así que es un costo acotado y visible, sin pérdida de datos.
-- Para evitarlo, el endpoint de backfill acepta `?direction=decrypt`, que devuelve las filas a texto plano en bloque. Solo funciona con `ADMIN_SECRET` y con la clave presente, y existe únicamente para este rollback: se corre **antes** de revertir el código. Mientras corre, el Release A sigue desplegado y vuelve a cifrar en cada login o renovación: el rollback necesita una **ventana de mantenimiento** (poco tráfico, `decrypt` por páginas sin pausas y revertir apenas termine). Quien ingrese en el medio queda con tokens cifrados y reconecta. Se descartó un interruptor de "escribir en claro" para no sumar un camino que guarda tokens sin cifrar (D6). Detalle operativo en docs/23.
+- Para evitarlo, el endpoint de backfill acepta `?direction=decrypt`, que devuelve las filas a texto plano en bloque. Solo funciona con `ADMIN_SECRET` y con la clave presente, y existe únicamente para este rollback: se corre **antes** de revertir el Release A y **después** de revertir el B (con el B desplegado responde 409 `decrypt_requiere_release_a` salvo `&confirmar=release-b-revertido`, §9). Mientras corre, el Release A sigue desplegado y vuelve a cifrar en cada login o renovación: el rollback necesita una **ventana de mantenimiento** (poco tráfico, `decrypt` por páginas sin pausas y revertir apenas termine). Quien ingrese en el medio queda con tokens cifrados y reconecta. Se descartó un interruptor de "escribir en claro" para no sumar un camino que guarda tokens sin cifrar (D6). Detalle operativo en docs/23.
 
 **Rotación de clave (procedimiento):** mover la actual a `TOKEN_ENCRYPTION_KEY_PREVIOUS`, cargar una nueva en `TOKEN_ENCRYPTION_KEY`, correr el backfill hasta `pendientes: 0` y recién entonces borrar la `PREVIOUS`.
 
@@ -188,7 +188,24 @@ Release A implementado (2026-11-05). Desvíos y decisiones respecto del diseño:
   - **Rollback**: ventana de mantenimiento documentada (§7 y docs/23) en lugar de un interruptor.
   - **Rebase sobre #54**: `getValidAccessToken` conserva `forzarRenovacion`, devuelve siempre el valor descifrado y deja en `user` (memoria) el valor cifrado para `user.id`; `registrarLogin` conserva `calendarAuthStatus` y `calendarReconciledAt`; `health` mantiene `calendars` y `tokenKey`; `status` suma `tokensSinCifrar` a `runsCalendarios`. Los tests de #54 usan ahora una clave de cifrado (`ENV_VACIO` la trae).
   - **Clave del servidor E2E**: `scripts/e2e-server.mjs` la genera en cada corrida (`randomBytes(32)`); no queda ninguna clave literal en el repo.
-- **Pendiente (Release B, PR aparte)**: K18, eliminar la lectura de texto plano cuando producción tenga `pendientes: 0`; hasta entonces la lectura dual sigue activa. También queda la decisión de si, en el release N+1 de docs/18 (borrar `users.access_token`/`refresh_token`), se retira de paso el cifrado de esas columnas.
+- **Backfill de producción (2026-11-09)**: run 42657360545 del workflow "Backfill de cifrado de tokens" (`entorno=produccion`, `direction=encrypt`, desde `main`): una pasada, `procesadas: 0`, `ilegibles: 0`, `pendientes: 0`, `siguienteCursor: null`. No había filas en claro: los logins y renovaciones posteriores al Release A ya habían cifrado a todos. El Release B solo debe mergearse días después, volviendo a verificar `tokensSinCifrar` en `GET /api/admin/status` (usuarios e identidades en 0).
+- **Pendiente**: si, en el release N+1 de docs/18 (borrar `users.access_token`/`refresh_token`), se retira de paso el cifrado de esas columnas.
+
+### Release B (K18): notas de implementación
+
+Rama `feat/cifrado-de-tokens-b`. Cambios y desvíos respecto del plan del §6 paso 7:
+
+- **`decryptTokenInfo` / `decryptToken`** (`token-crypto.ts`): un valor sin el prefijo `enc:v1:` lanza `TokenUnreadableError` antes de mirar la clave (con o sin clave cargada). Es la misma clase de error que un valor cifrado ilegible, así que ya estaba cubierta: `getValidAccessToken` la clasifica `auth` con `tokenInvalido` (reconectar) y no llama al proveedor; `leerTokenOpcional` (revocación al borrar la cuenta o desvincular) devuelve `null` y el borrado sigue sin revocar. `OrigenClave` perdió `"claro"`. Sin cambios en `token-store.ts`, `tokens.ts`, `identity.ts` ni el callback.
+- **Backfill (`token-backfill.ts`)**: el recorrido sigue siendo la única lectura de texto plano, y no sale de ahí. `nuevoValor` decide por `esCifrado` antes de descifrar: en `encrypt` un valor en claro se cifra tal cual (recupera a un usuario que hubiera quedado en claro, por ejemplo una base restaurada de un backup viejo con Time Travel, o staging); en `decrypt` un valor en claro se deja como está. La rotación de clave no cambia.
+- **`direction=decrypt` se conserva, pero bloqueado con el Release B** (revisión posterior, PR de detalles). Sin protección, un `decrypt` con el Release B desplegado escribe texto plano que el código ya no lee y deja a todos los usuarios con "reconectar". Ahora el endpoint responde `409 decrypt_requiere_release_a` salvo que lleve `&confirmar=release-b-revertido`, y el workflow exige marcar `release_b_revertido` (además de `confirmar=produccion` en producción). Se eligió esto sobre eliminar la opción porque el rollback del Release A (§7) la necesita y el costo es un parámetro; el orden pasa a ser: revertir el B, y recién entonces `decrypt` y revertir el A. Staging de prueba: 2026-11-09, backfill `encrypt` (run 42662922812) con `procesadas: 0`, `ilegibles: 0`, `pendientes: 0`.
+- **Antes del bloqueo**: la nota original decía que revertir el B no necesita `decrypt` (cierto: el A lee los dos formatos) y que el rollback del Release A (§7) sí: el código previo al cifrado no entiende `enc:v1:`, y el `decrypt` es la única forma de volver a esa versión sin que todos reconecten. Quitarlo ahorra poco código y cierra esa salida. Se puede retirar, junto con el parámetro `direction` del workflow, cuando ya no tenga sentido volver a una versión sin cifrado (por ejemplo al borrar las columnas `users.*` en el release N+1 de docs/18). La ventana de mantenimiento del §7 sigue igual.
+- **`tokensSinCifrar` se conserva**. Antes medía el avance de la migración; desde el Release B cuenta los usuarios e identidades que ya no se pueden leer y tienen que reconectar (o que el backfill `encrypt` puede recuperar). Debe estar en 0 antes del merge.
+- **Doble escritura de docs/18**: no se toca. `users.access_token`/`refresh_token` se siguen escribiendo cifrados (con el AAD `<users.id>:<columna>`) hasta el release N+1.
+- **Tests**: K18 en `tests/unit/auth/token-crypto.test.ts` (reemplaza K12) y en `tests/integration/tokens.test.ts` (access y refresh en claro, ninguno llega al proveedor, clase `auth`). Las semillas que usaban tokens en claro (`seedApp`, `vinculacion`, `cuenta`, `identidades`, `token-y-reintento`, `cuenta-logs`) ahora guardan valores cifrados con el AAD de su fila; `cuenta-logs` además carga `TOKEN_ENCRYPTION_KEY` en el entorno porque ya no se puede leer un token sin clave. K13 sigue probando que el backfill cifra filas en claro.
+- **`DELETE /api/calendario/sync` ante `auth`/`scope`** (revisión posterior): un token en claro (`TokenUnreadableError`), un 401 del proveedor o la falta de permiso respondían 500 con el mensaje interno. Ahora responden **401** con `{ success: false, error: "Hay que volver a conectar el calendario", code, tokenInvalido? }`, las mismas señales que `results[]` de POST (docs/11 D4). Se usa 401 y no el 207 de POST porque un 2xx lo tomaría el cliente (`res.ok`) como "quitado". La fila de `calendar_syncs` **se conserva**: el evento sigue en el calendario del usuario y borrar la fila lo dejaría huérfano; al reconectar, "Quitar" vuelve a funcionar (igual que el 503 transitorio). No marca `reauth_required`: en el resto de los flujos lo marca solo el cron (`reconcileCalendars`), POST manual tampoco. Si hay clave faltante (`config`) sigue el camino de error genérico.
+- **`registrarLogin`**: si `users.refresh_token` (legado) no se puede leer y el proveedor no reenvía refresh, `users.refresh_token` quedaba en NULL aunque la identidad tuviera uno válido. Era real pero de bajo impacto (el código lee los tokens de la identidad y `users.*` está deprecada, docs/18), y se corrigió igual: se usa el refresh de la identidad (mismo proveedor en esa rama) como respaldo, con test en `callback-cifrado.test.ts`.
+- **Comentarios** de `token-store.ts` y `tokens.ts` actualizados: ya no se acepta legado en claro.
+- **Efecto en producción**: ninguno esperado, porque `pendientes` es 0. Si quedara una fila en claro, ese usuario ve "reconectar calendario" en lugar de que se use su token.
 
 ## 10. Fuera de alcance (fases siguientes)
 

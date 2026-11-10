@@ -9,7 +9,7 @@
 import { and, eq, isNull, sql, type SQL } from "drizzle-orm";
 import { oauthIdentities, users } from "../../../drizzle/schema";
 import type { Database } from "../db";
-import { decryptTokenInfo, encryptToken, PREFIJO_CIFRADO, TokenKeyError, type ClavesEnv } from "./token-crypto";
+import { decryptTokenInfo, encryptToken, esCifrado, PREFIJO_CIFRADO, TokenKeyError, type ClavesEnv } from "./token-crypto";
 import { aadToken, type ColumnaToken } from "./token-store";
 
 export const LOTE_FILAS = 20;
@@ -77,8 +77,11 @@ async function nuevoValor(env: ClavesEnv, direccion: Direccion, fila: FilaTokens
   const actual = fila[columna];
   if (actual === null) return null;
   const aad = aadToken(fila.id, columna);
+  // Release B (docs/15 K18): la app ya no lee valores en claro, pero este recorrido sí los ve: los cifra (encrypt)
+  // o los deja como están (decrypt). Es la única lectura de texto plano que queda, y no sale del backfill
+  if (!esCifrado(actual)) return direccion === "encrypt" ? encryptToken(env, actual, aad) : null;
   const { valor, clave } = await decryptTokenInfo(env, actual, aad);
-  if (direccion === "decrypt") return clave === "claro" ? null : valor;
+  if (direccion === "decrypt") return valor;
   return clave === "actual" ? null : encryptToken(env, valor, aad);
 }
 

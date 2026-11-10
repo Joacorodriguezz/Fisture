@@ -10,6 +10,8 @@ import { POST } from "../../../src/pages/api/admin/encrypt-tokens";
 import { GET as statusGET } from "../../../src/pages/api/admin/status";
 
 const ADMIN = "admin-de-prueba";
+// decrypt exige confirmar que el Release B ya fue revertido (docs/15 §9)
+const DECRYPT = "?direction=decrypt&confirmar=release-b-revertido";
 
 describe("POST /api/admin/encrypt-tokens", () => {
   const t = useTestDb();
@@ -117,12 +119,33 @@ describe("POST /api/admin/encrypt-tokens", () => {
     expect((await fila("users", "u2")).access_token).toBe(ajeno);
   });
 
+  // Desde el Release B el código ya no lee texto plano: un decrypt accidental dejaría a todos sin calendario
+  it("direction=decrypt sin confirmación responde 409 y no toca la base", async () => {
+    const cifrado = await encryptToken(ENV_CON_CLAVE, "at-1", "u1:access_token");
+    await usuario("u1", cifrado, null);
+    for (const query of ["?direction=decrypt", "?direction=decrypt&confirmar=si", "?direction=decrypt&confirmar=release-b-revertido-x"]) {
+      const res = await llamar({ query });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ error: "decrypt_requiere_release_a" });
+    }
+    expect((await fila("users", "u1")).access_token).toBe(cifrado);
+  });
+
+  it("direction=decrypt sin confirmación se rechaza antes de mirar la clave", async () => {
+    expect((await llamar({ query: "?direction=decrypt", env: { TOKEN_ENCRYPTION_KEY: undefined } })).status).toBe(409);
+  });
+
+  it("confirmar no cambia nada en la dirección encrypt", async () => {
+    await usuario("u1", "at-1", null);
+    expect((await llamar({ query: "?confirmar=release-b-revertido" })).body).toMatchObject({ direccion: "encrypt", procesadas: 1 });
+  });
+
   it("?direction=decrypt devuelve las filas a texto plano (solo para el rollback)", async () => {
     await usuario("u1", await encryptToken(ENV_CON_CLAVE, "at-1", "u1:access_token"), await encryptToken(ENV_CON_CLAVE, "rt-1", "u1:refresh_token"));
     await identidad("i1", "u1", await encryptToken(ENV_CON_CLAVE, "at-i", "i1:access_token"), null);
     await usuario("u2", "at-ya-claro", null);
 
-    const res = await llamar({ query: "?direction=decrypt" });
+    const res = await llamar({ query: DECRYPT });
     expect(res.body).toEqual({ direccion: "decrypt", cursor: null, siguienteCursor: null, procesadas: 2, ilegibles: 0, pendientes: 0 });
     expect(await fila("users", "u1")).toMatchObject({ access_token: "at-1", refresh_token: "rt-1" });
     expect(await fila("oauth_identities", "i1")).toMatchObject({ access_token: "at-i" });
@@ -150,7 +173,7 @@ describe("POST /api/admin/encrypt-tokens", () => {
     for (let i = 0; i < total; i++) await usuario(id2(i), await ajenoEnc(id2(i), "access_token"), null);
     await usuario("z-ok", await encryptToken(ENV_CON_CLAVE, "at-ok", "z-ok:access_token"), null);
 
-    const paginas = await recorrer({ query: "?direction=decrypt" });
+    const paginas = await recorrer({ query: DECRYPT });
     expect(paginas.length).toBeGreaterThan(1);
     expect(paginas.reduce((n, p) => n + p.ilegibles, 0)).toBe(total);
     expect(paginas.reduce((n, p) => n + p.procesadas, 0)).toBe(1);
@@ -163,7 +186,7 @@ describe("POST /api/admin/encrypt-tokens", () => {
     // Las ilegibles ocupan las primeras páginas; la fila legible queda sola en la última
     for (let i = 0; i < LOTE_FILAS; i++) await usuario(id2(i), await ajenoEnc(id2(i), "access_token"), null);
     await usuario("z-ok", await encryptToken(ENV_CON_CLAVE, "at-ok", "z-ok:access_token"), null);
-    const paginas = await recorrer({ query: "?direction=decrypt" });
+    const paginas = await recorrer({ query: DECRYPT });
     const ultima = paginas[paginas.length - 1];
     expect(ultima).toMatchObject({ siguienteCursor: null, procesadas: 1 });
     expect(ultima.pendientes).toBe(LOTE_FILAS);
@@ -179,7 +202,7 @@ describe("POST /api/admin/encrypt-tokens", () => {
     expect((await llamar({ env: rotando })).body).toMatchObject({ procesadas: 0, pendientes: 0 });
 
     await t.DB.prepare("UPDATE users SET refresh_token = 'rt-claro' WHERE id = 'u1'").run();
-    expect((await llamar({ query: "?direction=decrypt" })).body).toMatchObject({ procesadas: 1, pendientes: 0 });
+    expect((await llamar({ query: DECRYPT })).body).toMatchObject({ procesadas: 1, pendientes: 0 });
     expect(await fila("users", "u1")).toMatchObject({ access_token: "at-1", refresh_token: "rt-claro" });
   });
 

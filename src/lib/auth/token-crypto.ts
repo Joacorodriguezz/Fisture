@@ -18,7 +18,7 @@ export class TokenKeyError extends Error {
   }
 }
 
-export type OrigenClave = "claro" | "actual" | "anterior";
+export type OrigenClave = "actual" | "anterior";
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -110,9 +110,10 @@ async function descifrarCon(clave: CryptoKey, valor: string, aad: string): Promi
   return dec.decode(plano);
 }
 
-// Lee ambos formatos (docs/15 D5): un valor sin prefijo es legado en claro. Informa con qué clave se descifró
+// Release B (docs/15 K18): solo se lee el formato cifrado. Un valor sin prefijo (el legado en claro) es ilegible:
+// se trata como "reconectar" y nunca se devuelve como token. Informa con qué clave se descifró
 export async function decryptTokenInfo(env: ClavesEnv, valor: string, aad: string): Promise<{ valor: string; clave: OrigenClave }> {
-  if (!esCifrado(valor)) return { valor, clave: "claro" };
+  if (!esCifrado(valor)) throw new TokenUnreadableError();
   const actual = await importar(env.TOKEN_ENCRYPTION_KEY);
   try {
     return { valor: await descifrarCon(actual, valor, aad), clave: "actual" };

@@ -85,6 +85,17 @@ describe("callback OAuth: tokens cifrados en reposo", () => {
     }
   });
 
+  it("Release B: si users.refresh_token es ilegible y el proveedor no reenvía otro, se conserva el de la identidad", async () => {
+    await entrar();
+    await t.DB.prepare("UPDATE users SET refresh_token = 'rt-legado-en-claro'").run();
+    validar.mockResolvedValue(tokensFalsos({ idToken: claims, access: "at-nuevo", refresh: null, expira: new Date("2027-01-01T00:00:00Z") }));
+    await entrar(undefined, "st-2");
+    for (const tabla of ["users", "oauth_identities"] as const) {
+      const [fila] = await descifrarFilas(await filas(tabla));
+      expect(fila).toMatchObject({ access_token: "at-nuevo", refresh_token: "rt-secreto-1" });
+    }
+  });
+
   it("K7: sin TOKEN_ENCRYPTION_KEY el login falla cerrado, no guarda nada y lo registra", async () => {
     const res = await entrar({});
     expect(res.headers.get("Location")).toBe("/login?error=oauth_failed");

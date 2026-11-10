@@ -39,7 +39,7 @@ export async function getValidAccessToken(
   const identidad = await buscarIdentidadDeUsuario(db, user.id, user.provider as Proveedor);
   const fuente = identidad ?? user;
 
-  // Acepta cifrado y legado en claro (docs/15 D5). Si no se puede descifrar lanza: el usuario reconecta
+  // Solo valores cifrados (docs/15 K18): uno en claro o ilegible lanza y el usuario reconecta
   const accessActual = await leerToken(env, fuente.accessToken, fuente.id, "access_token");
   if (!accessActual) {
     throw new Error("No calendar access token");

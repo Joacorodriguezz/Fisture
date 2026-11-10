@@ -1,5 +1,6 @@
 // Vinculación segura de cuentas OAuth (docs/18-vinculacion-de-cuentas-tdd.md, casos V-01 a V-17 y V-20).
-import { descifrarFilas, TOKEN_ENCRYPTION_KEY } from "../../helpers/token-key";
+import { descifrarFilas, ENV_CON_CLAVE, TOKEN_ENCRYPTION_KEY } from "../../helpers/token-key";
+import { encryptToken } from "../../../src/lib/auth/token-crypto";
 // Reproduce el ataque "nOAuth": la identidad es (provider, provider_id) y el email nunca identifica a nadie.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "../../helpers/use-test-db";
@@ -47,14 +48,17 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
   // D3.1 está apagado por defecto (docs/18 §11): estos tests lo prenden a propósito
   const AUTO = { AUTO_VINCULAR_EMAIL_VERIFICADO: "true" };
 
+  // Los tokens se siembran cifrados con el AAD de cada fila: desde el Release B un valor en claro es ilegible (docs/15 K18)
   const sembrar = async (c: Cuenta) => {
+    const access = await encryptToken(ENV_CON_CLAVE, c.access ?? `at-${c.id}`, `${c.id}:access_token`);
+    const refresh = await encryptToken(ENV_CON_CLAVE, c.refresh ?? `rt-${c.id}`, `${c.id}:refresh_token`);
     await t.DB.batch([
       t.DB.prepare(
         "INSERT INTO users (id, email, email_verified, name, provider, provider_id, access_token, refresh_token) VALUES (?1, ?2, ?3, 'Nombre', ?4, ?5, ?6, ?7)"
-      ).bind(c.id, c.email, c.verificado ? 1 : 0, c.provider, c.providerId, c.access ?? `at-${c.id}`, c.refresh ?? `rt-${c.id}`),
+      ).bind(c.id, c.email, c.verificado ? 1 : 0, c.provider, c.providerId, access, refresh),
       t.DB.prepare(
         "INSERT INTO oauth_identities (id, user_id, provider, provider_id, email, email_verified, access_token, refresh_token) VALUES (?1, ?1, ?2, ?3, ?4, ?5, ?6, ?7)"
-      ).bind(c.id, c.provider, c.providerId, c.email, c.verificado ? 1 : 0, c.access ?? `at-${c.id}`, c.refresh ?? `rt-${c.id}`),
+      ).bind(c.id, c.provider, c.providerId, c.email, c.verificado ? 1 : 0, access, refresh),
     ]);
   };
   const ana: Cuenta = { id: "ana", email: "ana@example.com", provider: "google", providerId: "g-1", verificado: true, access: "at-ana", refresh: "rt-ana" };

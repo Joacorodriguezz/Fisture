@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { useTestDb } from "../helpers/use-test-db";
 import { seedApp } from "../helpers/fixtures";
+import { encryptToken } from "../../src/lib/auth/token-crypto";
+import { ENV_CON_CLAVE } from "../helpers/token-key";
 import { apiCtx, kvEnMemoria } from "../helpers/ctx";
 import { createSession, hashToken } from "../../src/lib/auth/session";
 import { users } from "../../drizzle/schema";
@@ -29,7 +31,7 @@ describe("logs de DELETE /api/cuenta", () => {
   let sid = "";
   const borrar = async () => {
     const { user } = await seedApp(t.db);
-    await t.db.update(users).set({ refreshToken: "rt-secreto" }).where(eq(users.id, user.id));
+    await t.db.update(users).set({ refreshToken: await encryptToken(ENV_CON_CLAVE, "rt-secreto", `${user.id}:refresh_token`) }).where(eq(users.id, user.id));
     const completo = (await t.db.query.users.findFirst({ where: eq(users.id, user.id) }))!;
     const kv = kvEnMemoria();
     sid = await createSession(t.db, user.id);
@@ -39,7 +41,7 @@ describe("logs de DELETE /api/cuenta", () => {
         method: "DELETE",
         user: completo,
         body: { confirmar: completo.email },
-        env: { ENVIRONMENT: "production", DB: t.DB, KV: kv, PUBLIC_APP_URL: "https://fisture.test" },
+        env: { ENVIRONMENT: "production", DB: t.DB, KV: kv, PUBLIC_APP_URL: "https://fisture.test", TOKEN_ENCRYPTION_KEY: ENV_CON_CLAVE.TOKEN_ENCRYPTION_KEY },
         over: { cookies: { get: () => ({ value: sid }), delete: vi.fn() } },
       })
     );
