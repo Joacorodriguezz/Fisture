@@ -179,7 +179,8 @@ export async function registrarLogin(env: Env, db: Database, identidad: OAuthIde
   const actualizarUsuario = db
     .update(users)
     .set({
-      ...(await cargaTokens(env, usuario.id, tokens, await leerTokenOpcional(env, usuario.refreshToken, usuario.id, "refresh_token"))),
+      ...(await cargaTokens(env, usuario.id, tokens, (await leerTokenOpcional(env, usuario.refreshToken, usuario.id, "refresh_token")) ?? refreshDeIdentidad)),
+      // (Release B: si el legado de users no se lee, el refresh de la identidad —mismo proveedor— evita dejarlo en NULL)
       // Tokens nuevos del calendario activo: vuelve a tener acceso y reentra primero en la cola del sync (docs/17 B4)
       calendarAuthStatus: "ok",
       calendarReconciledAt: null,

@@ -128,6 +128,26 @@ describe("API del calendario con servicio, clientes y D1 reales", () => {
       }
     });
 
+    // Release B (docs/15 K18): un token sin el prefijo enc:v1: es ilegible y el usuario tiene que reconectar
+    it("con un token ilegible responde 401 con la señal de reconectar, conserva la fila y no llama al proveedor", async () => {
+      const usuario = { ...fixtures.user, accessToken: "token-en-claro", tokenExpiresAt: null };
+      const antes = http.requests.length;
+      const res = await quitar("superclasico", usuario);
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ success: false, error: "Hay que volver a conectar el calendario", code: "auth", tokenInvalido: true });
+      expect(http.requests).toHaveLength(antes);
+      expect(await filasSync()).toHaveLength(1);
+      expect(http.events.size).toBe(1);
+    });
+
+    it("si el proveedor responde 401 al borrar responde 401 sin tokenInvalido y conserva la fila", async () => {
+      http.failures.push({ method: "DELETE", status: 401, message: "Invalid Credentials", match: /\/events\// });
+      const res = await quitar("superclasico");
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ success: false, error: "Hay que volver a conectar el calendario", code: "auth" });
+      expect(await filasSync()).toHaveLength(1);
+    });
+
     it("el reintento tras un borrado fallido elimina el evento", async () => {
       http.failures.push({ method: "DELETE", status: 503, message: "Try later", match: /\/events\// });
       await quitar("superclasico");

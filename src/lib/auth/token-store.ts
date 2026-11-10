@@ -20,7 +20,7 @@ export async function cifrarTokens(env: ClavesEnv, id: string, t: ParDeTokens): 
   };
 }
 
-// Acepta cifrado y legado en claro. Lanza si no se puede descifrar
+// Solo cifrado (Release B, docs/15 K18): un valor en claro lanza TokenUnreadableError, igual que uno ilegible
 export async function leerToken(env: ClavesEnv, valor: string | null, id: string, columna: ColumnaToken): Promise<string | null> {
   return valor === null ? null : decryptToken(env, valor, aadToken(id, columna));
 }

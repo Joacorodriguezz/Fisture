@@ -53,7 +53,7 @@ export interface SyncOptions {
   presupuesto?: Presupuesto;
 }
 
-const MENSAJES_CORTE: Partial<Record<CalendarErrorClass, string>> = {
+export const MENSAJES_CORTE: Partial<Record<CalendarErrorClass, string>> = {
   auth: "Hay que volver a conectar el calendario",
   scope: "Falta el permiso para escribir en tu calendario: volvé a iniciar sesión y aceptá el acceso al calendario",
   rate_limit: "El calendario pidió esperar un rato, reintentá más tarde",
