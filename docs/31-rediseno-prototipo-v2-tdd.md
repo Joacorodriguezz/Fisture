@@ -44,7 +44,7 @@ Lo que hoy falta o se hace distinto:
 
 **No objetivos**
 
-- Cambiar el sistema visual, la paleta o las fuentes. El prototipo incluye «Paletas Dark Mode», pero queda fuera: nocturna sigue como está.
+- Cambiar el sistema visual, la paleta clara o las fuentes. Del archivo «Paletas Dark Mode» se toma solo la paleta Pizarra (decisión 15); Tinta, Estadio, Cancha y Vino se descartan.
 - Las otras variantes de menú mobile del prototipo (A, B, C, E). Se implementa solo la D.
 - Resultados en vivo. «En juego» se deriva de `matches.status` y del horario; no se agrega una fuente de datos en tiempo real.
 - Cambiar el sync de ligas, la reconciliación de calendarios o el modelo de `calendar_syncs`.
@@ -87,7 +87,7 @@ Lo que hoy falta o se hace distinto:
 10. **Día sin partidos (Flujo D).** `/hoy?dia=` sin partidos muestra un bloque con el próximo día con actividad y, con sesión, el próximo partido de tus equipos. Una consulta acotada (`LIMIT 1`, índice existente de `matches` por fecha).
 11. **Superposición antes de agregar (Flujo E).** Nuevo `GET /api/calendario/superposicion?matchId=`: llama a `client.overlaps` y devuelve `{ superpone: boolean, cantidad: number, eventos?: { titulo, inicio, fin }[] }`. Los títulos se devuelven solo al dueño de la sesión y nunca se loguean ni se guardan (regla de `docs/11`). `AccionPartido` lo consulta al tocar Agregar. Si hay superposición, muestra un aviso con «Agregar igual» y «Cancelar». Si la consulta falla o tarda más de 2 s, agrega sin avisar: el aviso nunca bloquea el alta. Costo: 1 request al calendario + renovación eventual del token, dentro del presupuesto. Rate limit propio (`calendar_overlap`). «Agregar visibles» y el Flujo A **no** consultan superposición (evita N llamadas); el aviso posterior que ya existe sigue para esos casos.
 12. **Agregar visibles.** Cuenta solo los partidos elegibles (no terminados y sin evento). Pide confirmación con el número exacto y agrega en lotes de 5, con progreso visible. Reemplaza `SincronizarTodo`.
-13. **Onboarding** (`/bienvenida`, 3 pasos). Paso 1: equipos (buscador + populares; si el usuario llegó desde «Seguir», ese equipo ya viene marcado). Paso 2: avisos 60/15 y auto-sync por defecto. Paso 3: primera sincronización de los partidos de los próximos 14 días de esos equipos, en lotes. «Ahora no» siempre visible. En mobile, la barra de Continuar queda fija abajo.
+13. **Onboarding** (`/bienvenida`, 3 pasos). Paso 1: equipos (buscador + populares; si el usuario llegó desde «Seguir», ese equipo ya viene marcado). Paso 2: avisos 60/15 y auto-sync por defecto. Paso 3: primera sincronización de los partidos de los próximos 14 días de esos equipos, en lotes (decidido el 12/11). Los posteriores llegan con auto-sync. «Ahora no» siempre visible. En mobile, la barra de Continuar queda fija abajo.
     - Se muestra una sola vez: nueva columna `users.onboarded_at` (timestamp, nullable). El callback OAuth redirige a `/bienvenida` si es `NULL` y no hay un `next` de una acción concreta. Terminar o «Ahora no» la completa.
     - Los usuarios existentes **no** ven el onboarding: la migración rellena `onboarded_at` con `created_at`.
 14. **Auto-sync por defecto.** Nueva columna `user_preferences.auto_sync_default` (boolean, default `true`). Se usa como valor inicial de `user_teams.auto_sync` al seguir un equipo. Hoy ese default está fijo en el esquema.
@@ -110,7 +110,23 @@ Lo que hoy falta o se hace distinto:
 | Ayuda | `/ayuda` | Preguntas en `<details>` (acordeón sin JS). Enlaces subrayados (UX-02). Textos del prototipo para auto-sync y eventos borrados, alineados con UX-04 y UX-05. |
 | 404 | `/404` | Sin cambios de texto. Se suman las cuatro secciones como salida. |
 
-### 3.5 Contenido
+### 3.5 Tema oscuro: paleta Pizarra
+
+15. **Pizarra reemplaza los colores de nocturna** (paleta 1e del prototipo: gris azulado frío, sombra de imprenta celeste). Se cambian solo los valores de `[data-theme="nocturna"]` en `tribuna90.css`. El nombre del tema no cambia (`'nocturna'` en `user_preferences.theme`, en la API y en el script de `prefers-color-scheme`), así que no hay migración de datos. En Cuenta, la opción pasa a llamarse «Pizarra».
+
+    | Token | Valor |
+    |---|---|
+    | `--papel` / `--papel-2` | `#14181c` / `#1e242a` |
+    | `--tinta` / `--tinta-suave` / `--linea` | `#eceff1` / `#a3acb4` / `#44505a` |
+    | `--rojo` / `--rojo-profundo` | `#e5432f` / `#9e1a10` |
+    | `--amarillo` / `--on-amarillo` | `#f2d43b` / `#14181c` |
+    | `--celeste` / `--on-celeste` / `--celeste-claro` | `#4fc3d6` / `#0a0d10` / `#142c33` |
+    | `--barra-tinta` / `--crema-sobre-oscuro` / `--crema` | `#0a0d10` / `#eceff1` / `#262a24` |
+    | `--sombra-registro` | `4px 4px 0 #4fc3d6` |
+
+    Se conserva la separación actual entre `--rojo` (texto) y `--rojo-fondo` (superficies). El prototipo pone blanco sobre `#e5432f` (≈ 3,9:1), que no llega a AA para texto chico. `--rojo-fondo` arranca en `#e5432f` y se oscurece lo mínimo necesario hasta que axe no marque contraste en la cabecera, las barras y el botón primario. `--azul` (solo en CabezalSeccion) toma `#4fc3d6`, el celeste de la paleta, porque Pizarra no define azul.
+
+### 3.6 Contenido
 
 Los textos salen del prototipo: voseo, titulares en mayúsculas, sin emoji, flecha → solo si lleva a otra página. Los datos del prototipo (equipos, «Hola, Lucía», horarios) son de ejemplo y **no** se copian: todo sale de D1.
 
@@ -159,7 +175,7 @@ Son tres columnas nuevas, todas opcionales o con default. No hay borrados ni ren
 Cada paso es un PR a `development` con su CI en verde. El orden permite publicar en staging de a partes.
 
 1. **Base** — migración 0015, `previous_date_time` en sync y reconciliación, `autoSyncDefault` en preferencias y equipos. Sin cambios visibles.
-2. **Navegación** — cabecera compacta, `BarraInferior`, `/cuenta` con redirect desde `/configuracion`.
+2. **Navegación y tema** — cabecera compacta, `BarraInferior`, `/cuenta` con redirect desde `/configuracion`, paleta Pizarra.
 3. **Fila y acción** — `FilaPartido` y `AccionPartido` con la tabla de estados (Flujo C). Se aplican en Hoy, Partidos, Liga, Equipo y Ficha. Se retiran `SincronizarPartido`, `SincronizarTodo` y la lógica de `HoyMovil`.
 4. **Hoy completo** — filtros, Agregar visibles, Flujo D, estrella (Flujo B).
 5. **Superposición previa** — endpoint y aviso (Flujo E).
@@ -173,7 +189,7 @@ Cada paso es un PR a `development` con su CI en verde. El orden permite publicar
 - **Migración 0015**: se aplica sola en el release (`deploy.yml`). Es aditiva. Rollback del código sin revertir la migración.
 - **Sin variables de entorno nuevas.** Rate limit nuevo `calendar_overlap` en `lib/rate-limit/policies.ts`.
 - **Staging**: cada paso se revisa en `development.fisture.pages.dev` antes del siguiente. La cuota de lecturas D1 se comparte con staging: los pasos 4 y 8 agregan consultas por página y hay que medirlas (`docs/30`).
-- **Release**: un solo release cuando estén los pasos 1 a 9, o dos (1–3 y 4–9) si se quiere ver la navegación en producción antes.
+- **Release**: uno solo, cuando estén los pasos 1 a 9 (decidido el 12/11). Hasta entonces todo se ve únicamente en staging.
 - **Google OAuth**: no se cambian scopes ni el consent screen. La consulta de superposición usa el permiso de calendario que ya tenemos. Si hiciera falta un scope nuevo, habría que reverificar la app.
 
 ## 8. Riesgos
@@ -184,12 +200,14 @@ Cada paso es un PR a `development` con su CI en verde. El orden permite publicar
 - **Tamaño del cambio.** Son 14 pantallas. Mitigación: PRs por paso (§6) y staging entre pasos.
 - **`sessionStorage` en navegadores in-app** (Instagram, etc.) puede perderse al ir al proveedor OAuth. Mitigación: degradación al comportamiento actual (decisión 8).
 
-## 9. Decisiones abiertas para revisar
+## 9. Decisiones
 
-1. ¿Un release o dos (§7)?
-2. ¿7 días para mostrar «Horario actualizado» está bien?
-3. Onboarding paso 3: ¿14 días de partidos o todos los próximos?
-4. ¿Se descarta del todo la exploración «Paletas Dark Mode» o va en un TDD aparte?
+Revisadas el 12/11:
+
+1. Un solo release (§7).
+2. Días que se muestra «Horario actualizado»: **pendiente**. Se propone 7.
+3. Onboarding: partidos de los próximos 14 días.
+4. Tema oscuro: solo la paleta Pizarra (§3.5).
 
 ## 10. Notas de implementación
 
