@@ -137,6 +137,7 @@ ALTER TABLE users ADD COLUMN onboarded_at INTEGER;
 UPDATE users SET onboarded_at = created_at;
 ALTER TABLE user_preferences ADD COLUMN auto_sync_default INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE calendar_syncs ADD COLUMN previous_date_time INTEGER;
+ALTER TABLE calendar_syncs ADD COLUMN date_time_changed_at INTEGER;
 ```
 
 Son tres columnas nuevas, todas opcionales o con default. No hay borrados ni renombres, así que el código anterior sigue funcionando con la base migrada (rollback del código sin rollback de datos).
@@ -205,10 +206,16 @@ Cada paso es un PR a `development` con su CI en verde. El orden permite publicar
 Revisadas el 12/11:
 
 1. Un solo release (§7).
-2. Días que se muestra «Horario actualizado»: **pendiente**. Se propone 7.
+2. «Horario actualizado» se muestra durante 7 días después del cambio.
 3. Onboarding: partidos de los próximos 14 días.
 4. Tema oscuro: solo la paleta Pizarra (§3.5).
 
 ## 10. Notas de implementación
 
 _(Se completa al terminar, con los desvíos respecto de este diseño.)_
+
+**Paso 1 (datos base).**
+
+- La migración 0015 suma una cuarta columna, `calendar_syncs.date_time_changed_at`. Sin ella, los 7 días de «Horario actualizado» se contarían desde `last_synced_at`, que se reinicia con cualquier otro cambio, como la sede.
+- La hora anterior se escribe en un solo lugar, `syncMatches`, que usan tanto el alta manual como la reconciliación (`reconcileCalendarBatch` llama a `syncMatches` en modo `auto`). Se guarda solo si el evento ya existía y la hora cambió. Un cambio posterior que no toca la hora conserva la anterior.
+- `GET /api/preferencias` devuelve `autoSyncDefault`. Los tests que comparaban la respuesta completa se ajustaron.
