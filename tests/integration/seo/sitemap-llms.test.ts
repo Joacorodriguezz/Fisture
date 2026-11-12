@@ -81,6 +81,7 @@ describe("sitemap.xml y llms.txt", () => {
     it("no lista páginas personales ni de login", async () => {
       const xml = await (await getSitemap(ctx())).text();
       expect(xml).not.toContain("/configuracion");
+      expect(xml).not.toContain("/cuenta");
       expect(xml).not.toContain("/login");
     });
 
@@ -105,6 +106,7 @@ describe("sitemap.xml y llms.txt", () => {
       expect(texto).toContain(`- [Liga de prueba](${BASE}/ligas/test-league) (Argentina)`);
       expect(texto).toContain(`(${BASE}/hoy)`);
       expect(texto).not.toContain("/configuracion");
+      expect(texto).not.toContain("/cuenta");
     });
 
     it("escapa el markdown del nombre y codifica el id de la liga", async () => {

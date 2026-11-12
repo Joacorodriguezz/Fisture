@@ -1,7 +1,7 @@
 // Reglas de acceso: toda la web de lectura es pública; solo se pide sesión para lo personal.
 
 // Páginas que sí requieren sesión (el resto se navega sin cuenta)
-const PAGINAS_PROTEGIDAS = ["/configuracion"];
+const PAGINAS_PROTEGIDAS = ["/cuenta"];
 
 // APIs que no requieren sesión de usuario (tienen su propia autenticación o son de lectura pública)
 const APIS_PUBLICAS = ["/api/auth", "/api/admin", "/api/health", "/api/equipos/buscar"];

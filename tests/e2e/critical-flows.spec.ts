@@ -22,9 +22,19 @@ test("páginas públicas y redirección sin sesión", async ({ page }) => {
     expect(response?.status()).toBe(200);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   }
-  await page.goto("/configuracion");
-  await expect(page).toHaveURL(/\/login\?next=%2Fconfiguracion$/);
+  await page.goto("/cuenta");
+  await expect(page).toHaveURL(/\/login\?next=%2Fcuenta$/);
   await expect(page.getByRole("link", { name: /Continuar con Google/ })).toBeVisible();
+});
+
+test("/configuracion redirige a /cuenta con 301 y conserva la query (docs/31 D3)", async ({ page }, info) => {
+  const respuesta = await page.request.get("/configuracion?vinculado=google", { maxRedirects: 0 });
+  expect(respuesta.status()).toBe(301);
+  expect(respuesta.headers()["location"]).toBe("/cuenta?vinculado=google");
+  await login(page, info, "navigation");
+  await page.goto("/configuracion");
+  await expect(page).toHaveURL(/\/cuenta$/);
+  await expect(page.getByRole("heading", { level: 1, name: "TU CUENTA" })).toBeVisible();
 });
 
 test("busca, sigue y deja de seguir un equipo con persistencia", async ({ page }, info) => {
@@ -54,12 +64,12 @@ test("busca, sigue y deja de seguir un equipo con persistencia", async ({ page }
 
 test("guarda recordatorios y tema tras recargar", async ({ page }, info) => {
   await login(page, info, "preferences");
-  await page.goto("/configuracion");
+  await page.goto("/cuenta");
   const reminder = page.getByRole("group", { name: "Aviso 1 hora antes" }).getByRole("button", { name: /No$/ });
   await ready(page, reminder);
   await reminder.click();
   await expect(page.getByText("✓ Guardado", { exact: true })).toBeVisible();
-  const theme = page.getByRole("group", { name: "Edición", exact: true }).getByRole("button", { name: "Nocturna" });
+  const theme = page.getByRole("group", { name: "Edición", exact: true }).getByRole("button", { name: "Pizarra" });
   await theme.click();
   await expect(theme).toBeEnabled();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "nocturna");
@@ -97,18 +107,18 @@ test("navega por ligas, equipos y detalle del partido", async ({ page }, info) =
 
 test("logout elimina la sesión del KV y rechaza reutilizarla", async ({ page }, info) => {
   await login(page, info, "logout");
-  await page.goto("/configuracion");
+  await page.goto("/cuenta");
   await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
   await expect(page).toHaveURL("http://127.0.0.1:4322/");
   await login(page, info, "logout");
-  await page.goto("/configuracion");
-  await expect(page).toHaveURL(/\/login\?next=%2Fconfiguracion$/);
+  await page.goto("/cuenta");
+  await expect(page).toHaveURL(/\/login\?next=%2Fcuenta$/);
 });
 
 test("elimina la cuenta tras confirmar con el email y la sesión deja de servir", async ({ page }, info) => {
   await login(page, info, "delete-account");
   const email = `${info.project.name}-delete-account-${info.retry}@example.test`;
-  await page.goto("/configuracion");
+  await page.goto("/cuenta");
   const abrir = page.getByRole("button", { name: "Eliminar mi cuenta", exact: true });
   await ready(page, abrir);
   await abrir.click();
@@ -123,15 +133,15 @@ test("elimina la cuenta tras confirmar con el email y la sesión deja de servir"
   await eliminar.click();
   await expect(page).toHaveURL("http://127.0.0.1:4322/?cuenta=eliminada");
   await expect(page.getByRole("status")).toContainText("Tu cuenta se eliminó");
-  // La sesión ya no abre Configuración
+  // La sesión ya no abre Cuenta
   await login(page, info, "delete-account");
-  await page.goto("/configuracion");
-  await expect(page).toHaveURL(/\/login\?next=%2Fconfiguracion$/);
+  await page.goto("/cuenta");
+  await expect(page).toHaveURL(/\/login\?next=%2Fcuenta$/);
 });
 
 test("el diálogo de eliminar cuenta se cierra con Cancelar y no borra nada", async ({ page }, info) => {
   await login(page, info, "delete-cancel");
-  await page.goto("/configuracion");
+  await page.goto("/cuenta");
   const abrir = page.getByRole("button", { name: "Eliminar mi cuenta", exact: true });
   await ready(page, abrir);
   await abrir.click();
@@ -239,38 +249,44 @@ test("login OAuth: el estado va en una cookie firmada y el callback lo exige", a
 const soloMovil = () => test.skip(({ isMobile }) => !isMobile, "solo en el proyecto móvil");
 const soloEscritorio = () => test.skip(({ isMobile }) => isMobile, "solo en el proyecto de escritorio");
 const navegacionPrincipal = (page: Page) => page.getByRole("navigation", { name: "Secciones", exact: true });
-const botonMenu = (page: Page) => page.getByRole("button", { name: "Abrir menú", exact: true });
-const panelMenu = (page: Page) => page.getByRole("dialog", { name: "Menú", exact: true });
+const enlaceCuenta = (page: Page) => page.getByRole("link", { name: /^Tu cuenta/ });
+const SECCIONES = ["Hoy", "Partidos", "Ligas", "Calendario"];
 
+// docs/31 D1 y D2: cabecera compacta y fija; en mobile, barra inferior con Buscar al centro
 test.describe("navegación responsive: móvil", () => {
   soloMovil();
 
-  test("el menú se abre, se cierra con Escape devolviendo el foco y navega", async ({ page }) => {
+  test("la barra inferior tiene las cuatro secciones y Buscar, y marca la actual", async ({ page }) => {
     await page.goto("/ligas");
-    const open = botonMenu(page);
-    const panel = panelMenu(page);
-    await open.click();
-    await expect(open).toHaveAttribute("aria-expanded", "true");
-    await expect(panel).toBeVisible();
-    await expect(panel.getByRole("link", { name: "Iniciar sesión", exact: true })).toBeVisible();
-    await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
-    await page.keyboard.press("Escape");
-    await expect(panel).toBeHidden();
-    await expect(open).toBeFocused();
-    await expect(open).toHaveAttribute("aria-expanded", "false");
-    await open.click();
-    await panel.getByRole("link", { name: /^Calendario/ }).click();
+    const barra = navegacionPrincipal(page);
+    await expect(barra).toBeVisible();
+    for (const label of SECCIONES) await expect(barra.getByRole("link", { name: label, exact: true })).toBeVisible();
+    await expect(barra.getByRole("link", { name: "Ligas", exact: true })).toHaveAttribute("aria-current", "page");
+    await barra.getByRole("link", { name: "Buscar equipo", exact: true }).click();
+    await expect(page).toHaveURL(/\/equipos\/buscar$/);
+    await expect(navegacionPrincipal(page).getByRole("link", { name: "Buscar equipo", exact: true })).toHaveAttribute("aria-current", "page");
+    await navegacionPrincipal(page).getByRole("link", { name: "Calendario", exact: true }).click();
     await expect(page).toHaveURL(/\/calendario$/);
-    await expect(panel).toBeHidden();
   });
 
-  test("con sesión el menú muestra la cuenta y lleva a Configuración", async ({ page }, info) => {
+  test("la barra queda fija abajo y no tapa el pie de la página", async ({ page }) => {
+    await page.goto("/ayuda");
+    const barra = navegacionPrincipal(page);
+    const viewport = page.viewportSize()!;
+    const caja = (await barra.boundingBox())!;
+    expect(Math.round(caja.y + caja.height)).toBe(viewport.height);
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const pie = (await page.locator(".tb-footer").boundingBox())!;
+    expect(pie.y + pie.height).toBeLessThanOrEqual((await barra.boundingBox())!.y + 1);
+  });
+
+  test("sin sesión la cabecera ofrece ingresar; con sesión, el avatar lleva a Cuenta", async ({ page }, info) => {
+    await page.goto("/ligas");
+    await expect(page.getByRole("banner").getByRole("link", { name: "Iniciar sesión", exact: true })).toBeVisible();
     await login(page, info, "responsive-menu");
     await page.goto("/ligas");
-    await botonMenu(page).click();
-    await expect(panelMenu(page).getByText(`${info.project.name}-responsive-menu-${info.retry}@example.test`, { exact: true })).toBeVisible();
-    await panelMenu(page).getByRole("link", { name: /^Configuración/ }).click();
-    await expect(page).toHaveURL(/\/configuracion$/);
+    await enlaceCuenta(page).click();
+    await expect(page).toHaveURL(/\/cuenta$/);
     await expect(page.getByRole("heading", { level: 1, name: "TU CUENTA" })).toBeVisible();
   });
 });
@@ -278,18 +294,33 @@ test.describe("navegación responsive: móvil", () => {
 test.describe("navegación responsive: escritorio", () => {
   soloEscritorio();
 
-  test("no hay botón de menú y la navegación lleva a Calendario", async ({ page }) => {
+  test("no hay barra inferior y la navegación de la cabecera lleva a Calendario", async ({ page }) => {
     await page.goto("/ligas");
-    await expect(botonMenu(page)).toBeHidden();
-    await navegacionPrincipal(page).getByRole("link", { name: "Calendario", exact: true }).click();
+    await expect(page.locator(".tb-barra-inferior")).toBeHidden();
+    const nav = navegacionPrincipal(page);
+    for (const label of SECCIONES) await expect(nav.getByRole("link", { name: label, exact: true })).toBeVisible();
+    await nav.getByRole("link", { name: "Calendario", exact: true }).click();
     await expect(page).toHaveURL(/\/calendario$/);
   });
 
-  test("con sesión la navegación lleva a Configuración", async ({ page }, info) => {
+  test("el buscador de la cabecera lleva a Buscar", async ({ page }) => {
+    await page.goto("/hoy");
+    await page.getByRole("banner").getByRole("link", { name: "Buscar equipo", exact: true }).click();
+    await expect(page).toHaveURL(/\/equipos\/buscar$/);
+  });
+
+  test("la cabecera queda fija al hacer scroll", async ({ page }) => {
+    await page.goto("/ayuda");
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    expect((await page.getByRole("banner").boundingBox())!.y).toBe(0);
+  });
+
+  test("con sesión el avatar saluda y lleva a Cuenta", async ({ page }, info) => {
     await login(page, info, "responsive-menu");
     await page.goto("/ligas");
-    await navegacionPrincipal(page).getByRole("link", { name: "Configuración", exact: true }).click();
-    await expect(page).toHaveURL(/\/configuracion$/);
+    await expect(page.getByRole("banner").getByText(/^Hola, /)).toBeVisible();
+    await enlaceCuenta(page).click();
+    await expect(page).toHaveURL(/\/cuenta$/);
     await expect(page.getByRole("heading", { level: 1, name: "TU CUENTA" })).toBeVisible();
   });
 });
@@ -446,7 +477,7 @@ test("desvincular un proveedor: Cancelar devuelve el foco, el error permite rein
     intentos++;
     return intentos === 1 ? route.fulfill({ status: 500, json: { error: "boom" } }) : route.continue();
   });
-  await page.goto("/configuracion");
+  await page.goto("/cuenta");
   const desvincular = page.getByRole("button", { name: "Desvincular", exact: true });
   await ready(page, desvincular);
 
@@ -464,7 +495,7 @@ test("desvincular un proveedor: Cancelar devuelve el foco, el error permite rein
 
   await desvincular.click();
   await grupo.getByRole("button", { name: "Sí, desvincular", exact: true }).click();
-  await expect(page).toHaveURL(/\/configuracion$/);
+  await expect(page).toHaveURL(/\/cuenta$/);
   await expect(page.getByText("Sin vincular").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Desvincular", exact: true })).toHaveCount(0);
 });

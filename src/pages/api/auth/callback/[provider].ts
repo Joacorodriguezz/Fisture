@@ -56,7 +56,7 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
   // Vincular exige la sesión vigente del mismo usuario que inició el intento (V-10)
   if (estado.intent === "link") {
     if (!locals.user) return redirect("/login?error=vinculo_sesion");
-    if (locals.user.id !== estado.userId) return redirect("/configuracion?error=vinculo_sesion");
+    if (locals.user.id !== estado.userId) return redirect("/cuenta?error=vinculo_sesion");
   }
 
   try {
@@ -72,7 +72,7 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
     if (estado.intent === "link") {
       const userId = estado.userId!;
       const existente = await buscarIdentidad(db, provider, perfil.providerId);
-      if (existente && existente.userId !== userId) return conflicto("identidad_en_uso", "/configuracion", provider);
+      if (existente && existente.userId !== userId) return conflicto("identidad_en_uso", "/cuenta", provider);
 
       if (existente) {
         const dueno = await buscarUsuario(db, userId);
@@ -80,10 +80,10 @@ export const GET: APIRoute = withApi(async ({ params, url, redirect, cookies, lo
         await registrarLogin(env, db, existente, dueno, perfil, tokens);
       } else {
         // En esta versión hay una identidad por proveedor y usuario
-        if (await buscarIdentidadDeUsuario(db, userId, provider)) return conflicto("proveedor_en_uso", "/configuracion", provider);
+        if (await buscarIdentidadDeUsuario(db, userId, provider)) return conflicto("proveedor_en_uso", "/cuenta", provider);
         await agregarIdentidad(env, db, userId, perfil, tokens);
       }
-      return redirect(`/configuracion?vinculado=${provider}`);
+      return redirect(`/cuenta?vinculado=${provider}`);
     }
 
     // ---------- Login ----------

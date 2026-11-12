@@ -33,7 +33,7 @@ const screens = [
   { name: "partido", path: "/partidos/superclasico", session: true },
   { name: "calendario-publico", path: "/calendario", session: false },
   { name: "calendario-personal", path: "/calendario", session: true },
-  { name: "configuracion", path: "/configuracion", session: true },
+  { name: "cuenta", path: "/cuenta", session: true },
 ];
 
 for (const theme of ["papel", "nocturna"]) {
@@ -70,22 +70,21 @@ for (const theme of ["papel", "nocturna"]) {
   }
 }
 
-test("menú móvil: el foco permanece dentro hasta cerrar", async ({ page, isMobile }, info) => {
-  test.skip(!isMobile, "El menú solo existe en móvil");
+test("barra inferior: destinos táctiles de 44 px y alcanzables con teclado", async ({ page, isMobile }, info) => {
+  test.skip(!isMobile, "La barra inferior solo existe en móvil");
   await page.goto("/ligas");
-  const open = page.getByRole("button", { name: "Abrir menú" });
-  await open.click();
-  const dialog = page.getByRole("dialog", { name: "Menú", exact: true });
-  await expect(dialog).toHaveAttribute("open", "");
-  await page.screenshot({ path: info.outputPath("menu.png") });
-  await expect(dialog.getByRole("button", { name: /Cerrar/ })).toBeFocused();
-  // Desde el primer control, Shift+Tab debe ir al último del modal, sin salir al fondo.
-  await page.keyboard.press("Shift+Tab");
-  expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
-  await page.keyboard.press("Tab");
-  await expect(dialog.getByRole("button", { name: /Cerrar/ })).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(open).toBeFocused();
+  const barra = page.getByRole("navigation", { name: "Secciones", exact: true });
+  await page.screenshot({ path: info.outputPath("barra-inferior.png") });
+  // Cinco destinos de al menos 44 × 44 px, alcanzables con teclado y con foco visible
+  const enlaces = barra.getByRole("link");
+  await expect(enlaces).toHaveCount(5);
+  for (const enlace of await enlaces.all()) {
+    const caja = (await enlace.boundingBox())!;
+    expect(caja.width).toBeGreaterThanOrEqual(44);
+    expect(caja.height).toBeGreaterThanOrEqual(44);
+    await enlace.focus();
+    await expect(enlace).toBeFocused();
+  }
 });
 
 test("búsqueda: un fallo conserva la consulta y permite reintentar", async ({ page }, info) => {
@@ -158,7 +157,7 @@ test("sesión vencida: conserva el destino al pedir login", async ({ page }, inf
 
 test("eliminar cuenta: un fallo conserva el email y permite cancelar", async ({ page }, info) => {
   await login(page, info, "delete-cancel");
-  await page.goto("/configuracion");
+  await page.goto("/cuenta");
   const open = page.getByRole("button", { name: "Eliminar mi cuenta", exact: true });
   await ready(page, open);
   await open.click();
@@ -447,7 +446,7 @@ for (const width of [320, 375, 768, 1280]) {
   test(`reflow: pantallas principales a ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });
     await login(page, info, "navigation");
-    for (const path of ["/equipos/buscar", "/equipos/river", "/partidos", "/partidos/superclasico", "/calendario", "/configuracion"]) {
+    for (const path of ["/equipos/buscar", "/equipos/river", "/partidos", "/partidos/superclasico", "/calendario", "/cuenta"]) {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       const size = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
