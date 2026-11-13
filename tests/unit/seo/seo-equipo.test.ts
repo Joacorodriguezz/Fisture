@@ -1,4 +1,4 @@
-// Textos y datos estructurados de la página pública de equipo (docs/31 D1, D2, D3, D6)
+// Textos y datos estructurados de la página pública de equipo (docs/33 D1, D2, D3, D6)
 import { describe, expect, it } from "vitest";
 import {
   descripcionEquipo,

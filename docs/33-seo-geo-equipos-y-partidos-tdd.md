@@ -1,4 +1,4 @@
-# 31 · SEO y GEO de equipos y partidos (TDD y plan de ejecución)
+# 33 · SEO y GEO de equipos y partidos (TDD y plan de ejecución)
 
 Estado: **aprobado el 13/11/2026; implementación pendiente**. Incluye D7 y D9, aprobadas por separado.
 Continúa `docs/29` y `docs/30-plan-seo-antes-del-release-tdd.md`. Generado con la skill

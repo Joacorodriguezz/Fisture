@@ -61,7 +61,7 @@ const seguimiento = user
   : undefined;
 
 const todos = await getTeamUpcomingMatches(db, id, 50);
-// Últimos resultados (docs/31 D3): hasta 5 terminados, por los índices de local y visitante
+// Últimos resultados (docs/33 D3): hasta 5 terminados, por los índices de local y visitante
 const recientes = await getTeamRecentMatches(db, id);
 
 const lado = Astro.url.searchParams.get("lado") === "local" ? "local"
@@ -81,14 +81,14 @@ const estados = user
 const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
 const proximo = todos.find(({ match }) => match.status === "scheduled");
 const descripcion = descripcionEquipo(team, liga, proximo);
-// Respuesta directa a "cuándo juega X" (docs/31 D2)
+// Respuesta directa a "cuándo juega X" (docs/33 D2)
 const respuesta = respuestaProximoPartido(team, proximo, recientes[0]);
 // Sin ningún partido por jugar ni terminado la página no tiene contenido propio: noindex y fuera del
-// sitemap (docs/31 D8, misma condición que getPaginasPublicas). Vuelve a indexarse cuando tenga partidos.
+// sitemap (docs/33 D8, misma condición que getPaginasPublicas). Vuelve a indexarse cuando tenga partidos.
 const sinPartidos = todos.length === 0 && recientes.length === 0;
 const jsonLd = [
   jsonLdEquipo(appUrl, team, liga),
-  // Sobre la lista completa del equipo, no la filtrada por ?lado= (docs/31 D6)
+  // Sobre la lista completa del equipo, no la filtrada por ?lado= (docs/33 D6)
   ...jsonLdPartidosDeEquipo(appUrl, todos),
   jsonLdMigas(appUrl, [
     { nombre: "Ligas", ruta: "/ligas" },
@@ -165,7 +165,7 @@ const filtros = [
       <p style="margin:12px 0 0;font:400 15px/1.6 var(--font-texto);color:var(--tinta-suave)">Todos los horarios están en hora de Argentina (UTC−3).</p>
     </section>
 
-    {/* El diferencial, visible (docs/31 D5). Reemplaza al aviso de login que estaba sobre la lista */}
+    {/* El diferencial, visible (docs/33 D5). Reemplaza al aviso de login que estaba sobre la lista */}
     <section aria-labelledby="en-tu-calendario" class="eq-calendario">
       <div style="flex:1 1 280px;display:flex;flex-direction:column;gap:8px">
         <h2 id="en-tu-calendario" style="margin:0;font:400 26px/1.1 var(--font-titular)">En tu calendario</h2>
@@ -246,7 +246,7 @@ const filtros = [
           {recientes.map((m) => {
             const esLocal = m.homeTeam.id === id;
             const rival = esLocal ? m.awayTeam : m.homeTeam;
-            // Solo con los dos goles cargados: un marcador nunca se inventa (docs/31 D3). Va desde el
+            // Solo con los dos goles cargados: un marcador nunca se inventa (docs/33 D3). Va desde el
             // lado del equipo (goles propios primero), como el "ganó 2 a 0" de la respuesta directa
             const r = resultadoDelEquipo(m.match, esLocal);
             return (

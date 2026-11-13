@@ -1142,7 +1142,7 @@ a:hover {
   }
 }
 
-/* Equipo: qué pasa al seguirlo (docs/31 D5). Sin sesión lleva el botón de login, en lugar de uno por partido */
+/* Equipo: qué pasa al seguirlo (docs/33 D5). Sin sesión lleva el botón de login, en lugar de uno por partido */
 .eq-calendario {
   display: flex;
   flex-wrap: wrap;

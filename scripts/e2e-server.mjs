@@ -67,9 +67,9 @@ try {
     "INSERT INTO teams (id, external_id, name, short_name, league_id, source) VALUES ('neutral-home', 'e2e:neutral-home', 'Equipo neutral local', 'NEU', 'neutral-league', 'espn'), ('neutral-away', 'e2e:neutral-away', 'Equipo neutral visitante', 'VIS', 'neutral-league', 'espn');",
     `INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, status) VALUES ('neutral-match', 'e2e:neutral-match', 'neutral-home', 'neutral-away', 'neutral-league', ${kickoff}, 'scheduled');`,
     `INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, venue, status) VALUES ('superclasico', 'e2e:match', 'river', 'boca', 'e2e-league', ${kickoff}, 'Monumental', 'scheduled');`,
-    // Últimos resultados del equipo (docs/31 D3): uno con marcador y uno terminado sin marcador cargado
+    // Últimos resultados del equipo (docs/33 D3): uno con marcador y uno terminado sin marcador cargado
     `INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, venue, status, home_score, away_score) VALUES ('superclasico-ida', 'e2e:match-ida', 'boca', 'river', 'e2e-league', ${kickoff - 5 * 86_400}, 'La Bombonera', 'finished', 1, 2), ('superclasico-sin-marcador', 'e2e:match-sin-marcador', 'river', 'boca', 'e2e-league', ${kickoff - 10 * 86_400}, 'Monumental', 'finished', NULL, NULL);`,
-    // Equipo sin ningún partido (docs/31 D8): su página va con noindex y no entra al sitemap
+    // Equipo sin ningún partido (docs/33 D8): su página va con noindex y no entra al sitemap
     "INSERT INTO teams (id, external_id, name, short_name, league_id, source) VALUES ('sin-partidos', 'e2e:sin-partidos', 'Equipo sin partidos', 'SIN', 'e2e-league', 'espn');",
     "INSERT INTO league_teams (league_id, team_id) VALUES ('e2e-league', 'sin-partidos');",
     `INSERT INTO sync_runs (id, trigger, started_at, finished_at, status, duration_ms, results, issues) VALUES ('e2e-sync', 'admin', ${now}, ${now}, 'success', 1, '[]', '[]');`,

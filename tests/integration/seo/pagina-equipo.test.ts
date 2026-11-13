@@ -1,4 +1,4 @@
-// Página pública de equipo (docs/31): últimos resultados (D3) y equipos sin partidos fuera del sitemap (D8)
+// Página pública de equipo (docs/33): últimos resultados (D3) y equipos sin partidos fuera del sitemap (D8)
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { useTestDb } from "../../helpers/use-test-db";

@@ -1,4 +1,4 @@
-// Textos y datos estructurados de la página pública de equipo (docs/31 D1, D2, D3 y D6).
+// Textos y datos estructurados de la página pública de equipo (docs/33 D1, D2, D3 y D6).
 // Funciones puras: la página (equipos/[id].astro) solo las llama con lo que trae de D1.
 import { fechaCorta, fechaLarga, hora } from "./format";
 import { jsonLdPartido } from "./seo";

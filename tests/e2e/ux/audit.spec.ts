@@ -297,7 +297,7 @@ test("equipo: sin sesión, un solo aviso para iniciar sesión en lugar de uno po
   const filas = page.locator(".eq-fila");
   expect(await filas.count()).toBeGreaterThan(0);
   await expect(filas.getByRole("button")).toHaveCount(0);
-  // El llamado único vive en el bloque "En tu calendario" (docs/31 D5)
+  // El llamado único vive en el bloque "En tu calendario" (docs/33 D5)
   const aviso = page.getByRole("region", { name: "En tu calendario" });
   await expect(aviso.getByRole("link", { name: "Iniciá sesión", exact: true })).toHaveAttribute("href", "/login?next=%2Fequipos%2Friver");
   await expect(page.getByRole("button", { name: /Iniciá sesión/ })).toHaveCount(0);

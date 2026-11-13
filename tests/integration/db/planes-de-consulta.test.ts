@@ -112,7 +112,7 @@ describe("planes de las consultas calientes", () => {
     await sinRecorrerMatches(consultas);
   });
 
-  // docs/31 D3: los últimos resultados de un equipo van por los índices de local y visitante, no por
+  // docs/33 D3: los últimos resultados de un equipo van por los índices de local y visitante, no por
   // idx_matches_date (recorrería hacia atrás los partidos jugados de todos los equipos)
   it("los últimos resultados de un equipo usan los índices de local y visitante", async () => {
     const [equipo] = (await t.DB.prepare("SELECT id FROM teams LIMIT 1").all<{ id: string }>()).results;
@@ -126,7 +126,7 @@ describe("planes de las consultas calientes", () => {
     expect(pasos).toContain("idx_matches_away_team");
   });
 
-  // docs/31 D8: el sitemap deja afuera a los equipos sin partidos con un EXISTS por índice, en la
+  // docs/33 D8: el sitemap deja afuera a los equipos sin partidos con un EXISTS por índice, en la
   // misma consulta de equipos (no una consulta por equipo)
   it("el sitemap busca los partidos de cada equipo por índice", async () => {
     const consultas = await capturar(

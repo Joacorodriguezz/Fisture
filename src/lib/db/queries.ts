@@ -65,7 +65,7 @@ export async function getTeamUpcomingMatches(db: Database, teamId: string, limit
   return getMatchesForTeams(db, [teamId], limit);
 }
 
-// Últimos resultados de un equipo (docs/31 D3): partidos terminados y ya jugados, del más reciente al
+// Últimos resultados de un equipo (docs/33 D3): partidos terminados y ya jugados, del más reciente al
 // más antiguo. El OR por local y visitante va por idx_matches_home_team e idx_matches_away_team (lee
 // solo los partidos del equipo) y ordena esas pocas filas; no recorre idx_matches_date hacia atrás.
 export async function getTeamRecentMatches(db: Database, teamId: string, limit = 5, ahora = new Date()) {
@@ -252,7 +252,7 @@ export async function getPaginasPublicas(db: Database, ahora: Date = new Date(),
 
   const ligas = await getLigasPublicas(db);
 
-  // Un equipo sin ningún partido por jugar ni terminado va con noindex (docs/31 D8): misma condición
+  // Un equipo sin ningún partido por jugar ni terminado va con noindex (docs/33 D8): misma condición
   // que equipos/[id].astro (lista de próximos de cualquier estado + últimos resultados)
   const conPartidos = db
     .select({ id: matches.id })

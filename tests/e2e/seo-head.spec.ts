@@ -68,7 +68,7 @@ test("fixture y explicación del calendario son útiles sin JavaScript", async (
     await expect(proximo.getByRole("link").first()).toHaveAttribute("href", /^\/partidos\//);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${BASE}/equipos/river`);
 
-    // docs/31: título y h1 con las dos formas de búsqueda, respuesta directa, resultados y calendario
+    // docs/33: título y h1 con las dos formas de búsqueda, respuesta directa, resultados y calendario
     await page.goto("/equipos/river");
     await expect(page).toHaveTitle("Partidos y fixture de River Plate - FISTURE");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Fixture y partidos de River Plate");
@@ -151,7 +151,7 @@ test("datos estructurados en liga y equipo, y sin JSON-LD en el resto", async ({
   const datosEquipo = await jsonLd(page);
   expect(datosEquipo[0]["@type"]).toBe("SportsTeam");
   await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /^Partidos y fixture de River Plate \(Liga E2E\): próximo partido /);
-  // docs/31 D6: los próximos partidos programados como SportsEvent, hasta 10, sin los ya jugados
+  // docs/33 D6: los próximos partidos programados como SportsEvent, hasta 10, sin los ya jugados
   const eventos = datosEquipo.filter((d) => d["@type"] === "SportsEvent");
   expect(eventos.length).toBeGreaterThan(0);
   expect(eventos.length).toBeLessThanOrEqual(10);
@@ -166,7 +166,7 @@ test("datos estructurados en liga y equipo, y sin JSON-LD en el resto", async ({
   expect(await jsonLd(page)).toEqual([]);
 });
 
-test("docs/31 T4-5: la página de equipo indexable no lleva noindex ni nosnippet", async ({ page }) => {
+test("docs/33 T4-5: la página de equipo indexable no lleva noindex ni nosnippet", async ({ page }) => {
   const res = await page.goto("/equipos/river");
   expect(res?.status()).toBe(200);
   expect(res?.headers()["x-robots-tag"] ?? "").not.toMatch(/noindex|nosnippet/);
@@ -175,7 +175,7 @@ test("docs/31 T4-5: la página de equipo indexable no lleva noindex ni nosnippet
   expect(await page.content()).not.toMatch(/nosnippet|max-snippet:0/);
 });
 
-test("docs/31 D8: un equipo sin ningún partido se sirve con noindex y queda fuera del sitemap", async ({ page, request }) => {
+test("docs/33 D8: un equipo sin ningún partido se sirve con noindex y queda fuera del sitemap", async ({ page, request }) => {
   const res = await page.goto("/equipos/sin-partidos");
   expect(res?.status()).toBe(200);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
