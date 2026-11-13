@@ -33,6 +33,8 @@ export const users = sqliteTable(
     // 'ok' | 'reauth_required': con 'reauth_required' el calendario perdió acceso y el sync lo salta
     // hasta que el usuario vuelva a iniciar sesión.
     calendarAuthStatus: text("calendar_auth_status").notNull().default("ok"),
+    // Cuándo terminó (o salteó) el onboarding de /bienvenida. NULL = todavía no lo vio (docs/31 D13).
+    onboardedAt: integer("onboarded_at", { mode: "timestamp" }),
   },
   (table) => ({
     calendarReconciledIdx: index("idx_users_calendar_reconciled").on(table.calendarReconciledAt),
@@ -227,6 +229,10 @@ export const calendarSyncs = sqliteTable(
     syncedState: text("synced_state"),
     syncedVenue: text("synced_venue"),
     errorMessage: text("error_message"),
+    // Hora del partido antes del último cambio de horario aplicado al evento, y cuándo se aplicó.
+    // La UI muestra «Horario actualizado» durante 7 días (docs/31 D6).
+    previousDateTime: integer("previous_date_time", { mode: "timestamp" }),
+    dateTimeChangedAt: integer("date_time_changed_at", { mode: "timestamp" }),
   },
   (table) => ({
     statusIdx: index("idx_calendar_syncs_status").on(table.status),
@@ -245,6 +251,8 @@ export const userPreferences = sqliteTable("user_preferences", {
   reminder60: integer("reminder_60", { mode: "boolean" }).notNull().default(true),
   reminder15: integer("reminder_15", { mode: "boolean" }).notNull().default(true),
   theme: text("theme").notNull().default("papel"), // 'papel' | 'nocturna'
+  // Valor inicial de user_teams.auto_sync al seguir un equipo (docs/31 D14)
+  autoSyncDefault: integer("auto_sync_default", { mode: "boolean" }).notNull().default(true),
 });
 
 // ============================================

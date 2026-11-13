@@ -10,6 +10,8 @@ CREATE TABLE `calendar_syncs` (
 	`synced_state` text,
 	`synced_venue` text,
 	`error_message` text,
+	`previous_date_time` integer,
+	`date_time_changed_at` integer,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`match_id`) REFERENCES `matches`(`id`) ON UPDATE no action ON DELETE cascade
 );
@@ -126,6 +128,7 @@ CREATE TABLE `user_preferences` (
 	`reminder_60` integer DEFAULT true NOT NULL,
 	`reminder_15` integer DEFAULT true NOT NULL,
 	`theme` text DEFAULT 'papel' NOT NULL,
+	`auto_sync_default` integer DEFAULT true NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -154,7 +157,8 @@ CREATE TABLE `users` (
 	`token_expires_at` integer,
 	`created_at` integer DEFAULT (strftime('%s', 'now')),
 	`calendar_reconciled_at` integer,
-	`calendar_auth_status` text DEFAULT 'ok' NOT NULL
+	`calendar_auth_status` text DEFAULT 'ok' NOT NULL,
+	`onboarded_at` integer
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint

@@ -3,6 +3,7 @@ import { createDb } from "../../../lib/db";
 import { userTeams, teams, leagues } from "../../../../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { withApi } from "../../../lib/observability/with-api";
+import { getPreferences } from "../../../lib/db/preferences";
 
 export const GET: APIRoute = withApi(async ({ locals }) => {
   const user = locals.user;
@@ -83,7 +84,7 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
     .values({
       userId: user.id,
       teamId,
-      autoSync: true,
+      autoSync: (await getPreferences(db, user.id)).autoSyncDefault,
     })
     .returning();
 
