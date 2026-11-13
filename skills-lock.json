@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "skills": {
+    "seo-geo-optimizer": {
+      "source": "Aryanpanwar10005/seo-geo-optimizer",
+      "sourceType": "github",
+      "skillPath": "skills/seo-geo-optimizer/SKILL.md",
+      "computedHash": "4c11b08c2eb7eaa5039c38e0badcd224a53491fc62cb59d190ec57939ebb1b23"
+    }
+  }
+}
