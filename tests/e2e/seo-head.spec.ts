@@ -67,6 +67,32 @@ test("fixture y explicación del calendario son útiles sin JavaScript", async (
     await expect(proximo.locator("time")).toHaveAttribute("datetime", /T.*Z$/);
     await expect(proximo.getByRole("link").first()).toHaveAttribute("href", /^\/partidos\//);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${BASE}/equipos/river`);
+
+    // docs/33: título y h1 con las dos formas de búsqueda, respuesta directa, resultados y calendario
+    await page.goto("/equipos/river");
+    await expect(page).toHaveTitle("Partidos y fixture de River Plate - FISTURE");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Fixture y partidos de River Plate");
+    await expect(proximo).toContainText(
+      /River Plate juega su próximo partido el [a-záé]+ \d+ de [a-z]+ a las \d{2}:\d{2} \(hora de Argentina\) contra Boca Juniors, de local, por Liga E2E, en el estadio Monumental\./
+    );
+    const resultados = page.getByRole("region", { name: "Últimos resultados", exact: true });
+    const filas = resultados.getByRole("listitem");
+    await expect(filas).toHaveCount(2);
+    await expect(filas.nth(0).getByRole("link")).toHaveAttribute("href", "/partidos/superclasico-ida");
+    await expect(filas.nth(0)).toContainText("vs Boca Juniors");
+    await expect(filas.nth(0)).toContainText(/ganó\s*2-1/i);
+    // Terminado sin marcador cargado: no se muestra ningún número de goles
+    await expect(filas.nth(1).getByRole("link")).toHaveAttribute("href", "/partidos/superclasico-sin-marcador");
+    await expect(filas.nth(1)).toContainText("Terminado");
+    await expect(filas.nth(1)).not.toContainText(/\d+-\d+/);
+    const calendario = page.getByRole("region", { name: "En tu calendario", exact: true });
+    await expect(calendario).toContainText("Si seguís a River Plate, sus partidos aparecen como eventos en tu Google Calendar u Outlook.");
+    await expect(calendario).toContainText("una hora antes de cada partido y otra vez 15 minutos antes");
+    await expect(calendario.locator('a[href="/calendario"]')).toBeVisible();
+    await expect(calendario.getByRole("link", { name: "Iniciá sesión", exact: true })).toHaveAttribute("href", "/login?next=%2Fequipos%2Friver");
+    // Un solo llamado a iniciar sesión para el calendario (el aviso viejo sobre la lista ya no está)
+    await expect(page.getByText("Iniciá sesión para agregar estos partidos a tu calendario.")).toHaveCount(0);
+
     await page.goto("/calendario");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tu fixture en Google Calendar y Outlook");
     await expect(page.getByRole("region", { name: "Cómo agregar los partidos a tu calendario" }).getByRole("listitem")).toHaveCount(4);
@@ -122,11 +148,48 @@ test("datos estructurados en liga y equipo, y sin JSON-LD en el resto", async ({
   expect((await jsonLd(page))[0]["@type"]).toBe("SportsOrganization");
 
   await page.goto("/equipos/river");
-  expect((await jsonLd(page))[0]["@type"]).toBe("SportsTeam");
-  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /^Fixture de /);
+  const datosEquipo = await jsonLd(page);
+  expect(datosEquipo[0]["@type"]).toBe("SportsTeam");
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /^Partidos y fixture de River Plate \(Liga E2E\): próximo partido /);
+  // docs/33 D6: los próximos partidos programados como SportsEvent, hasta 10, sin los ya jugados
+  const eventos = datosEquipo.filter((d) => d["@type"] === "SportsEvent");
+  expect(eventos.length).toBeGreaterThan(0);
+  expect(eventos.length).toBeLessThanOrEqual(10);
+  expect(eventos.map((e) => e.url)).toContain(`${BASE}/partidos/superclasico`);
+  expect(eventos.map((e) => e.url)).not.toContain(`${BASE}/partidos/superclasico-ida`);
+  expect(eventos.every((e) => e.eventStatus === "https://schema.org/EventScheduled")).toBe(true);
+  // El filtro ?lado= no cambia los datos estructurados: River es local en el superclásico
+  await page.goto("/equipos/river?lado=visitante");
+  expect((await jsonLd(page)).filter((d) => d["@type"] === "SportsEvent").map((e) => e.url)).toEqual(eventos.map((e) => e.url));
 
   await page.goto("/ligas");
   expect(await jsonLd(page)).toEqual([]);
+});
+
+test("docs/33 T4-5: la página de equipo indexable no lleva noindex ni nosnippet", async ({ page }) => {
+  const res = await page.goto("/equipos/river");
+  expect(res?.status()).toBe(200);
+  expect(res?.headers()["x-robots-tag"] ?? "").not.toMatch(/noindex|nosnippet/);
+  await expect(page.locator('meta[name="robots"], meta[name="googlebot"], meta[name="bingbot"]')).toHaveCount(0);
+  await expect(page.locator("[data-nosnippet]")).toHaveCount(0);
+  expect(await page.content()).not.toMatch(/nosnippet|max-snippet:0/);
+});
+
+test("docs/33 D8: un equipo sin ningún partido se sirve con noindex y queda fuera del sitemap", async ({ page, request }) => {
+  const res = await page.goto("/equipos/sin-partidos");
+  expect(res?.status()).toBe(200);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+  await expect(page.getByRole("region", { name: "Próximo partido", exact: true })).toContainText(
+    "Equipo sin partidos todavía no tiene un próximo partido confirmado. Aparece acá apenas se confirme el fixture."
+  );
+  await expect(page.getByRole("region", { name: "Últimos resultados", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "En tu calendario", exact: true })).toBeVisible();
+  const datos = await jsonLd(page);
+  expect(datos.filter((d) => d["@type"] === "SportsEvent")).toEqual([]);
+
+  const sitemap = await (await request.get("/sitemap.xml")).text();
+  expect(sitemap).not.toContain(`<loc>${BASE}/equipos/sin-partidos</loc>`);
+  expect(sitemap).toContain(`<loc>${BASE}/equipos/boca</loc>`);
 });
 
 test("llms.txt y sitemap con páginas dinámicas", async ({ request }) => {
