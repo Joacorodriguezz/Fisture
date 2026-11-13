@@ -1,4 +1,4 @@
-import { eq, and, gte, lt, or, inArray, asc, exists } from "drizzle-orm";
+import { eq, and, gte, lt, or, inArray, asc, desc, exists } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import {
   matches,
@@ -63,6 +63,27 @@ export async function getUpcomingMatches(
 // Partidos próximos de un equipo, sin importar quién lo sigue
 export async function getTeamUpcomingMatches(db: Database, teamId: string, limit = 50) {
   return getMatchesForTeams(db, [teamId], limit);
+}
+
+// Últimos resultados de un equipo (docs/31 D3): partidos terminados y ya jugados, del más reciente al
+// más antiguo. El OR por local y visitante va por idx_matches_home_team e idx_matches_away_team (lee
+// solo los partidos del equipo) y ordena esas pocas filas; no recorre idx_matches_date hacia atrás.
+export async function getTeamRecentMatches(db: Database, teamId: string, limit = 5, ahora = new Date()) {
+  return db
+    .select({ match: matches, homeTeam: teams, awayTeam: awayTeams, league: leagues })
+    .from(matches)
+    .innerJoin(teams, eq(matches.homeTeamId, teams.id))
+    .innerJoin(awayTeams, eq(matches.awayTeamId, awayTeams.id))
+    .innerJoin(leagues, eq(matches.leagueId, leagues.id))
+    .where(
+      and(
+        or(eq(matches.homeTeamId, teamId), eq(matches.awayTeamId, teamId)),
+        eq(matches.status, "finished"),
+        lt(matches.dateTime, ahora)
+      )
+    )
+    .orderBy(desc(matches.dateTime), desc(matches.id))
+    .limit(limit);
 }
 
 // D1 admite máximo 100 parámetros por consulta. Cada equipo se usa como local y como visitante,
@@ -223,20 +244,32 @@ export function getLigasPublicas(db: Database) {
     .orderBy(asc(leagues.name));
 }
 
-// Páginas públicas dinámicas para el sitemap: ligas activas, sus equipos y los partidos
-// de los próximos días (los pasados se dejan de listar; la página sigue existiendo).
+// Páginas públicas dinámicas para el sitemap: ligas activas, sus equipos con algún partido y los
+// partidos de los próximos días (los pasados se dejan de listar; la página sigue existiendo).
 // Sin fechas de modificación: las páginas de equipo y de partido dependen de varias tablas (ver sitemap.xml.ts).
 export async function getPaginasPublicas(db: Database, ahora: Date = new Date(), dias = 60) {
   const hasta = new Date(ahora.getTime() + dias * 24 * 60 * 60 * 1000);
 
   const ligas = await getLigasPublicas(db);
 
+  // Un equipo sin ningún partido por jugar ni terminado va con noindex (docs/31 D8): misma condición
+  // que equipos/[id].astro (lista de próximos de cualquier estado + últimos resultados)
+  const conPartidos = db
+    .select({ id: matches.id })
+    .from(matches)
+    .where(
+      and(
+        or(eq(matches.homeTeamId, teams.id), eq(matches.awayTeamId, teams.id)),
+        or(gte(matches.dateTime, ahora), eq(matches.status, "finished"))
+      )
+    );
+
   const equipos = await db
     .selectDistinct({ id: teams.id })
     .from(leagueTeams)
     .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
     .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))
-    .where(and(eq(leagues.isActive, true), eq(leagues.isFeatured, true)))
+    .where(and(eq(leagues.isActive, true), eq(leagues.isFeatured, true), exists(conPartidos)))
     .orderBy(asc(teams.id));
 
   const partidos = await db

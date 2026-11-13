@@ -9,7 +9,7 @@ import { AHORA, DIA_MS, relojFijo } from "../../helpers/clock";
 import { createDb } from "../../../src/lib/db";
 import { syncSingleLeague } from "../../../src/lib/data-providers/sync";
 import { checkConsistency } from "../../../src/lib/observability/consistency";
-import { getMatchCountsByDay, getMatchesInRange, getTeamUpcomingMatches } from "../../../src/lib/db/queries";
+import { getMatchCountsByDay, getMatchesInRange, getPaginasPublicas, getTeamRecentMatches, getTeamUpcomingMatches } from "../../../src/lib/db/queries";
 
 interface Consulta {
   sql: string;
@@ -110,5 +110,33 @@ describe("planes de las consultas calientes", () => {
     );
     expect(consultas).toHaveLength(3);
     await sinRecorrerMatches(consultas);
+  });
+
+  // docs/31 D3: los últimos resultados de un equipo van por los índices de local y visitante, no por
+  // idx_matches_date (recorrería hacia atrás los partidos jugados de todos los equipos)
+  it("los últimos resultados de un equipo usan los índices de local y visitante", async () => {
+    const [equipo] = (await t.DB.prepare("SELECT id FROM teams LIMIT 1").all<{ id: string }>()).results;
+    const [consulta] = await capturar(
+      (DB) => getTeamRecentMatches(createDb(DB), equipo.id),
+      (sql) => sql.includes('from "matches"')
+    );
+    const pasos = (await plan(consulta)).join("\n");
+    expect(pasos).not.toMatch(/^SCAN (matches|m)\b/m);
+    expect(pasos).toContain("idx_matches_home_team");
+    expect(pasos).toContain("idx_matches_away_team");
+  });
+
+  // docs/31 D8: el sitemap deja afuera a los equipos sin partidos con un EXISTS por índice, en la
+  // misma consulta de equipos (no una consulta por equipo)
+  it("el sitemap busca los partidos de cada equipo por índice", async () => {
+    const consultas = await capturar(
+      (DB) => getPaginasPublicas(createDb(DB), AHORA),
+      (sql) => sql.includes('from "league_teams"') && sql.includes('from "matches"')
+    );
+    expect(consultas).toHaveLength(1);
+    const pasos = (await plan(consultas[0])).join("\n");
+    expect(pasos).not.toMatch(/^SCAN (matches|m)\b/m);
+    expect(pasos).toContain("idx_matches_home_team");
+    expect(pasos).toContain("idx_matches_away_team");
   });
 });

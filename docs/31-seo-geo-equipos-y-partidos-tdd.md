@@ -211,4 +211,31 @@ de equipo después de cada despliegue y exportar Search Console una vez por sema
 
 ## 10. Notas de implementación
 
-_(vacío hasta la implementación)_
+### Paso 1 · `feat(seo): refuerza la página de equipo`
+
+- Textos en un módulo puro nuevo, `src/lib/seo-equipo.ts` (título, `<h1>`, descripción, respuesta
+  directa, resultado desde el lado del equipo y eventos del JSON-LD), sumado a la cobertura de
+  `vitest.config.ts`. La página `equipos/[id].astro` solo lo llama con los datos de D1.
+- D2: la competencia va **sin artículo** ("por Liga Profesional Argentina", no "por la ..."): con
+  "La Liga", "Brasileirão" o "Mundial de Clubes" un artículo fijo queda mal. Una sede que ya se nombra
+  como estadio ("Estadio Monumental", "Emirates Stadium") no repite la palabra. Sin próximo partido
+  programado (también si solo hay postergados) la oración dice "todavía no tiene un próximo partido
+  confirmado" y, si existe, nombra el último resultado ("y ganó 2 a 0"); sin marcador lo omite.
+- D3: `getTeamRecentMatches(db, teamId, limit = 5, ahora)` trae `status = 'finished'` con
+  `date_time < ahora` (un "terminado" con fecha futura no cuenta). Plan: `MULTI-INDEX OR` sobre
+  `idx_matches_home_team` e `idx_matches_away_team` y `TEMP B-TREE` para ordenar las filas del equipo;
+  no usa `idx_matches_date`. En la lista el marcador va desde el lado del equipo ("Ganó 2-1"); sin los
+  dos goles se muestra "Terminado". La sección solo aparece si hay resultados.
+- D5: bloque "En tu calendario" entre el próximo partido y la lista, con enlace a `/calendario` y, sin
+  sesión, el botón "Iniciá sesión". Reemplaza al aviso `.eq-aviso` (la clase pasa a `.eq-calendario`).
+  El enlace a `/calendario` que estaba al pie del próximo partido se mudó al bloque.
+- D6: los `SportsEvent` van como scripts JSON-LD aparte (después del `SportsTeam`, antes de las migas),
+  solo los de estado `scheduled`, tope 10, sobre la lista sin filtrar por `?lado=`.
+- D8: "sin partidos" = ninguno por jugar (cualquier estado, como la lista de próximos) y ninguno
+  terminado. El sitemap usa la misma condición con un `EXISTS` correlacionado dentro de la consulta de
+  equipos (una sola consulta, también por los índices de local y visitante). Por cada equipo lee sus
+  partidos hasta encontrar uno que califique: más filas leídas que antes, pero acotadas por equipo.
+- T2-12: sin cambios. El escudo conserva `alt=""` porque siempre va junto al nombre del equipo
+  (criterio de docs/30); un texto alternativo repetiría el nombre a los lectores de pantalla.
+- T4-5: E2E que verifica que `/equipos/river` no lleva `noindex`, `nosnippet`, `data-nosnippet` ni
+  `X-Robots-Tag`. El servidor de E2E siembra dos resultados de River y un equipo sin partidos.
