@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { diaISO } from "../../src/lib/format";
+import { diaISO, horaConDia, horaPorPais, listaConY } from "../../src/lib/format";
 
 const BASE = "http://127.0.0.1:4322";
 
@@ -134,7 +134,7 @@ test("datos estructurados: sitio en la home, SportsEvent en el partido", async (
 });
 
 test("descripciones de hasta 160 caracteres, sin undefined ni null", async ({ page }) => {
-  for (const ruta of ["/", "/partidos/superclasico", "/equipos/river", "/ligas/e2e-league", "/partidos/neutral-match"]) {
+  for (const ruta of ["/", "/partidos/superclasico", "/partidos/superclasico-ida", "/partidos/superclasico-sin-marcador", "/equipos/river", "/ligas/e2e-league", "/partidos/neutral-match"]) {
     await page.goto(ruta);
     const descripcion = (await page.locator('meta[name="description"]').getAttribute("content")) ?? "";
     expect(descripcion.length, ruta).toBeGreaterThan(50);
@@ -265,4 +265,69 @@ test("docs/29: meta de verificación de Search Console si está configurada, y l
   await page.goto("/ligas");
   await expect(page.locator('meta[name="google-site-verification"]')).toHaveAttribute("content", "e2e-google-verificacion");
   await expect(page.locator('meta[name="msvalidate.01"]')).toHaveCount(0);
+});
+
+test("docs/33 paso 2: el partido responde, muestra el resultado y la hora por país sin JavaScript", async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL: BASE });
+  try {
+    await context.route(/https?:\/\//, (route) => new URL(route.request().url()).hostname === "127.0.0.1" ? route.continue() : route.abort());
+    const page = await context.newPage();
+    const ficha = page.getByRole("complementary").filter({ hasText: "Ficha del partido" });
+    const horas = page.getByRole("region", { name: "Hora en cada país", exact: true });
+    const fixtures = page.getByRole("navigation", { name: "Fixture de los equipos", exact: true });
+
+    // Programado: respuesta directa, horas por país calculadas con la zona de cada país y enlaces a los fixtures
+    await page.goto("/partidos/superclasico");
+    await expect(page.locator(".fp-respuesta")).toHaveText(
+      /^River Plate y Boca Juniors juegan el [a-záé]+ \d+ de [a-z]+ a las \d{2}:\d{2} \(hora de Argentina\) por Liga E2E, en el estadio Monumental\.$/
+    );
+    const [evento] = await jsonLd(page);
+    const esperado = horaPorPais(new Date(evento.startDate)).map((g) => `${horaConDia(g)} ${listaConY(g.paises)}`);
+    await expect(horas.getByRole("listitem")).toHaveText(esperado);
+    // Argentina primero, con Uruguay y Brasil (y Chile y Paraguay cuando comparten hora)
+    await expect(horas.getByRole("listitem").first()).toContainText(/^\s*\d{2}:\d{2}\s+Argentina, Uruguay/);
+    await expect(horas).toContainText("España (península)");
+    await expect(fixtures.getByRole("link", { name: "Fixture y partidos de River Plate", exact: true })).toHaveAttribute("href", "/equipos/river");
+    await expect(fixtures.getByRole("link", { name: "Fixture y partidos de Boca Juniors", exact: true })).toHaveAttribute("href", "/equipos/boca");
+    await expect(ficha).not.toContainText("Resultado:");
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /Agregalo a tu calendario/);
+
+    // Terminado con marcador (Boca 1, River 2): resultado en la ficha y junto al titular, sin hablar en futuro
+    await page.goto("/partidos/superclasico-ida");
+    await expect(page.locator(".fp-respuesta")).toHaveText(
+      /^River Plate le ganó 2 a 1 a Boca Juniors el [a-záé]+ \d+ de [a-z]+, por Liga E2E, en el estadio La Bombonera\.$/
+    );
+    await expect(ficha).toContainText("Resultado: Boca Juniors 1, River Plate 2");
+    await expect(ficha).toContainText("Estado: Finalizado");
+    await expect(page.locator(".fp-marcador")).toHaveText(/^1\s*-\s*2$/);
+    const descripcion = (await page.locator('meta[name="description"]').getAttribute("content")) ?? "";
+    expect(descripcion).toMatch(/^Boca Juniors 1-2 River Plate por Liga E2E: se jugó el [a-záé]+ \d+ de [a-z]+ a las \d{2}:\d{2} \(hora argentina\) en La Bombonera\./);
+    expect(descripcion).not.toContain("Agregalo");
+    // Un partido terminado conserva la hora por país: dice cuándo se jugó en cada lugar
+    const [jugado] = await jsonLd(page);
+    await expect(horas.getByRole("listitem")).toHaveText(
+      horaPorPais(new Date(jugado.startDate)).map((g) => `${horaConDia(g)} ${listaConY(g.paises)}`)
+    );
+
+    // Terminado sin marcador: no se inventa
+    await page.goto("/partidos/superclasico-sin-marcador");
+    await expect(page.locator(".fp-respuesta")).toContainText("El resultado todavía no está cargado.");
+    await expect(ficha).not.toContainText("Resultado:");
+    await expect(page.locator(".fp-marcador")).toHaveCount(0);
+    await expect(page.getByText("VS", { exact: true })).toBeVisible();
+
+    // Cancelado: lo dice y no muestra horas por país
+    await page.goto("/partidos/desktop-calendar-states-0-cancelled");
+    await expect(page.locator(".fp-respuesta")).toHaveText(/fue cancelado\.$/);
+    await expect(horas).toHaveCount(0);
+
+    // Equipo: hora por país del próximo partido, y la lista sigue en hora de Argentina
+    await page.goto("/equipos/river");
+    const proximo = page.getByRole("region", { name: "Próximo partido", exact: true });
+    const compacto = esperado.map((t) => t.replace(/^(\d{2}:\d{2}(?: del [a-záé]+)?) /, "$1 en ")).join("; ");
+    await expect(proximo.locator(".eq-horas")).toHaveText(`Hora en cada país: ${compacto}.`);
+    await expect(proximo).toContainText("Los horarios de la lista de próximos partidos están en hora de Argentina (UTC−3).");
+  } finally {
+    await context.close();
+  }
 });
