@@ -26,7 +26,7 @@ Los horarios se muestran en hora de Argentina (UTC-3). Los datos de partidos se 
 
 ## Ligas y copas
 
-${ligas.map((l) => `- [${escaparMarkdown(l.name)}](${base}${rutaPublica("ligas", l.id)}) (${escaparMarkdown(l.country)})`).join("\n")}
+${ligas.map((l) => `- [${escaparMarkdown(l.name)}](${base}${rutaPublica("ligas", l)}) (${escaparMarkdown(l.country)})`).join("\n")}
 
 ## Optional
 

@@ -4,12 +4,12 @@ import Volanta from "../../components/tribuna/Volanta.astro";
 import Titular from "../../components/tribuna/Titular.astro";
 import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
 import FiltroEquipos from "../../components/islands/FiltroEquipos";
-import { getLeagueUpcomingMatches } from "../../lib/db/queries";
+import { getLeagueBySlugOrId, getLeagueUpcomingMatches } from "../../lib/db/queries";
 import { fechaLarga, hora } from "../../lib/format";
 import { createDb } from "../../lib/db";
 import { asc, eq } from "drizzle-orm";
-import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
-import { jsonLdLiga, jsonLdMigas, rutaPublica } from "../../lib/seo";
+import { leagueTeams, teams, userTeams } from "../../../drizzle/schema";
+import { jsonLdLiga, jsonLdMigas, redireccionASlug, rutaPublica } from "../../lib/seo";
 
 // Página pública: sin sesión nadie "sigue" ningún equipo
 const user = Astro.locals.user;
@@ -21,17 +21,23 @@ if (!id) {
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
-const liga = await db.query.leagues.findFirst({ where: eq(leagues.id, id) });
+// El parámetro es el slug (/ligas/liga-profesional-argentina) o el id de las URLs viejas (docs/33 D9)
+const liga = await getLeagueBySlugOrId(db, id);
 if (!liga) {
   return Astro.rewrite("/404");
+}
+// Por id y con slug: 301 a la URL con nombre, con el mismo query string
+const destino = redireccionASlug("ligas", id, liga, Astro.url.search);
+if (destino) {
+  return Astro.redirect(destino, 301);
 }
 
 // Participantes de la competencia (incluye equipos de otras ligas en las copas)
 const equiposLiga = await db
-  .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo })
+  .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo, slug: teams.slug })
   .from(leagueTeams)
   .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
-  .where(eq(leagueTeams.leagueId, id))
+  .where(eq(leagueTeams.leagueId, liga.id))
   .orderBy(asc(teams.name));
 
 const seguidos = new Set(
@@ -44,6 +50,7 @@ const seguidos = new Set(
 
 const items = equiposLiga.map((t) => ({
   id: t.id,
+  ruta: rutaPublica("equipos", t),
   nombre: t.name,
   logo: t.logo,
   sigla: t.shortName,
@@ -64,7 +71,7 @@ const jsonLd = [
   jsonLdLiga(appUrl, liga, equiposLiga),
   jsonLdMigas(appUrl, [
     { nombre: "Ligas", ruta: "/ligas" },
-    { nombre: liga.name, ruta: rutaPublica("ligas", liga.id) },
+    { nombre: liga.name, ruta: rutaPublica("ligas", liga) },
   ]),
 ];
 ---

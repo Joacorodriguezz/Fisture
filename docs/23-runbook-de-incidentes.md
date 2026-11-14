@@ -150,6 +150,25 @@ a las 00:00 UTC (21:00 en Argentina).
   un camino de código que guarda tokens sin cifrar, que es justo lo que este diseño evita (docs/15 D6), para
   cubrir un rollback que ocurre una vez y cuyo costo ya es acotado.
 
+### URLs con nombre de equipos y ligas: backfill de slugs (docs/33 D9)
+
+- **Cuándo**: una vez, después del deploy que trae la migración `0016_slugs_equipos_ligas` (primero en
+  staging, después en producción). Hasta entonces todo funciona por id, como antes. Después del backfill
+  las URLs con id responden 301 a la URL con nombre.
+- **Cómo**: repetir hasta que `pendientes` sea `0` (cada llamada asigna hasta 100 filas, ligas primero):
+  `curl -X POST "https://fisture.com/api/admin/slugs" -H "Authorization: Bearer $ADMIN_SECRET" -H "Content-Type: application/json" -d "{}"`
+  (sin Content-Type, la protección CSRF de Astro responde 403). Responde
+  `{ asignados: { ligas, equipos }, pendientes, pendientesPorTabla }`. Es idempotente y nunca cambia un slug
+  asignado: repetirlo es seguro. Un 500 aislado puede ser un choque con un equipo que el sync creó en el
+  mismo momento: volver a llamar (no correrlo mientras corre el sync diario).
+- **Verificar**: `/sitemap.xml` lista `/equipos/<nombre>`; `/equipos/<uuid>?lado=local` responde 301 a
+  `/equipos/<nombre>?lado=local`. Un nombre sin letras ni números latinos no recibe slug y queda por id (no
+  cuenta en `pendientes`).
+- **Equipos nuevos**: el sync les asigna slug al crearlos; las competencias sin slug lo reciben en el sync.
+  No hace falta repetir el backfill salvo que se carguen filas a mano.
+- **No cambiar un slug a mano**: es la URL pública y Google la tiene indexada. Si un slug quedó mal, decidirlo
+  aparte (la URL vieja dejaría de responder).
+
 ### Un usuario legítimo queda limitado (429 `rate_limited`) o bloqueado por origen (403 `forbidden_origin`)
 
 Diseño: `docs/16`. El usuario ve "Demasiados intentos. Probá de nuevo en N segundos" (429 con `Retry-After`).

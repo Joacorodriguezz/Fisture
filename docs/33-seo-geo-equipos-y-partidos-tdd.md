@@ -1,6 +1,6 @@
 # 33 · SEO y GEO de equipos y partidos (TDD y plan de ejecución)
 
-Estado: **aprobado el 13/11/2026; implementación pendiente**. Incluye D7 y D9, aprobadas por separado.
+Estado: **aprobado el 13/11/2026; pasos 1 a 3 implementados**. Incluye D7 y D9, aprobadas por separado.
 Continúa `docs/29` y `docs/30-plan-seo-antes-del-release-tdd.md`. Generado con la skill
 `seo-geo-optimizer` (fases 1 a 4: cuestionario, competidores, mapa de palabras clave y este plan).
 
@@ -192,9 +192,22 @@ de equipo después de cada despliegue y exportar Search Console una vez por sema
 
 - Los pasos 1, 2 y 4 son cambios de plantilla sin migración ni variables nuevas: se revierten con un
   revert del PR.
-- El paso 3 agrega una migración de D1 (columna con índice único y backfill). Las URLs con UUID siguen
-  respondiendo con 301, así que no se rompen enlaces ni eventos de calendario ya creados. Revertirlo
-  exige dejar las 301 en sentido inverso; por eso va en un PR propio.
+- El paso 3 agrega la migración `0016_slugs_equipos_ligas` (columna `slug` nullable con índice único en
+  `teams` y `leagues`, sin backfill en SQL). Las URLs con UUID siguen respondiendo (con 301 cuando la fila ya
+  tiene slug), así que no se rompen enlaces ni eventos de calendario ya creados. Orden real:
+  1. **Migración** (la aplica `deploy.yml` antes de desplegar; es aditiva y el código anterior la ignora).
+  2. **Deploy**. Hasta el backfill todo sigue igual que hoy: canónicas, sitemap y enlaces usan el id porque
+     ninguna fila tiene slug (salvo competencias o equipos que el sync cree o atienda en el medio).
+  3. **Backfill**: `POST /api/admin/slugs` (Bearer `ADMIN_SECRET`, `Content-Type: application/json`) repetido
+     hasta `pendientes: 0` (~900 filas a 100 por llamada: unas 9 llamadas; docs/23 §6). Primero en staging.
+  4. **Verificación**: `/sitemap.xml` con URLs con nombre; una URL vieja (`/equipos/<uuid>?lado=local`)
+     responde 301 a `/equipos/<slug>?lado=local`; la canónica de la página con nombre es ella misma; pedir la
+     indexación de 5 a 10 equipos en Search Console.
+- Rollback: el código anterior no entiende slugs, y los navegadores y Google guardan las 301. Revertir el PR
+  después del backfill deja 404 en las URLs con nombre ya compartidas. Si hiciera falta, lo seguro es un
+  revert parcial que conserve la búsqueda por slug o id en `equipos/[id].astro` y `ligas/[id].astro` y quite
+  la redirección; la columna y los slugs quedan (no molestan al código anterior). Antes del backfill, un
+  revert simple alcanza.
 - Staging sigue sin indexarse. La verificación en producción es el smoke de solo lectura de `deploy.yml`
   más la inspección de URLs en Search Console.
 
@@ -283,3 +296,53 @@ de equipo después de cada despliegue y exportar Search Console una vez por sema
 - Verificación: además de `npm run check`, se corre `npm run test:ux` (auditoría de UI), que es una
   suite aparte. En el paso 1 no se corrió y el CI falló por un test que buscaba el aviso viejo
   "Agregar al calendario"; se corrigió en un commit de tests del mismo PR.
+
+### Paso 3 · `feat(seo): usa el nombre en la URL de equipos`
+
+- **Migración `0016_slugs_equipos_ligas`** escrita a mano, como 0009 a 0015: `db:generate` no sirve en este
+  repo (el snapshot de drizzle-kit quedó en la 0000 y generaría el esquema entero). El cambio del esquema se
+  cubre con `drizzle/schema.ts` y el snapshot `esquema-drizzle.sql` (índices `teams_slug_idx` y
+  `leagues_slug_idx`). Solo `ALTER TABLE ... ADD COLUMN slug TEXT` y `CREATE UNIQUE INDEX`; sin backfill.
+- **Reglas puras en `src/lib/slug.ts`** (sumado a la cobertura): `slugificar` (minúsculas, NFD sin
+  diacríticos, además `ß`→`ss`, `ø`→`o`, `æ`→`ae`, `ł`→`l` y similares que NFD no separa; todo lo demás a
+  `-`), `resolverSlug` (base → `base-país` → `base-2`, `base-3`…; sin repetir el país si el nombre ya termina
+  con él), `asignarSlugs` (en orden, reserva cada slug para las filas siguientes). Reservados: la forma de
+  UUID, `buscar` e `index` (las únicas rutas fijas bajo `/equipos/` y `/ligas/` son `buscar.astro` e
+  `index.astro`). Ejemplos: "Newell's Old Boys" → `newells-old-boys` (el apóstrofe se quita, como en
+  `ohiggins`), "Liverpool" de Uruguay con el inglés ya cargado → `liverpool-uruguay`, un tercer "Nacional"
+  sin país → `nacional-2`.
+- **Ocupados por índice** (`src/lib/db/slugs.ts`): para cada slug base se leen las filas con `slug` o `id` en
+  `[base, base.)`, que es exactamente la base y sus variantes `base-…` (`.` ordena justo después de `-`). Se
+  miran también los ids porque la página busca `slug = ? OR id = ?`: un slug no puede ser el id de otra fila.
+  25 bases por sentencia (4 parámetros cada una). Sin `LIKE` ni `SCAN` (test de planes).
+- **Orden ante nombres repetidos**: el backfill recorre por `rowid` (orden de alta). El equipo cargado
+  primero, que suele ser el de la liga que el sync recorre antes, se queda con el slug sin sufijo.
+- **Nombre sin slug posible**: queda con la URL por id. El backfill solo toma filas con alguna letra o número
+  ASCII (`name GLOB '*[A-Za-z0-9]*'`), así `pendientes` siempre llega a 0.
+- **Sync**: equipos nuevos llevan el slug en el mismo `INSERT` (una lectura de ocupados cada 25 nombres
+  nuevos, solo si hay equipos nuevos; cero escrituras extra). El `INSERT` de equipos pasó a
+  `onConflictDoNothing({ target: external_id })`: un choque de slug falla a la vista en lugar de descartar el
+  equipo en silencio, y la tanda pasó de 12 a 11 filas por el parámetro nuevo. A los equipos existentes sin
+  slug el sync no les asigna: eso es del backfill, para no sumar subrequests al lote (docs/22 D4). Las
+  competencias sí: el upsert devuelve el slug y las que no tienen se resuelven juntas al final de la
+  invocación (una lectura y un batch; nada si todas tienen). Si eso falla se loguea `sync_slug_ligas_fallo`
+  y el sync sigue. El slug no está en el `SET` del upsert: renombrar una competencia no lo cambia.
+- **Backfill `POST /api/admin/slugs`**: Bearer `ADMIN_SECRET`, `withApi` con `rateLimit: []` como
+  `encrypt-tokens` (los Bearer inválidos caen en `admin_fail`). Hasta 100 filas por llamada (ligas primero),
+  escrituras condicionales `WHERE id = ? AND slug IS NULL`. Responde
+  `{ asignados: { ligas, equipos }, pendientes, pendientesPorTabla }`. Sin cursor: las filas resueltas salen
+  solas de la consulta. Unas 10 subrequests por llamada.
+- **Rutas**: `getTeamBySlugOrId` / `getLeagueBySlugOrId` (una consulta, `MULTI-INDEX OR`, `LIMIT 2`; si el
+  slug de una fila fuera el id de otra gana la del slug). `redireccionASlug` en `seo.ts` decide: por id y con
+  slug → `Astro.redirect(..., 301)` con `Astro.url.search`; por slug o sin slug → la página; inexistente →
+  `Astro.rewrite("/404")` como antes. El resto de la página usa `team.id` / `liga.id`, no el parámetro.
+- **`rutaPublica`** ahora recibe `{ id, slug }` para equipos y ligas (sobrecargas de TypeScript: pasar un id
+  suelto no compila) y un id para partidos. Pasan por ella: canónica (vía `Astro.url.pathname`), JSON-LD,
+  migas, sitemap, `llms.txt`, home, ficha del partido, `/ligas`, `/ligas/[id]`, `/equipos/buscar` y la isla
+  `FiltroEquipos` (recibe `ruta` armada en el servidor; no importa `seo.ts` al cliente). `getPaginasPublicas`,
+  `getLigasPublicas`, `getEquiposParaExplorar` y las listas de equipos suman la columna `slug`; las que ya
+  traían la fila completa no cambian. `GET /api/equipos/buscar` devuelve `slug` y `league.slug` (ninguna
+  isla la consume hoy). Los eventos de calendario no enlazan a `/equipos/` ni `/ligas/`: no se tocaron.
+- **E2E**: en el servidor de E2E, River, Boca y `e2e-league` tienen slug igual al id (las ~270 pruebas que
+  navegan a `/equipos/river` siguen igual); `neutral-league` → `liga-neutral` y `neutral-home` →
+  `equipo-neutral-local` prueban la 301 y los enlaces; `neutral-away` y `sin-partidos` quedan sin slug.

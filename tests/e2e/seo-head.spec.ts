@@ -202,6 +202,60 @@ test("llms.txt y sitemap con páginas dinámicas", async ({ request }) => {
   expect(sitemap).toContain(`<loc>${BASE}/equipos/river</loc>`);
 });
 
+test.describe("docs/33 D9: URLs con nombre de equipos y ligas", () => {
+  test("la URL con id responde 301 a la URL con nombre, conservando el query string", async ({ request }) => {
+    const equipo = await request.get("/equipos/neutral-home?lado=local", { maxRedirects: 0 });
+    expect(equipo.status()).toBe(301);
+    expect(new URL(equipo.headers()["location"], BASE).pathname + new URL(equipo.headers()["location"], BASE).search).toBe("/equipos/equipo-neutral-local?lado=local");
+
+    const liga = await request.get("/ligas/neutral-league", { maxRedirects: 0 });
+    expect(liga.status()).toBe(301);
+    expect(new URL(liga.headers()["location"], BASE).pathname).toBe("/ligas/liga-neutral");
+  });
+
+  test("por slug se sirve la página con la canónica, las migas y el JSON-LD con nombre", async ({ page }) => {
+    const res = await page.goto("/equipos/equipo-neutral-local");
+    expect(res?.status()).toBe(200);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${BASE}/equipos/equipo-neutral-local`);
+    await expect(page.locator(".eq-mig").getByRole("link", { name: "Liga neutral" })).toHaveAttribute("href", "/ligas/liga-neutral");
+    const datos = await jsonLd(page);
+    const equipo = datos.find((d) => d["@type"] === "SportsTeam");
+    expect(equipo).toMatchObject({ url: `${BASE}/equipos/equipo-neutral-local`, memberOf: { url: `${BASE}/ligas/liga-neutral` } });
+    const migas = datos.find((d) => d["@type"] === "BreadcrumbList");
+    expect(migas.itemListElement.map((i: { item: string }) => i.item)).toEqual([`${BASE}/ligas`, `${BASE}/ligas/liga-neutral`, `${BASE}/equipos/equipo-neutral-local`]);
+
+    await page.goto("/ligas/liga-neutral");
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${BASE}/ligas/liga-neutral`);
+  });
+
+  test("un equipo sin slug sigue funcionando por id y el partido enlaza a cada equipo por su URL pública", async ({ page }) => {
+    const res = await page.goto("/equipos/neutral-away");
+    expect(res?.status()).toBe(200);
+    expect(res?.request().redirectedFrom()).toBeNull();
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${BASE}/equipos/neutral-away`);
+
+    await page.goto("/partidos/neutral-match");
+    const main = page.getByRole("main");
+    await expect(main.locator('a[href="/equipos/equipo-neutral-local"]').first()).toBeVisible();
+    await expect(main.locator('a[href="/equipos/neutral-away"]').first()).toBeVisible();
+    await expect(main.locator('a[href="/equipos/neutral-home"]')).toHaveCount(0);
+    const partido = (await jsonLd(page)).find((d) => d["@type"] === "SportsEvent");
+    expect(partido.homeTeam.url).toBe(`${BASE}/equipos/equipo-neutral-local`);
+    expect(partido.superEvent.url).toBe(`${BASE}/ligas/liga-neutral`);
+  });
+
+  // Los equipos neutrales no participan de ninguna liga (sin league_teams), así que no entran al sitemap:
+  // la URL de equipo con slug o sin slug en el sitemap se prueba en tests/integration/seo/sitemap-llms.test.ts
+  test("el sitemap y llms.txt usan el slug de la liga en lugar del id", async ({ request }) => {
+    const sitemap = await (await request.get("/sitemap.xml")).text();
+    expect(sitemap).toContain(`<loc>${BASE}/ligas/liga-neutral</loc>`);
+    expect(sitemap).not.toContain(`<loc>${BASE}/ligas/neutral-league</loc>`);
+    const llms = await (await request.get("/llms.txt")).text();
+    expect(llms).toContain(`](${BASE}/ligas/liga-neutral)`);
+    expect(llms).not.toContain("/ligas/neutral-league");
+  });
+});
+
 test("ayuda: preguntas frecuentes con FAQPage y enlazada desde el pie", async ({ page }) => {
   await page.goto("/ligas");
   await page.getByRole("contentinfo").getByRole("link", { name: "Ayuda", exact: true }).click();

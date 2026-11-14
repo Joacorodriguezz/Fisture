@@ -36,10 +36,12 @@ CREATE TABLE `leagues` (
 	`season` integer NOT NULL,
 	`source` text DEFAULT 'football-data' NOT NULL,
 	`is_active` integer DEFAULT true,
-	`is_featured` integer DEFAULT true NOT NULL
+	`is_featured` integer DEFAULT true NOT NULL,
+	`slug` text
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `leagues_external_id_unique` ON `leagues` (`external_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `leagues_slug_idx` ON `leagues` (`slug`);--> statement-breakpoint
 CREATE TABLE `matches` (
 	`id` text PRIMARY KEY NOT NULL,
 	`external_id` text NOT NULL,
@@ -118,11 +120,13 @@ CREATE TABLE `teams` (
 	`country` text,
 	`source` text DEFAULT 'football-data' NOT NULL,
 	`updated_at` integer DEFAULT (strftime('%s', 'now')),
+	`slug` text,
 	FOREIGN KEY (`league_id`) REFERENCES `leagues`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `teams_external_id_unique` ON `teams` (`external_id`);--> statement-breakpoint
 CREATE INDEX `idx_teams_name` ON `teams` (`name`);--> statement-breakpoint
+CREATE UNIQUE INDEX `teams_slug_idx` ON `teams` (`slug`);--> statement-breakpoint
 CREATE TABLE `user_preferences` (
 	`user_id` text PRIMARY KEY NOT NULL,
 	`reminder_60` integer DEFAULT true NOT NULL,

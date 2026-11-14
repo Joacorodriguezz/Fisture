@@ -26,10 +26,24 @@ export async function getLeagueUpcomingMatches(db: Database, leagueId: string, a
     .orderBy(asc(matches.dateTime), asc(matches.id)).limit(20);
 }
 
+// Equipo o liga de una página pública (docs/33 D9): el parámetro de la URL puede ser el slug o el id
+// (URLs viejas, eventos de calendario). Una consulta por los dos índices (MULTI-INDEX OR). Si dos filas
+// coinciden (el slug de una es el id de otra, algo que la asignación evita) gana la del slug: es la URL
+// canónica de esa fila.
+export async function getTeamBySlugOrId(db: Database, param: string) {
+  const filas = await db.select().from(teams).where(or(eq(teams.slug, param), eq(teams.id, param))).limit(2);
+  return filas.find((f) => f.slug === param) ?? filas[0] ?? null;
+}
+
+export async function getLeagueBySlugOrId(db: Database, param: string) {
+  const filas = await db.select().from(leagues).where(or(eq(leagues.slug, param), eq(leagues.id, param))).limit(2);
+  return filas.find((f) => f.slug === param) ?? filas[0] ?? null;
+}
+
 // Selección alfabética para explorar, no ranking de popularidad. Sin UUID propios de un entorno.
 export async function getEquiposParaExplorar(db: Database) {
   // EXISTS evita multiplicar equipos por competencia y ordenar todas las participaciones.
-  return db.select({ id: teams.id, name: teams.name })
+  return db.select({ id: teams.id, name: teams.name, slug: teams.slug })
     .from(teams)
     .where(exists(db.select({ teamId: leagueTeams.teamId }).from(leagueTeams)
       .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))
@@ -238,7 +252,7 @@ export async function getFollowedIds(db: Database, userId: string): Promise<Set<
 // Ligas activas y destacadas, para llms.txt y el sitemap
 export function getLigasPublicas(db: Database) {
   return db
-    .select({ id: leagues.id, name: leagues.name, country: leagues.country })
+    .select({ id: leagues.id, name: leagues.name, country: leagues.country, slug: leagues.slug })
     .from(leagues)
     .where(and(eq(leagues.isActive, true), eq(leagues.isFeatured, true)))
     .orderBy(asc(leagues.name));
@@ -265,7 +279,7 @@ export async function getPaginasPublicas(db: Database, ahora: Date = new Date(),
     );
 
   const equipos = await db
-    .selectDistinct({ id: teams.id })
+    .selectDistinct({ id: teams.id, slug: teams.slug })
     .from(leagueTeams)
     .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
     .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))

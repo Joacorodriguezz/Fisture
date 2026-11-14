@@ -54,6 +54,19 @@ describe("sitemap.xml y llms.txt", () => {
       expect(xml).toContain(`<url><loc>${BASE}/partidos/superclasico</loc></url>`);
     });
 
+    // docs/33 D9: misma URL que la canónica, con slug si la fila lo tiene y por id si todavía no
+    it("usa el slug de ligas y equipos cuando existe y el id cuando no", async () => {
+      await t.db.update(leagues).set({ slug: "liga-de-prueba" }).where(eq(leagues.id, "test-league"));
+      await t.db.update(teams).set({ slug: "river-plate" }).where(eq(teams.id, "river"));
+      const xml = await (await getSitemap(ctx())).text();
+      expect(xml).toContain(`<loc>${BASE}/ligas/liga-de-prueba</loc>`);
+      expect(xml).toContain(`<loc>${BASE}/equipos/river-plate</loc>`);
+      expect(xml).not.toContain(`<loc>${BASE}/equipos/river</loc>`);
+      expect(xml).toContain(`<loc>${BASE}/equipos/boca</loc>`);
+      expect(xml).toContain(`<loc>${BASE}/partidos/superclasico</loc>`);
+      expect(await (await getLlms(ctx())).text()).toContain(`- [Liga de prueba](${BASE}/ligas/liga-de-prueba) (Argentina)`);
+    });
+
     it("no publica lastmod: renombrar un equipo cambia la página del partido pero no la fila de matches", async () => {
       await t.db.update(teams).set({ name: "River Plate (renombrado)", updatedAt: new Date(AHORA.getTime() + DIA_MS) }).where(eq(teams.id, "river"));
       const xml = await (await getSitemap(ctx())).text();

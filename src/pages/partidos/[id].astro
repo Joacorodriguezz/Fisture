@@ -31,9 +31,9 @@ const avisos = prefs ? [prefs.reminder60 && "1 hora", prefs.reminder15 && "15 mi
 const avisosTxt = avisos.length ? `${avisos.join(" y ")} antes` : "Sin avisos";
 
 const venue = match.venue ?? "Sede a confirmar";
-const rutaLiga = rutaPublica("ligas", league.id);
-const rutaLocal = rutaPublica("equipos", homeTeam.id);
-const rutaVisitante = rutaPublica("equipos", awayTeam.id);
+const rutaLiga = rutaPublica("ligas", league);
+const rutaLocal = rutaPublica("equipos", homeTeam);
+const rutaVisitante = rutaPublica("equipos", awayTeam);
 const fin = horaFin(match.dateTime);
 const fecha = diaISO(match.dateTime).split("-").reverse().join("/");
 const estadosPartido: Record<string, string> = {
@@ -60,7 +60,7 @@ const jsonLd = [
   jsonLdPartido(appUrl, { match, homeTeam, awayTeam, league }),
   jsonLdMigas(appUrl, [
     { nombre: "Ligas", ruta: "/ligas" },
-    { nombre: league.name, ruta: rutaPublica("ligas", league.id) },
+    { nombre: league.name, ruta: rutaLiga },
     { nombre: `${homeTeam.name} vs ${awayTeam.name}`, ruta: rutaPublica("partidos", match.id) },
   ]),
 ];
