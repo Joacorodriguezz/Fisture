@@ -77,20 +77,27 @@ export type OAuthIdentity = typeof oauthIdentities.$inferSelect;
 // LIGAS Y EQUIPOS
 // ============================================
 
-export const leagues = sqliteTable("leagues", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  externalId: text("external_id").notNull().unique(),
-  name: text("name").notNull(),
-  country: text("country").notNull(),
-  logo: text("logo"),
-  season: integer("season").notNull(),
-  source: text("source").notNull().default("football-data"), // 'football-data' | 'promiedos'
-  isActive: integer("is_active", { mode: "boolean" }).default(true),
-  // Destacada: se lista en /ligas y en la búsqueda. Las demás copas solo aparecen en el fixture de cada equipo (docs/22)
-  isFeatured: integer("is_featured", { mode: "boolean" }).notNull().default(true),
-});
+export const leagues = sqliteTable(
+  "leagues",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    externalId: text("external_id").notNull().unique(),
+    name: text("name").notNull(),
+    country: text("country").notNull(),
+    logo: text("logo"),
+    season: integer("season").notNull(),
+    source: text("source").notNull().default("football-data"), // 'football-data' | 'promiedos'
+    isActive: integer("is_active", { mode: "boolean" }).default(true),
+    // Destacada: se lista en /ligas y en la búsqueda. Las demás copas solo aparecen en el fixture de cada equipo (docs/22)
+    isFeatured: integer("is_featured", { mode: "boolean" }).notNull().default(true),
+    // Nombre en la URL pública (/ligas/liga-profesional-argentina, docs/33 D9). NULL hasta que el sync o
+    // el backfill (POST /api/admin/slugs) lo asignan, o si el nombre no genera slug. Asignado, no cambia.
+    slug: text("slug"),
+  },
+  (table) => ({ slugIdx: uniqueIndex("leagues_slug_idx").on(table.slug) })
+);
 
 export const teams = sqliteTable(
   "teams",
@@ -110,8 +117,14 @@ export const teams = sqliteTable(
     updatedAt: integer("updated_at", { mode: "timestamp" }).default(
       sql`(strftime('%s', 'now'))`
     ),
+    // Nombre en la URL pública (/equipos/atletico-tucuman, docs/33 D9). NULL hasta que el sync (equipos
+    // nuevos) o el backfill (POST /api/admin/slugs) lo asignan, o si el nombre no genera slug. Asignado, no cambia.
+    slug: text("slug"),
   },
-  (table) => ({ nameIdx: index("idx_teams_name").on(table.name) })
+  (table) => ({
+    nameIdx: index("idx_teams_name").on(table.name),
+    slugIdx: uniqueIndex("teams_slug_idx").on(table.slug),
+  })
 );
 
 // ============================================
