@@ -8,7 +8,7 @@ import Escudo from "../../components/tribuna/Escudo.astro";
 import SeguimientoEquipo from "../../components/islands/SeguimientoEquipo";
 import SincronizarPartido from "../../components/islands/SincronizarPartido";
 import { createDb } from "../../lib/db";
-import { getTeamBySlugOrId, getTeamRecentMatches, getTeamUpcomingMatches, getSyncStates } from "../../lib/db/queries";
+import { getEquiposDeLaLiga, getTeamBySlugOrId, getTeamRecentMatches, getTeamUpcomingMatches, getSyncStates } from "../../lib/db/queries";
 import { and, eq } from "drizzle-orm";
 import { leagues, leagueTeams, userTeams } from "../../../drizzle/schema";
 import { fechaCorta, hora, horaConDia, horaPorPais, listaConY } from "../../lib/format";
@@ -70,6 +70,10 @@ const seguimiento = user
 const todos = await getTeamUpcomingMatches(db, teamId, 50);
 // Últimos resultados (docs/33 D3): hasta 5 terminados, por los índices de local y visitante
 const recientes = await getTeamRecentMatches(db, teamId);
+
+// Enlaces a los otros equipos de su liga (docs/33 D10): solo de la liga principal, si está activa y es
+// destacada; los rivales de copas no se listan
+const otrosEquipos = liga?.isActive && liga.isFeatured ? await getEquiposDeLaLiga(db, liga.id, teamId) : [];
 
 const lado = Astro.url.searchParams.get("lado") === "local" ? "local"
   : Astro.url.searchParams.get("lado") === "visitante" ? "visitante"
@@ -298,6 +302,25 @@ const filtros = [
             );
           })}
         </ol>
+      </section>
+    )}
+
+    {liga && otrosEquipos.length > 0 && (
+      <section aria-label={`Otros equipos de ${liga.name}`} style="display:flex;flex-direction:column">
+        <BarraSeccion tono="tinta">Otros equipos de {liga.name}</BarraSeccion>
+        <ul class="eq-otros">
+          {otrosEquipos.map((e) => (
+            <li>
+              <a href={rutaPublica("equipos", e)} class="eq-otro">
+                <Escudo src={e.logo} nombre={e.name} sigla={e.shortName} size={36} pad={4} />
+                <span>{e.name}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+        <p style="margin:16px 0 0;font:400 16px/1.6 var(--font-texto)">
+          <a href={rutaPublica("ligas", liga)} class="fp-enlace">Todos los equipos y el fixture de {liga.name}</a>
+        </p>
       </section>
     )}
   </div>

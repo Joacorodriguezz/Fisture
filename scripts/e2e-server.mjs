@@ -75,6 +75,10 @@ try {
     // Equipo sin ningún partido (docs/33 D8): su página va con noindex y no entra al sitemap
     "INSERT INTO teams (id, external_id, name, short_name, league_id, source) VALUES ('sin-partidos', 'e2e:sin-partidos', 'Equipo sin partidos', 'SIN', 'e2e-league', 'espn');",
     "INSERT INTO league_teams (league_id, team_id) VALUES ('e2e-league', 'sin-partidos');",
+    // Equipos de la misma liga (docs/33 D10): Talleres tiene un slug distinto del id y juega la liga E2E,
+    // pero su liga principal es la copa no destacada, así que su página no muestra la sección
+    "INSERT INTO teams (id, external_id, name, short_name, league_id, source, slug) VALUES ('talleres-id', 'e2e:talleres', 'Talleres E2E', 'TAL', 'e2e-copa', 'espn', 'talleres-e2e');",
+    "INSERT INTO league_teams (league_id, team_id) VALUES ('e2e-league', 'talleres-id'), ('e2e-copa', 'talleres-id');",
     `INSERT INTO sync_runs (id, trigger, started_at, finished_at, status, duration_ms, results, issues) VALUES ('e2e-sync', 'admin', ${now}, ${now}, 'success', 1, '[]', '[]');`,
   ];
   const sessions = [];

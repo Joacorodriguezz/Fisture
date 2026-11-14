@@ -9,7 +9,7 @@ import { AHORA, DIA_MS, relojFijo } from "../../helpers/clock";
 import { createDb } from "../../../src/lib/db";
 import { syncSingleLeague } from "../../../src/lib/data-providers/sync";
 import { checkConsistency } from "../../../src/lib/observability/consistency";
-import { getLeagueBySlugOrId, getMatchCountsByDay, getMatchesInRange, getPaginasPublicas, getTeamBySlugOrId, getTeamRecentMatches, getTeamUpcomingMatches } from "../../../src/lib/db/queries";
+import { getEquiposDeLaLiga, getLeagueBySlugOrId, getMatchCountsByDay, getMatchesInRange, getPaginasPublicas, getTeamBySlugOrId, getTeamRecentMatches, getTeamUpcomingMatches } from "../../../src/lib/db/queries";
 import { asignarSlugsPendientes, slugsOcupados } from "../../../src/lib/db/slugs";
 
 interface Consulta {
@@ -139,6 +139,22 @@ describe("planes de las consultas calientes", () => {
     expect(pasos).not.toMatch(/^SCAN (matches|m)\b/m);
     expect(pasos).toContain("idx_matches_home_team");
     expect(pasos).toContain("idx_matches_away_team");
+  });
+
+  // docs/33 D10: los otros equipos de la liga salen de league_teams por su clave primaria (league_id
+  // primero) y cada equipo por la de teams; ninguna de las dos tablas se recorre entera
+  it("los equipos de la misma liga usan la clave primaria de league_teams y de teams", async () => {
+    const [fila] = (await t.DB.prepare("SELECT league_id AS leagueId, team_id AS teamId FROM league_teams LIMIT 1")
+      .all<{ leagueId: string; teamId: string }>()).results;
+    const consultas = await capturar(
+      (DB) => getEquiposDeLaLiga(createDb(DB), fila.leagueId, fila.teamId),
+      (sql) => sql.includes('from "league_teams"')
+    );
+    expect(consultas).toHaveLength(1);
+    const pasos = (await plan(consultas[0])).join("\n");
+    expect(pasos, pasos).not.toMatch(/^SCAN (league_teams|teams)\b/m);
+    expect(pasos).toContain("SEARCH league_teams USING COVERING INDEX sqlite_autoindex_league_teams_1 (league_id=?)");
+    expect(pasos).toContain("SEARCH teams USING INDEX sqlite_autoindex_teams_1 (id=?)");
   });
 
   // docs/33 D9: la página resuelve slug o id, el sync y el backfill leen los slugs ocupados y el backfill

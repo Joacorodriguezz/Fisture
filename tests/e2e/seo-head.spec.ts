@@ -104,6 +104,47 @@ test("fixture y explicación del calendario son útiles sin JavaScript", async (
   }
 });
 
+test("docs/33 D10: la página de equipo enlaza a los otros equipos de su liga sin JavaScript", async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL: BASE });
+  try {
+    await context.route(/https?:\/\//, (route) => new URL(route.request().url()).hostname === "127.0.0.1" ? route.continue() : route.abort());
+    const page = await context.newPage();
+    await page.goto("/equipos/river");
+    const otros = page.getByRole("region", { name: "Otros equipos de Liga E2E", exact: true });
+    const equipos = otros.getByRole("list").getByRole("link");
+    // Por nombre; con slug la URL con nombre, sin slug el id. River no se enlaza a sí mismo y el rival de
+    // la copa (no destacada) no aparece
+    const esperados = [
+      ["Boca Juniors", "/equipos/boca"],
+      ["Equipo sin partidos", "/equipos/sin-partidos"],
+      ["Talleres E2E", "/equipos/talleres-e2e"],
+    ];
+    await expect(equipos).toHaveCount(esperados.length);
+    for (const [i, [nombre, href]] of esperados.entries()) {
+      // El escudo no suma texto: el nombre accesible del enlace es el del equipo
+      await expect(equipos.nth(i)).toHaveAccessibleName(nombre);
+      await expect(equipos.nth(i)).toHaveAttribute("href", href);
+    }
+    await expect(otros.locator('a[href="/equipos/river"]')).toHaveCount(0);
+    await expect(otros.getByRole("link", { name: /Liga E2E/ })).toHaveAttribute("href", "/ligas/e2e-league");
+
+    await page.goto("/equipos/sin-partidos");
+    await expect(page.getByRole("region", { name: "Otros equipos de Liga E2E", exact: true }).locator('a[href="/equipos/river"]')).toBeVisible();
+
+    // La liga principal de Talleres es la copa, que no es destacada: no hay sección aunque River la juegue
+    await page.goto("/equipos/talleres-e2e");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Fixture y partidos de Talleres E2E");
+    await expect(page.getByRole("region", { name: /^Otros equipos/ })).toHaveCount(0);
+
+    // Su liga no tiene otros equipos cargados (sin league_teams): no hay sección
+    await page.goto("/equipos/equipo-neutral-local");
+    await expect(page.getByRole("region", { name: /^Otros equipos/ })).toHaveCount(0);
+    await expect(page.getByText(/^Otros equipos de/)).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+});
+
 test("noindex en /cuenta con sesión", async ({ page }, info) => {
   await page.context().addCookies([{ name: "session", value: `e2e-${info.project.name}-preferences-${info.retry}`, url: BASE, httpOnly: true }]);
   await page.goto("/cuenta");

@@ -1,4 +1,4 @@
-import { eq, and, gte, lt, or, inArray, asc, desc, exists } from "drizzle-orm";
+import { eq, ne, and, gte, lt, or, inArray, asc, desc, exists } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import {
   matches,
@@ -49,6 +49,16 @@ export async function getEquiposParaExplorar(db: Database) {
       .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))
       .where(and(eq(leagueTeams.teamId, teams.id), eq(leagues.isActive, true), eq(leagues.isFeatured, true)))))
     .orderBy(asc(teams.name), asc(teams.id)).limit(6);
+}
+
+// Otros equipos de la liga de un equipo, para enlazarlos al pie de su página (docs/33 D10). Una consulta por
+// la clave primaria de league_teams (league_id primero) con tope de filas: no recorre teams ni league_teams.
+export async function getEquiposDeLaLiga(db: Database, leagueId: string, exceptoTeamId: string, limit = 40) {
+  return db.select({ id: teams.id, slug: teams.slug, name: teams.name, shortName: teams.shortName, logo: teams.logo })
+    .from(leagueTeams)
+    .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
+    .where(and(eq(leagueTeams.leagueId, leagueId), ne(leagueTeams.teamId, exceptoTeamId)))
+    .orderBy(asc(teams.name), asc(teams.id)).limit(limit);
 }
 
 // Equipos que sigue el usuario
