@@ -1,5 +1,7 @@
 ---
 // Escudo.astro: escudo del equipo dentro de una caja. Si no hay logo, muestra las iniciales.
+import { urlEscudo } from "../../lib/escudo";
+
 interface Props {
   src?: string | null;
   nombre: string;
@@ -19,7 +21,7 @@ const iniciales = (sigla || nombre).slice(0, 3).toUpperCase();
   style={`flex:none;width:var(--escudo-tamano, ${size}px);height:var(--escudo-tamano, ${size}px);background:var(--crema-sobre-oscuro);border:2px solid var(--tinta);display:flex;align-items:center;justify-content:center;padding:${pad}px;overflow:hidden`}
 >
   {src ? (
-    <img src={src} alt="" loading={prioridad ? "eager" : "lazy"} fetchpriority={prioridad ? "high" : undefined} decoding="async" style="width:100%;height:100%;object-fit:contain;display:block" />
+    <img src={urlEscudo(src, size)} alt="" loading={prioridad ? "eager" : "lazy"} fetchpriority={prioridad ? "high" : undefined} decoding="async" style="width:100%;height:100%;object-fit:contain;display:block" />
   ) : (
     <span aria-hidden="true" style="font:400 18px/1 var(--font-titular);color:var(--on-amarillo)">{iniciales}</span>
   )}
