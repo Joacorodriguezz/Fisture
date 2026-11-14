@@ -38,8 +38,10 @@ const { volanta, secciones = [], usuario, loginHref } = Astro.props;
       </a>
     )}
     {usuario ? (
-      <a class="tb-cabecera__cuenta" href="/cuenta" aria-label={`Tu cuenta, ${usuario.nombre}`}>
-        <span class="tb-cabecera__avatar" aria-hidden="true">{usuario.nombre.charAt(0).toUpperCase()}</span>
+      <a class="tb-cabecera__cuenta" href="/cuenta" aria-label={`Hola, ${usuario.nombre}. Tu cuenta`}>
+        {/* La inicial va por CSS (::before): es decorativa y, como texto, rompería la regla
+            label-content-name-mismatch (el nombre accesible debe contener el texto visible) */}
+        <span class="tb-cabecera__avatar" aria-hidden="true" data-inicial={usuario.nombre.charAt(0).toUpperCase()}></span>
         <span class="tb-cabecera__hola" aria-hidden="true">Hola, {usuario.nombre}</span>
       </a>
     ) : (

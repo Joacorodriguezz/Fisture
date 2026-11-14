@@ -249,7 +249,7 @@ test("login OAuth: el estado va en una cookie firmada y el callback lo exige", a
 const soloMovil = () => test.skip(({ isMobile }) => !isMobile, "solo en el proyecto móvil");
 const soloEscritorio = () => test.skip(({ isMobile }) => isMobile, "solo en el proyecto de escritorio");
 const navegacionPrincipal = (page: Page) => page.getByRole("navigation", { name: "Secciones", exact: true });
-const enlaceCuenta = (page: Page) => page.getByRole("link", { name: /^Tu cuenta/ });
+const enlaceCuenta = (page: Page) => page.getByRole("link", { name: /Tu cuenta$/ });
 const SECCIONES = ["Hoy", "Partidos", "Ligas", "Calendario"];
 
 // docs/31 D1 y D2: cabecera compacta y fija; en mobile, barra inferior con Buscar al centro

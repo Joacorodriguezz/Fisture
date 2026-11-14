@@ -193,10 +193,17 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 .tb-cabecera__cuenta { flex: none; display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--on-rojo); font: 700 15px/18px var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; text-decoration: none; }
 .tb-cabecera__cuenta:hover { color: var(--on-rojo); }
 .tb-cabecera__avatar { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--papel); color: var(--rojo); font: 400 18px/1 var(--font-titular); }
+.tb-cabecera__avatar::before { content: attr(data-inicial); }
 .tb-cabecera__login { flex: none; display: flex; align-items: center; min-height: 40px; padding: 0 var(--space-4); background: var(--papel); color: var(--tinta); border: 2px solid var(--tinta); font: 700 15px/1 var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; text-decoration: none; }
 .tb-cabecera__login:hover { color: var(--tinta); box-shadow: var(--sombra-registro); transform: var(--hover-lift); }
 .tb-cabecera a:focus-visible { outline: 2px solid var(--on-rojo); outline-offset: 3px; }
-@media (max-width: 900px) { .tb-cabecera__buscar { width: auto; } }
+.tb-cabecera__hola { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Tablet: no entran secciones, buscador y saludo; de la cuenta queda solo el avatar */
+@media (max-width: 900px) {
+  .tb-cabecera__buscar { width: auto; }
+  .tb-cabecera__hola { display: none; }
+  .tb-cabecera__cuenta { width: 44px; justify-content: center; }
+}
 @media (max-width: 640px) {
   .tb-cabecera__cuerpo { padding: 0 var(--space-4); justify-content: space-between; }
   .tb-cabecera__nombre { font-size: 32px; }
