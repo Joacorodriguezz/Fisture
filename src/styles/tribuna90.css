@@ -36,29 +36,31 @@
   --brand: var(--rojo);
   --brand-pressed: var(--rojo-profundo);
 }
-/* Nocturna: fondo gris cálido (no negro puro), capas más claras para dar relieve,
-   acentos desaturados y el rojo de superficie separado del rojo de texto. */
+/* Nocturna = paleta Pizarra (docs/31 D15): gris azulado frío y sombra de imprenta celeste. El tema
+   sigue llamándose "nocturna" en datos y API. El rojo de texto (--rojo) y el de superficie
+   (--rojo-fondo) se separan para pasar AA: texto #f0604c (5,5:1 sobre papel, 4,8:1 sobre papel-2) y
+   bloques #d43a26 con texto blanco (4,7:1). El #e5432f del prototipo no llegaba en ninguno de los dos. */
 [data-theme="nocturna"]{
   color-scheme: dark;
-  --papel: #14110f;
-  --papel-2: #1e1915;
-  --tinta: #ece3d6;
-  --tinta-suave: #b3a696;
-  --linea: #74665a;
-  --rojo: #f0836f;          /* texto y acentos sobre fondo oscuro */
-  --rojo-fondo: #9c2a1f;    /* bloques rojos: cabecera, barras, botón primario */
-  --on-rojo: #fbeee6;
-  --rojo-profundo: #6e1c15;
-  --amarillo: #d9bf4a;
-  --on-amarillo: #1a1412;
-  --crema-sobre-oscuro: #ece3d6;
-  --barra-tinta: #2a221d;
-  --celeste: #a3c081;       /* "ok / sincronizado": verde salvia cálido */
-  --on-celeste: #14110f;
-  --celeste-claro: #232318;
-  --azul: #d9bf4a;         /* barra de cabezal: dorado en vez de azul */
-  --on-azul: #14110f;
-  --crema: #2c2518;
+  --papel: #14181c;
+  --papel-2: #1e242a;
+  --tinta: #eceff1;
+  --tinta-suave: #a3acb4;
+  --linea: #44505a;
+  --rojo: #f0604c;          /* texto y acentos sobre fondo oscuro */
+  --rojo-fondo: #d43a26;    /* bloques rojos: cabecera, barras, botón primario */
+  --on-rojo: #ffffff;
+  --rojo-profundo: #9e1a10;
+  --amarillo: #f2d43b;
+  --on-amarillo: #14181c;
+  --crema-sobre-oscuro: #eceff1;
+  --barra-tinta: #0a0d10;
+  --celeste: #4fc3d6;
+  --on-celeste: #0a0d10;
+  --celeste-claro: #142c33;
+  --azul: #4fc3d6;          /* Pizarra no define azul: CabezalSeccion usa el celeste de datos */
+  --on-azul: #0a0d10;
+  --crema: #262a24;
 }
 
 :root{
@@ -165,9 +167,9 @@
   --foto-filtro: contrast(1.05) saturate(.9); /* @kind other */
 }
 [data-theme="nocturna"]{
-  --sombra-registro: 4px 4px 0 #5c4f45;
-  --sombra-registro-roja: 3px 3px 0 #6e1c15;
-  --focus-ring: 0 0 0 2px #14110f, 0 0 0 5px #ece3d6;
+  --sombra-registro: 4px 4px 0 #4fc3d6;
+  --sombra-registro-roja: 3px 3px 0 #9e1a10;
+  --focus-ring: 0 0 0 2px #14181c, 0 0 0 5px #eceff1;
 }
 
 /* Estilos de componentes Tribuna 90 (prefijo tb-). Copiados de componentes/bundle.css. */
@@ -177,20 +179,38 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 .tb-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
 /* Foto de muestra: semitono de imprenta */
 .tb-foto { background-color: var(--tinta-suave); background-image: radial-gradient(var(--tinta) 28%, transparent 30%); background-size: 6px 6px; display: block; width: 100%; }
-/* Cabecera */
-.tb-cabecera { background: var(--rojo-fondo); color: var(--on-rojo); }
+/* Cabecera compacta y fija (docs/31 D1): nombre, secciones, buscador y cuenta en una fila */
+.tb-cabecera { position: sticky; top: 0; z-index: 30; background: var(--rojo-fondo); color: var(--on-rojo); }
 .tb-cabecera__volanta { background: var(--rojo-profundo); color: var(--crema-sobre-oscuro); font: 700 15px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; text-align: center; padding: var(--space-2) var(--space-4); }
-.tb-cabecera__cuerpo { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) var(--space-8) var(--space-4); }
-.tb-cabecera__nombre { margin: 0; font: 400 72px/0.9 var(--font-titular); text-transform: uppercase; transform: skewX(-8deg); transform-origin: left bottom; text-shadow: var(--sombra-registro-roja, 3px 3px 0 #8e1811); letter-spacing: -.01em; }
-.tb-cabecera__enlace { color: inherit; text-decoration: none; }
-.tb-cabecera__nombre .tb-cabecera__enlace:hover { opacity: .9; }
-.tb-cabecera__datos .tb-cabecera__enlace { text-decoration: underline; text-underline-offset: 3px; }
-.tb-cabecera__datos .tb-cabecera__enlace:hover { text-decoration-thickness: 2px; }
-.tb-cabecera__enlace:focus-visible { outline: 2px solid var(--on-rojo); outline-offset: 3px; }
-.tb-cabecera__datos { font: 600 14px/18px var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; text-align: right; }
-.tb-cabecera__nav { display: flex; gap: var(--space-6); padding: var(--space-2) var(--space-8); border-top: 1px solid var(--on-rojo); font: 700 15px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; }
-.tb-cabecera__nav a { color: var(--on-rojo); text-decoration: none; }
-.tb-cabecera__nav a:hover, .tb-cabecera__nav a[aria-current] { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
+.tb-cabecera__cuerpo { box-sizing: border-box; max-width: 1200px; height: var(--alto-cabecera, 64px); margin: 0 auto; display: flex; align-items: center; gap: clamp(12px, 2.6vw, 32px); padding: 0 var(--space-8); }
+.tb-cabecera__nombre { flex: none; color: var(--on-rojo); font: 400 40px/1 var(--font-titular); text-transform: uppercase; text-decoration: none; transform: skewX(-8deg); text-shadow: var(--sombra-registro-roja, 3px 3px 0 #8e1811); }
+.tb-cabecera__nombre:hover { color: var(--on-rojo); opacity: .9; }
+.tb-cabecera__nav { flex: 1; display: flex; gap: var(--space-6); font: 700 16px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; }
+.tb-cabecera__nav a { min-height: 44px; display: flex; align-items: center; color: var(--on-rojo); text-decoration: none; }
+.tb-cabecera__nav a:hover, .tb-cabecera__nav a[aria-current] { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }
+.tb-cabecera__buscar { flex: none; display: flex; align-items: center; gap: var(--space-2); width: 220px; height: 40px; box-sizing: border-box; padding: 0 var(--space-3); background: var(--papel); color: var(--tinta-suave); border: 2px solid var(--rojo-profundo); font: 600 15px/1 var(--font-rotulo); text-decoration: none; }
+.tb-cabecera__buscar:hover { color: var(--tinta); }
+.tb-cabecera__cuenta { flex: none; display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--on-rojo); font: 700 15px/18px var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; text-decoration: none; }
+.tb-cabecera__cuenta:hover { color: var(--on-rojo); }
+.tb-cabecera__avatar { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--papel); color: var(--rojo); font: 400 18px/1 var(--font-titular); }
+.tb-cabecera__avatar::before { content: attr(data-inicial); }
+.tb-cabecera__login { flex: none; display: flex; align-items: center; min-height: 40px; padding: 0 var(--space-4); background: var(--papel); color: var(--tinta); border: 2px solid var(--tinta); font: 700 15px/1 var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; text-decoration: none; }
+.tb-cabecera__login:hover { color: var(--tinta); box-shadow: var(--sombra-registro); transform: var(--hover-lift); }
+.tb-cabecera a:focus-visible { outline: 2px solid var(--on-rojo); outline-offset: 3px; }
+.tb-cabecera__hola { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Tablet: no entran secciones, buscador y saludo; de la cuenta queda solo el avatar */
+@media (max-width: 900px) {
+  .tb-cabecera__buscar { width: auto; }
+  .tb-cabecera__hola { display: none; }
+  .tb-cabecera__cuenta { width: 44px; justify-content: center; }
+}
+@media (max-width: 640px) {
+  .tb-cabecera__cuerpo { padding: 0 var(--space-4); justify-content: space-between; }
+  .tb-cabecera__nombre { font-size: 32px; }
+  .tb-cabecera__nav, .tb-cabecera__buscar, .tb-cabecera__hola { display: none; }
+  .tb-cabecera__cuenta { width: 44px; justify-content: center; }
+  .tb-cabecera__login { min-height: 40px; padding: 0 var(--space-3); font-size: 14px; }
+}
 /* Volanta */
 .tb-volanta { display: inline-block; font: 700 15px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; padding: var(--space-1) var(--space-3); }
 .tb-volanta--rojo { background: var(--rojo-fondo); color: var(--on-rojo); }
@@ -378,18 +398,6 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 /* Enlace de volver (arriba de cada pantalla) */
 .tb-volver { align-self: flex-start; font: 700 14px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; color: var(--tinta); text-decoration: none; }
 .tb-volver:hover { color: var(--rojo); }
-/* Encabezado: en pantallas chicas la navegación se parte en filas y el nombre baja de tamaño */
-@media (max-width: 640px) {
-  .tb-cabecera__cuerpo { padding: var(--space-3) var(--space-4); flex-wrap: wrap; align-items: flex-end; }
-  .tb-cabecera__nombre { font-size: 52px; }
-  .tb-cabecera__datos { text-align: left; }
-  .tb-cabecera__nav { flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding: var(--space-2) var(--space-4); }
-}
-
-/* Navegación: sección actual como pestaña invertida, foco visible */
-.tb-cabecera__nav a { padding: 4px 8px; margin: 0 -8px; }
-.tb-cabecera__nav a[aria-current] { background: var(--on-rojo); color: var(--rojo-fondo); text-decoration: none; }
-.tb-cabecera__nav a:focus-visible { outline: 2px solid var(--on-rojo); outline-offset: 2px; }
 .tb-opcion:focus-visible, .tb-volver:focus-visible { outline: 2px solid var(--tinta); outline-offset: 3px; }
 /* Confirmación de guardado y utilidades de búsqueda */
 .tb-ok { color: var(--celeste); font: 700 13px/16px var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; }
@@ -403,8 +411,6 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 @media (pointer: coarse) {
   .tb-segmento, .tb-chip, .tb-boton, .tb-link-boton { min-height: 44px; }
   .tb-chip { display: inline-flex; align-items: center; }
-  .tb-cabecera__nav a { padding: 12px 10px; margin: 0 -10px; }
-  .tb-cabecera__nav { gap: var(--space-1) var(--space-6); }
   /* Enlaces de texto sueltos: zona de 44px sin cambiar el aspecto; el margen negativo conserva la grilla. */
   .tb-volver, .tb-migas a, .tb-enlace-tactil { display: inline-flex; align-items: center; min-height: 44px; margin-block: -13px; }
   .tb-footer__enlace { display: inline-flex; align-items: center; min-height: 44px; }
@@ -419,16 +425,7 @@ a, button { -webkit-tap-highlight-color: transparent; }
   html { scroll-behavior: auto; }
   .tb-boton, .tb-boton:hover, .tb-nota-card, .tb-nota-card:hover, .tb-opcion, .tb-opcion:hover, .fe-tarjeta, .fe-tarjeta:hover, .lg-tarjeta, .lg-tarjeta:hover { transition: none; transform: none; }
 }
-@media (max-width: 640px) {
-  .tb-cabecera__nombre { font-size: 44px; }
-}
-
-/* Botón de login en la cabecera (visitantes sin sesión) */
-.tb-cabecera__nav a.tb-cabecera__accion { margin: 0 0 0 auto; background: var(--on-rojo); color: var(--rojo-fondo); padding: 4px 12px; text-decoration: none; }
-.tb-cabecera__nav a.tb-cabecera__accion:hover { text-decoration: underline; text-underline-offset: 4px; }
-@media (max-width: 720px) { .tb-cabecera__nav a.tb-cabecera__accion { margin: 0; } }
-
 /* Saltar al contenido: visible solo al enfocarlo con teclado */
-.tb-saltar { position: absolute; left: 8px; top: -64px; z-index: 10; padding: 10px 16px; background: var(--barra-tinta); color: var(--crema-sobre-oscuro); font: 700 15px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; text-decoration: none; }
+.tb-saltar { position: absolute; left: 8px; top: -64px; z-index: 40; padding: 10px 16px; background: var(--barra-tinta); color: var(--crema-sobre-oscuro); font: 700 15px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; text-decoration: none; }
 .tb-saltar:focus { top: 8px; outline: 2px solid var(--on-rojo); outline-offset: 2px; }
 .tb-main:focus { outline: none; }

@@ -1,0 +1,50 @@
+---
+// BarraInferior.astro: navegación de secciones en mobile (≤640px), fija al pie (docs/31 D2, menú «D»
+// del prototipo). Hoy y Partidos a la izquierda, Buscar al centro como botón amarillo elevado, Ligas y
+// Calendario a la derecha. Son enlaces reales: funciona sin JavaScript. En escritorio no se muestra.
+interface Seccion {
+  label: string;
+  href: string;
+  actual: boolean;
+}
+
+interface Props {
+  secciones: Seccion[];
+  buscarActual: boolean;
+}
+
+const { secciones, buscarActual } = Astro.props;
+
+// Íconos de trazo recto de 2px (README de Tribuna 90, «Iconografía»)
+const ICONOS: Record<string, string> = {
+  "/hoy": "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z M12 7v5l3 3",
+  "/partidos": "M9 6h11 M9 12h11 M9 18h11 M4 6h1 M4 12h1 M4 18h1",
+  "/ligas": "M7 4h10v5a5 5 0 0 1-10 0z M12 14v4 M8 20h8 M7 6H4v2a3 3 0 0 0 3 3 M17 6h3v2a3 3 0 0 1-3 3",
+  "/calendario": "M4 5h16v15H4z M4 10h16 M8 3v4 M16 3v4 M8.5 15l2.5 2.5 4.5-4.5",
+};
+
+const mitad = Math.ceil(secciones.length / 2);
+const izquierda = secciones.slice(0, mitad);
+const derecha = secciones.slice(mitad);
+---
+
+<nav class="tb-barra-inferior" aria-label="Secciones">
+  {izquierda.map((s) => (
+    <a class="tb-barra-inferior__item" href={s.href} aria-current={s.actual ? "page" : undefined}>
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"><path d={ICONOS[s.href]}></path></svg>
+      {s.label}
+    </a>
+  ))}
+  <div class="tb-barra-inferior__centro">
+    <a class="tb-barra-inferior__buscar" href="/equipos/buscar" aria-label="Buscar equipo" aria-current={buscarActual ? "page" : undefined}>
+      <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13z M15.5 15.5L21 21"></path></svg>
+      <span aria-hidden="true">Buscar</span>
+    </a>
+  </div>
+  {derecha.map((s) => (
+    <a class="tb-barra-inferior__item" href={s.href} aria-current={s.actual ? "page" : undefined}>
+      <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"><path d={ICONOS[s.href]}></path></svg>
+      {s.label}
+    </a>
+  ))}
+</nav>

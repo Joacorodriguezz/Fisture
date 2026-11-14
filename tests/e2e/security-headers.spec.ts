@@ -50,7 +50,7 @@ test("la CSP no bloquea nada de la app (scripts inline, islands, con y sin sesi�
 
   // Con sesión (solo lectura): islands client:load y la página sin el script del tema
   await page.context().addCookies([{ name: "session", value: `e2e-${info.project.name}-navigation-${info.retry}`, url: "http://127.0.0.1:4322", httpOnly: true }]);
-  for (const path of ["/calendario", "/configuracion", "/equipos/river", "/partidos/superclasico"]) await visitar(path);
+  for (const path of ["/calendario", "/cuenta", "/equipos/river", "/partidos/superclasico"]) await visitar(path);
   await expect(page.locator('astro-island[client="load"]')).not.toHaveCount(0);
   await expect(page.locator('astro-island[client="load"][ssr]')).toHaveCount(0);
   expect(violaciones).toEqual([]);

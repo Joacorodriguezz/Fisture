@@ -11,7 +11,7 @@ export function mensajeErrorAuth(codigo: string, proveedor: string | null | unde
   switch (codigo) {
     case "email_en_uso":
       // Genérico a propósito: no se revela con qué proveedor está la otra cuenta (docs/18 §4.1, revisión)
-      return "Ya existe una cuenta de FISTURE con este email. Por seguridad no la unimos sin tu confirmación. Ingresá con el proveedor con el que la creaste y, una vez adentro, vinculá este desde Configuración.";
+      return "Ya existe una cuenta de FISTURE con este email. Por seguridad no la unimos sin tu confirmación. Ingresá con el proveedor con el que la creaste y, una vez adentro, vinculá este desde Cuenta.";
     case "identidad_en_uso":
       return `Esa cuenta${nombre ? ` de ${nombre}` : ""} ya está asociada a otro usuario de FISTURE.`;
     case "proveedor_en_uso":

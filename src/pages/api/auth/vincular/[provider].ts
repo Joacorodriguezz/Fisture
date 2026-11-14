@@ -19,7 +19,7 @@ export const POST: APIRoute = withApi(async ({ params, redirect, cookies, locals
 
   if (!env.OAUTH_STATE_SECRET) {
     locals.logger?.error("oauth_state_secret_missing", { provider });
-    return redirect("/configuracion?error=oauth_unavailable", 303);
+    return redirect("/cuenta?error=oauth_unavailable", 303);
   }
 
   return redirect(await iniciarAutorizacion({ env, secret: env.OAUTH_STATE_SECRET, cookies, provider, next: null, intent: "link", userId: user.id }), 303);

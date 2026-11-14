@@ -21,12 +21,12 @@ describe("PATCH /api/preferencias: bordes", () => {
 
   it("acepta los tres campos a la vez", async () => {
     const res = await patch({ reminder60: false, reminder15: false, theme: "nocturna" });
-    expect(await res.json()).toEqual({ reminder60: false, reminder15: false, theme: "nocturna" });
+    expect(await res.json()).toEqual({ reminder60: false, reminder15: false, theme: "nocturna", autoSyncDefault: true });
   });
 
   it("ignora los campos inválidos y aplica los válidos", async () => {
     const res = await patch({ reminder60: "si", reminder15: false, theme: "rosa" });
-    expect(await res.json()).toEqual({ reminder60: true, reminder15: false, theme: "papel" });
+    expect(await res.json()).toEqual({ reminder60: true, reminder15: false, theme: "papel", autoSyncDefault: true });
   });
 
   it("un campo desconocido solo responde 400 con su mensaje", async () => {
@@ -42,6 +42,6 @@ describe("PATCH /api/preferencias: bordes", () => {
 
   it("el cambio queda persistido para el siguiente GET", async () => {
     await patch({ theme: "nocturna" });
-    expect(await (await callApi(GET, t.DB, { user: fixtures.user })).json()).toEqual({ reminder60: true, reminder15: true, theme: "nocturna" });
+    expect(await (await callApi(GET, t.DB, { user: fixtures.user })).json()).toEqual({ reminder60: true, reminder15: true, theme: "nocturna", autoSyncDefault: true });
   });
 });

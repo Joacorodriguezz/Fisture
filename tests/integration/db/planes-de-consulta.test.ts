@@ -9,7 +9,8 @@ import { AHORA, DIA_MS, relojFijo } from "../../helpers/clock";
 import { createDb } from "../../../src/lib/db";
 import { syncSingleLeague } from "../../../src/lib/data-providers/sync";
 import { checkConsistency } from "../../../src/lib/observability/consistency";
-import { getMatchCountsByDay, getMatchesInRange, getTeamUpcomingMatches } from "../../../src/lib/db/queries";
+import { getEquiposDeLaLiga, getLeagueBySlugOrId, getMatchCountsByDay, getMatchesInRange, getPaginasPublicas, getTeamBySlugOrId, getTeamRecentMatches, getTeamUpcomingMatches } from "../../../src/lib/db/queries";
+import { asignarSlugsPendientes, slugsOcupados } from "../../../src/lib/db/slugs";
 
 interface Consulta {
   sql: string;
@@ -110,5 +111,69 @@ describe("planes de las consultas calientes", () => {
     );
     expect(consultas).toHaveLength(3);
     await sinRecorrerMatches(consultas);
+  });
+
+  // docs/33 D3: los últimos resultados de un equipo van por los índices de local y visitante, no por
+  // idx_matches_date (recorrería hacia atrás los partidos jugados de todos los equipos)
+  it("los últimos resultados de un equipo usan los índices de local y visitante", async () => {
+    const [equipo] = (await t.DB.prepare("SELECT id FROM teams LIMIT 1").all<{ id: string }>()).results;
+    const [consulta] = await capturar(
+      (DB) => getTeamRecentMatches(createDb(DB), equipo.id),
+      (sql) => sql.includes('from "matches"')
+    );
+    const pasos = (await plan(consulta)).join("\n");
+    expect(pasos).not.toMatch(/^SCAN (matches|m)\b/m);
+    expect(pasos).toContain("idx_matches_home_team");
+    expect(pasos).toContain("idx_matches_away_team");
+  });
+
+  // docs/33 D8: el sitemap deja afuera a los equipos sin partidos con un EXISTS por índice, en la
+  // misma consulta de equipos (no una consulta por equipo)
+  it("el sitemap busca los partidos de cada equipo por índice", async () => {
+    const consultas = await capturar(
+      (DB) => getPaginasPublicas(createDb(DB), AHORA),
+      (sql) => sql.includes('from "league_teams"') && sql.includes('from "matches"')
+    );
+    expect(consultas).toHaveLength(1);
+    const pasos = (await plan(consultas[0])).join("\n");
+    expect(pasos).not.toMatch(/^SCAN (matches|m)\b/m);
+    expect(pasos).toContain("idx_matches_home_team");
+    expect(pasos).toContain("idx_matches_away_team");
+  });
+
+  // docs/33 D10: los otros equipos de la liga salen de league_teams por su clave primaria (league_id
+  // primero) y cada equipo por la de teams; ninguna de las dos tablas se recorre entera
+  it("los equipos de la misma liga usan la clave primaria de league_teams y de teams", async () => {
+    const [fila] = (await t.DB.prepare("SELECT league_id AS leagueId, team_id AS teamId FROM league_teams LIMIT 1")
+      .all<{ leagueId: string; teamId: string }>()).results;
+    const consultas = await capturar(
+      (DB) => getEquiposDeLaLiga(createDb(DB), fila.leagueId, fila.teamId),
+      (sql) => sql.includes('from "league_teams"')
+    );
+    expect(consultas).toHaveLength(1);
+    const pasos = (await plan(consultas[0])).join("\n");
+    expect(pasos, pasos).not.toMatch(/^SCAN (league_teams|teams)\b/m);
+    expect(pasos).toContain("SEARCH league_teams USING COVERING INDEX sqlite_autoindex_league_teams_1 (league_id=?)");
+    expect(pasos).toContain("SEARCH teams USING INDEX sqlite_autoindex_teams_1 (id=?)");
+  });
+
+  // docs/33 D9: la página resuelve slug o id, el sync y el backfill leen los slugs ocupados y el backfill
+  // busca y cuenta las filas sin slug: todo por el índice único de slug o la clave primaria, sin SCAN
+  it("las consultas de slugs usan el índice de slug o la clave primaria", async () => {
+    const consultas = await capturar(
+      async (DB) => {
+        const db = createDb(DB);
+        await getTeamBySlugOrId(db, "river-plate");
+        await getLeagueBySlugOrId(db, "liga-profesional-argentina");
+        await slugsOcupados(db, "teams", ["river-plate", "boca-juniors"]);
+        await asignarSlugsPendientes(db);
+      },
+      (sql) => /from "(teams|leagues)"/.test(sql) && sql.includes("slug")
+    );
+    expect(consultas.length).toBeGreaterThanOrEqual(6);
+    for (const c of consultas.filter((c) => c.sql.startsWith("select"))) {
+      const pasos = (await plan(c)).join("\n");
+      expect(pasos, `${c.sql}\n${pasos}`).not.toMatch(/^SCAN (teams|leagues)\b/m);
+    }
   });
 });

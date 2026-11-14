@@ -1,9 +1,12 @@
 import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { normalizar } from "./estilos";
 import { irALogin } from "../../lib/auth/client";
+import { urlEscudo } from "../../lib/escudo";
 
 export interface EquipoItem {
   id: string;
+  // URL pública de la ficha (rutaPublica en el servidor: slug si existe, si no el id; docs/33 D9)
+  ruta: string;
   nombre: string;
   logo: string | null;
   sigla: string | null;
@@ -53,7 +56,7 @@ const Escudo = memo(function Escudo({ logo, nombre, sigla, size }: { logo: strin
       }}
     >
       {logo ? (
-        <img src={logo} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+        <img src={urlEscudo(logo, size)} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
       ) : (
         <span aria-hidden="true" style={{ font: "400 16px/1 var(--font-titular)" }}>{(sigla || nombre).slice(0, 3).toUpperCase()}</span>
       )}
@@ -180,7 +183,7 @@ export default function FiltroEquipos({ equipos, ligas, modo, placeholder = "Fil
             return (
               <a
                 key={e.id}
-                href={`/equipos/${e.id}`}
+                href={e.ruta}
                 className={`fe-tarjeta${siguiendo ? " fe-tarjeta--siguiendo" : ""}`}
               >
                 <Escudo logo={e.logo} nombre={e.nombre} sigla={e.sigla} size={72} />

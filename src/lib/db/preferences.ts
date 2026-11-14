@@ -8,12 +8,15 @@ export interface Preferences {
   reminder60: boolean;
   reminder15: boolean;
   theme: Theme;
+  // Valor inicial del auto-sync al seguir un equipo (docs/31 D14)
+  autoSyncDefault: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
   reminder60: true,
   reminder15: true,
   theme: "papel",
+  autoSyncDefault: true,
 };
 
 export async function getPreferences(db: Database, userId: string): Promise<Preferences> {
@@ -27,6 +30,7 @@ export async function getPreferences(db: Database, userId: string): Promise<Pref
     reminder60: row.reminder60,
     reminder15: row.reminder15,
     theme: row.theme === "nocturna" ? "nocturna" : "papel",
+    autoSyncDefault: row.autoSyncDefault,
   };
 }
 

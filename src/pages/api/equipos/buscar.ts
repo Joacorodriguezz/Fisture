@@ -35,9 +35,12 @@ export const GET: APIRoute = withApi(async ({ url, locals }) => {
       id: teams.id,
       name: teams.name,
       logo: teams.logo,
+      // Para armar la URL pública con rutaPublica (docs/33 D9); null hasta el backfill
+      slug: teams.slug,
       league: {
         id: leagues.id,
         name: leagues.name,
+        slug: leagues.slug,
       },
     })
     .from(teams)

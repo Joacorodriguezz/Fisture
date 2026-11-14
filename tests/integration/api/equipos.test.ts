@@ -103,7 +103,8 @@ describe("endpoints de equipos: bordes", () => {
     });
 
     it("encuentra por coincidencia parcial sin distinguir mayúsculas e incluye la liga", async () => {
-      expect(await consultar("JUNIORS")).toEqual([expect.objectContaining({ id: "boca", name: "Boca Juniors", league: { id: "test-league", name: "Liga de prueba" } })]);
+      // Con el slug para armar la URL pública (docs/33 D9): null hasta el backfill
+      expect(await consultar("JUNIORS")).toEqual([expect.objectContaining({ id: "boca", name: "Boca Juniors", slug: null, league: { id: "test-league", name: "Liga de prueba", slug: null } })]);
     });
 
     it("una consulta sin coincidencias devuelve una lista vacía", async () => {

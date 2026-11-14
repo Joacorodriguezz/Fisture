@@ -7,6 +7,7 @@ import FiltroEquipos from "../../components/islands/FiltroEquipos";
 import { createDb } from "../../lib/db";
 import { and, asc, eq } from "drizzle-orm";
 import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
+import { rutaPublica } from "../../lib/seo";
 
 // Página pública: sin sesión se puede buscar; seguir un equipo pide iniciar sesión
 const user = Astro.locals.user;
@@ -22,7 +23,7 @@ const todasLasLigas = await db
 const ligaPorId = new Map(todasLasLigas.map((l) => [l.id, l.name]));
 
 const todosLosEquipos = await db
-  .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo, leagueId: teams.leagueId })
+  .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo, leagueId: teams.leagueId, slug: teams.slug })
   .from(teams)
   .orderBy(asc(teams.name));
 
@@ -53,6 +54,7 @@ const items = todosLosEquipos
   .filter((t) => participacion.has(t.id))
   .map((t) => ({
     id: t.id,
+    ruta: rutaPublica("equipos", t),
     nombre: t.name,
     logo: t.logo,
     sigla: t.shortName,

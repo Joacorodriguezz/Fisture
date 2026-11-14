@@ -9,6 +9,7 @@ import {
   jsonLdSitio,
   PERFILES_DE_MARCA,
   recortarDescripcion,
+  redireccionASlug,
   rutaPublica,
   serializarJsonLd,
   urlCanonica,
@@ -107,7 +108,7 @@ describe("jsonLdMigas", () => {
 
 describe("rutaPublica", () => {
   it("codifica el id igual que la URL que llega a Astro (canónica)", () => {
-    const ruta = rutaPublica("equipos", "boca juniors/ñ&?");
+    const ruta = rutaPublica("equipos", { id: "boca juniors/ñ&?" });
     expect(ruta).toBe("/equipos/boca%20juniors%2F%C3%B1%26%3F");
     expect(urlCanonica(BASE, new URL(`${BASE}${ruta}`).pathname)).toBe(`${BASE}${ruta}`);
   });
@@ -121,6 +122,42 @@ describe("rutaPublica", () => {
     expect(ld.superEvent.url).toBe(`${BASE}/ligas/liga%2F1`);
     expect(jsonLdEquipo(BASE, raro, ligaRara).memberOf?.url).toBe(`${BASE}/ligas/liga%2F1`);
     expect(jsonLdLiga(BASE, ligaRara, [raro]).url).toBe(`${BASE}/ligas/liga%2F1`);
+  });
+});
+
+describe("rutaPublica con slug (docs/33 D9)", () => {
+  it("equipos y ligas usan el slug si existe y el id si no; los partidos siempre el id", () => {
+    expect(rutaPublica("equipos", { id: "uuid-1", slug: "atletico-tucuman" })).toBe("/equipos/atletico-tucuman");
+    expect(rutaPublica("equipos", { id: "uuid-1", slug: null })).toBe("/equipos/uuid-1");
+    expect(rutaPublica("equipos", { id: "uuid-1" })).toBe("/equipos/uuid-1");
+    expect(rutaPublica("ligas", { id: "uuid-2", slug: "liga-profesional-argentina" })).toBe("/ligas/liga-profesional-argentina");
+    expect(rutaPublica("partidos", "uuid-3")).toBe("/partidos/uuid-3");
+  });
+
+  it("canónica, JSON-LD y migas usan el slug", () => {
+    const conSlug = { ...river, id: "uuid-river", slug: "river-plate" };
+    const ligaConSlug = { ...liga, id: "uuid-lpf", slug: "liga-profesional" };
+    const ld = jsonLdPartido(BASE, { match, homeTeam: conSlug, awayTeam: boca, league: ligaConSlug });
+    expect(ld.homeTeam.url).toBe(`${BASE}/equipos/river-plate`);
+    expect(ld.awayTeam.url).toBe(`${BASE}/equipos/boca`);
+    expect(ld.superEvent.url).toBe(`${BASE}/ligas/liga-profesional`);
+    expect(jsonLdEquipo(BASE, conSlug, ligaConSlug)).toMatchObject({ url: `${BASE}/equipos/river-plate`, memberOf: { url: `${BASE}/ligas/liga-profesional` } });
+    expect(jsonLdLiga(BASE, ligaConSlug, [conSlug]).member[0].url).toBe(`${BASE}/equipos/river-plate`);
+  });
+});
+
+describe("redireccionASlug", () => {
+  const equipo = { id: "uuid-river", slug: "river-plate" };
+
+  it("por id y con slug: la URL con nombre, conservando el query string", () => {
+    expect(redireccionASlug("equipos", "uuid-river", equipo, "?lado=local")).toBe("/equipos/river-plate?lado=local");
+    expect(redireccionASlug("ligas", "uuid-lpf", { id: "uuid-lpf", slug: "liga" })).toBe("/ligas/liga");
+  });
+
+  it("por slug, o sin slug todavía: se sirve la página", () => {
+    expect(redireccionASlug("equipos", "river-plate", equipo, "?lado=local")).toBeNull();
+    expect(redireccionASlug("equipos", "uuid-river", { id: "uuid-river", slug: null })).toBeNull();
+    expect(redireccionASlug("equipos", "river", { id: "river", slug: "river" })).toBeNull();
   });
 });
 

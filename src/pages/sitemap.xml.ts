@@ -24,8 +24,8 @@ export async function GET({ locals }: APIContext): Promise<Response> {
   // Mismas rutas que la canónica y el JSON-LD (rutaPublica); escaparXml cubre "&" y comillas
   const urls = [
     ...PAGINAS_PUBLICAS.map((ruta) => entrada(`${base}${ruta}`)),
-    ...ligas.map((l) => entrada(`${base}${rutaPublica("ligas", l.id)}`)),
-    ...equipos.map((e) => entrada(`${base}${rutaPublica("equipos", e.id)}`)),
+    ...ligas.map((l) => entrada(`${base}${rutaPublica("ligas", l)}`)),
+    ...equipos.map((e) => entrada(`${base}${rutaPublica("equipos", e)}`)),
     ...partidos.map((p) => entrada(`${base}${rutaPublica("partidos", p.id)}`)),
   ]
     .slice(0, MAX_URLS_SITEMAP)

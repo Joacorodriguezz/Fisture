@@ -17,10 +17,30 @@ export function urlCanonica(publicAppUrl: string, pathname: string): string {
   return `${baseUrl(publicAppUrl)}${normalizarRuta(pathname)}`;
 }
 
-// Ruta de una liga, equipo o partido. El id va codificado como en la URL que pide el navegador,
-// así el sitemap, el JSON-LD y la canónica (Astro.url.pathname) apuntan a la misma dirección.
-export function rutaPublica(seccion: "ligas" | "equipos" | "partidos", id: string): string {
-  return `/${seccion}/${encodeURIComponent(id)}`;
+// Liga o equipo con su slug (docs/33 D9). Sin slug (nombre sin letras, o antes del backfill) la URL
+// sigue siendo la del id.
+export interface EntidadConSlug {
+  id: string;
+  slug?: string | null;
+}
+
+// Única fuente de la URL pública de una liga, equipo o partido: canónica, sitemap, JSON-LD, migas,
+// llms.txt y enlaces internos. Equipos y ligas usan el slug cuando existe y el id cuando no; los
+// partidos siempre el id (la fecha cambia con las reprogramaciones). El segmento va codificado como
+// en la URL que pide el navegador, así todo apunta a la misma dirección que Astro.url.pathname.
+export function rutaPublica(seccion: "partidos", id: string): string;
+export function rutaPublica(seccion: "ligas" | "equipos", entidad: EntidadConSlug): string;
+export function rutaPublica(seccion: "ligas" | "equipos" | "partidos", valor: string | EntidadConSlug): string {
+  const segmento = typeof valor === "string" ? valor : valor.slug || valor.id;
+  return `/${seccion}/${encodeURIComponent(segmento)}`;
+}
+
+// Página de equipo o liga pedida por `pedido` (slug o id): si llegó por id y la fila ya tiene slug,
+// devuelve la URL con nombre (con el mismo query string) para responder 301. Null = servir la página:
+// llegó por slug, o la fila todavía no tiene slug (transición).
+export function redireccionASlug(seccion: "ligas" | "equipos", pedido: string, entidad: EntidadConSlug, search = ""): string | null {
+  if (!entidad.slug || entidad.slug === pedido) return null;
+  return `${rutaPublica(seccion, entidad)}${search}`;
 }
 
 // Dominio único (docs/29): en producción, un pedido que llega por otro host (fisture.pages.dev, www.,
@@ -129,8 +149,7 @@ export function jsonLdSitio(publicAppUrl: string) {
   };
 }
 
-interface EquipoLd {
-  id: string;
+interface EquipoLd extends EntidadConSlug {
   name: string;
   logo?: string | null;
 }
@@ -140,7 +159,7 @@ function equipoLd(base: string, equipo: EquipoLd) {
     "@type": "SportsTeam",
     name: equipo.name,
     sport: "Soccer",
-    url: `${base}${rutaPublica("equipos", equipo.id)}`,
+    url: `${base}${rutaPublica("equipos", equipo)}`,
     ...(equipo.logo ? { logo: equipo.logo } : {}),
   };
 }
@@ -156,7 +175,7 @@ export function jsonLdPartido(
     match: { id: string; dateTime: Date; venue: string | null; status: string | null; round?: string | null };
     homeTeam: EquipoLd;
     awayTeam: EquipoLd;
-    league: { id: string; name: string };
+    league: EntidadConSlug & { name: string };
   }
 ) {
   const base = baseUrl(publicAppUrl);
@@ -181,28 +200,28 @@ export function jsonLdPartido(
     awayTeam: visitante,
     competitor: [local, visitante],
     performer: [local, visitante],
-    superEvent: { "@type": "SportsEvent", name: league.name, url: `${base}${rutaPublica("ligas", league.id)}` },
+    superEvent: { "@type": "SportsEvent", name: league.name, url: `${base}${rutaPublica("ligas", league)}` },
     ...([homeTeam.logo, awayTeam.logo].some(Boolean) ? { image: [homeTeam.logo, awayTeam.logo].filter(Boolean) } : {}),
   };
 }
 
-export function jsonLdEquipo(publicAppUrl: string, equipo: EquipoLd, liga?: { id: string; name: string } | null) {
+export function jsonLdEquipo(publicAppUrl: string, equipo: EquipoLd, liga?: (EntidadConSlug & { name: string }) | null) {
   const base = baseUrl(publicAppUrl);
   return {
     "@context": "https://schema.org",
     ...equipoLd(base, equipo),
-    ...(liga ? { memberOf: { "@type": "SportsOrganization", name: liga.name, url: `${base}${rutaPublica("ligas", liga.id)}` } } : {}),
+    ...(liga ? { memberOf: { "@type": "SportsOrganization", name: liga.name, url: `${base}${rutaPublica("ligas", liga)}` } } : {}),
   };
 }
 
-export function jsonLdLiga(publicAppUrl: string, liga: { id: string; name: string; country: string }, equipos: EquipoLd[]) {
+export function jsonLdLiga(publicAppUrl: string, liga: EntidadConSlug & { name: string; country: string }, equipos: EquipoLd[]) {
   const base = baseUrl(publicAppUrl);
   return {
     "@context": "https://schema.org",
     "@type": "SportsOrganization",
     name: liga.name,
     sport: "Soccer",
-    url: `${base}${rutaPublica("ligas", liga.id)}`,
+    url: `${base}${rutaPublica("ligas", liga)}`,
     areaServed: liga.country,
     member: equipos.map((e) => equipoLd(base, e)),
   };

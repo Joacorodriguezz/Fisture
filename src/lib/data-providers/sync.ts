@@ -8,7 +8,9 @@
 import { and, eq, notInArray } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { createDb, type Database } from "../db";
-import { mensajeDeError } from "../observability/logger";
+import { mensajeDeError, rootLogger } from "../observability/logger";
+import { guardarSlugs, resolverSlugsNuevos } from "../db/slugs";
+import type { FilaSinSlug } from "../slug";
 import { teams, matches, leagues, leagueTeams } from "../../../drizzle/schema";
 import {
   createEspnClient,
@@ -45,8 +47,8 @@ const DIAS_ATRAS = 30;
 const TAMANO_LOTE = 50;
 // Filas por INSERT multi-fila: 100 parámetros máx. / 12 columnas de matches
 const FILAS_PARTIDOS = 7;
-// 100 parámetros máx. / 8 columnas de teams
-const FILAS_EQUIPOS = 12;
+// 100 parámetros máx. / 9 columnas de teams (con slug)
+const FILAS_EQUIPOS = 11;
 // 100 parámetros máx. / 2 columnas de league_teams
 const FILAS_PARTICIPACION = 45;
 
@@ -134,6 +136,8 @@ async function syncLeagues(env: SyncEnv, configs: LeagueConfig[]): Promise<SyncR
   const providers = new Map<string, DataProvider | null>();
   const conocidos: CacheConocidos = new Map();
   const results: SyncResult[] = [];
+  // Competencias sin slug (nuevas, o anteriores al backfill): se les asigna al final, todas juntas
+  const ligasSinSlug: FilaSinSlug[] = [];
 
   for (const config of configs) {
     if (!providers.has(config.source)) providers.set(config.source, crearProvider(config.source, env));
@@ -144,12 +148,25 @@ async function syncLeagues(env: SyncEnv, configs: LeagueConfig[]): Promise<SyncR
       continue;
     }
 
-    results.push(await syncLeague(db, provider, config, conocidos));
+    results.push(await syncLeague(db, provider, config, conocidos, ligasSinSlug));
     // Una competencia destacada puede sumar equipos conocidos: la próxima copa los recalcula
     if (config.destacada) conocidos.delete(config.source);
   }
 
+  await asignarSlugsALigas(db, ligasSinSlug);
   return results;
+}
+
+// URL con nombre de las competencias nuevas (docs/33 D9): una lectura de ocupados y un batch por
+// invocación, y solo si alguna competencia del lote no tiene slug. Un fallo no tumba el sync: la
+// competencia sigue respondiendo por id y la próxima corrida (o el backfill) lo reintenta.
+async function asignarSlugsALigas(db: Database, filas: FilaSinSlug[]): Promise<void> {
+  if (filas.length === 0) return;
+  try {
+    await guardarSlugs(db, "leagues", await resolverSlugsNuevos(db, "leagues", filas));
+  } catch (error) {
+    rootLogger.warn("sync_slug_ligas_fallo", { ligas: filas.length, error: mensajeDeError(error, "Error desconocido") });
+  }
 }
 
 // Las ligas que ya no están en la configuración dejan de mostrarse (no se borran datos)
@@ -198,7 +215,8 @@ async function syncLeague(
   db: Database,
   provider: DataProvider,
   config: LeagueConfig,
-  conocidos: CacheConocidos
+  conocidos: CacheConocidos,
+  ligasSinSlug: FilaSinSlug[]
 ): Promise<SyncResult> {
   const result = resultadoVacio(config);
 
@@ -226,8 +244,10 @@ async function syncLeague(
           isFeatured: config.destacada,
         },
       })
-      .returning({ id: leagues.id });
+      // El slug no se escribe acá: una vez asignado no cambia aunque cambie el nombre (docs/33 D9)
+      .returning({ id: leagues.id, slug: leagues.slug });
     const ligaId = liga.id;
+    if (!liga.slug) ligasSinSlug.push({ id: ligaId, name: config.name, country: config.country });
 
     // 2. Fixture de la competencia (equipos + partidos)
     const completo = provider.getFixture
@@ -373,8 +393,22 @@ async function syncEquipos(
     }
   }
 
+  // URL con nombre (docs/33 D9): el slug va en el mismo INSERT. Solo lee los ocupados si hay equipos
+  // nuevos (una consulta por índice cada 25 nombres). A los existentes no se les cambia ni se les asigna
+  // acá: eso es del backfill, para no sumar escrituras ni subrequests al sync diario.
+  const slugs = nuevos.length
+    ? await resolverSlugsNuevos(
+        db,
+        "teams",
+        nuevos.map((n) => ({ id: n.id!, name: n.name, country: n.country ?? null }))
+      )
+    : new Map<string, string>();
+  for (const n of nuevos) n.slug = slugs.get(n.id!) ?? null;
+
   await ejecutarEnLotes(db, [
-    ...partir(nuevos, FILAS_EQUIPOS).map((filas) => db.insert(teams).values(filas).onConflictDoNothing()),
+    // Solo se ignora el choque por external_id (otra corrida lo insertó): un choque de slug falla
+    // a la vista en lugar de descartar el equipo en silencio
+    ...partir(nuevos, FILAS_EQUIPOS).map((filas) => db.insert(teams).values(filas).onConflictDoNothing({ target: teams.externalId })),
     ...cambios,
   ]);
 

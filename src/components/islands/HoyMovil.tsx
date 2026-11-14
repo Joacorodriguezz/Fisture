@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import SincronizarPartido from "./SincronizarPartido";
+import { urlEscudo } from "../../lib/escudo";
 
 export interface DiaTira {
   iso: string;
@@ -57,7 +58,7 @@ function Escudo({ equipo }: { equipo: EquipoVista }) {
   const iniciales = (equipo.sigla || equipo.nombre).slice(0, 3).toUpperCase();
   return (
     <span className="hm-escudo">
-      {equipo.logo ? <img src={equipo.logo} alt="" loading="lazy" decoding="async" /> : <span aria-hidden="true">{iniciales}</span>}
+      {equipo.logo ? <img src={urlEscudo(equipo.logo, 24)} alt="" loading="lazy" decoding="async" /> : <span aria-hidden="true">{iniciales}</span>}
     </span>
   );
 }

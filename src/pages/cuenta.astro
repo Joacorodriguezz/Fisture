@@ -1,0 +1,161 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Volanta from "../components/tribuna/Volanta.astro";
+import Titular from "../components/tribuna/Titular.astro";
+import Boton from "../components/tribuna/Boton.astro";
+import BarraSeccion from "../components/tribuna/BarraSeccion.astro";
+import Segmentado from "../components/islands/Segmentado";
+import EliminarCuenta from "../components/islands/EliminarCuenta";
+import DesvincularProveedor from "../components/islands/DesvincularProveedor";
+import { createDb } from "../lib/db";
+import { getPreferences } from "../lib/db/preferences";
+import { providerLabel } from "../lib/format";
+import { mensajeErrorAuth, nombreProveedor } from "../lib/auth/mensajes";
+import { oauthIdentities } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+const db = createDb(Astro.locals.runtime.env.DB);
+const prefs = await getPreferences(db, user.id);
+
+// Proveedores vinculados a la cuenta (docs/18). Solo se lee provider: los tokens no salen de acá
+const vinculadas = new Set(
+  (await db.select({ provider: oauthIdentities.provider }).from(oauthIdentities).where(eq(oauthIdentities.userId, user.id))).map((i) => i.provider)
+);
+const proveedores = (["google", "microsoft"] as const).map((p) => ({
+  id: p,
+  nombre: nombreProveedor(p)!,
+  vinculado: vinculadas.has(p),
+  // El del calendario activo y la última identidad no se pueden desvincular (el servidor lo vuelve a validar)
+  activo: user.provider === p,
+  desvinculable: vinculadas.has(p) && user.provider !== p && vinculadas.size > 1,
+}));
+const codigoAviso = Astro.url.searchParams.get("error");
+const vinculado = nombreProveedor(Astro.url.searchParams.get("vinculado"));
+const avisoEsError = codigoAviso !== null;
+const aviso = codigoAviso
+  ? mensajeErrorAuth(codigoAviso, Astro.url.searchParams.get("proveedor")) ?? "No pudimos completar la operación. Probá de nuevo."
+  : vinculado
+    ? `Vinculaste ${vinculado} a tu cuenta.`
+    : null;
+const nombre = user.name?.trim() || user.email.split("@")[0];
+const inicial = nombre.charAt(0).toUpperCase();
+
+const siNo = [
+  { label: "Sí", value: true },
+  { label: "No", value: false },
+];
+
+const preferencias = [
+  {
+    label: "Aviso 1 hora antes",
+    detalle: "Notificación en tu calendario",
+    campo: "reminder60",
+    valor: prefs.reminder60,
+    opciones: siNo,
+    aplicarTema: false,
+  },
+  {
+    label: "Aviso 15 minutos antes",
+    detalle: "Notificación en tu calendario",
+    campo: "reminder15",
+    valor: prefs.reminder15,
+    opciones: siNo,
+    aplicarTema: false,
+  },
+  {
+    label: "Edición",
+    detalle: "Papel de día o Pizarra de noche",
+    campo: "theme",
+    valor: prefs.theme,
+    opciones: [
+      { label: "Papel", value: "papel" },
+      { label: "Pizarra", value: "nocturna" },
+    ],
+    aplicarTema: true,
+  },
+];
+---
+
+<Layout title="Tu cuenta - FISTURE" pagina={8} noindex>
+  <div style="max-width:760px;display:flex;flex-direction:column;gap:32px">
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+      <Volanta tono="tinta">Configuración</Volanta>
+      <Titular nivel="1">TU CUENTA</Titular>
+    </div>
+
+    <div style="display:flex;flex-direction:column">
+      <BarraSeccion tono="tinta">Cuenta</BarraSeccion>
+      <div class="cf-cuenta" style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding:16px 12px;border-bottom:1px solid var(--linea)">
+        <div aria-hidden="true" style="flex:none;width:56px;height:56px;background:var(--rojo-fondo);color:var(--on-rojo);display:flex;align-items:center;justify-content:center;font:400 28px/1 var(--font-titular)">
+          {inicial}
+        </div>
+        <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px">
+          <span style="font:700 17px/20px var(--font-rotulo);text-transform:uppercase">{nombre}</span>
+          <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
+            {user.email} · {providerLabel(user.provider)}
+          </span>
+        </div>
+        <form method="post" action="/api/auth/logout">
+          <Boton type="submit">Cerrar sesión</Boton>
+        </form>
+      </div>
+    </div>
+
+    {aviso && (
+      <div role={avisoEsError ? "alert" : "status"} style={`padding:12px 16px;font:600 15px/20px var(--font-rotulo);letter-spacing:.02em;${avisoEsError ? "background:var(--rojo-fondo);color:var(--on-rojo)" : "border:2px solid var(--tinta)"}`}>
+        {aviso}
+      </div>
+    )}
+
+    <div style="display:flex;flex-direction:column">
+      <BarraSeccion tono="tinta">Cuentas vinculadas</BarraSeccion>
+      {proveedores.map((p) => (
+        <div class="cf-pref" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px 16px;padding:16px 12px;border-bottom:1px solid var(--linea)">
+          <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:2px">
+            <span style="font:700 17px/20px var(--font-rotulo);text-transform:uppercase">{p.nombre}</span>
+            <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">
+              {p.vinculado ? (p.activo ? "Vinculado. Es el calendario donde se crean tus eventos." : "Vinculado. Sirve para entrar a tu cuenta.") : "Sin vincular"}
+            </span>
+          </div>
+          {!p.vinculado && (
+            <form method="post" action={`/api/auth/vincular/${p.id}`}>
+              <Boton type="submit">Vincular {p.nombre}</Boton>
+            </form>
+          )}
+          {p.desvinculable && <DesvincularProveedor client:visible provider={p.id} etiqueta={p.nombre} />}
+        </div>
+      ))}
+    </div>
+
+    <div style="display:flex;flex-direction:column">
+      <BarraSeccion tono="tinta">Preferencias</BarraSeccion>
+      {preferencias.map((p) => (
+        <div class="cf-pref" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px 16px;padding:16px 12px;border-bottom:1px solid var(--linea)">
+          <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:2px">
+            <span style="font:700 17px/20px var(--font-rotulo);text-transform:uppercase">{p.label}</span>
+            <span style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave)">{p.detalle}</span>
+          </div>
+          <Segmentado
+            client:load
+            ariaLabel={p.label}
+            opciones={p.opciones}
+            valor={p.valor}
+            endpoint="/api/preferencias"
+            campo={p.campo}
+            aplicarTema={p.aplicarTema}
+          />
+        </div>
+      ))}
+    </div>
+
+    <div style="display:flex;flex-direction:column">
+      <BarraSeccion tono="rojo">Zona de peligro</BarraSeccion>
+      <EliminarCuenta client:visible email={user.email} provider={user.provider} />
+    </div>
+  </div>
+</Layout>

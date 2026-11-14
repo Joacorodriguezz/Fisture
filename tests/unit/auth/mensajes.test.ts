@@ -18,7 +18,7 @@ describe("mensajeErrorAuth", () => {
     for (const proveedor of ["google", "microsoft", "<script>alert(1)</script>", null]) {
       const m = mensajeErrorAuth("email_en_uso", proveedor)!;
       expect(m).not.toMatch(/Google|Microsoft|script/);
-      expect(m).toContain("Configuración");
+      expect(m).toContain("desde Cuenta");
     }
   });
 

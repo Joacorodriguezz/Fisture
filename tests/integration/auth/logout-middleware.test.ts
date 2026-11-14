@@ -82,7 +82,7 @@ describe("middleware y logout con sesiones en D1", () => {
     const { res } = await pasar(undefined, "/ligas");
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
 
-    const r = await pasar(undefined, "/configuracion");
+    const r = await pasar(undefined, "/cuenta");
     expect(r.res.status).toBe(302);
     expect(r.res.headers.get("X-Frame-Options")).toBe("DENY");
   });

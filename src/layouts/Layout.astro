@@ -1,10 +1,11 @@
 ---
 import Cabecera from "../components/tribuna/Cabecera.astro";
+import BarraInferior from "../components/tribuna/BarraInferior.astro";
 import Folio from "../components/tribuna/Folio.astro";
 import JsonLd from "../components/seo/JsonLd.astro";
 import { createDb } from "../lib/db";
 import { getPreferences } from "../lib/db/preferences";
-import { fechaLarga, fechaMovil, primerNombre } from "../lib/format";
+import { fechaLarga, primerNombre } from "../lib/format";
 import { loginHref } from "../lib/auth/guards";
 import { recortarDescripcion, urlCanonica } from "../lib/seo";
 import { SCRIPT_TEMA } from "../lib/security-headers";
@@ -14,6 +15,7 @@ import "../styles/tribuna90.css";
 
 interface Props {
   title: string;
+  // Volanta sobre la cabecera. Por defecto solo en la portada (docs/31 D1)
   volanta?: string;
   // Muestra la navegación de secciones (pública)
   showNavbar?: boolean;
@@ -28,7 +30,7 @@ interface Props {
 
 const {
   title,
-  volanta = "Tus partidos en tu calendario",
+  volanta = Astro.url.pathname === "/" ? "Tus partidos en tu calendario" : undefined,
   showNavbar = true,
   pagina = 1,
   descripcion: descripcionCompleta = "Sincronizá los partidos de tus equipos y ligas de fútbol con tu calendario personal.",
@@ -60,26 +62,20 @@ const ruta = Astro.url.pathname;
 const enSeccion = (...prefijos: string[]) =>
   prefijos.some((p) => ruta === p || ruta.startsWith(p + "/"));
 
-// La navegación es pública; "Configuración" es personal y solo aparece con sesión
+// La navegación es pública. Cuenta no es una sección: se entra desde el avatar de la cabecera (docs/31 D2)
 const secciones = showNavbar
   ? [
       { label: "Hoy", href: "/hoy", actual: enSeccion("/hoy") },
-      { label: "Ligas", href: "/ligas", actual: enSeccion("/ligas", "/equipos") },
       { label: "Partidos", href: "/partidos", actual: enSeccion("/partidos") },
+      { label: "Ligas", href: "/ligas", actual: enSeccion("/ligas", "/equipos") },
       { label: "Calendario", href: "/calendario", actual: enSeccion("/calendario") },
-      ...(user ? [{ label: "Configuración", href: "/configuracion", actual: enSeccion("/configuracion") }] : []),
     ]
   : [];
 
 // Sin sesión: botón de login que vuelve a la página actual (salvo en /login)
-const accion =
-  user || enSeccion("/login")
-    ? undefined
-    : { label: "Iniciar sesión", href: loginHref(ruta + Astro.url.search) };
+const loginDeCabecera = user || enSeccion("/login") ? undefined : loginHref(ruta + Astro.url.search);
 
-const numero = user ? `Hola, ${primerNombre(user.name, user.email)}` : "Fixture sync";
 const fecha = fechaLarga(new Date());
-const fechaCorta = fechaMovil(new Date());
 ---
 
 <!doctype html>
@@ -130,7 +126,7 @@ const fechaCorta = fechaMovil(new Date());
         Staging · rama development · datos de prueba
       </div>
     )}
-    <Cabecera volanta={volanta} numero={numero} numeroHref={user ? "/configuracion" : undefined} fecha={fecha} fechaMovil={fechaCorta} secciones={secciones} accion={accion} usuario={user ? { nombre: primerNombre(user.name, user.email), detalle: user.email } : undefined} />
+    <Cabecera volanta={volanta} secciones={secciones} loginHref={loginDeCabecera} usuario={user ? { nombre: primerNombre(user.name, user.email) } : undefined} />
     <main class="tb-main" id="contenido" tabindex="-1">
       <slot />
       <div style="margin-top:56px">
@@ -141,5 +137,6 @@ const fechaCorta = fechaMovil(new Date());
       <span translate="no" style="font:400 20px/1 var(--font-titular);transform:skewX(-8deg)">FISTURE</span>
       <span><a href="/ayuda" class="tb-footer__enlace">Ayuda</a> · <a href={`mailto:${CONTACTO_EMAIL}`} class="tb-footer__enlace">Contacto</a> · <a href="/privacidad" class="tb-footer__enlace">Privacidad</a> · <a href="/terminos" class="tb-footer__enlace">Condiciones</a></span>
     </footer>
+    {secciones.length > 0 && <BarraInferior secciones={secciones} buscarActual={enSeccion("/equipos/buscar")} />}
   </body>
 </html>

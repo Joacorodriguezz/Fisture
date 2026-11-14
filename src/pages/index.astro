@@ -94,7 +94,7 @@ const pasos = [
       <section aria-labelledby="explorar-equipos">
         <h2 id="explorar-equipos" style="font:400 32px/1.1 var(--font-titular)">Explorá el fixture de los equipos</h2>
         <ul style="display:flex;flex-wrap:wrap;gap:16px 28px;padding-left:20px;font:600 18px/1.5 var(--font-rotulo)">
-          {equiposParaExplorar.map((equipo) => <li><a href={rutaPublica("equipos", equipo.id)} style="color:var(--tinta);text-decoration:underline;text-underline-offset:4px">Fixture de {equipo.name}</a></li>)}
+          {equiposParaExplorar.map((equipo) => <li><a href={rutaPublica("equipos", equipo)} style="color:var(--tinta);text-decoration:underline;text-underline-offset:4px">Fixture de {equipo.name}</a></li>)}
         </ul>
         <a href="/equipos/buscar" style="color:var(--tinta);text-decoration:underline;text-underline-offset:4px">Buscar otro equipo</a>
       </section>

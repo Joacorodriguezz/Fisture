@@ -112,18 +112,18 @@ describe("API con D1 real efímera", () => {
 
   describe("preferencias", () => {
     it("sin cambios devuelve los valores por defecto", async () => {
-      expect(await preferencias()).toEqual({ reminder60: true, reminder15: true, theme: "papel" });
+      expect(await preferencias()).toEqual({ reminder60: true, reminder15: true, theme: "papel", autoSyncDefault: true });
     });
 
     it("los cambios parciales se acumulan", async () => {
       await patchPreferencias({ theme: "nocturna" });
       await patchPreferencias({ reminder60: false });
-      expect(await preferencias()).toEqual({ reminder60: false, reminder15: true, theme: "nocturna" });
+      expect(await preferencias()).toEqual({ reminder60: false, reminder15: true, theme: "nocturna", autoSyncDefault: true });
     });
 
     it("las preferencias de un usuario no afectan a otro", async () => {
       await patchPreferencias({ theme: "nocturna" });
-      expect(await preferencias(fixtures.other)).toEqual({ reminder60: true, reminder15: true, theme: "papel" });
+      expect(await preferencias(fixtures.other)).toEqual({ reminder60: true, reminder15: true, theme: "papel", autoSyncDefault: true });
     });
 
     it("guarda una sola fila por usuario aunque se modifique varias veces", async () => {

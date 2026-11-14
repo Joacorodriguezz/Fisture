@@ -33,6 +33,8 @@ export const users = sqliteTable(
     // 'ok' | 'reauth_required': con 'reauth_required' el calendario perdió acceso y el sync lo salta
     // hasta que el usuario vuelva a iniciar sesión.
     calendarAuthStatus: text("calendar_auth_status").notNull().default("ok"),
+    // Cuándo terminó (o salteó) el onboarding de /bienvenida. NULL = todavía no lo vio (docs/31 D13).
+    onboardedAt: integer("onboarded_at", { mode: "timestamp" }),
   },
   (table) => ({
     calendarReconciledIdx: index("idx_users_calendar_reconciled").on(table.calendarReconciledAt),
@@ -75,20 +77,27 @@ export type OAuthIdentity = typeof oauthIdentities.$inferSelect;
 // LIGAS Y EQUIPOS
 // ============================================
 
-export const leagues = sqliteTable("leagues", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  externalId: text("external_id").notNull().unique(),
-  name: text("name").notNull(),
-  country: text("country").notNull(),
-  logo: text("logo"),
-  season: integer("season").notNull(),
-  source: text("source").notNull().default("football-data"), // 'football-data' | 'promiedos'
-  isActive: integer("is_active", { mode: "boolean" }).default(true),
-  // Destacada: se lista en /ligas y en la búsqueda. Las demás copas solo aparecen en el fixture de cada equipo (docs/22)
-  isFeatured: integer("is_featured", { mode: "boolean" }).notNull().default(true),
-});
+export const leagues = sqliteTable(
+  "leagues",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    externalId: text("external_id").notNull().unique(),
+    name: text("name").notNull(),
+    country: text("country").notNull(),
+    logo: text("logo"),
+    season: integer("season").notNull(),
+    source: text("source").notNull().default("football-data"), // 'football-data' | 'promiedos'
+    isActive: integer("is_active", { mode: "boolean" }).default(true),
+    // Destacada: se lista en /ligas y en la búsqueda. Las demás copas solo aparecen en el fixture de cada equipo (docs/22)
+    isFeatured: integer("is_featured", { mode: "boolean" }).notNull().default(true),
+    // Nombre en la URL pública (/ligas/liga-profesional-argentina, docs/33 D9). NULL hasta que el sync o
+    // el backfill (POST /api/admin/slugs) lo asignan, o si el nombre no genera slug. Asignado, no cambia.
+    slug: text("slug"),
+  },
+  (table) => ({ slugIdx: uniqueIndex("leagues_slug_idx").on(table.slug) })
+);
 
 export const teams = sqliteTable(
   "teams",
@@ -108,8 +117,14 @@ export const teams = sqliteTable(
     updatedAt: integer("updated_at", { mode: "timestamp" }).default(
       sql`(strftime('%s', 'now'))`
     ),
+    // Nombre en la URL pública (/equipos/atletico-tucuman, docs/33 D9). NULL hasta que el sync (equipos
+    // nuevos) o el backfill (POST /api/admin/slugs) lo asignan, o si el nombre no genera slug. Asignado, no cambia.
+    slug: text("slug"),
   },
-  (table) => ({ nameIdx: index("idx_teams_name").on(table.name) })
+  (table) => ({
+    nameIdx: index("idx_teams_name").on(table.name),
+    slugIdx: uniqueIndex("teams_slug_idx").on(table.slug),
+  })
 );
 
 // ============================================
@@ -227,6 +242,10 @@ export const calendarSyncs = sqliteTable(
     syncedState: text("synced_state"),
     syncedVenue: text("synced_venue"),
     errorMessage: text("error_message"),
+    // Hora del partido antes del último cambio de horario aplicado al evento, y cuándo se aplicó.
+    // La UI muestra «Horario actualizado» durante 7 días (docs/31 D6).
+    previousDateTime: integer("previous_date_time", { mode: "timestamp" }),
+    dateTimeChangedAt: integer("date_time_changed_at", { mode: "timestamp" }),
   },
   (table) => ({
     statusIdx: index("idx_calendar_syncs_status").on(table.status),
@@ -245,6 +264,8 @@ export const userPreferences = sqliteTable("user_preferences", {
   reminder60: integer("reminder_60", { mode: "boolean" }).notNull().default(true),
   reminder15: integer("reminder_15", { mode: "boolean" }).notNull().default(true),
   theme: text("theme").notNull().default("papel"), // 'papel' | 'nocturna'
+  // Valor inicial de user_teams.auto_sync al seguir un equipo (docs/31 D14)
+  autoSyncDefault: integer("auto_sync_default", { mode: "boolean" }).notNull().default(true),
 });
 
 // ============================================

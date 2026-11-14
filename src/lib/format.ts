@@ -109,3 +109,73 @@ export function sumarDias(iso: string, dias: number): string {
   const { desde } = rangoDelDia(iso);
   return diaISO(new Date(desde.getTime() + dias * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000));
 }
+
+// ---- Hora por país (docs/33 D4) ----
+// Siempre con la zona IANA, nunca con diferencias fijas: Chile, Paraguay, México y España tienen o
+// tuvieron horario de verano, y el dato de cada zona lo trae Intl. Argentina va primero.
+export interface PaisConZona {
+  pais: string;
+  zona: string;
+}
+
+export const PAISES_HORA: readonly PaisConZona[] = [
+  { pais: "Argentina", zona: TZ },
+  { pais: "Uruguay", zona: "America/Montevideo" },
+  { pais: "Brasil", zona: "America/Sao_Paulo" },
+  { pais: "Chile", zona: "America/Santiago" },
+  { pais: "Paraguay", zona: "America/Asuncion" },
+  { pais: "Bolivia", zona: "America/La_Paz" },
+  { pais: "Venezuela", zona: "America/Caracas" },
+  { pais: "Colombia", zona: "America/Bogota" },
+  { pais: "Perú", zona: "America/Lima" },
+  { pais: "Ecuador", zona: "America/Guayaquil" },
+  { pais: "México (CDMX)", zona: "America/Mexico_City" },
+  { pais: "España (península)", zona: "Europe/Madrid" },
+];
+
+export interface HoraEnPaises {
+  hora: string;
+  paises: string[];
+  /** Día calendario respecto del de Argentina: 1 es el día siguiente, -1 el anterior */
+  desfaseDias: number;
+  /** "lunes": el día de la semana en esos países */
+  diaSemana: string;
+}
+
+function diaEnZona(date: Date, zona: string): string {
+  return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: zona }).format(date);
+}
+
+// Agrupa los países que comparten hora local y día calendario, en el orden de la lista
+export function horaPorPais(date: Date, paises: readonly PaisConZona[] = PAISES_HORA): HoraEnPaises[] {
+  const diaArgentina = diaISO(date);
+  const grupos = new Map<string, HoraEnPaises>();
+  for (const { pais, zona } of paises) {
+    const dia = diaEnZona(date, zona);
+    const horaLocal = new Intl.DateTimeFormat(LOCALE, { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: zona }).format(date);
+    const clave = `${dia} ${horaLocal}`;
+    const grupo = grupos.get(clave);
+    if (grupo) {
+      grupo.paises.push(pais);
+      continue;
+    }
+    grupos.set(clave, {
+      hora: horaLocal,
+      paises: [pais],
+      desfaseDias: dia === diaArgentina ? 0 : dia > diaArgentina ? 1 : -1,
+      diaSemana: new Intl.DateTimeFormat(LOCALE, { weekday: "long", timeZone: zona }).format(date),
+    });
+  }
+  return [...grupos.values()];
+}
+
+// "15:00", o "01:00 del lunes" si en esos países el partido cae en otro día que en Argentina
+export function horaConDia(grupo: HoraEnPaises): string {
+  return grupo.desfaseDias === 0 ? grupo.hora : `${grupo.hora} del ${grupo.diaSemana}`;
+}
+
+// "Argentina, Uruguay y Brasil"
+export function listaConY(items: readonly string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
+}

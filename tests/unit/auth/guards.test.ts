@@ -20,9 +20,13 @@ describe("decidirAcceso: navegación sin sesión", () => {
     expect(decidirAcceso(ruta, false)).toBe("permitir");
   });
 
-  it("/configuracion pide login sin sesión (y deja pasar con sesión)", () => {
-    expect(decidirAcceso("/configuracion", false)).toBe("login");
-    expect(decidirAcceso("/configuracion", true)).toBe("permitir");
+  it("/cuenta pide login sin sesión (y deja pasar con sesión)", () => {
+    expect(decidirAcceso("/cuenta", false)).toBe("login");
+    expect(decidirAcceso("/cuenta", true)).toBe("permitir");
+  });
+
+  it("/configuracion no pide login: la página redirige a /cuenta, que sí lo pide (docs/31 D3)", () => {
+    expect(decidirAcceso("/configuracion", false)).toBe("permitir");
   });
 
   it.each(["/api/equipos", "/api/equipos/42", "/api/partidos", "/api/preferencias", "/api/calendario/sync", "/api/calendario/download"])(
@@ -42,7 +46,7 @@ describe("decidirAcceso: navegación sin sesión", () => {
 
   it("no confunde prefijos parecidos", () => {
     expect(decidirAcceso("/api/healthcheck", false)).toBe("no_autorizado");
-    expect(decidirAcceso("/configuracionx", false)).toBe("permitir");
+    expect(decidirAcceso("/cuentax", false)).toBe("permitir");
   });
 });
 
