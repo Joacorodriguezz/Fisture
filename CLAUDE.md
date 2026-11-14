@@ -115,6 +115,17 @@ Hook `commit-msg` (`.githooks/`) valida tipo, longitud, puntuación y línea en 
 - El TDD registra: contexto/problema; objetivos y no objetivos; decisiones con su porqué y alternativas descartadas; estrategia de tests (test primero: rojo, verde, refactor); plan de implementación por pasos; despliegue/rollback; riesgos; y una sección de **notas de implementación** vacía al inicio.
 - La implementación empieza solo después de que el usuario revise y apruebe el TDD. Al terminar, se completa la sección de notas de implementación con los desvíos respecto del diseño.
 
+## Delegación (cuidar tokens)
+
+La sesión principal orquesta: entiende el pedido, diseña (TDD), decide y revisa los informes. El trabajo pesado se delega a los agentes de `.claude/agents/`, que corren en modelos más baratos:
+
+- **`ejecutor`** (Sonnet): implementa un paso ya decidido. Pasarle el paso, los archivos y el criterio de aceptación; no el historial de la conversación.
+- **`verificador`** (Haiku): corre `npm test`, `typecheck`, `build`, `test:e2e` o `npm run check` y devuelve solo las fallas. Los logs nunca entran al contexto principal.
+- **`revisor`** (Sonnet): revisa el diff una vez, antes de abrir el PR.
+- **`Explore`**: búsquedas amplias en el código.
+
+No delegar lo trivial: un cambio de uno o dos archivos ya identificados, o una búsqueda puntual, se hace directo (un agente arranca en frío y sale más caro). Pedir a los agentes informes breves y no releer lo que ya informaron.
+
 ## Convenciones
 
 - Archivos `.astro` para páginas y componentes estáticos (0 JS)
