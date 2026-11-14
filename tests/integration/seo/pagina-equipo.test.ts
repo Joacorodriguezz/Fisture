@@ -1,11 +1,12 @@
-// Página pública de equipo (docs/33): últimos resultados (D3) y equipos sin partidos fuera del sitemap (D8)
+// Página pública de equipo (docs/33): últimos resultados (D3), equipos sin partidos fuera del sitemap (D8)
+// y otros equipos de la misma liga (D10)
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { useTestDb } from "../../helpers/use-test-db";
 import { seedApp } from "../../helpers/fixtures";
 import { AHORA, DIA_MS, relojFijo } from "../../helpers/clock";
-import { leagueTeams, matches, teams } from "../../../drizzle/schema";
-import { getPaginasPublicas, getTeamRecentMatches } from "../../../src/lib/db/queries";
+import { leagues, leagueTeams, matches, teams } from "../../../drizzle/schema";
+import { getEquiposDeLaLiga, getPaginasPublicas, getTeamRecentMatches } from "../../../src/lib/db/queries";
 
 describe("página de equipo", () => {
   const t = useTestDb();
@@ -45,6 +46,54 @@ describe("página de equipo", () => {
       const antes = new Date(AHORA.getTime() - 6.5 * DIA_MS);
       expect((await getTeamRecentMatches(t.db, "boca", 5, antes)).map((f) => f.match.id)).toEqual(["j6", "j7"]);
       expect(await getTeamRecentMatches(t.db, "inexistente")).toEqual([]);
+    });
+  });
+
+  describe("getEquiposDeLaLiga (D10)", () => {
+    beforeEach(async () => {
+      await t.db.insert(leagues).values({ id: "otra-liga", externalId: "test:otra", name: "Otra liga", country: "Chile", season: 2026 });
+      await t.db.insert(teams).values([
+        { id: "zz-atletico", externalId: "test:atl-1", name: "Atlético", leagueId: "test-league", slug: "atletico" },
+        { id: "aa-atletico", externalId: "test:atl-2", name: "Atlético", leagueId: "test-league" },
+        { id: "colo-colo", externalId: "test:colo", name: "Colo-Colo", leagueId: "otra-liga", slug: "colo-colo" },
+      ]);
+      await t.db.insert(leagueTeams).values([
+        { leagueId: "test-league", teamId: "zz-atletico" },
+        { leagueId: "test-league", teamId: "aa-atletico" },
+        { leagueId: "otra-liga", teamId: "colo-colo" },
+        // River también juega otra competencia: no suma a Colo-Colo a la lista de su liga
+        { leagueId: "otra-liga", teamId: "river" },
+      ]);
+    });
+
+    it("trae los otros equipos de la liga por nombre y luego id, sin el propio y con el slug", async () => {
+      const equipos = await getEquiposDeLaLiga(t.db, "test-league", "river");
+      expect(equipos).toEqual([
+        { id: "aa-atletico", slug: null, name: "Atlético", shortName: null, logo: null },
+        { id: "zz-atletico", slug: "atletico", name: "Atlético", shortName: null, logo: null },
+        { id: "boca", slug: null, name: "Boca Juniors", shortName: "BOC", logo: null },
+      ]);
+    });
+
+    it("una liga sin otros equipos devuelve una lista vacía", async () => {
+      expect(await getEquiposDeLaLiga(t.db, "otra-liga", "colo-colo")).toEqual([{ id: "river", slug: null, name: "River Plate", shortName: "RIV", logo: null }]);
+      await t.db.delete(leagueTeams).where(eq(leagueTeams.teamId, "river"));
+      expect(await getEquiposDeLaLiga(t.db, "otra-liga", "colo-colo")).toEqual([]);
+      expect(await getEquiposDeLaLiga(t.db, "inexistente", "river")).toEqual([]);
+    });
+
+    it("corta en 40 equipos", async () => {
+      const ids = Array.from({ length: 45 }, (_, i) => `equipo-${String(i).padStart(2, "0")}`);
+      // De a 15 filas: D1 admite hasta 100 parámetros por sentencia
+      for (let i = 0; i < ids.length; i += 15) {
+        const tanda = ids.slice(i, i + 15);
+        await t.db.insert(teams).values(tanda.map((id) => ({ id, externalId: `test:${id}`, name: `Equipo ${id.slice(-2)}`, leagueId: "otra-liga" })));
+        await t.db.insert(leagueTeams).values(tanda.map((teamId) => ({ leagueId: "otra-liga", teamId })));
+      }
+      const equipos = await getEquiposDeLaLiga(t.db, "otra-liga", "colo-colo");
+      expect(equipos).toHaveLength(40);
+      expect(equipos[0].id).toBe("equipo-00");
+      expect(equipos.map((e) => e.id)).not.toContain("colo-colo");
     });
   });
 

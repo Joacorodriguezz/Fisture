@@ -346,3 +346,29 @@ de equipo después de cada despliegue y exportar Search Console una vez por sema
 - **E2E**: en el servidor de E2E, River, Boca y `e2e-league` tienen slug igual al id (las ~270 pruebas que
   navegan a `/equipos/river` siguen igual); `neutral-league` → `liga-neutral` y `neutral-home` →
   `equipo-neutral-local` prueban la 301 y los enlaces; `neutral-away` y `sin-partidos` quedan sin slug.
+
+### Paso 4 · `feat(seo): enlaza equipos de la misma liga`
+
+- **Consulta** `getEquiposDeLaLiga(db, leagueId, exceptoTeamId, limit = 40)` en `queries.ts`: `league_teams` con
+  join a `teams`, sin el equipo actual, por nombre y luego id, y solo las columnas que usa la sección (`id`,
+  `slug`, `name`, `shortName`, `logo`). Plan: `SEARCH league_teams USING COVERING INDEX
+  sqlite_autoindex_league_teams_1 (league_id=?)`, `SEARCH teams` por su clave primaria y `TEMP B-TREE` para
+  ordenar las filas de la liga (unas 20 a 30). Lee las participaciones de una liga y nada más. Se sumó al test
+  de planes (`planes-de-consulta.test.ts`).
+- **Cuándo aparece**: la página consulta solo si la liga principal (`team.leagueId`) existe, está activa y es
+  destacada; si no, no hay lectura extra. La sección se muestra si hay al menos otro equipo. "La liga" son las
+  participaciones (`league_teams`), no `teams.league_id`: entra un equipo que juega la liga aunque su liga
+  principal sea otra, igual que la lista de `/ligas/[id]`. Los rivales de copas no se listan.
+- **Orden**: `ORDER BY name` usa la colación binaria de SQLite, como `/ligas/[id]`: un nombre que empieza con
+  tilde ("Águilas Doradas") queda al final. No se ordena en JavaScript para no desalinear el tope de 40 con el orden.
+- **Plantilla**: sección al pie, después de "Últimos resultados", con `aria-label` y `BarraSeccion` en tono
+  tinta: "Otros equipos de {liga}". Grilla `.eq-otros` (`global.css`): columnas de 220 px como mínimo en
+  escritorio y dos columnas en móvil (≤ 640 px). Cada enlace (`.eq-otro`, alto mínimo de 48 px) lleva el
+  `Escudo` de 36 px (32 en móvil) con `alt=""`, como el resto de la página (el nombre va al lado), y el nombre
+  como texto. Sin logo, las iniciales del escudo bajan a 13 px porque las de 18 px no entraban en la caja. Al
+  pie, "Todos los equipos y el fixture de {liga}" con `rutaPublica("ligas", liga)`. Sin islas ni JSON-LD nuevo.
+- **E2E**: el servidor de E2E siembra "Talleres E2E" (`talleres-id`, slug `talleres-e2e`), que juega la liga E2E
+  pero tiene como liga principal la copa no destacada. Así la página de River enlaza a `/equipos/boca` (slug),
+  `/equipos/sin-partidos` (sin slug, por id) y `/equipos/talleres-e2e` (slug distinto del id), y la de Talleres
+  no muestra la sección. El equipo neutral (sin `league_teams`) prueba la liga sin otros equipos. Talleres no
+  tiene partidos: queda con `noindex` y fuera del sitemap, como "sin-partidos".

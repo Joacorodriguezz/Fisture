@@ -1050,6 +1050,57 @@ a:hover {
   color: var(--tinta-suave);
 }
 
+/* Equipo: otros equipos de su liga (docs/33 D10), enlaces rastreables con el nombre como texto */
+.eq-otros {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  column-gap: 20px;
+}
+.eq-otros li {
+  min-width: 0;
+  border-bottom: 1px solid var(--linea);
+}
+.eq-otro {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 4px;
+  color: var(--tinta);
+  text-decoration: none;
+  font: 700 15px/19px var(--font-rotulo);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.eq-otro:hover {
+  color: var(--rojo);
+}
+/* Sin logo, las iniciales del escudo (18px) no entran en una caja de 36px */
+.eq-otro .tb-escudo > span {
+  font-size: 13px !important;
+}
+.eq-otro:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .eq-otros {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 12px;
+  }
+  .eq-otro {
+    gap: 8px;
+    font-size: 13px;
+    line-height: 17px;
+  }
+  .eq-otro .tb-escudo {
+    --escudo-tamano: 32px;
+  }
+}
+
 /* Ficha del partido: equipos y competencia llevan a sus páginas */
 .fp-equipo {
   color: inherit;
