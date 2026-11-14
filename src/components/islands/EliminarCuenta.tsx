@@ -5,7 +5,7 @@ interface Props {
   provider: "google" | "microsoft" | string;
 }
 
-// Zona de peligro de Configuración: borra la cuenta tras escribir el email para confirmar.
+// Zona de peligro de Cuenta: borra la cuenta tras escribir el email para confirmar.
 // El servidor vuelve a validar la confirmación (docs/14-borrado-de-cuenta-tdd.md).
 export default function EliminarCuenta({ email, provider }: Props) {
   const dialogo = useRef<HTMLDialogElement>(null);

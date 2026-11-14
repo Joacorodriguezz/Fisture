@@ -54,9 +54,9 @@ describe("POST /api/auth/vincular/[provider]", () => {
     expect(cookies.set).not.toHaveBeenCalled();
   });
 
-  it("sin OAUTH_STATE_SECRET falla cerrado y vuelve a Configuración", async () => {
+  it("sin OAUTH_STATE_SECRET falla cerrado y vuelve a Cuenta", async () => {
     const res = await llamar("microsoft", { env: { OAUTH_STATE_SECRET: undefined } });
-    expect(res.headers.get("Location")).toBe("/configuracion?error=oauth_unavailable");
+    expect(res.headers.get("Location")).toBe("/cuenta?error=oauth_unavailable");
     expect(cookies.set).not.toHaveBeenCalled();
   });
 

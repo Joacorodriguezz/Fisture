@@ -375,7 +375,7 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
 
       const res = await vincular("microsoft");
 
-      expect(destino(res)).toBe("/configuracion?vinculado=microsoft");
+      expect(destino(res)).toBe("/cuenta?vinculado=microsoft");
       expect(await identidades()).toMatchObject([
         { id: "ana", provider: "google", access_token: "at-ana" },
         { user_id: "ana", provider: "microsoft", provider_id: "m-5", email: "otro@corp.com", access_token: "at-ms", refresh_token: "rt-ms" },
@@ -393,7 +393,7 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
 
       const res = await vincular("microsoft");
 
-      expect(destino(res)).toBe("/configuracion?error=identidad_en_uso&proveedor=microsoft");
+      expect(destino(res)).toBe("/cuenta?error=identidad_en_uso&proveedor=microsoft");
       expect(await identidades()).toHaveLength(2);
       expect(await identidades()).toMatchObject([{ id: "ana" }, { id: "beto", user_id: "beto", access_token: "at-beto" }]);
       expect(await usuarios()).toHaveLength(2);
@@ -402,14 +402,14 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
     it("una identidad que ya es de este usuario solo actualiza sus tokens", async () => {
       await sembrar(ana);
       google({}, { access: "at-nuevo" });
-      expect(destino(await vincular("google"))).toBe("/configuracion?vinculado=google");
+      expect(destino(await vincular("google"))).toBe("/cuenta?vinculado=google");
       expect(await identidades()).toMatchObject([{ id: "ana", access_token: "at-nuevo" }]);
     });
 
     it("ya tiene otra cuenta del mismo proveedor vinculada: proveedor_en_uso", async () => {
       await sembrar(ana);
       google({ sub: "g-otra" });
-      expect(destino(await vincular("google"))).toBe("/configuracion?error=proveedor_en_uso&proveedor=google");
+      expect(destino(await vincular("google"))).toBe("/cuenta?error=proveedor_en_uso&proveedor=google");
       expect(await identidades()).toHaveLength(1);
     });
 
@@ -424,7 +424,7 @@ describe("callback OAuth: identidad por (provider, provider_id)", () => {
       await sembrar(ana);
       await sembrar({ id: "beto", email: "beto@corp.com", provider: "microsoft", providerId: "m-1", verificado: false });
       microsoft({ id: "m-5" }, { oid: "m-5" });
-      expect(destino(await vincular("microsoft", { userId: "ana" }, { id: "beto" }))).toBe("/configuracion?error=vinculo_sesion");
+      expect(destino(await vincular("microsoft", { userId: "ana" }, { id: "beto" }))).toBe("/cuenta?error=vinculo_sesion");
       expect(await identidades()).toHaveLength(2);
     });
 

@@ -1,50 +1,53 @@
 ---
-// Cabecera.astro: franja roja superior con el nombre, la fecha y la navegación de secciones.
-// En mobile (≤640px) queda compacta: la navegación pasa al menú desplegable (MenuMovil.astro).
-import MenuMovil from "./MenuMovil.astro";
-
-export interface Seccion {
+// Cabecera.astro: franja roja compacta y fija (docs/31 D1). Desktop: nombre, secciones, buscador y
+// cuenta. Mobile: nombre y cuenta; las secciones y Buscar viven en la barra inferior (BarraInferior.astro).
+interface Seccion {
   label: string;
   href: string;
   actual: boolean;
 }
 
 interface Props {
+  // Volanta grande sobre la franja: solo en la portada
   volanta?: string;
-  nombre?: string;
-  numero?: string;
-  numeroHref?: string;
-  fecha?: string;
-  // Fecha corta para mobile ("Mié 21 de octubre")
-  fechaMovil?: string;
   secciones?: Seccion[];
-  // Botón de acción a la derecha de la navegación (ej. "Iniciar sesión")
-  accion?: { label: string; href: string };
-  // Datos de la cuenta para el menú mobile
-  usuario?: { nombre: string; detalle: string };
+  // Con sesión: avatar con la inicial que lleva a /cuenta
+  usuario?: { nombre: string };
+  // Sin sesión: a dónde lleva el botón de ingreso (no se muestra en /login)
+  loginHref?: string;
 }
 
-const { volanta, nombre = "Fisture", numero, numeroHref, fecha, fechaMovil, secciones = [], accion, usuario } = Astro.props;
+const { volanta, secciones = [], usuario, loginHref } = Astro.props;
 ---
 
 <header class="tb-cabecera">
   {volanta && <div class="tb-cabecera__volanta">{volanta}</div>}
   <div class="tb-cabecera__cuerpo">
-    <p class="tb-cabecera__nombre"><a class="tb-cabecera__enlace" href="/" translate="no" aria-label="Fisture, ir al inicio">{nombre}</a></p>
-    {(numero || fecha) && (
-      <div class="tb-cabecera__datos">
-        {numero && <div>{numeroHref ? <a class="tb-cabecera__enlace" href={numeroHref} title="Ir a tu configuración">{numero}</a> : numero}</div>}
-        {fecha && <div>{fecha}</div>}
-      </div>
+    <a class="tb-cabecera__nombre" href="/" translate="no" aria-label="Fisture, ir al inicio">Fisture</a>
+    {secciones.length > 0 && (
+      <nav class="tb-cabecera__nav" aria-label="Secciones">
+        {secciones.map((s) => (
+          <a href={s.href} aria-current={s.actual ? "page" : undefined}>{s.label}</a>
+        ))}
+      </nav>
     )}
-    {secciones.length > 0 && <MenuMovil secciones={secciones} fecha={fechaMovil ?? fecha} usuario={usuario} loginHref={accion?.href} />}
+    {secciones.length > 0 && (
+      <a class="tb-cabecera__buscar" href="/equipos/buscar">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5L21 21"></path></svg>
+        Buscar equipo
+      </a>
+    )}
+    {usuario ? (
+      <a class="tb-cabecera__cuenta" href="/cuenta" aria-label={`Hola, ${usuario.nombre}. Tu cuenta`}>
+        {/* La inicial va por CSS (::before): es decorativa y, como texto, rompería la regla
+            label-content-name-mismatch (el nombre accesible debe contener el texto visible) */}
+        <span class="tb-cabecera__avatar" aria-hidden="true" data-inicial={usuario.nombre.charAt(0).toUpperCase()}></span>
+        <span class="tb-cabecera__hola" aria-hidden="true">Hola, {usuario.nombre}</span>
+      </a>
+    ) : (
+      loginHref && (
+        <a class="tb-cabecera__login" href={loginHref}>Iniciar sesión</a>
+      )
+    )}
   </div>
-  {(secciones.length > 0 || accion) && (
-    <nav class="tb-cabecera__nav" aria-label="Secciones">
-      {secciones.map((s) => (
-        <a href={s.href} aria-current={s.actual ? "page" : undefined}>{s.label}</a>
-      ))}
-      {accion && <a class="tb-cabecera__accion" href={accion.href}>{accion.label}</a>}
-    </nav>
-  )}
 </header>

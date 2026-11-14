@@ -30,7 +30,7 @@ export default function DesvincularProveedor({ provider, etiqueta }: Props) {
     try {
       const res = await fetch(`/api/auth/identidades/${provider}`, { method: "DELETE" });
       if (!res.ok) throw new Error("unlink failed");
-      location.href = "/configuracion";
+      location.href = "/cuenta";
     } catch {
       setError("No se pudo desvincular. Probá de nuevo.");
       setOcupado(false);
