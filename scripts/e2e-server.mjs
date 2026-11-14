@@ -57,14 +57,17 @@ try {
   const now = Date.now();
   const sql = [
     "UPDATE leagues SET is_active = 0;",
-    "INSERT INTO leagues (id, external_id, name, country, season, source, is_active) VALUES ('e2e-league', 'e2e:league', 'Liga E2E', 'Argentina', 2026, 'espn', 1);",
-    "INSERT INTO teams (id, external_id, name, short_name, league_id, source) VALUES ('river', 'e2e:river', 'River Plate', 'RIV', 'e2e-league', 'espn'), ('boca', 'e2e:boca', 'Boca Juniors', 'BOC', 'e2e-league', 'espn');",
+    // URLs con nombre (docs/33 D9): en River, Boca y la liga E2E el slug es igual al id, así /equipos/river
+    // sigue siendo la URL canónica de los tests. La liga y el local neutrales tienen un slug distinto del id
+    // (su URL por id responde 301); el visitante neutral y "sin-partidos" no tienen slug (se sirven por id).
+    "INSERT INTO leagues (id, external_id, name, country, season, source, is_active, slug) VALUES ('e2e-league', 'e2e:league', 'Liga E2E', 'Argentina', 2026, 'espn', 1, 'e2e-league');",
+    "INSERT INTO teams (id, external_id, name, short_name, league_id, source, slug) VALUES ('river', 'e2e:river', 'River Plate', 'RIV', 'e2e-league', 'espn', 'river'), ('boca', 'e2e:boca', 'Boca Juniors', 'BOC', 'e2e-league', 'espn', 'boca');",
     "INSERT INTO league_teams (league_id, team_id) VALUES ('e2e-league', 'river'), ('e2e-league', 'boca');",
     // Copa no destacada (docs/22): no se lista en /ligas pero aparece en la página del equipo
     "INSERT INTO leagues (id, external_id, name, country, season, source, is_active, is_featured) VALUES ('e2e-copa', 'e2e:copa', 'Copa E2E', 'Argentina', 2026, 'espn', 1, 0);",
     "INSERT INTO league_teams (league_id, team_id) VALUES ('e2e-copa', 'river');",
-    "INSERT INTO leagues (id, external_id, name, country, season, source, is_active) VALUES ('neutral-league', 'e2e:neutral', 'Liga neutral', 'Argentina', 2026, 'espn', 1);",
-    "INSERT INTO teams (id, external_id, name, short_name, league_id, source) VALUES ('neutral-home', 'e2e:neutral-home', 'Equipo neutral local', 'NEU', 'neutral-league', 'espn'), ('neutral-away', 'e2e:neutral-away', 'Equipo neutral visitante', 'VIS', 'neutral-league', 'espn');",
+    "INSERT INTO leagues (id, external_id, name, country, season, source, is_active, slug) VALUES ('neutral-league', 'e2e:neutral', 'Liga neutral', 'Argentina', 2026, 'espn', 1, 'liga-neutral');",
+    "INSERT INTO teams (id, external_id, name, short_name, league_id, source, slug) VALUES ('neutral-home', 'e2e:neutral-home', 'Equipo neutral local', 'NEU', 'neutral-league', 'espn', 'equipo-neutral-local'), ('neutral-away', 'e2e:neutral-away', 'Equipo neutral visitante', 'VIS', 'neutral-league', 'espn', NULL);",
     `INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, status) VALUES ('neutral-match', 'e2e:neutral-match', 'neutral-home', 'neutral-away', 'neutral-league', ${kickoff}, 'scheduled');`,
     `INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, venue, status) VALUES ('superclasico', 'e2e:match', 'river', 'boca', 'e2e-league', ${kickoff}, 'Monumental', 'scheduled');`,
     // Últimos resultados del equipo (docs/33 D3): uno con marcador y uno terminado sin marcador cargado

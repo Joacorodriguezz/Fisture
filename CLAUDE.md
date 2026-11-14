@@ -121,6 +121,7 @@ Hook `commit-msg` (`.githooks/`) valida tipo, longitud, puntuación y línea en 
 - Archivos `.tsx` en `components/islands/` para interactividad (React)
 - APIs en `pages/api/` se despliegan como Workers
 - Usar `client:visible` para islands que requieren JS
+- Las URLs públicas de equipo, liga y partido se arman siempre con `rutaPublica` (`lib/seo.ts`): equipos y ligas usan `slug` si existe y el id si no; los partidos, el id. Nunca `/equipos/${id}` a mano. Un slug asignado no cambia (es la URL indexada); las URLs con id responden 301 (`docs/33` D9, backfill en `docs/23` §6)
 
 ## Flujo de ramas
 

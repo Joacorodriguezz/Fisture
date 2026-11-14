@@ -8,12 +8,12 @@ import Escudo from "../../components/tribuna/Escudo.astro";
 import SeguimientoEquipo from "../../components/islands/SeguimientoEquipo";
 import SincronizarPartido from "../../components/islands/SincronizarPartido";
 import { createDb } from "../../lib/db";
-import { getTeamRecentMatches, getTeamUpcomingMatches, getSyncStates } from "../../lib/db/queries";
+import { getTeamBySlugOrId, getTeamRecentMatches, getTeamUpcomingMatches, getSyncStates } from "../../lib/db/queries";
 import { and, eq } from "drizzle-orm";
-import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
+import { leagues, leagueTeams, userTeams } from "../../../drizzle/schema";
 import { fechaCorta, hora, horaConDia, horaPorPais, listaConY } from "../../lib/format";
 import { loginHref } from "../../lib/auth/guards";
-import { jsonLdEquipo, jsonLdMigas, rutaPublica } from "../../lib/seo";
+import { jsonLdEquipo, jsonLdMigas, redireccionASlug, rutaPublica } from "../../lib/seo";
 import {
   descripcionEquipo,
   encabezadoEquipo,
@@ -33,10 +33,17 @@ if (!id) {
 
 const db = createDb(Astro.locals.runtime.env.DB);
 
-const team = await db.query.teams.findFirst({ where: eq(teams.id, id) });
+// El parámetro es el slug (/equipos/aldosivi) o el id de las URLs viejas (docs/33 D9)
+const team = await getTeamBySlugOrId(db, id);
 if (!team) {
   return Astro.rewrite("/404");
 }
+// Por id y con slug: 301 a la URL con nombre, con el mismo query string (?lado=local)
+const destino = redireccionASlug("equipos", id, team, Astro.url.search);
+if (destino) {
+  return Astro.redirect(destino, 301);
+}
+const teamId = team.id;
 
 const liga = await db.query.leagues.findFirst({ where: eq(leagues.id, team.leagueId) });
 
@@ -46,7 +53,7 @@ const competencias = (
     .select({ id: leagues.id, name: leagues.name, isFeatured: leagues.isFeatured })
     .from(leagueTeams)
     .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))
-    .where(and(eq(leagueTeams.teamId, id), eq(leagues.isActive, true)))
+    .where(and(eq(leagueTeams.teamId, teamId), eq(leagues.isActive, true)))
 ).sort((a, b) => {
   if (a.id === team.leagueId) return -1;
   if (b.id === team.leagueId) return 1;
@@ -56,21 +63,21 @@ const competencias = (
 
 const seguimiento = user
   ? await db.query.userTeams.findFirst({
-      where: and(eq(userTeams.userId, user.id), eq(userTeams.teamId, id)),
+      where: and(eq(userTeams.userId, user.id), eq(userTeams.teamId, teamId)),
     })
   : undefined;
 
-const todos = await getTeamUpcomingMatches(db, id, 50);
+const todos = await getTeamUpcomingMatches(db, teamId, 50);
 // Últimos resultados (docs/33 D3): hasta 5 terminados, por los índices de local y visitante
-const recientes = await getTeamRecentMatches(db, id);
+const recientes = await getTeamRecentMatches(db, teamId);
 
 const lado = Astro.url.searchParams.get("lado") === "local" ? "local"
   : Astro.url.searchParams.get("lado") === "visitante" ? "visitante"
   : "todos";
 
 const partidos = todos.filter((m) => {
-  if (lado === "local") return m.homeTeam.id === id;
-  if (lado === "visitante") return m.awayTeam.id === id;
+  if (lado === "local") return m.homeTeam.id === teamId;
+  if (lado === "visitante") return m.awayTeam.id === teamId;
   return true;
 });
 
@@ -96,8 +103,8 @@ const jsonLd = [
   ...jsonLdPartidosDeEquipo(appUrl, todos),
   jsonLdMigas(appUrl, [
     { nombre: "Ligas", ruta: "/ligas" },
-    ...(liga ? [{ nombre: liga.name, ruta: rutaPublica("ligas", liga.id) }] : []),
-    { nombre: team.name, ruta: rutaPublica("equipos", team.id) },
+    ...(liga ? [{ nombre: liga.name, ruta: rutaPublica("ligas", liga) }] : []),
+    { nombre: team.name, ruta: rutaPublica("equipos", team) },
   ]),
 ];
 
@@ -118,7 +125,7 @@ const filtros = [
         </li>
         {liga && (
           <li style="display:flex;align-items:center;gap:8px">
-            <a href={`/ligas/${liga.id}`} style="color:var(--tinta);text-decoration:none;letter-spacing:.06em;text-transform:uppercase">{liga.name}</a>
+            <a href={rutaPublica("ligas", liga)} style="color:var(--tinta);text-decoration:none;letter-spacing:.06em;text-transform:uppercase">{liga.name}</a>
             <span aria-hidden="true">/</span>
           </li>
         )}
@@ -131,7 +138,7 @@ const filtros = [
         <Escudo src={team.logo} nombre={team.name} sigla={team.shortName} size={160} pad={20} prioridad />
       </div>
       <div class="eq-titulo" style="flex:1;min-width:280px;display:flex;flex-direction:column;align-items:flex-start;gap:12px">
-        <Volanta tono="rojo">{liga ? <a href={rutaPublica("ligas", liga.id)} class="fp-enlace">{liga.name}</a> : "Liga"}</Volanta>
+        <Volanta tono="rojo">{liga ? <a href={rutaPublica("ligas", liga)} class="fp-enlace">{liga.name}</a> : "Liga"}</Volanta>
         <Titular nivel="1">{encabezadoEquipo(team.name)}</Titular>
         {competencias.length > 1 && (
           <p class="eq-competencias" style="margin:0;font:600 14px/20px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">
@@ -205,7 +212,7 @@ const filtros = [
         </p>
       ) : (
         partidos.map((m) => {
-          const esLocal = m.homeTeam.id === id;
+          const esLocal = m.homeTeam.id === teamId;
           const rival = esLocal ? m.awayTeam : m.homeTeam;
           const estado = estados.get(m.match.id);
           return (
@@ -253,7 +260,7 @@ const filtros = [
         </BarraSeccion>
         <ol style="list-style:none;margin:0;padding:0">
           {recientes.map((m) => {
-            const esLocal = m.homeTeam.id === id;
+            const esLocal = m.homeTeam.id === teamId;
             const rival = esLocal ? m.awayTeam : m.homeTeam;
             // Solo con los dos goles cargados: un marcador nunca se inventa (docs/33 D3). Va desde el
             // lado del equipo (goles propios primero), como el "ganó 2 a 0" de la respuesta directa
