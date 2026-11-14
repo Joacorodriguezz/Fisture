@@ -157,7 +157,8 @@ a las 00:00 UTC (21:00 en Argentina).
   las URLs con id responden 301 a la URL con nombre.
 - **Cómo**: repetir hasta que `pendientes` sea `0` (cada llamada asigna hasta 100 filas, ligas primero):
   `curl -X POST "https://fisture.com/api/admin/slugs" -H "Authorization: Bearer $ADMIN_SECRET" -H "Content-Type: application/json" -d "{}"`
-  (sin Content-Type, la protección CSRF de Astro responde 403). Responde
+  (sin Content-Type, la protección CSRF de Astro responde 403). Más simple y sin tener el secreto a mano:
+  Actions → "Backfill de nombres en URLs" → Run workflow (elige el entorno y usa el secret de GitHub). Responde
   `{ asignados: { ligas, equipos }, pendientes, pendientesPorTabla }`. Es idempotente y nunca cambia un slug
   asignado: repetirlo es seguro. Un 500 aislado puede ser un choque con un equipo que el sync creó en el
   mismo momento: volver a llamar (no correrlo mientras corre el sync diario).
