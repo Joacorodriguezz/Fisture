@@ -1,6 +1,7 @@
 import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { normalizar } from "./estilos";
 import { irALogin } from "../../lib/auth/client";
+import { urlEscudo } from "../../lib/escudo";
 
 export interface EquipoItem {
   id: string;
@@ -55,7 +56,7 @@ const Escudo = memo(function Escudo({ logo, nombre, sigla, size }: { logo: strin
       }}
     >
       {logo ? (
-        <img src={logo} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+        <img src={urlEscudo(logo, size)} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
       ) : (
         <span aria-hidden="true" style={{ font: "400 16px/1 var(--font-titular)" }}>{(sigla || nombre).slice(0, 3).toUpperCase()}</span>
       )}

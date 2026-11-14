@@ -45,35 +45,29 @@ if (destino) {
 }
 const teamId = team.id;
 
-const liga = await db.query.leagues.findFirst({ where: eq(leagues.id, team.leagueId) });
-
-// Todo lo que juega en la temporada: su liga, las copas internacionales y las nacionales (docs/22)
-const competencias = (
-  await db
+// Estas lecturas dependen solo del equipo: van juntas y no una detrás de otra (cada una es un viaje a D1)
+const [liga, participaciones, seguimiento, todos, recientes] = await Promise.all([
+  db.query.leagues.findFirst({ where: eq(leagues.id, team.leagueId) }),
+  // Todo lo que juega en la temporada: su liga, las copas internacionales y las nacionales (docs/22)
+  db
     .select({ id: leagues.id, name: leagues.name, isFeatured: leagues.isFeatured })
     .from(leagueTeams)
     .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))
-    .where(and(eq(leagueTeams.teamId, teamId), eq(leagues.isActive, true)))
-).sort((a, b) => {
+    .where(and(eq(leagueTeams.teamId, teamId), eq(leagues.isActive, true))),
+  user
+    ? db.query.userTeams.findFirst({ where: and(eq(userTeams.userId, user.id), eq(userTeams.teamId, teamId)) })
+    : undefined,
+  getTeamUpcomingMatches(db, teamId, 50),
+  // Últimos resultados (docs/33 D3): hasta 5 terminados, por los índices de local y visitante
+  getTeamRecentMatches(db, teamId),
+]);
+
+const competencias = participaciones.sort((a, b) => {
   if (a.id === team.leagueId) return -1;
   if (b.id === team.leagueId) return 1;
   if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
   return a.name.localeCompare(b.name, "es");
 });
-
-const seguimiento = user
-  ? await db.query.userTeams.findFirst({
-      where: and(eq(userTeams.userId, user.id), eq(userTeams.teamId, teamId)),
-    })
-  : undefined;
-
-const todos = await getTeamUpcomingMatches(db, teamId, 50);
-// Últimos resultados (docs/33 D3): hasta 5 terminados, por los índices de local y visitante
-const recientes = await getTeamRecentMatches(db, teamId);
-
-// Enlaces a los otros equipos de su liga (docs/33 D10): solo de la liga principal, si está activa y es
-// destacada; los rivales de copas no se listan
-const otrosEquipos = liga?.isActive && liga.isFeatured ? await getEquiposDeLaLiga(db, liga.id, teamId) : [];
 
 const lado = Astro.url.searchParams.get("lado") === "local" ? "local"
   : Astro.url.searchParams.get("lado") === "visitante" ? "visitante"
@@ -85,9 +79,15 @@ const partidos = todos.filter((m) => {
   return true;
 });
 
-const estados = user
-  ? await getSyncStates(db, user.id, partidos.map((m) => m.match.id))
-  : new Map<string, { status: string; errorMessage: string | null }>();
+// Segunda tanda, también junta: dependen de la liga y de la lista ya filtrada
+const [otrosEquipos, estados] = await Promise.all([
+  // Enlaces a los otros equipos de su liga (docs/33 D10): solo de la liga principal, si está activa y es
+  // destacada; los rivales de copas no se listan
+  liga?.isActive && liga.isFeatured ? getEquiposDeLaLiga(db, liga.id, teamId) : [],
+  user
+    ? getSyncStates(db, user.id, partidos.map((m) => m.match.id))
+    : new Map<string, { status: string; errorMessage: string | null }>(),
+]);
 
 const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
 const proximo = todos.find(({ match }) => match.status === "scheduled");
