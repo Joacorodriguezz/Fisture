@@ -239,3 +239,47 @@ de equipo después de cada despliegue y exportar Search Console una vez por sema
   (criterio de docs/30); un texto alternativo repetiría el nombre a los lectores de pantalla.
 - T4-5: E2E que verifica que `/equipos/river` no lleva `noindex`, `nosnippet`, `data-nosnippet` ni
   `X-Robots-Tag`. El servidor de E2E siembra dos resultados de River y un equipo sin partidos.
+
+### Paso 2 · `feat(seo): muestra resultado y hora por país`
+
+- Textos del partido en un módulo puro nuevo, `src/lib/seo-partido.ts` (`marcadorPartido`,
+  `textoResultado`, `respuestaPartido`, `descripcionPartido`), sumado a la cobertura. `enLaSede` y
+  `diaEnOracion` se exportan desde `seo-equipo.ts` en lugar de duplicarse. Sin consultas nuevas:
+  `getMatchDetail` ya trae el marcador.
+- D3 (partido): hay resultado solo con `status = 'finished'` y los dos goles cargados (un marcador de un
+  partido en juego no se publica). Se ve en la ficha ("Resultado: Boca Juniors 1, River Plate 2") y en
+  lugar del "VS" entre los escudos; ese marcador va con `aria-hidden` porque la ficha ya lo dice en
+  palabras. La meta descripción de un terminado no invita a agendarlo: con marcador empieza por
+  "Boca Juniors 1-2 River Plate por …: se jugó el …"; sin marcador dice cuándo se jugó. La de un
+  cancelado dice "fue cancelado. Estaba previsto para el …" y la de un postergado "fue postergado y
+  todavía no tiene nueva fecha. Si lo tenés en tu calendario, se actualiza solo." Las de programado y
+  en juego no cambian.
+- D2 (partido): una oración arriba de la ficha (`.fp-respuesta`) para cada estado: programado (o
+  desconocido) "X y Y juegan el … por …, en el estadio …"; terminado "X le ganó 2 a 1 a Y el …" (el
+  ganador primero, sea local o visitante) o "X y Y empataron 1 a 1 el …"; terminado sin marcador
+  "X y Y jugaron el … El resultado todavía no está cargado."; en juego, postergado ("… fue postergado.
+  La nueva fecha todavía no está confirmada.") y cancelado ("… fue cancelado.").
+- D4: `horaPorPais(fecha)` en `format.ts`, con zonas IANA y `Intl`. Agrupa por hora local **y día
+  calendario**, en el orden de `PAISES_HORA` (Argentina primero). Cada grupo trae `desfaseDias`
+  (-1, 0 o 1 respecto de Argentina) y el día de la semana; `horaConDia` lo muestra como "01:00 del
+  lunes". El día anterior también pasa: las 00:30 de Argentina son las 21:30 del día previo en México.
+  Con el tzdata actual (Node 24, tz 2026b) Paraguay está en UTC−3 todo el año (cambio de 2024) y
+  agrupa con Argentina también en julio; si el runtime tuviera un tzdata viejo lo mostraría una hora
+  antes en invierno.
+- Partido: sección "Hora en cada país" (lista) después de la ficha, salvo en cancelados y postergados,
+  donde esa hora ya no vale (en terminados sí se muestra). El título dice "en cada país" porque incluye a
+  Argentina. Equipo: renglón compacto debajo de la respuesta directa ("Hora en cada país: 15:00 en
+  Argentina, Uruguay y Brasil; …") solo si hay próximo partido; el aviso pasa a "Los horarios de la lista
+  de próximos partidos están en hora de Argentina (UTC−3)." (sin próximo queda el texto anterior).
+- Enlaces: `<nav aria-label="Fixture de los equipos">` con "Fixture y partidos de {equipo}" para los dos.
+  "Los horarios pueden cambiar…" ya no se muestra en partidos terminados ni cancelados.
+- Sin cambios: la isla `SincronizarPartido` sigue ofreciendo agregar al calendario en partidos
+  terminados y cancelados, y el JSON-LD de partido (un terminado sigue como `EventScheduled`, que
+  schema.org no tiene un estado "terminado"; no contradice lo visible).
+- Tests: unitarios de `seo-partido` y de `horaPorPais` (julio, enero, cambio de día hacia adelante y
+  hacia atrás, agrupación por día); integración `tests/integration/seo/pagina-partido.test.ts` con
+  `getMatchDetail`; E2E sin JavaScript en `seo-head.spec.ts` (programado, terminado con y sin marcador,
+  cancelado y equipo) y `superclasico-ida` en el control de desborde móvil.
+- Verificación: además de `npm run check`, se corre `npm run test:ux` (auditoría de UI), que es una
+  suite aparte. En el paso 1 no se corrió y el CI falló por un test que buscaba el aviso viejo
+  "Agregar al calendario"; se corrigió en un commit de tests del mismo PR.

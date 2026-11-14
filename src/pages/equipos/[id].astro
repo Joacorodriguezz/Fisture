@@ -11,7 +11,7 @@ import { createDb } from "../../lib/db";
 import { getTeamRecentMatches, getTeamUpcomingMatches, getSyncStates } from "../../lib/db/queries";
 import { and, eq } from "drizzle-orm";
 import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
-import { fechaCorta, hora } from "../../lib/format";
+import { fechaCorta, hora, horaConDia, horaPorPais, listaConY } from "../../lib/format";
 import { loginHref } from "../../lib/auth/guards";
 import { jsonLdEquipo, jsonLdMigas, rutaPublica } from "../../lib/seo";
 import {
@@ -83,6 +83,10 @@ const proximo = todos.find(({ match }) => match.status === "scheduled");
 const descripcion = descripcionEquipo(team, liga, proximo);
 // Respuesta directa a "cuándo juega X" (docs/33 D2)
 const respuesta = respuestaProximoPartido(team, proximo, recientes[0]);
+// Hora del próximo partido en cada país (docs/33 D4), en el servidor: "15:00 en Argentina, Uruguay y Brasil; ..."
+const horasProximo = proximo
+  ? horaPorPais(proximo.match.dateTime).map((g) => `${horaConDia(g)} en ${listaConY(g.paises)}`).join("; ")
+  : null;
 // Sin ningún partido por jugar ni terminado la página no tiene contenido propio: noindex y fuera del
 // sitemap (docs/33 D8, misma condición que getPaginasPublicas). Vuelve a indexarse cuando tenga partidos.
 const sinPartidos = todos.length === 0 && recientes.length === 0;
@@ -153,6 +157,9 @@ const filtros = [
     <section aria-labelledby="proximo-partido" style="border-top:3px solid var(--rojo);padding-top:20px">
       <h2 id="proximo-partido" style="margin:0;font:400 32px/1.1 var(--font-titular)">Próximo partido</h2>
       <p class="eq-respuesta" style="margin:12px 0 0;max-width:68ch;font:400 19px/1.55 var(--font-texto)">{respuesta}</p>
+      {horasProximo && (
+        <p class="eq-horas" style="margin:12px 0 0;max-width:68ch;font:400 16px/1.6 var(--font-texto)"><b>Hora en cada país:</b> {horasProximo}.</p>
+      )}
       {proximo && (
         <p style="margin:12px 0;font:400 18px/1.6 var(--font-texto)">
           <a href={rutaPublica("partidos", proximo.match.id)} style="color:var(--tinta);text-decoration:underline;text-underline-offset:4px">
@@ -162,7 +169,9 @@ const filtros = [
           {" · "}{proximo.league.name}{" · "}{proximo.match.venue ?? "Sede a confirmar"}
         </p>
       )}
-      <p style="margin:12px 0 0;font:400 15px/1.6 var(--font-texto);color:var(--tinta-suave)">Todos los horarios están en hora de Argentina (UTC−3).</p>
+      <p style="margin:12px 0 0;font:400 15px/1.6 var(--font-texto);color:var(--tinta-suave)">
+        {horasProximo ? "Los horarios de la lista de próximos partidos están en hora de Argentina (UTC−3)." : "Todos los horarios están en hora de Argentina (UTC−3)."}
+      </p>
     </section>
 
     {/* El diferencial, visible (docs/33 D5). Reemplaza al aviso de login que estaba sobre la lista */}

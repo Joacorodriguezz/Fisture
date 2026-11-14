@@ -64,16 +64,17 @@ export function resultadoDelEquipo(
   return { propios, ajenos, resultado };
 }
 
-// "sábado 21 de noviembre" (en medio de una oración)
-function diaEnOracion(fecha: Date): string {
+// "sábado 21 de noviembre" (en medio de una oración). También la usa seo-partido.ts
+export function diaEnOracion(fecha: Date): string {
   const texto = fechaLarga(fecha);
   return texto.charAt(0).toLowerCase() + texto.slice(1);
 }
 
-// Una sede que ya se nombra como estadio no se repite ("en el estadio Estadio Monumental")
+// Una sede que ya se nombra como estadio no se repite ("en el estadio Estadio Monumental").
+// También la usa seo-partido.ts
 const SEDE_CON_TIPO = /\b(estadio|est[áa]dio|stadium|stade|stadio|stadion|arena)\b/i;
 
-function enLaSede(venue: string | null): string {
+export function enLaSede(venue: string | null): string {
   const sede = venue?.trim();
   if (!sede) return "";
   return SEDE_CON_TIPO.test(sede) ? `, en el ${sede}` : `, en el estadio ${sede}`;
