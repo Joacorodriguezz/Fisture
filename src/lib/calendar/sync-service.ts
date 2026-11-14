@@ -86,6 +86,14 @@ function syncedValues(snap: Snapshot): SyncedValues {
   return { syncedDateTime: snap.dateTime, syncedState: snap.state, syncedVenue: snap.venue };
 }
 
+// Si el evento ya existía con otra hora, guarda la anterior para «Horario actualizado» (docs/31 D6).
+// Sin cambio de hora no devuelve nada: se conserva lo que ya estaba guardado.
+function cambioDeHorario(existing: SyncRow | undefined, snap: Snapshot): SyncedValues {
+  const anterior = existing?.syncedDateTime;
+  if (!existing?.externalEventId || !anterior || anterior.getTime() === snap.dateTime.getTime()) return {};
+  return { previousDateTime: anterior, dateTimeChangedAt: new Date() };
+}
+
 function upToDate(existing: SyncRow | undefined, snap: Snapshot): boolean {
   return (
     existing?.status === "synced" &&
@@ -222,6 +230,7 @@ export async function syncMatches(
         lastSyncedAt: new Date(),
         errorMessage: null,
         ...syncedValues(snap),
+        ...cambioDeHorario(existing, snap),
       });
 
       const result: SyncResult = { matchId, success: true };

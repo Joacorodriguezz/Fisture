@@ -1027,22 +1027,21 @@ a:hover {
   }
 }
 
-/* Equipo sin sesión: un aviso para iniciar sesión en lugar de un botón por partido */
-.eq-aviso {
+/* Equipo: qué pasa al seguirlo (docs/33 D5). Sin sesión lleva el botón de login, en lugar de uno por partido */
+.eq-calendario {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px 16px;
-  margin-top: 16px;
-  padding: 14px 16px;
+  padding: 16px;
   border: 2px solid var(--tinta);
   background: var(--papel-2);
 }
-.eq-aviso p {
+.eq-calendario p {
   margin: 0;
-  flex: 1 1 220px;
-  font: 400 16px/22px var(--font-texto);
+  max-width: 68ch;
+  font: 400 16px/24px var(--font-texto);
 }
 .eq-flecha {
   margin-left: auto;

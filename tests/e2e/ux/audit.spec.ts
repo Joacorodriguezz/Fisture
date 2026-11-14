@@ -296,7 +296,8 @@ test("equipo: sin sesión, un solo aviso para iniciar sesión en lugar de uno po
   const filas = page.locator(".eq-fila");
   expect(await filas.count()).toBeGreaterThan(0);
   await expect(filas.getByRole("button")).toHaveCount(0);
-  const aviso = page.getByRole("region", { name: "Agregar al calendario" });
+  // El llamado único vive en el bloque "En tu calendario" (docs/33 D5)
+  const aviso = page.getByRole("region", { name: "En tu calendario" });
   await expect(aviso.getByRole("link", { name: "Iniciá sesión", exact: true })).toHaveAttribute("href", "/login?next=%2Fequipos%2Friver");
   await expect(page.getByRole("button", { name: /Iniciá sesión/ })).toHaveCount(0);
   await info.attach("equipo-visitante", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
@@ -331,10 +332,12 @@ for (const conSesion of [false, true]) {
   });
 }
 
-test("equipo: con sesión, cada partido mantiene su acción y no hay aviso", async ({ page }, info) => {
+test("equipo: con sesión, cada partido mantiene su acción y no se pide login", async ({ page }, info) => {
   await login(page, info, "navigation");
   await page.goto("/equipos/river");
-  await expect(page.getByRole("region", { name: "Agregar al calendario" })).toHaveCount(0);
+  const bloque = page.getByRole("region", { name: "En tu calendario" });
+  await expect(bloque).toBeVisible();
+  await expect(bloque.getByRole("link", { name: "Iniciá sesión", exact: true })).toHaveCount(0);
   const filas = page.locator(".eq-fila");
   await expect(filas.first().getByRole("button")).toHaveCount(1);
 });

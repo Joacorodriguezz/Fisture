@@ -8,12 +8,20 @@ import Escudo from "../../components/tribuna/Escudo.astro";
 import SeguimientoEquipo from "../../components/islands/SeguimientoEquipo";
 import SincronizarPartido from "../../components/islands/SincronizarPartido";
 import { createDb } from "../../lib/db";
-import { getTeamUpcomingMatches, getSyncStates } from "../../lib/db/queries";
+import { getTeamRecentMatches, getTeamUpcomingMatches, getSyncStates } from "../../lib/db/queries";
 import { and, eq } from "drizzle-orm";
 import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
-import { fechaCorta, hora } from "../../lib/format";
+import { fechaCorta, hora, horaConDia, horaPorPais, listaConY } from "../../lib/format";
 import { loginHref } from "../../lib/auth/guards";
 import { jsonLdEquipo, jsonLdMigas, rutaPublica } from "../../lib/seo";
+import {
+  descripcionEquipo,
+  encabezadoEquipo,
+  jsonLdPartidosDeEquipo,
+  respuestaProximoPartido,
+  resultadoDelEquipo,
+  tituloEquipo,
+} from "../../lib/seo-equipo";
 
 // Página pública: seguir al equipo y el estado de sync solo aplican con sesión
 const user = Astro.locals.user;
@@ -53,6 +61,8 @@ const seguimiento = user
   : undefined;
 
 const todos = await getTeamUpcomingMatches(db, id, 50);
+// Últimos resultados (docs/33 D3): hasta 5 terminados, por los índices de local y visitante
+const recientes = await getTeamRecentMatches(db, id);
 
 const lado = Astro.url.searchParams.get("lado") === "local" ? "local"
   : Astro.url.searchParams.get("lado") === "visitante" ? "visitante"
@@ -70,14 +80,20 @@ const estados = user
 
 const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
 const proximo = todos.find(({ match }) => match.status === "scheduled");
-// Lo distintivo (equipo, liga y próximo partido) va primero: el Layout recorta lo que pase de ~160
-const descripcion = `Fixture de ${team.name}${liga ? ` (${liga.name})` : ""}: ${
-  proximo
-    ? `próximo partido ${proximo.homeTeam.name} vs ${proximo.awayTeam.name}, ${fechaCorta(proximo.match.dateTime)} a las ${hora(proximo.match.dateTime)}.`
-    : "sus próximos partidos con día y hora."
-} Sincronizalo con tu calendario.`;
+const descripcion = descripcionEquipo(team, liga, proximo);
+// Respuesta directa a "cuándo juega X" (docs/33 D2)
+const respuesta = respuestaProximoPartido(team, proximo, recientes[0]);
+// Hora del próximo partido en cada país (docs/33 D4), en el servidor: "15:00 en Argentina, Uruguay y Brasil; ..."
+const horasProximo = proximo
+  ? horaPorPais(proximo.match.dateTime).map((g) => `${horaConDia(g)} en ${listaConY(g.paises)}`).join("; ")
+  : null;
+// Sin ningún partido por jugar ni terminado la página no tiene contenido propio: noindex y fuera del
+// sitemap (docs/33 D8, misma condición que getPaginasPublicas). Vuelve a indexarse cuando tenga partidos.
+const sinPartidos = todos.length === 0 && recientes.length === 0;
 const jsonLd = [
   jsonLdEquipo(appUrl, team, liga),
+  // Sobre la lista completa del equipo, no la filtrada por ?lado= (docs/33 D6)
+  ...jsonLdPartidosDeEquipo(appUrl, todos),
   jsonLdMigas(appUrl, [
     { nombre: "Ligas", ruta: "/ligas" },
     ...(liga ? [{ nombre: liga.name, ruta: rutaPublica("ligas", liga.id) }] : []),
@@ -92,7 +108,7 @@ const filtros = [
 ];
 ---
 
-<Layout title={`Fixture de ${team.name} - FISTURE`} pagina={3} descripcion={descripcion} jsonLd={jsonLd}>
+<Layout title={tituloEquipo(team.name)} pagina={3} descripcion={descripcion} jsonLd={jsonLd} noindex={sinPartidos}>
   <div style="display:flex;flex-direction:column;gap:32px">
     <nav aria-label="Migas de pan" class="tb-migas">
       <ol class="eq-mig" style="list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px;font:700 14px/18px var(--font-rotulo);color:var(--tinta-suave)">
@@ -116,7 +132,7 @@ const filtros = [
       </div>
       <div class="eq-titulo" style="flex:1;min-width:280px;display:flex;flex-direction:column;align-items:flex-start;gap:12px">
         <Volanta tono="rojo">{liga ? <a href={rutaPublica("ligas", liga.id)} class="fp-enlace">{liga.name}</a> : "Liga"}</Volanta>
-        <Titular nivel="1">Fixture de {team.name}</Titular>
+        <Titular nivel="1">{encabezadoEquipo(team.name)}</Titular>
         {competencias.length > 1 && (
           <p class="eq-competencias" style="margin:0;font:600 14px/20px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">
             Juega {competencias.map((c) => c.name).join(" · ")}
@@ -140,7 +156,11 @@ const filtros = [
 
     <section aria-labelledby="proximo-partido" style="border-top:3px solid var(--rojo);padding-top:20px">
       <h2 id="proximo-partido" style="margin:0;font:400 32px/1.1 var(--font-titular)">Próximo partido</h2>
-      {proximo ? (
+      <p class="eq-respuesta" style="margin:12px 0 0;max-width:68ch;font:400 19px/1.55 var(--font-texto)">{respuesta}</p>
+      {horasProximo && (
+        <p class="eq-horas" style="margin:12px 0 0;max-width:68ch;font:400 16px/1.6 var(--font-texto)"><b>Hora en cada país:</b> {horasProximo}.</p>
+      )}
+      {proximo && (
         <p style="margin:12px 0;font:400 18px/1.6 var(--font-texto)">
           <a href={rutaPublica("partidos", proximo.match.id)} style="color:var(--tinta);text-decoration:underline;text-underline-offset:4px">
             {proximo.homeTeam.name} vs {proximo.awayTeam.name}
@@ -148,21 +168,30 @@ const filtros = [
           <time datetime={proximo.match.dateTime.toISOString()}>{fechaCorta(proximo.match.dateTime)} · {hora(proximo.match.dateTime)} hs</time>
           {" · "}{proximo.league.name}{" · "}{proximo.match.venue ?? "Sede a confirmar"}
         </p>
-      ) : <p>Todavía no hay un próximo partido programado para mostrar.</p>}
-      <p style="font:400 15px/1.6 var(--font-texto)">Hora de Argentina (UTC−3). <a href="/calendario" style="color:var(--tinta);text-decoration:underline;text-underline-offset:4px">Cómo llevar el fixture a Google Calendar u Outlook</a>.</p>
+      )}
+      <p style="margin:12px 0 0;font:400 15px/1.6 var(--font-texto);color:var(--tinta-suave)">
+        {horasProximo ? "Los horarios de la lista de próximos partidos están en hora de Argentina (UTC−3)." : "Todos los horarios están en hora de Argentina (UTC−3)."}
+      </p>
+    </section>
+
+    {/* El diferencial, visible (docs/33 D5). Reemplaza al aviso de login que estaba sobre la lista */}
+    <section aria-labelledby="en-tu-calendario" class="eq-calendario">
+      <div style="flex:1 1 280px;display:flex;flex-direction:column;gap:8px">
+        <h2 id="en-tu-calendario" style="margin:0;font:400 26px/1.1 var(--font-titular)">En tu calendario</h2>
+        <p>
+          Si seguís a {team.name}, sus partidos aparecen como eventos en tu Google Calendar u Outlook.
+          Si cambia el día o la hora, el evento se actualiza solo. Te avisa una hora antes de cada partido y otra vez 15 minutos antes.
+          Es gratis.
+        </p>
+        <p><a href="/calendario" class="fp-enlace">Cómo funciona el fixture en tu calendario</a></p>
+      </div>
+      {!user && <Boton href={loginHref(Astro.url.pathname + Astro.url.search)} variante="tinta">Iniciá sesión</Boton>}
     </section>
 
     <div style="display:flex;flex-direction:column">
       <BarraSeccion tono="rojo" extra={`${partidos.length} ${partidos.length === 1 ? "partido" : "partidos"}`}>
         Próximos partidos
       </BarraSeccion>
-
-      {!user && partidos.length > 0 && (
-        <section class="eq-aviso" aria-label="Agregar al calendario">
-          <p>Iniciá sesión para agregar estos partidos a tu calendario.</p>
-          <Boton href={loginHref(Astro.url.pathname + Astro.url.search)} variante="tinta">Iniciá sesión</Boton>
-        </section>
-      )}
 
       <div style="display:flex;flex-wrap:wrap;gap:8px;padding:16px 0 8px">
         {filtros.map((f) => (
@@ -202,7 +231,7 @@ const filtros = [
                 </div>
                 {!user && <span class="eq-flecha" aria-hidden="true">›</span>}
               </a>
-              {/* Sin sesión la acción está en el aviso de arriba y en la ficha del partido */}
+              {/* Sin sesión la acción está en el bloque "En tu calendario" y en la ficha del partido */}
               {user && (
                 <SincronizarPartido
                   client:visible
@@ -216,5 +245,53 @@ const filtros = [
         })
       )}
     </div>
+
+    {recientes.length > 0 && (
+      <section aria-label="Últimos resultados" style="display:flex;flex-direction:column">
+        <BarraSeccion tono="tinta" extra={`${recientes.length} ${recientes.length === 1 ? "partido" : "partidos"}`}>
+          Últimos resultados
+        </BarraSeccion>
+        <ol style="list-style:none;margin:0;padding:0">
+          {recientes.map((m) => {
+            const esLocal = m.homeTeam.id === id;
+            const rival = esLocal ? m.awayTeam : m.homeTeam;
+            // Solo con los dos goles cargados: un marcador nunca se inventa (docs/33 D3). Va desde el
+            // lado del equipo (goles propios primero), como el "ganó 2 a 0" de la respuesta directa
+            const r = resultadoDelEquipo(m.match, esLocal);
+            return (
+              <li style="border-bottom:1px solid var(--linea)">
+                <a
+                  href={rutaPublica("partidos", m.match.id)}
+                  class="eq-enlace"
+                  style="display:flex;align-items:center;gap:12px 20px;padding:14px 12px;color:var(--tinta);text-decoration:none"
+                >
+                  <div class="eq-hora" style="flex:none;width:96px;display:flex;flex-direction:column">
+                    <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">{m.match.round ?? ""}</span>
+                    <time datetime={m.match.dateTime.toISOString()} style="font:600 13px/16px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">{fechaCorta(m.match.dateTime)}</time>
+                  </div>
+                  <div style="flex:1;min-width:0;display:flex;align-items:center;gap:12px">
+                    <Escudo src={rival.logo} nombre={rival.name} sigla={rival.shortName} size={44} />
+                    <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+                      <span style="font:700 17px/20px var(--font-rotulo);text-transform:uppercase">vs {rival.name}</span>
+                      <span style="font:500 13px/17px var(--font-rotulo);color:var(--tinta-suave)">
+                        {m.league.name} · {esLocal ? "Local" : "Visitante"}
+                      </span>
+                    </div>
+                  </div>
+                  {r ? (
+                    <span class="eq-marcador" style="flex:none;display:flex;flex-direction:column;align-items:flex-end">
+                      <span style="font:700 12px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-suave)">{r.resultado}</span>
+                      <span class="tb-cifra" style="font:400 26px/1 var(--font-titular)">{r.propios}-{r.ajenos}</span>
+                    </span>
+                  ) : (
+                    <span style="flex:none;font:600 13px/16px var(--font-rotulo);letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-suave)">Terminado</span>
+                  )}
+                </a>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+    )}
   </div>
 </Layout>

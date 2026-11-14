@@ -407,7 +407,7 @@ test.describe("Hoy: escritorio", () => {
 });
 
 test("las pantallas principales no desbordan el viewport", async ({ page }) => {
-  for (const path of ["/", "/ayuda", "/login", "/ligas", "/equipos/buscar", "/equipos/river", "/partidos/superclasico", "/calendario", "/hoy"]) {
+  for (const path of ["/", "/ayuda", "/login", "/ligas", "/equipos/buscar", "/equipos/river", "/partidos/superclasico", "/partidos/superclasico-ida", "/calendario", "/hoy"]) {
     await page.goto(path);
     const sizes = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
     expect(sizes.content, path).toBeLessThanOrEqual(sizes.viewport + 1);

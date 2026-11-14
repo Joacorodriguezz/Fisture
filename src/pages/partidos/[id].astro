@@ -8,8 +8,9 @@ import SincronizarPartido from "../../components/islands/SincronizarPartido";
 import { createDb } from "../../lib/db";
 import { getMatchDetail, getSyncStates } from "../../lib/db/queries";
 import { getPreferences } from "../../lib/db/preferences";
-import { diaISO, fechaCorta, fechaLarga, hora, horaFin, providerLabel } from "../../lib/format";
+import { diaISO, fechaCorta, fechaLarga, hora, horaConDia, horaFin, horaPorPais, listaConY, providerLabel } from "../../lib/format";
 import { jsonLdMigas, jsonLdPartido, rutaPublica } from "../../lib/seo";
+import { descripcionPartido, marcadorPartido, respuestaPartido, textoResultado } from "../../lib/seo-partido";
 
 // Página pública: el estado en el calendario y los avisos solo aplican con sesión
 const user = Astro.locals.user;
@@ -43,9 +44,18 @@ const estadoPartido = estadosPartido[match.status ?? ""] ?? "Estado a confirmar"
 const fuentes: Record<string, string> = { espn: "ESPN", "football-data": "football-data.org", promiedos: "Promiedos" };
 const fuente = fuentes[match.source];
 
+// Respuesta directa y resultado (docs/33 D2 y D3): el marcador solo con el partido terminado y los dos goles
+const marcador = marcadorPartido(match);
+const resultado = textoResultado(detalle);
+const respuesta = respuestaPartido(detalle);
+// Hora por país (docs/33 D4), calculada en el servidor con la zona de cada país. Un cancelado o un
+// postergado no la llevan: esa hora ya no vale
+const horasPorPais = match.status === "cancelled" || match.status === "postponed" ? [] : horaPorPais(match.dateTime);
+// "Los horarios pueden cambiar" no aplica a un partido que ya se jugó o que no se va a jugar
+const puedeCambiar = match.status !== "finished" && match.status !== "cancelled";
+
 const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
-// Después de los dos puntos va en minúscula: "por Liga Profesional: sábado 10 de octubre a las 15:00"
-const descripcion = `${homeTeam.name} vs ${awayTeam.name} por ${league.name}: ${fechaLarga(match.dateTime).toLowerCase()} a las ${hora(match.dateTime)} (hora argentina)${match.venue ? ` en ${match.venue}` : ""}. Agregalo a tu calendario con recordatorios.`;
+const descripcion = descripcionPartido(detalle);
 const jsonLd = [
   jsonLdPartido(appUrl, { match, homeTeam, awayTeam, league }),
   jsonLdMigas(appUrl, [
@@ -65,7 +75,12 @@ const jsonLd = [
       <div class="fp-duelo" style="display:flex;align-items:center;gap:20px">
         {/* El escudo se toca, pero el enlace accesible es el nombre del titular: no se duplica para teclado ni lector */}
         <a href={rutaLocal} tabindex="-1" aria-hidden="true" class="fp-escudo"><Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={112} pad={14} prioridad /></a>
-        <span style="font:400 40px/1 var(--font-titular);color:var(--rojo)">VS</span>
+        {/* El marcador reemplaza al VS; la ficha lo dice en palabras ("Resultado: ..."), así que acá no se lee dos veces */}
+        {marcador ? (
+          <span class="fp-marcador tb-cifra" aria-hidden="true" style="font:400 48px/1 var(--font-titular);color:var(--rojo);white-space:nowrap">{marcador.local}-{marcador.visitante}</span>
+        ) : (
+          <span style="font:400 40px/1 var(--font-titular);color:var(--rojo)">VS</span>
+        )}
         <a href={rutaVisitante} tabindex="-1" aria-hidden="true" class="fp-escudo"><Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={112} pad={14} prioridad /></a>
       </div>
       <Titular nivel="tapa"><a href={rutaLocal} class="fp-equipo">{homeTeam.name}</a> vs <a href={rutaVisitante} class="fp-equipo">{awayTeam.name}</a></Titular>
@@ -73,18 +88,42 @@ const jsonLd = [
 
     <div style="display:flex;flex-direction:column;gap:24px;max-width:720px">
       <div style="display:flex;flex-direction:column;gap:24px">
+        <p class="fp-respuesta" style="margin:0;max-width:68ch;font:400 19px/1.55 var(--font-texto)">{respuesta}</p>
         <Recuadro titulo="Ficha del partido" nivel={2}>
           <div style="display:flex;flex-direction:column;gap:8px">
             <div><b>Día:</b> <time datetime={match.dateTime.toISOString()}>{fechaLarga(match.dateTime)} ({fecha})</time></div>
             <div><b>Hora:</b> {hora(match.dateTime)} hs de Argentina (UTC−3). Fin estimado: {fin} hs.</div>
             <div><b>Estado:</b> {estadoPartido}</div>
+            {resultado && <div><b>Resultado:</b> {resultado}</div>}
             {fuente && <div><b>Datos:</b> {fuente}</div>}
             <div><b>Estadio:</b> {venue}</div>
             <div><b>Torneo:</b> <a href={rutaLiga} class="fp-enlace">{league.name}</a>{match.round ? ` · ${match.round}` : ""}</div>
             {user && <div><b>Avisos:</b> {avisosTxt}</div>}
           </div>
         </Recuadro>
-        <p style="margin:0;font:400 16px/1.6 var(--font-texto)">Los horarios pueden cambiar según la programación del torneo. <a href="/calendario" class="fp-enlace">Cómo recibir las actualizaciones en tu calendario</a>.</p>
+        {horasPorPais.length > 0 && (
+          <section aria-labelledby="hora-por-pais" style="display:flex;flex-direction:column;gap:8px">
+            <h2 id="hora-por-pais" style="margin:0;font:400 26px/1.1 var(--font-titular)">Hora en cada país</h2>
+            <ul style="list-style:none;margin:0;padding:0">
+              {horasPorPais.map((g) => (
+                <li style="display:flex;flex-wrap:wrap;gap:2px 16px;padding:8px 0;border-bottom:1px solid var(--linea);font:400 16px/1.5 var(--font-texto)">
+                  <b class="tb-cifra" style="flex:none;min-width:64px;font:700 17px/1.4 var(--font-rotulo)">{horaConDia(g)}</b>{" "}
+                  <span style="flex:1 1 12em;min-width:0">{listaConY(g.paises)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {/* Enlaces de texto explícitos a los fixtures (el titular también enlaza, con el nombre solo) */}
+        <nav aria-label="Fixture de los equipos">
+          <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font:400 16px/1.6 var(--font-texto)">
+            <li><a href={rutaLocal} class="fp-enlace">Fixture y partidos de {homeTeam.name}</a></li>
+            <li><a href={rutaVisitante} class="fp-enlace">Fixture y partidos de {awayTeam.name}</a></li>
+          </ul>
+        </nav>
+        {puedeCambiar && (
+          <p style="margin:0;font:400 16px/1.6 var(--font-texto)">Los horarios pueden cambiar según la programación del torneo. <a href="/calendario" class="fp-enlace">Cómo recibir las actualizaciones en tu calendario</a>.</p>
+        )}
 
         {user && (
         <div style="display:flex;flex-direction:column;gap:8px">
