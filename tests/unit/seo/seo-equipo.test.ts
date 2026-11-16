@@ -3,12 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   descripcionEquipo,
   encabezadoEquipo,
-  jsonLdPartidosDeEquipo,
   respuestaProximoPartido,
   resultadoDelEquipo,
   tituloEquipo,
-  TOPE_EVENTOS_EQUIPO,
 } from "../../../src/lib/seo-equipo";
+import { jsonLdProximosPartidos, TOPE_EVENTOS_LISTA } from "../../../src/lib/seo";
 
 const BASE = "https://fisture.test";
 const barracas = { id: "barracas", name: "Barracas Central", logo: null };
@@ -17,6 +16,8 @@ const lpf = { id: "lpf", name: "Liga Profesional Argentina" };
 
 // Sábado 21/11/2026 a las 15:00 de Argentina (18:00 UTC)
 const SABADO = new Date("2026-11-21T18:00:00Z");
+// "Hoy" de los tests: cuatro días después, en el mismo año
+const AHORA = new Date("2026-11-25T12:00:00Z");
 
 function partido(over: Partial<{ id: string; dateTime: Date; venue: string | null; status: string | null; homeScore: number | null; awayScore: number | null }> = {}, local = defensa, visitante = barracas) {
   return {
@@ -84,16 +85,23 @@ describe("respuestaProximoPartido (D2)", () => {
 
   it("sin próximo partido menciona el último resultado, con marcador desde el lado del equipo", () => {
     const ganado = partido({ status: "finished", homeScore: 0, awayScore: 2 });
-    expect(respuestaProximoPartido(barracas, undefined, ganado)).toBe(
+    expect(respuestaProximoPartido(barracas, undefined, ganado, AHORA)).toBe(
       "Barracas Central todavía no tiene un próximo partido confirmado. Su último partido fue el sábado 21 de noviembre contra Defensa y Justicia, de visitante, por Liga Profesional Argentina, y ganó 2 a 0."
     );
-    expect(respuestaProximoPartido(defensa, undefined, ganado)).toMatch(/de local, por Liga Profesional Argentina, y perdió 0 a 2\.$/);
-    expect(respuestaProximoPartido(defensa, undefined, partido({ status: "finished", homeScore: 1, awayScore: 1 }))).toMatch(/y empató 1 a 1\.$/);
+    expect(respuestaProximoPartido(defensa, undefined, ganado, AHORA)).toMatch(/de local, por Liga Profesional Argentina, y perdió 0 a 2\.$/);
+    expect(respuestaProximoPartido(defensa, undefined, partido({ status: "finished", homeScore: 1, awayScore: 1 }), AHORA)).toMatch(/y empató 1 a 1\.$/);
+  });
+
+  it("un último partido de otro año lleva el año, para que no se lea como reciente", () => {
+    const ganado = partido({ status: "finished", homeScore: 0, awayScore: 2 });
+    expect(respuestaProximoPartido(barracas, undefined, ganado, new Date("2027-01-10T12:00:00Z"))).toContain(
+      "Su último partido fue el sábado 21 de noviembre de 2026 contra Defensa y Justicia"
+    );
   });
 
   it("sin marcador cargado no inventa el resultado", () => {
     const sinMarcador = partido({ status: "finished", homeScore: 1, awayScore: null });
-    expect(respuestaProximoPartido(barracas, undefined, sinMarcador)).toBe(
+    expect(respuestaProximoPartido(barracas, undefined, sinMarcador, AHORA)).toBe(
       "Barracas Central todavía no tiene un próximo partido confirmado. Su último partido fue el sábado 21 de noviembre contra Defensa y Justicia, de visitante, por Liga Profesional Argentina."
     );
   });
@@ -113,7 +121,7 @@ describe("resultadoDelEquipo (D3)", () => {
   });
 });
 
-describe("jsonLdPartidosDeEquipo (D6)", () => {
+describe("jsonLdProximosPartidos (D6)", () => {
   it("publica solo los programados como SportsEvent", () => {
     const lista = [
       partido({ id: "a" }),
@@ -121,15 +129,15 @@ describe("jsonLdPartidosDeEquipo (D6)", () => {
       partido({ id: "c", status: "cancelled" }),
       partido({ id: "d" }),
     ];
-    const eventos = jsonLdPartidosDeEquipo(BASE, lista);
+    const eventos = jsonLdProximosPartidos(BASE, lista);
     expect(eventos.map((e) => e.url)).toEqual([`${BASE}/partidos/a`, `${BASE}/partidos/d`]);
     expect(eventos[0]).toMatchObject({ "@type": "SportsEvent", name: "Defensa y Justicia vs Barracas Central" });
   });
 
   it("corta en 10", () => {
     const lista = Array.from({ length: 15 }, (_, i) => partido({ id: `p${i}` }));
-    expect(TOPE_EVENTOS_EQUIPO).toBe(10);
-    expect(jsonLdPartidosDeEquipo(BASE, lista)).toHaveLength(10);
-    expect(jsonLdPartidosDeEquipo(BASE, [])).toEqual([]);
+    expect(TOPE_EVENTOS_LISTA).toBe(10);
+    expect(jsonLdProximosPartidos(BASE, lista)).toHaveLength(10);
+    expect(jsonLdProximosPartidos(BASE, [])).toEqual([]);
   });
 });

@@ -1,0 +1,46 @@
+name: Backfill de nombres en URLs
+
+# Repite POST /api/admin/slugs hasta pendientes 0 (docs/33 D9, docs/23 §6). Manual: una vez por entorno
+# después del deploy con la migración 0016. Es idempotente (solo escribe filas sin slug) y un slug asignado
+# no cambia, así que repetirlo no hace daño. Solo imprime conteos.
+on:
+  workflow_dispatch:
+    inputs:
+      entorno:
+        description: "Dónde correrlo"
+        type: choice
+        options: [staging, produccion]
+        default: staging
+
+concurrency:
+  group: backfill-slugs-${{ inputs.entorno }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Recorrer el backfill
+        env:
+          APP_URL: ${{ inputs.entorno == 'staging' && 'https://development.fisture.pages.dev' || secrets.PUBLIC_APP_URL }}
+          ADMIN_SECRET: ${{ inputs.entorno == 'staging' && secrets.STAGING_ADMIN_SECRET || secrets.ADMIN_SECRET }}
+          ENTORNO: ${{ inputs.entorno }}
+        run: |
+          set -euo pipefail
+          pendientes=""
+          # Unas 100 filas por llamada; 40 pasadas cubren 4000 equipos y ligas
+          for i in $(seq 1 40); do
+            r="$(curl --fail-with-body --silent --show-error --max-time 60 --retry 2 --retry-delay 10 \
+              -X POST "${APP_URL%/}/api/admin/slugs" \
+              -H "Authorization: Bearer $ADMIN_SECRET" -H "Content-Type: application/json" -d "{}")"
+            echo "Pasada $i: $(echo "$r" | jq -c '{asignados, pendientes}')"
+            pendientes="$(echo "$r" | jq -r '.pendientes')"
+            [ "$pendientes" = "0" ] && break
+            sleep 2
+          done
+          echo "### Backfill de nombres en ${ENTORNO}: pendientes ${pendientes}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$pendientes" != "0" ]; then echo "::error::Quedan $pendientes pendientes: correr de nuevo"; exit 1; fi

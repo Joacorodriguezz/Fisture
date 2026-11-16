@@ -4,12 +4,14 @@ import Volanta from "../../components/tribuna/Volanta.astro";
 import Titular from "../../components/tribuna/Titular.astro";
 import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
 import FiltroEquipos from "../../components/islands/FiltroEquipos";
-import { getLeagueBySlugOrId, getLeagueUpcomingMatches } from "../../lib/db/queries";
-import { fechaLarga, hora } from "../../lib/format";
+import { getLeagueBySlugOrId, getLeagueRecentMatches, getLeagueUpcomingMatches } from "../../lib/db/queries";
+import { fechaLarga, hora, horaConDia, horaPorPais, listaConY } from "../../lib/format";
 import { createDb } from "../../lib/db";
 import { asc, eq } from "drizzle-orm";
 import { leagueTeams, teams, userTeams } from "../../../drizzle/schema";
-import { jsonLdLiga, jsonLdMigas, redireccionASlug, rutaPublica } from "../../lib/seo";
+import { jsonLdLiga, jsonLdMigas, jsonLdProximosPartidos, redireccionASlug, rutaPublica } from "../../lib/seo";
+import { descripcionLiga, encabezadoLiga, respuestaLiga, tituloLiga } from "../../lib/seo-liga";
+import { textoResultado } from "../../lib/seo-partido";
 
 // Página pública: sin sesión nadie "sigue" ningún equipo
 const user = Astro.locals.user;
@@ -32,21 +34,22 @@ if (destino) {
   return Astro.redirect(destino, 301);
 }
 
-// Participantes de la competencia (incluye equipos de otras ligas en las copas)
-const equiposLiga = await db
-  .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo, slug: teams.slug })
-  .from(leagueTeams)
-  .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
-  .where(eq(leagueTeams.leagueId, liga.id))
-  .orderBy(asc(teams.name));
+// Estas lecturas dependen solo de la liga: van juntas y no una detrás de otra (cada una es un viaje a D1)
+const [equiposLiga, seguidosFilas, proximos, recientes] = await Promise.all([
+  // Participantes de la competencia (incluye equipos de otras ligas en las copas)
+  db
+    .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo, slug: teams.slug })
+    .from(leagueTeams)
+    .innerJoin(teams, eq(leagueTeams.teamId, teams.id))
+    .where(eq(leagueTeams.leagueId, liga.id))
+    .orderBy(asc(teams.name)),
+  user ? db.select({ teamId: userTeams.teamId }).from(userTeams).where(eq(userTeams.userId, user.id)) : [],
+  getLeagueUpcomingMatches(db, liga.id),
+  // Últimos resultados (docs/34 L3): hasta 10 terminados de la liga
+  getLeagueRecentMatches(db, liga.id),
+]);
 
-const seguidos = new Set(
-  user
-    ? (await db.select({ teamId: userTeams.teamId }).from(userTeams).where(eq(userTeams.userId, user.id))).map(
-        (r) => r.teamId
-      )
-    : []
-);
+const seguidos = new Set(seguidosFilas.map((r) => r.teamId));
 
 const items = equiposLiga.map((t) => ({
   id: t.id,
@@ -60,15 +63,20 @@ const items = equiposLiga.map((t) => ({
 }));
 
 const cantidadSeguidos = items.filter((i) => i.siguiendo).length;
-const proximos = await getLeagueUpcomingMatches(db, liga.id);
 
 const appUrl = Astro.locals.runtime.env.PUBLIC_APP_URL;
-// El país solo si no está en el nombre ("Liga Profesional Argentina (Argentina)") y la cantidad solo si hay equipos
-const pais = liga.name.includes(liga.country) ? "" : ` (${liga.country})`;
-const equiposTxt = equiposLiga.length > 0 ? `los ${equiposLiga.length} equipos y sus próximos partidos` : "los próximos partidos";
-const descripcion = `Fixture de ${liga.name}${pais}: ${equiposTxt} con día y hora. Sincronizalos con Google Calendar u Outlook.`;
+const descripcion = descripcionLiga(liga, equiposLiga.length);
+// Respuesta directa a "cuándo se juega X" (docs/34 L2): la lista ya viene solo con programados
+const proximo = proximos[0];
+const respuesta = respuestaLiga(liga, proximo, recientes[0]);
+// Hora del próximo partido en cada país (docs/34 L4), en el servidor
+const horasProximo = proximo
+  ? horaPorPais(proximo.match.dateTime).map((g) => `${horaConDia(g)} en ${listaConY(g.paises)}`).join("; ")
+  : null;
 const jsonLd = [
   jsonLdLiga(appUrl, liga, equiposLiga),
+  // Próximos partidos programados como SportsEvent, hasta 10 (docs/34 L6)
+  ...jsonLdProximosPartidos(appUrl, proximos),
   jsonLdMigas(appUrl, [
     { nombre: "Ligas", ruta: "/ligas" },
     { nombre: liga.name, ruta: rutaPublica("ligas", liga) },
@@ -76,31 +84,61 @@ const jsonLd = [
 ];
 ---
 
-<Layout title={`Fixture de ${liga.name} - FISTURE`} pagina={3} descripcion={descripcion} jsonLd={jsonLd}>
+<Layout title={tituloLiga(liga.name)} pagina={3} descripcion={descripcion} jsonLd={jsonLd}>
   <div style="display:flex;flex-direction:column;gap:28px">
     <div style="display:flex;flex-direction:column;gap:16px">
       <a href="/ligas" class="tb-volver"><span aria-hidden="true">←</span> Ligas</a>
       <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
         <Volanta tono="rojo">{liga.country}</Volanta>
-        <Titular nivel="1">Fixture de {liga.name}</Titular>
+        <Titular nivel="1">{encabezadoLiga(liga.name)}</Titular>
       </div>
     </div>
 
     <section aria-labelledby="fixture-liga" class="fixture-publico">
       <h2 id="fixture-liga">Próximos partidos</h2>
-      <p>Hasta 20 encuentros programados en los próximos 30 días. Hora de Argentina (UTC−3).</p>
+      <p class="lg-respuesta">{respuesta}</p>
+      {horasProximo && <p class="lg-horas"><b>Hora en cada país:</b> {horasProximo}.</p>}
       {proximos.length > 0 ? (
-        <ul>
-          {proximos.map(({ match, homeTeam, awayTeam }) => (
-            <li><a href={rutaPublica("partidos", match.id)}>
-              <span>{homeTeam.name} vs {awayTeam.name}</span>
-              <time datetime={match.dateTime.toISOString()}>{fechaLarga(match.dateTime)} · {hora(match.dateTime)} hs</time>
-            </a></li>
-          ))}
-        </ul>
-      ) : <p>No hay partidos programados para mostrar en los próximos 30 días. Podés explorar los equipos de esta competencia abajo.</p>}
+        <>
+          <p class="lg-nota">Hasta 20 encuentros programados en los próximos 30 días. Los horarios de la lista están en hora de Argentina (UTC−3).</p>
+          <ul>
+            {proximos.map(({ match, homeTeam, awayTeam }) => (
+              <li><a href={rutaPublica("partidos", match.id)}>
+                <span class="lg-equipos">{homeTeam.name} vs {awayTeam.name}</span>
+                <span class="lg-detalle">
+                  {match.round?.trim() && <>{match.round.trim()} · </>}
+                  <time datetime={match.dateTime.toISOString()}>{fechaLarga(match.dateTime)} · {hora(match.dateTime)} hs</time>
+                </span>
+              </a></li>
+            ))}
+          </ul>
+        </>
+      ) : <p>Podés explorar los equipos de esta competencia abajo.</p>}
       <a href="/calendario">Cómo agregar estos partidos a tu calendario</a>
     </section>
+
+    {recientes.length > 0 && (
+      <section aria-labelledby="resultados-liga" class="fixture-publico">
+        <h2 id="resultados-liga">Últimos resultados</h2>
+        <ol>
+          {recientes.map((partido) => {
+            const { match, homeTeam, awayTeam } = partido;
+            // Solo con los dos goles cargados: un marcador nunca se inventa (docs/33 D3)
+            const resultado = textoResultado(partido);
+            return (
+              <li><a href={rutaPublica("partidos", match.id)}>
+                <span class="lg-equipos">{resultado ?? `${homeTeam.name} vs ${awayTeam.name}`}</span>
+                <span class="lg-detalle">
+                  {match.round?.trim() && <>{match.round.trim()} · </>}
+                  <time datetime={match.dateTime.toISOString()}>{fechaLarga(match.dateTime)}</time>
+                  {!resultado && " · Terminado"}
+                </span>
+              </a></li>
+            );
+          })}
+        </ol>
+      </section>
+    )}
 
     <div style="display:flex;flex-direction:column;gap:16px">
       <BarraSeccion tono="tinta" extra={`${items.length} equipos${cantidadSeguidos ? ` · seguís ${cantidadSeguidos}` : ""}`}>
@@ -122,12 +160,14 @@ const jsonLd = [
   .fixture-publico { border-top: 3px solid var(--rojo); padding-top: 20px; }
   .fixture-publico h2 { margin: 0; font: 400 32px/1.1 var(--font-titular); }
   .fixture-publico p { font: 400 16px/1.6 var(--font-texto); }
-  .fixture-publico ul { list-style: none; padding: 0; }
+  .fixture-publico .lg-respuesta { margin: 12px 0 0; max-width: 68ch; font: 400 19px/1.55 var(--font-texto); }
+  .fixture-publico .lg-horas { margin: 12px 0 0; max-width: 68ch; }
+  .fixture-publico .lg-nota { font-size: 15px; color: var(--tinta-suave); }
+  .fixture-publico ul, .fixture-publico ol { list-style: none; padding: 0; }
   .fixture-publico li { border-bottom: 1px solid var(--linea); }
   .fixture-publico li a { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding: 16px 0; }
   .fixture-publico a { color: var(--tinta); text-decoration: underline; text-underline-offset: 4px; }
   .fixture-publico li a { text-decoration: none; }
-  .fixture-publico li span { text-decoration: underline; text-underline-offset: 4px; }
-  .fixture-publico li span { font: 700 18px/1.4 var(--font-rotulo); }
-  .fixture-publico time { font: 500 15px/1.6 var(--font-rotulo); }
+  .fixture-publico .lg-equipos { text-decoration: underline; text-underline-offset: 4px; font: 700 18px/1.4 var(--font-rotulo); }
+  .fixture-publico .lg-detalle { font: 500 15px/1.6 var(--font-rotulo); }
 </style>

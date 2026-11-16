@@ -9,7 +9,7 @@ import { AHORA, DIA_MS, relojFijo } from "../../helpers/clock";
 import { createDb } from "../../../src/lib/db";
 import { syncSingleLeague } from "../../../src/lib/data-providers/sync";
 import { checkConsistency } from "../../../src/lib/observability/consistency";
-import { getEquiposDeLaLiga, getLeagueBySlugOrId, getMatchCountsByDay, getMatchesInRange, getPaginasPublicas, getTeamBySlugOrId, getTeamRecentMatches, getTeamUpcomingMatches } from "../../../src/lib/db/queries";
+import { getEquiposDeLaLiga, getLeagueBySlugOrId, getLeagueRecentMatches, getMatchCountsByDay, getMatchesInRange, getPaginasPublicas, getTeamBySlugOrId, getTeamRecentMatches, getTeamUpcomingMatches } from "../../../src/lib/db/queries";
 import { asignarSlugsPendientes, slugsOcupados } from "../../../src/lib/db/slugs";
 
 interface Consulta {
@@ -125,6 +125,19 @@ describe("planes de las consultas calientes", () => {
     expect(pasos).not.toMatch(/^SCAN (matches|m)\b/m);
     expect(pasos).toContain("idx_matches_home_team");
     expect(pasos).toContain("idx_matches_away_team");
+  });
+
+  // docs/34 L3: los últimos resultados de una liga buscan por league_id; no recorren matches entera ni
+  // van hacia atrás por idx_matches_date (leería los partidos jugados de todas las ligas)
+  it("los últimos resultados de una liga buscan por el índice de liga", async () => {
+    const [liga] = (await t.DB.prepare("SELECT id FROM leagues LIMIT 1").all<{ id: string }>()).results;
+    const [consulta] = await capturar(
+      (DB) => getLeagueRecentMatches(createDb(DB), liga.id),
+      (sql) => sql.includes('from "matches"')
+    );
+    const pasos = (await plan(consulta)).join("\n");
+    expect(pasos, pasos).not.toMatch(/^SCAN (matches|m)\b/m);
+    expect(pasos).toContain("idx_matches_league_source (league_id=?)");
   });
 
   // docs/33 D8: el sitemap deja afuera a los equipos sin partidos con un EXISTS por índice, en la

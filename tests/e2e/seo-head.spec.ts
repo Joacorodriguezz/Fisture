@@ -426,3 +426,64 @@ test("docs/33 paso 2: el partido responde, muestra el resultado y la hora por pa
     await context.close();
   }
 });
+
+test("docs/34: la página de liga responde, muestra la ronda, la hora por país y los resultados sin JavaScript", async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL: BASE });
+  try {
+    await context.route(/https?:\/\//, (route) => new URL(route.request().url()).hostname === "127.0.0.1" ? route.continue() : route.abort());
+    const page = await context.newPage();
+    const proximos = page.getByRole("region", { name: "Próximos partidos", exact: true });
+    const resultados = page.getByRole("region", { name: "Últimos resultados", exact: true });
+
+    // Liga con próximos partidos y resultados: título y h1 con las dos formas de búsqueda (L1)
+    await page.goto("/ligas/e2e-league");
+    await expect(page).toHaveTitle("Fixture y partidos de Liga E2E - FISTURE");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Fixture y partidos de Liga E2E");
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /^Fixture y partidos de Liga E2E \(Argentina\): los \d+ equipos /);
+    await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
+    // Respuesta directa (L2) y hora por país del próximo partido (L4)
+    await expect(proximos.locator(".lg-respuesta")).toHaveText(
+      /^El próximo partido de Liga E2E es (River Plate vs Boca Juniors|Boca Juniors vs River Plate), el [a-záé]+ \d+ de [a-z]+ a las \d{2}:\d{2} \(hora de Argentina\)\.$/
+    );
+    const inicio = new Date((await proximos.locator("li time").first().getAttribute("datetime"))!);
+    const horas = horaPorPais(inicio).map((g) => `${horaConDia(g)} en ${listaConY(g.paises)}`).join("; ");
+    await expect(proximos.locator(".lg-horas")).toHaveText(`Hora en cada país: ${horas}.`);
+    // Últimos resultados (L3): el más reciente primero, con marcador solo si está cargado
+    const filas = resultados.getByRole("listitem");
+    await expect(filas).toHaveCount(2);
+    await expect(filas.nth(0).getByRole("link")).toHaveAttribute("href", "/partidos/superclasico-ida");
+    await expect(filas.nth(0)).toContainText("Boca Juniors 1, River Plate 2");
+    await expect(filas.nth(1).getByRole("link")).toHaveAttribute("href", "/partidos/superclasico-sin-marcador");
+    await expect(filas.nth(1)).toContainText("River Plate vs Boca Juniors");
+    await expect(filas.nth(1)).toContainText("Terminado");
+    await expect(filas.nth(1)).not.toContainText(/\d, /);
+
+    // Liga con un solo partido programado, con ronda (L5), y sin resultados: la sección no aparece
+    await page.goto("/ligas/liga-neutral");
+    await expect(proximos.locator(".lg-respuesta")).toContainText("es Equipo neutral local vs Equipo neutral visitante (Fecha 3), el ");
+    await expect(proximos.getByRole("listitem")).toHaveCount(1);
+    await expect(proximos.getByRole("listitem")).toContainText("Fecha 3 · ");
+    await expect(resultados).toHaveCount(0);
+
+    // Liga sin partidos: lo dice, no muestra horas ni lista, y sigue indexable (L8)
+    await page.goto("/ligas/e2e-copa");
+    await expect(proximos.locator(".lg-respuesta")).toHaveText("Copa E2E no tiene partidos programados en los próximos 30 días. Aparecen acá apenas se confirme el fixture.");
+    await expect(proximos.locator(".lg-horas")).toHaveCount(0);
+    await expect(proximos.getByRole("listitem")).toHaveCount(0);
+    await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+});
+
+test("docs/34 L6: la página de liga publica los próximos partidos como SportsEvent", async ({ page }) => {
+  await page.goto("/ligas/e2e-league");
+  const eventos = (await jsonLd(page)).filter((d) => d["@type"] === "SportsEvent");
+  expect(eventos.length).toBeGreaterThan(0);
+  expect(eventos.length).toBeLessThanOrEqual(10);
+  expect(eventos.map((e) => e.url)).not.toContain(`${BASE}/partidos/superclasico-ida`);
+  expect(eventos.every((e) => e.eventStatus === "https://schema.org/EventScheduled" && e.superEvent.url === `${BASE}/ligas/e2e-league`)).toBe(true);
+
+  await page.goto("/ligas/e2e-copa");
+  expect((await jsonLd(page)).filter((d) => d["@type"] === "SportsEvent")).toEqual([]);
+});
