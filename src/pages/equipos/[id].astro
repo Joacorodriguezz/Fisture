@@ -13,11 +13,10 @@ import { and, eq } from "drizzle-orm";
 import { leagues, leagueTeams, userTeams } from "../../../drizzle/schema";
 import { fechaCorta, hora, horaConDia, horaPorPais, listaConY } from "../../lib/format";
 import { loginHref } from "../../lib/auth/guards";
-import { jsonLdEquipo, jsonLdMigas, redireccionASlug, rutaPublica } from "../../lib/seo";
+import { jsonLdEquipo, jsonLdMigas, jsonLdProximosPartidos, redireccionASlug, rutaPublica } from "../../lib/seo";
 import {
   descripcionEquipo,
   encabezadoEquipo,
-  jsonLdPartidosDeEquipo,
   respuestaProximoPartido,
   resultadoDelEquipo,
   tituloEquipo,
@@ -104,7 +103,7 @@ const sinPartidos = todos.length === 0 && recientes.length === 0;
 const jsonLd = [
   jsonLdEquipo(appUrl, team, liga),
   // Sobre la lista completa del equipo, no la filtrada por ?lado= (docs/33 D6)
-  ...jsonLdPartidosDeEquipo(appUrl, todos),
+  ...jsonLdProximosPartidos(appUrl, todos),
   jsonLdMigas(appUrl, [
     { nombre: "Ligas", ruta: "/ligas" },
     ...(liga ? [{ nombre: liga.name, ruta: rutaPublica("ligas", liga) }] : []),

@@ -1,6 +1,6 @@
 # 34 · SEO y GEO de la página de liga (TDD)
 
-Estado: **propuesto el 15/11/2026** (pendiente de revisión). Continúa `docs/33`: lleva a la página de liga
+Estado: **aprobado el 15/11/2026; paso 1 implementado**. Continúa `docs/33`: lleva a la página de liga
 lo que los pasos 1 y 2 de ese plan hicieron en la de equipo y la de partido.
 
 ## 1. Contexto y problema
@@ -110,4 +110,30 @@ tiene su propia hora, así que requiere otro diseño), y `docs/32` (ligas de Sud
 
 ## 8. Notas de implementación
 
-_(vacío hasta implementar)_
+### Paso 1 · `feat(seo): refuerza la página de liga`
+
+- **L2, la ronda va entre paréntesis** y sin artículo: "…es River Plate vs Boca Juniors (Fecha 16), el sábado…".
+  El "por la Fecha 16" del diseño queda mal con "Octavos de final" o "Grupo A". Sin próximos y con un
+  último resultado: "En el último partido, River Plate le ganó 2 a 1 a Boca Juniors el sábado…"; sin
+  marcador, "El último partido fue River Plate vs Boca Juniors, el sábado…".
+- **L3**: `getLeagueRecentMatches(db, leagueId, limit = 10, ahora)` pide `status = 'finished'`, fecha
+  pasada y liga activa (igual que `getLeagueUpcomingMatches`). Plan: `SEARCH` por
+  `idx_matches_league_source (league_id=?)`, sin `SCAN` y sin ir por `idx_matches_date`; sumado al test de
+  planes. No hizo falta un índice nuevo. En la lista el marcador va con el local primero
+  ("Boca Juniors 1, River Plate 2", `textoResultado`); sin los dos goles se muestra "X vs Y · Terminado".
+- **L7**: el generador de eventos quedó en `seo.ts` como `jsonLdProximosPartidos` (tope
+  `TOPE_EVENTOS_LISTA`), en lugar de `jsonLdPartidosDeEquipo` de `seo-equipo.ts`; el test de equipo solo
+  cambió el nombre importado. Además se extrajo `fraseResultado` en `seo-partido.ts` ("X le ganó 2 a 1 a
+  Y" / "X y Y empataron 1 a 1"), que usan `respuestaPartido` y `respuestaLiga`; los textos del partido no
+  cambiaron.
+- **Descripción**: pasó a `descripcionLiga` y empieza con "Fixture y partidos de" (antes "Fixture de").
+- **Plantilla**: la respuesta (`.lg-respuesta`) y el renglón de horas (`.lg-horas`) van dentro de la sección
+  "Próximos partidos". Sin próximos ya no se repite "No hay partidos programados…": lo dice la respuesta y
+  queda "Podés explorar los equipos de esta competencia abajo". La ronda va delante de la fecha en cada
+  renglón. "Últimos resultados" es una sección aparte entre los próximos y la lista de equipos.
+- **Lecturas**: las cuatro consultas de la página (equipos, seguidos, próximos y resultados) ahora van
+  juntas en un `Promise.all`; antes iban una detrás de otra.
+- **E2E**: el partido neutral del servidor de E2E tiene ronda ("Fecha 3"). Se prueban la liga E2E (próximos
+  y resultados), la liga neutral (ronda, sin resultados) y la copa E2E (sin partidos, sigue indexable). El
+  caso "sin próximos pero con resultados" queda cubierto en los tests unitarios, no en E2E.
+- **Verificación**: `npm run check` completo en verde (incluye `test:ux`).

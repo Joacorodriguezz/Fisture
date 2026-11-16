@@ -24,6 +24,20 @@ export function textoResultado(partido: Partido): string | null {
   return `${partido.homeTeam.name} ${m.local}, ${partido.awayTeam.name} ${m.visitante}`;
 }
 
+// "River Plate le ganó 2 a 1 a Boca Juniors" (el ganador primero, sea local o visitante) o "River Plate y
+// Boca Juniors empataron 1 a 1". Null sin resultado. También la usa seo-liga.ts
+export function fraseResultado(partido: Partido): string | null {
+  const m = marcadorPartido(partido.match);
+  if (!m) return null;
+  const local = partido.homeTeam.name;
+  const visitante = partido.awayTeam.name;
+  if (m.local === m.visitante) return `${local} y ${visitante} empataron ${m.local} a ${m.visitante}`;
+  const ganaLocal = m.local > m.visitante;
+  const [ganador, perdedor] = ganaLocal ? [local, visitante] : [visitante, local];
+  const [mas, menos] = ganaLocal ? [m.local, m.visitante] : [m.visitante, m.local];
+  return `${ganador} le ganó ${mas} a ${menos} a ${perdedor}`;
+}
+
 // "el domingo 1 de noviembre a las 15:00 (hora de Argentina)"
 function cuando(dateTime: Date): string {
   return `el ${diaEnOracion(dateTime)} a las ${hora(dateTime)} (hora de Argentina)`;
@@ -43,12 +57,7 @@ export function respuestaPartido(partido: Partido): string {
       if (!m) {
         return `${local} y ${visitante} jugaron ${cuando(match.dateTime)} por ${league.name}${sede}. El resultado todavía no está cargado.`;
       }
-      const dia = `el ${diaEnOracion(match.dateTime)}, por ${league.name}${sede}.`;
-      if (m.local === m.visitante) return `${local} y ${visitante} empataron ${m.local} a ${m.visitante} ${dia}`;
-      const ganaLocal = m.local > m.visitante;
-      const [ganador, perdedor] = ganaLocal ? [local, visitante] : [visitante, local];
-      const [mas, menos] = ganaLocal ? [m.local, m.visitante] : [m.visitante, m.local];
-      return `${ganador} le ganó ${mas} a ${menos} a ${perdedor} ${dia}`;
+      return `${fraseResultado(partido)} el ${diaEnOracion(match.dateTime)}, por ${league.name}${sede}.`;
     }
     case "live":
       return `${local} y ${visitante} están jugando: el partido empezó ${cuando(match.dateTime)}, por ${league.name}${sede}.`;
