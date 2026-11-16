@@ -42,7 +42,7 @@ interface Env {
   RATE_LIMIT_MODE?: string;
   // Orígenes extra (separados por comas) que pasan la verificación de origen: alias de Pages, www.
   ALLOWED_ORIGINS?: string;
-  // "off" apaga la caché del HTML público anónimo (docs/34 D8). Ausente = prendida
+  // "off" apaga la caché del HTML público anónimo (docs/35 D8). Ausente = prendida
   HTML_CACHE?: string;
 }
 

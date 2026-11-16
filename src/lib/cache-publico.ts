@@ -1,4 +1,4 @@
-// Caché del HTML público anónimo (docs/34). Sin dependencias de Astro: la caché, waitUntil, el build id y el
+// Caché del HTML público anónimo (docs/35). Sin dependencias de Astro: la caché, waitUntil, el build id y el
 // interruptor llegan inyectados. Nunca rompe una página: cualquier fallo de la caché sirve el render normal.
 
 export interface CacheLike {

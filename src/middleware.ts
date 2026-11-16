@@ -44,7 +44,7 @@ const dominio = defineMiddleware(async ({ locals, url, request }, next) => {
   return destino ? new Response(null, { status: 301, headers: { Location: destino } }) : next();
 });
 
-// HTML público anónimo en la Cache API (docs/34): un acierto no renderiza ni toca D1. Antes de la sesión
+// HTML público anónimo en la Cache API (docs/35): un acierto no renderiza ni toca D1. Antes de la sesión
 // y dentro de `seguridad`, así los headers de seguridad se agregan en cada respuesta y no quedan en la copia
 const cache = defineMiddleware(async ({ locals, request }, next) => {
   const runtime = locals.runtime;

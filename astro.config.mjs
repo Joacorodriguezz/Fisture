@@ -17,7 +17,7 @@ export default defineConfig({
     tailwind(),
   ],
   vite: {
-    // Versiona la clave de la caché del HTML por deploy (docs/34 D5)
+    // Versiona la clave de la caché del HTML por deploy (docs/35 D5)
     define: {
       __BUILD_ID__: JSON.stringify(process.env.GITHUB_SHA || new Date().toISOString()),
     },

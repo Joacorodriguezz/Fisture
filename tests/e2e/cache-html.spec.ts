@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-// docs/34: el HTML anónimo de equipos, ligas y partidos va a la Cache API; con sesión nunca.
+// docs/35: el HTML anónimo de equipos, ligas y partidos va a la Cache API; con sesión nunca.
 // Las rutas son distintas por test para no depender del orden ni de las copias de otros tests.
 // El servidor es el mismo para escritorio y móvil: la URL del primer test cambia por proyecto y reintento.
 
