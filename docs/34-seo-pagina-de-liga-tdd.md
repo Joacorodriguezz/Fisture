@@ -1,6 +1,6 @@
 # 34 · SEO y GEO de la página de liga (TDD)
 
-Estado: **aprobado el 15/11/2026; paso 1 implementado**. Continúa `docs/33`: lleva a la página de liga
+Estado: **aprobado el 15/11/2026; pasos 1 y 2 implementados**. Continúa `docs/33`: lleva a la página de liga
 lo que los pasos 1 y 2 de ese plan hicieron en la de equipo y la de partido.
 
 ## 1. Contexto y problema
@@ -62,7 +62,7 @@ programados" y la página solo ofrece la lista de equipos.
 - **Unitarios (`tests/unit/seo`, módulo `seo-liga.ts`)**: título y `<h1>`; descripción; respuesta directa
   con próximo partido (con y sin ronda), sin próximos pero con último resultado (victoria local, victoria
   visitante, empate, sin marcador) y sin ningún partido; eventos del JSON-LD con tope de 10 y solo
-  `scheduled`. Los tests existentes de `jsonLdPartidosDeEquipo` siguen pasando tras el refactor de L7.
+  `scheduled`. Los tests existentes del JSON-LD de equipo siguen pasando tras el refactor de L7.
 - **Integración con D1 efímera (`tests/integration/seo/pagina-liga.test.ts`)**: `getLeagueRecentMatches`
   (orden descendente, tope, solo `finished` con fecha pasada, marcador nulo, no trae otra liga).
 - **Planes de consulta (`planes-de-consulta.test.ts`)**: la consulta nueva busca por `league_id` con
@@ -137,3 +137,12 @@ tiene su propia hora, así que requiere otro diseño), y `docs/32` (ligas de Sud
   y resultados), la liga neutral (ronda, sin resultados) y la copa E2E (sin partidos, sigue indexable). El
   caso "sin próximos pero con resultados" queda cubierto en los tests unitarios, no en E2E.
 - **Verificación**: `npm run check` completo en verde (incluye `test:ux`).
+
+### Paso 2 · `fix(seo): corrige la nota de horarios en llms.txt`
+
+- La frase conserva "hora de Argentina (UTC-3)", que sigue valiendo para las listas, y agrega que las
+  páginas de equipo, de liga y de partido indican además la hora del próximo partido en otros países. La
+  de liga entra en la frase porque el paso 1 le sumó ese renglón (L4).
+- Un test de integración (`sitemap-llms.test.ts`) fija la frase nueva.
+- La línea de la sección 4 que nombraba `jsonLdPartidosDeEquipo` se ajustó: esa función pasó a
+  `jsonLdProximosPartidos` (ver L7 arriba).
