@@ -2,19 +2,20 @@ import { test, expect } from "@playwright/test";
 
 // docs/34: el HTML anónimo de equipos, ligas y partidos va a la Cache API; con sesión nunca.
 // Las rutas son distintas por test para no depender del orden ni de las copias de otros tests.
+// El servidor es el mismo para escritorio y móvil: la URL del primer test cambia por proyecto y reintento.
 
 test("el segundo GET anónimo a un equipo sale de la caché y conserva los headers de seguridad", async ({ request }) => {
-  const primera = await request.get("/equipos/river");
+  const primera = await request.get(ruta);
   expect(primera.status()).toBe(200);
   expect(primera.headers()["x-fisture-cache"]).toBe("MISS");
   expect(primera.headers()["cache-control"]).toBe("public, max-age=0, must-revalidate");
 
   // El put va en waitUntil: se reintenta un momento hasta que la copia esté guardada
   await expect
-    .poll(async () => (await request.get("/equipos/river")).headers()["x-fisture-cache"], { timeout: 10_000 })
+    .poll(async () => (await request.get(ruta)).headers()["x-fisture-cache"], { timeout: 10_000 })
     .toBe("HIT");
 
-  const segunda = await request.get("/equipos/river");
+  const segunda = await request.get(ruta);
   const headers = segunda.headers();
   expect(headers["x-fisture-cache"]).toBe("HIT");
   expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
