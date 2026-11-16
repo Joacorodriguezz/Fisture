@@ -17,6 +17,10 @@ export default defineConfig({
     tailwind(),
   ],
   vite: {
+    // Versiona la clave de la caché del HTML por deploy (docs/34 D5)
+    define: {
+      __BUILD_ID__: JSON.stringify(process.env.GITHUB_SHA || new Date().toISOString()),
+    },
     build: {
       // Los <script> de componentes nunca se inlinean: la CSP solo autoriza por hash una lista fija
       // de scripts inline (src/lib/security-headers.ts); como archivo en /_astro entran por 'self'

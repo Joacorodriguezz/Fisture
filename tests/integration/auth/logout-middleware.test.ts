@@ -37,7 +37,7 @@ describe("middleware y logout con sesiones en D1", () => {
     const locals: Record<string, any> = { runtime: { env: { DB: t.DB, KV: kv } } };
     const next = vi.fn(async () => new Response("ok"));
     const res = await (onRequest as any)(
-      { locals, cookies, url: new URL(`https://fisture.test${path}`), redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) },
+      { locals, cookies, url: new URL(`https://fisture.test${path}`), request: new Request(`https://fisture.test${path}`), redirect: (d: string) => new Response(null, { status: 302, headers: { Location: d } }) },
       next
     );
     return { res, locals, cookies, next };
@@ -60,7 +60,7 @@ describe("middleware y logout con sesiones en D1", () => {
     const locals: Record<string, any> = { runtime: { env: { DB, KV: kv } } };
     const cookies = { get: () => ({ value: token }), delete: vi.fn() };
     await (onRequest as any)(
-      { locals, cookies, url: new URL("https://fisture.test/ligas"), redirect: vi.fn() },
+      { locals, cookies, url: new URL("https://fisture.test/ligas"), request: new Request("https://fisture.test/ligas"), redirect: vi.fn() },
       async () => new Response("ok")
     );
     expect(consultas).toHaveLength(1);

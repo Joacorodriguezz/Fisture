@@ -2,6 +2,8 @@ import { defineMiddleware, sequence } from "astro:middleware";
 import { getSessionUser } from "./lib/auth/session";
 import { decidirAcceso, loginHref } from "./lib/auth/guards";
 import { createDb } from "./lib/db";
+import { servirConCache, type CacheLike } from "./lib/cache-publico";
+import { errorSeguro, rootLogger } from "./lib/observability/logger";
 import { conHeadersDeSeguridad } from "./lib/security-headers";
 import { destinoDominioCanonico } from "./lib/seo";
 
@@ -42,7 +44,24 @@ const dominio = defineMiddleware(async ({ locals, url, request }, next) => {
   return destino ? new Response(null, { status: 301, headers: { Location: destino } }) : next();
 });
 
+// HTML público anónimo en la Cache API (docs/34): un acierto no renderiza ni toca D1. Antes de la sesión
+// y dentro de `seguridad`, así los headers de seguridad se agregan en cada respuesta y no quedan en la copia
+const cache = defineMiddleware(async ({ locals, request }, next) => {
+  const runtime = locals.runtime;
+  return servirConCache(
+    {
+      request,
+      cache: typeof caches === "undefined" ? undefined : ((caches as unknown as { default?: CacheLike }).default),
+      waitUntil: (promesa) => runtime.ctx.waitUntil(promesa),
+      buildId: typeof __BUILD_ID__ === "undefined" ? "dev" : __BUILD_ID__,
+      apagado: runtime.env.HTML_CACHE === "off",
+      onError: (operacion, error) => rootLogger.warn("Falla de la caché del HTML", { operacion, ...errorSeguro(error) }),
+    },
+    () => next()
+  );
+});
+
 // Va primero para envolver toda respuesta, incluidas las redirecciones y los 401 de `sesion`
 const seguridad = defineMiddleware(async (_context, next) => conHeadersDeSeguridad(await next(), !import.meta.env.DEV));
 
-export const onRequest = sequence(seguridad, dominio, sesion);
+export const onRequest = sequence(seguridad, dominio, cache, sesion);

@@ -42,7 +42,12 @@ interface Env {
   RATE_LIMIT_MODE?: string;
   // Orígenes extra (separados por comas) que pasan la verificación de origen: alias de Pages, www.
   ALLOWED_ORIGINS?: string;
+  // "off" apaga la caché del HTML público anónimo (docs/34 D8). Ausente = prendida
+  HTML_CACHE?: string;
 }
+
+// Lo define astro.config.mjs (vite.define); puede faltar en Vitest o en astro dev
+declare const __BUILD_ID__: string;
 
 declare namespace App {
   interface Locals extends Runtime {
