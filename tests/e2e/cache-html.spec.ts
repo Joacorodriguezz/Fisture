@@ -4,7 +4,8 @@ import { test, expect } from "@playwright/test";
 // Las rutas son distintas por test para no depender del orden ni de las copias de otros tests.
 // El servidor es el mismo para escritorio y móvil: la URL del primer test cambia por proyecto y reintento.
 
-test("el segundo GET anónimo a un equipo sale de la caché y conserva los headers de seguridad", async ({ request }) => {
+test("el segundo GET anónimo a un equipo sale de la caché y conserva los headers de seguridad", async ({ request }, info) => {
+  const ruta = `/equipos/river?lado=${info.project.name}-${info.retry}`;
   const primera = await request.get(ruta);
   expect(primera.status()).toBe(200);
   expect(primera.headers()["x-fisture-cache"]).toBe("MISS");
