@@ -1,7 +1,7 @@
-// Textos y datos estructurados de la página pública de equipo (docs/33 D1, D2, D3 y D6).
+// Textos de la página pública de equipo (docs/33 D1, D2 y D3). Los SportsEvent de la lista (D6) salen de
+// jsonLdProximosPartidos (seo.ts), que comparte con la página de liga.
 // Funciones puras: la página (equipos/[id].astro) solo las llama con lo que trae de D1.
 import { fechaCorta, fechaLarga, hora } from "./format";
-import { jsonLdPartido } from "./seo";
 
 interface Equipo {
   id: string;
@@ -100,14 +100,4 @@ export function respuestaProximoPartido(equipo: Equipo, proximo?: PartidoDeEquip
   const r = resultadoDelEquipo(ultimo.match, esLocal);
   const marcador = r ? `, y ${r.resultado} ${r.propios} a ${r.ajenos}` : "";
   return `${sinProximo} Su último partido fue el ${diaEnOracion(ultimo.match.dateTime)} ${texto}${marcador}.`;
-}
-
-// D6: los próximos partidos programados como SportsEvent (los postergados o cancelados no se publican)
-export const TOPE_EVENTOS_EQUIPO = 10;
-
-export function jsonLdPartidosDeEquipo(publicAppUrl: string, partidos: PartidoDeEquipo[], tope = TOPE_EVENTOS_EQUIPO) {
-  return partidos
-    .filter((p) => p.match.status === "scheduled")
-    .slice(0, tope)
-    .map((p) => jsonLdPartido(publicAppUrl, p));
 }

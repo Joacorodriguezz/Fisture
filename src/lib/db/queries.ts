@@ -26,6 +26,19 @@ export async function getLeagueUpcomingMatches(db: Database, leagueId: string, a
     .orderBy(asc(matches.dateTime), asc(matches.id)).limit(20);
 }
 
+// Últimos resultados de una liga (docs/34 L3): terminados ya jugados, del más reciente al más antiguo.
+// Mismas columnas y condición de liga activa que getLeagueUpcomingMatches.
+export async function getLeagueRecentMatches(db: Database, leagueId: string, limit = 10, ahora = new Date()) {
+  return db.select({ match: matches, homeTeam: teams, awayTeam: awayTeams, league: leagues })
+    .from(matches)
+    .innerJoin(teams, eq(matches.homeTeamId, teams.id))
+    .innerJoin(awayTeams, eq(matches.awayTeamId, awayTeams.id))
+    .innerJoin(leagues, eq(matches.leagueId, leagues.id))
+    .where(and(eq(matches.leagueId, leagueId), eq(leagues.isActive, true),
+      eq(matches.status, "finished"), lt(matches.dateTime, ahora)))
+    .orderBy(desc(matches.dateTime), desc(matches.id)).limit(limit);
+}
+
 // Equipo o liga de una página pública (docs/33 D9): el parámetro de la URL puede ser el slug o el id
 // (URLs viejas, eventos de calendario). Una consulta por los dos índices (MULTI-INDEX OR). Si dos filas
 // coinciden (el slug de una es el id de otra, algo que la asignación evita) gana la del slug: es la URL

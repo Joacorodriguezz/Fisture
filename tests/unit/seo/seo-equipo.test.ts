@@ -3,12 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   descripcionEquipo,
   encabezadoEquipo,
-  jsonLdPartidosDeEquipo,
   respuestaProximoPartido,
   resultadoDelEquipo,
   tituloEquipo,
-  TOPE_EVENTOS_EQUIPO,
 } from "../../../src/lib/seo-equipo";
+import { jsonLdProximosPartidos, TOPE_EVENTOS_LISTA } from "../../../src/lib/seo";
 
 const BASE = "https://fisture.test";
 const barracas = { id: "barracas", name: "Barracas Central", logo: null };
@@ -113,7 +112,7 @@ describe("resultadoDelEquipo (D3)", () => {
   });
 });
 
-describe("jsonLdPartidosDeEquipo (D6)", () => {
+describe("jsonLdProximosPartidos (D6)", () => {
   it("publica solo los programados como SportsEvent", () => {
     const lista = [
       partido({ id: "a" }),
@@ -121,15 +120,15 @@ describe("jsonLdPartidosDeEquipo (D6)", () => {
       partido({ id: "c", status: "cancelled" }),
       partido({ id: "d" }),
     ];
-    const eventos = jsonLdPartidosDeEquipo(BASE, lista);
+    const eventos = jsonLdProximosPartidos(BASE, lista);
     expect(eventos.map((e) => e.url)).toEqual([`${BASE}/partidos/a`, `${BASE}/partidos/d`]);
     expect(eventos[0]).toMatchObject({ "@type": "SportsEvent", name: "Defensa y Justicia vs Barracas Central" });
   });
 
   it("corta en 10", () => {
     const lista = Array.from({ length: 15 }, (_, i) => partido({ id: `p${i}` }));
-    expect(TOPE_EVENTOS_EQUIPO).toBe(10);
-    expect(jsonLdPartidosDeEquipo(BASE, lista)).toHaveLength(10);
-    expect(jsonLdPartidosDeEquipo(BASE, [])).toEqual([]);
+    expect(TOPE_EVENTOS_LISTA).toBe(10);
+    expect(jsonLdProximosPartidos(BASE, lista)).toHaveLength(10);
+    expect(jsonLdProximosPartidos(BASE, [])).toEqual([]);
   });
 });

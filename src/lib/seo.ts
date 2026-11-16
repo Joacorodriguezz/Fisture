@@ -205,6 +205,17 @@ export function jsonLdPartido(
   };
 }
 
+// Próximos partidos programados como SportsEvent en las páginas de equipo (docs/33 D6) y de liga
+// (docs/34 L6): los postergados o cancelados no se publican como próximos
+export const TOPE_EVENTOS_LISTA = 10;
+
+export function jsonLdProximosPartidos(publicAppUrl: string, partidos: Parameters<typeof jsonLdPartido>[1][], tope = TOPE_EVENTOS_LISTA) {
+  return partidos
+    .filter((p) => p.match.status === "scheduled")
+    .slice(0, tope)
+    .map((p) => jsonLdPartido(publicAppUrl, p));
+}
+
 export function jsonLdEquipo(publicAppUrl: string, equipo: EquipoLd, liga?: (EntidadConSlug & { name: string }) | null) {
   const base = baseUrl(publicAppUrl);
   return {
