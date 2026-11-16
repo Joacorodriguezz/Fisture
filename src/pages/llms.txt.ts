@@ -14,7 +14,7 @@ export async function GET({ locals }: APIContext): Promise<Response> {
 
 > FISTURE sincroniza el fixture de fútbol con tu calendario personal (Google Calendar u Outlook). Seguís a tus equipos o ligas y sus partidos aparecen como eventos, con recordatorios 1 hora y 15 minutos antes; si un partido se reprograma, el evento se actualiza solo. Es gratis y está en español (Argentina).
 
-Los horarios se muestran en hora de Argentina (UTC-3). Los datos de partidos se actualizan una vez por día y cubren los próximos 60 días. Ver el fixture no requiere cuenta; sincronizar con el calendario sí (login con Google o Microsoft).
+Los horarios se muestran en hora de Argentina (UTC-3); las páginas de equipo, de liga y de partido indican además la hora del próximo partido en otros países. Los datos de partidos se actualizan una vez por día y cubren los próximos 60 días. Ver el fixture no requiere cuenta; sincronizar con el calendario sí (login con Google o Microsoft).
 
 ## Páginas principales
 

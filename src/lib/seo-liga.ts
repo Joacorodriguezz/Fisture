@@ -1,7 +1,7 @@
 // Textos de la página pública de liga (docs/34 L1 y L2).
 // Funciones puras: la página (ligas/[id].astro) solo las llama con lo que trae de D1.
 import { hora } from "./format";
-import { diaEnOracion, type PartidoDeEquipo } from "./seo-equipo";
+import { diaEnOracion, diaPasadoEnOracion, type PartidoDeEquipo } from "./seo-equipo";
 import { fraseResultado } from "./seo-partido";
 
 interface Liga {
@@ -28,7 +28,7 @@ export function descripcionLiga(liga: Liga, cantidadEquipos: number): string {
 
 // L2: una oración completa que responde "cuándo se juega X". La ronda va entre paréntesis y sin artículo
 // ("la Octavos de final" no se lee bien). Sin próximos lo dice y, si existe, nombra el último resultado.
-export function respuestaLiga(liga: Liga, proximo?: PartidoDeEquipo, ultimo?: PartidoDeEquipo): string {
+export function respuestaLiga(liga: Liga, proximo?: PartidoDeEquipo, ultimo?: PartidoDeEquipo, ahora: Date = new Date()): string {
   if (proximo) {
     const { dateTime, round } = proximo.match;
     const ronda = round?.trim() ? ` (${round.trim()})` : "";
@@ -36,7 +36,7 @@ export function respuestaLiga(liga: Liga, proximo?: PartidoDeEquipo, ultimo?: Pa
   }
   const sinProximos = `${liga.name} no tiene partidos programados en los próximos 30 días.`;
   if (!ultimo) return `${sinProximos} Aparecen acá apenas se confirme el fixture.`;
-  const dia = `el ${diaEnOracion(ultimo.match.dateTime)}`;
+  const dia = `el ${diaPasadoEnOracion(ultimo.match.dateTime, ahora)}`;
   const resultado = fraseResultado(ultimo);
   return resultado
     ? `${sinProximos} En el último partido, ${resultado} ${dia}.`

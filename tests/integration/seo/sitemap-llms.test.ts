@@ -118,6 +118,8 @@ describe("sitemap.xml y llms.txt", () => {
       expect(texto.startsWith("# FISTURE\n\n> ")).toBe(true);
       expect(texto).toContain(`- [Liga de prueba](${BASE}/ligas/test-league) (Argentina)`);
       expect(texto).toContain(`(${BASE}/hoy)`);
+      // Las páginas de equipo, liga y partido muestran la hora por país: el resumen no puede negarlo
+      expect(texto).toContain("la hora del próximo partido en otros países");
       expect(texto).not.toContain("/configuracion");
       expect(texto).not.toContain("/cuenta");
     });
