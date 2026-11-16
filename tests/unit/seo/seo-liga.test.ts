@@ -10,6 +10,8 @@ const champions = { id: "ucl", name: "UEFA Champions League", country: "Europa" 
 
 // Sábado 21/11/2026 a las 15:00 de Argentina (18:00 UTC)
 const SABADO = new Date("2026-11-21T18:00:00Z");
+// "Hoy" de los tests: cuatro días después, en el mismo año
+const AHORA = new Date("2026-11-25T12:00:00Z");
 
 function partido(over: Partial<{ id: string; dateTime: Date; status: string | null; round: string | null; homeScore: number | null; awayScore: number | null }> = {}) {
   return {
@@ -61,13 +63,26 @@ describe("respuestaLiga (L2)", () => {
 
   it("sin próximos nombra el último resultado: victoria local, victoria visitante y empate", () => {
     const sin = "Liga Profesional Argentina no tiene partidos programados en los próximos 30 días.";
-    expect(respuestaLiga(lpf, undefined, jugado(2, 1))).toBe(`${sin} En el último partido, River Plate le ganó 2 a 1 a Boca Juniors el sábado 21 de noviembre.`);
-    expect(respuestaLiga(lpf, undefined, jugado(0, 3))).toBe(`${sin} En el último partido, Boca Juniors le ganó 3 a 0 a River Plate el sábado 21 de noviembre.`);
-    expect(respuestaLiga(lpf, undefined, jugado(1, 1))).toBe(`${sin} En el último partido, River Plate y Boca Juniors empataron 1 a 1 el sábado 21 de noviembre.`);
+    expect(respuestaLiga(lpf, undefined, jugado(2, 1), AHORA)).toBe(`${sin} En el último partido, River Plate le ganó 2 a 1 a Boca Juniors el sábado 21 de noviembre.`);
+    expect(respuestaLiga(lpf, undefined, jugado(0, 3), AHORA)).toBe(`${sin} En el último partido, Boca Juniors le ganó 3 a 0 a River Plate el sábado 21 de noviembre.`);
+    expect(respuestaLiga(lpf, undefined, jugado(1, 1), AHORA)).toBe(`${sin} En el último partido, River Plate y Boca Juniors empataron 1 a 1 el sábado 21 de noviembre.`);
+  });
+
+  it("un último partido de otro año lleva el año, para que no se lea como reciente", () => {
+    const enero = new Date("2027-01-10T12:00:00Z");
+    expect(respuestaLiga(lpf, undefined, jugado(2, 1), enero)).toMatch(/a Boca Juniors el sábado 21 de noviembre de 2026\.$/);
+    expect(respuestaLiga(lpf, undefined, jugado(null, null), enero)).toMatch(/Boca Juniors, el sábado 21 de noviembre de 2026\.$/);
+  });
+
+  it("el año se decide con el día de Argentina, no con el de UTC", () => {
+    // 31/12/2026 a las 22:00 de Argentina ya es 1/1/2027 en UTC
+    const finDeAnio = partido({ status: "finished", homeScore: 1, awayScore: 0, dateTime: new Date("2027-01-01T01:00:00Z") });
+    expect(respuestaLiga(lpf, undefined, finDeAnio, new Date("2027-01-01T02:00:00Z"))).toMatch(/el jueves 31 de diciembre\.$/);
+    expect(respuestaLiga(lpf, undefined, finDeAnio, new Date("2027-01-01T04:00:00Z"))).toMatch(/el jueves 31 de diciembre de 2026\.$/);
   });
 
   it("sin marcador cargado no inventa el resultado", () => {
-    expect(respuestaLiga(lpf, undefined, jugado(null, null))).toBe(
+    expect(respuestaLiga(lpf, undefined, jugado(null, null), AHORA)).toBe(
       "Liga Profesional Argentina no tiene partidos programados en los próximos 30 días. El último partido fue River Plate vs Boca Juniors, el sábado 21 de noviembre."
     );
   });

@@ -1,7 +1,7 @@
 // Textos de la página pública de equipo (docs/33 D1, D2 y D3). Los SportsEvent de la lista (D6) salen de
 // jsonLdProximosPartidos (seo.ts), que comparte con la página de liga.
 // Funciones puras: la página (equipos/[id].astro) solo las llama con lo que trae de D1.
-import { fechaCorta, fechaLarga, hora } from "./format";
+import { diaISO, fechaCorta, fechaLarga, hora } from "./format";
 
 interface Equipo {
   id: string;
@@ -70,6 +70,14 @@ export function diaEnOracion(fecha: Date): string {
   return texto.charAt(0).toLowerCase() + texto.slice(1);
 }
 
+// Un día ya pasado: suma el año si no es el actual ("sábado 21 de noviembre de 2026"), para que un
+// resultado de la temporada anterior no se lea como reciente. El año es el de Argentina, como el día.
+// También la usa seo-liga.ts
+export function diaPasadoEnOracion(fecha: Date, ahora: Date): string {
+  const anio = diaISO(fecha).slice(0, 4);
+  return anio === diaISO(ahora).slice(0, 4) ? diaEnOracion(fecha) : `${diaEnOracion(fecha)} de ${anio}`;
+}
+
 // Una sede que ya se nombra como estadio no se repite ("en el estadio Estadio Monumental").
 // También la usa seo-partido.ts
 const SEDE_CON_TIPO = /\b(estadio|est[áa]dio|stadium|stade|stadio|stadion|arena)\b/i;
@@ -89,7 +97,7 @@ function contexto(teamId: string, partido: PartidoDeEquipo) {
 
 // D2: una oración completa que responde "cuándo juega X". Sin próximo partido lo dice y, si existe,
 // menciona el último resultado.
-export function respuestaProximoPartido(equipo: Equipo, proximo?: PartidoDeEquipo, ultimo?: PartidoDeEquipo): string {
+export function respuestaProximoPartido(equipo: Equipo, proximo?: PartidoDeEquipo, ultimo?: PartidoDeEquipo, ahora: Date = new Date()): string {
   if (proximo) {
     const { dateTime, venue } = proximo.match;
     return `${equipo.name} juega su próximo partido el ${diaEnOracion(dateTime)} a las ${hora(dateTime)} (hora de Argentina) ${contexto(equipo.id, proximo).texto}${enLaSede(venue)}.`;
@@ -99,5 +107,5 @@ export function respuestaProximoPartido(equipo: Equipo, proximo?: PartidoDeEquip
   const { esLocal, texto } = contexto(equipo.id, ultimo);
   const r = resultadoDelEquipo(ultimo.match, esLocal);
   const marcador = r ? `, y ${r.resultado} ${r.propios} a ${r.ajenos}` : "";
-  return `${sinProximo} Su último partido fue el ${diaEnOracion(ultimo.match.dateTime)} ${texto}${marcador}.`;
+  return `${sinProximo} Su último partido fue el ${diaPasadoEnOracion(ultimo.match.dateTime, ahora)} ${texto}${marcador}.`;
 }
