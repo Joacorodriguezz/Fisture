@@ -231,9 +231,12 @@ describe("ingesta ESPN a D1", () => {
         try {
           const libertadores = LEAGUES_CONFIG.splice(LEAGUES_CONFIG.findIndex((c) => c.externalId === "conmebol.libertadores"), 1)[0];
           LEAGUES_CONFIG.splice(LEAGUES_CONFIG.findIndex((c) => c.externalId === "uefa.champions_qual"), 0, libertadores);
-          while (loteDe("conmebol.libertadores") !== loteDe("uefa.champions_qual")) {
+          // Tope de vueltas: si no hay otra destacada para mover, el test falla en vez de colgarse
+          for (let vueltas = 0; loteDe("conmebol.libertadores") !== loteDe("uefa.champions_qual"); vueltas++) {
             // Corre los cortes sacando una destacada que no es la Libertadores
             const i = LEAGUES_CONFIG.findIndex((c) => c.tipo === "copa" && c.destacada && c.externalId !== "conmebol.libertadores");
+            expect(i).toBeGreaterThanOrEqual(0);
+            expect(vueltas).toBeLessThan(LEAGUES_CONFIG.length);
             LEAGUES_CONFIG.push(...LEAGUES_CONFIG.splice(i, 1));
           }
           const lote = loteDe("conmebol.libertadores");
