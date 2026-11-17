@@ -13,10 +13,10 @@ Hay dos clases de competencias (docs/22):
 
 | Clase | Competencias |
 | --- | --- |
-| Ligas (destacadas) | Premier League `eng.1`, La Liga `esp.1`, Serie A `ita.1`, Bundesliga `ger.1`, Ligue 1 `fra.1`, Liga Profesional `arg.1`, Brasileirão `bra.1` |
+| Ligas (destacadas) | Premier League `eng.1`, La Liga `esp.1`, Serie A `ita.1`, Bundesliga `ger.1`, Ligue 1 `fra.1`, Liga Profesional `arg.1`, Brasileirão `bra.1`, Liga AUF Uruguaya `uru.1`, Liga BetPlay `col.1`, Primera División de Chile `chi.1`, LigaPro Ecuador `ecu.1`, Primera División de Paraguay `par.1`, Liga 1 de Perú `per.1`, División Profesional de Bolivia `bol.1`, Liga FUTVE `ven.1` |
 | Copas destacadas | Champions `uefa.champions`, Europa League `uefa.europa`, Conference `uefa.europa.conf`, Libertadores `conmebol.libertadores`, Sudamericana `conmebol.sudamericana` |
 | Internacionales no destacadas | Clasificatorias UEFA (`*_qual`), Supercopa de la UEFA, Recopa, Mundial de Clubes `fifa.cwc`, Copa Intercontinental |
-| Copas nacionales (no destacadas) | FA Cup, Carabao Cup, Community Shield, Copa del Rey, Supercopa de España, Coppa Italia, Supercopa de Italia, DFB-Pokal, Supercopa de Alemania, promociones de Bundesliga y Ligue 1, Coupe de France, Trophée des Champions, Copa Argentina, Supercopa Argentina, Supercopa Internacional, Trofeo de Campeones, Copa do Brasil, Supercopa do Brasil, Copa do Nordeste y estaduales (Paulista, Carioca, Mineiro, Gaúcho) |
+| Copas nacionales (no destacadas) | FA Cup, Carabao Cup, Community Shield, Copa del Rey, Supercopa de España, Coppa Italia, Supercopa de Italia, DFB-Pokal, Supercopa de Alemania, promociones de Bundesliga y Ligue 1, Coupe de France, Trophée des Champions, Copa Argentina, Supercopa Argentina, Supercopa Internacional, Trofeo de Campeones, Copa do Brasil, Supercopa do Brasil, Copa do Nordeste y estaduales (Paulista, Carioca, Mineiro, Gaúcho), Copa Colombia `col.copa`, Superliga de Colombia `col.superliga`, Copa Chile `chi.copa_chi`, Supercopa de Chile `chi.super_cup`, Supercopa de Ecuador `ecu.supercopa`, Supercopa de Paraguay `par.1.supercopa`, Copa Bolivia `bol.copa` y Promoción de Bolivia `bol.ply.rel` (docs/32) |
 
 Para agregar una competencia: sumar una entrada a `LEAGUES_CONFIG` (slug de ESPN) con `liga`, `copaDestacada` o
 `copa`. El orden importa: ligas, después copas destacadas y al final el resto, para que cada equipo quede asociado
@@ -65,7 +65,7 @@ npx wrangler d1 execute fisture-db --remote --file=drizzle/migrations/0003_leagu
 - Una sola competencia: `POST /api/admin/sync` con `{"leagueId": "eng.1"}`.
 - Por lotes (lo que usa `sync-cron.yml`): `POST /api/admin/sync` con `{"lote": 0}`; la respuesta trae
   `siguienteLote` (`null` en el último, que además desactiva las competencias que salieron de la configuración).
-  Workers Free admite 50 subrequests por invocación y un sync completo de ~43 competencias no entra: cada lote
+  Workers Free admite 50 subrequests por invocación y un sync completo de 59 competencias (12 lotes) no entra: cada lote
   son 5 competencias (docs/22 D4).
 - Calendarios: `POST /api/admin/sync` con `{"calendarios": true}` (y `"corte"` en los lotes siguientes). Cada lote atiende a unos
   pocos usuarios dentro de 45 subrequests y responde `siguiente`; `scripts/sync-calendarios.mjs` los encadena (docs/17).

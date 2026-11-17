@@ -60,7 +60,8 @@ entre clubes amateurs. Por eso el orden de `LEAGUES_CONFIG` es: ligas → copas 
 sincroniza `lotesDeSync()[n]` y responde `siguienteLote` (`null` en el último, que además desactiva las
 competencias que salieron de la configuración). El workflow `sync-cron.yml` recorre los lotes. Cuenta
 por lote: 5 × (2 pedidos a ESPN + ~6 consultas D1) + ~12 fijas del run ≈ 52 en el peor caso con un
-reintento, ~42 normal; con 6 competencias ya no hay margen. Cada lote queda como un `sync_run`.
+reintento, ~42 normal; con 6 competencias ya no hay margen. Cada lote queda como un `sync_run`. Con las ligas sudamericanas de docs/32 (Fase A) son 59 competencias
+en 12 lotes (antes 43 en 9); el cálculo por lote no cambia.
 Descartado: Workers Paid (decisión operativa aparte, docs/20 D6) y un Durable Object/cola (más infraestructura
 para un cron diario). Sin `lote` el endpoint sigue sincronizando todo (sirve en local y en `sync:check`).
 
@@ -81,7 +82,7 @@ subrequests y un job `calendarios` en `sync-cron.yml`.
 
 | Pieza | Cambio |
 | --- | --- |
-| `data-providers/types.ts` | 43 competencias con `destacada`; región `mundial`; `lotesDeSync`, `COMPETENCIAS_POR_LOTE` |
+| `data-providers/types.ts` | 43 competencias (59 con docs/32 Fase A: 12 lotes en lugar de 9) con `destacada`; región `mundial`; `lotesDeSync`, `COMPETENCIAS_POR_LOTE` |
 | `data-providers/espn.ts` | Etapas nuevas en español (rondas de copas, estaduales); `partirEtapa` genérico para `torneo---etapa` |
 | `data-providers/sync.ts` | `is_featured`; `soloEquiposConocidos`; adopción de liga (D5); `syncLote` |
 | `observability/run-sync.ts`, `api/admin/sync.ts` | opción `lote`, validación (400) y respuesta con `lote/totalLotes/siguienteLote` |

@@ -1,6 +1,6 @@
 # TDD: Ligas y selecciones de Sudamérica
 
-> Technical Design Document. Estado: **propuesto** (pendiente de revisión). Se implementa en dos entregas
+> Technical Design Document. Estado: **Fase A implementada**, Fase B pendiente. Se implementa en dos entregas
 > independientes, cada una con su rama desde `development` y su PR: **Fase A** (ligas,
 > `feat/ligas-sudamerica`) y **Fase B** (selecciones, `feat/selecciones-sudamerica`).
 
@@ -345,4 +345,25 @@ Cada punto se escribe primero en rojo.
 
 ## 9. Notas de implementación (desvíos respecto del diseño original)
 
-_Vacío hasta la implementación._
+**Estado: Fase A implementada** (`feat/ligas-sudamerica`). La Fase B (selecciones) sigue pendiente.
+
+Desvíos y hallazgos de la Fase A:
+
+- `partirEtapa` quita el sufijo `-AAAA` de la etapa (con o sin prefijo de torneo). `first-stage` se agregó a
+  `ETAPAS_CON_FECHAS` y la excepción para las copas vive en la condición de `numeraFecha`
+  (`etapa !== "first-stage" || esLigaLocal(slug)`).
+- Las etapas compuestas (`apertura-quadrangular`, `intermedio-final`...) son entradas de `ETAPAS` con el texto ya
+  armado ("Apertura · Cuadrangular"), sin tocar `TORNEOS`.
+- Un test existente de `data-sync.test.ts` ("una copa ve los equipos que cargó una competencia destacada del
+  mismo lote") dependía de que la Libertadores y la clasificatoria cayeran en el mismo lote. Con 59 competencias
+  ya no coinciden: el test reordena temporalmente `LEAGUES_CONFIG` para reproducir el caso.
+- `scripts/sync-check.mjs` no aplicaba las migraciones 0014 y 0016 (columna `slug`) y fallaba en la D1
+  efímera; se agregaron a su lista.
+- `sync:check` real (17/11/2026, 59 competencias, `SYNC_TWICE=1`): 102 s, 595 equipos únicos, 6.487 partidos, la
+  segunda pasada no escribió nada. Rondas en español y con "Fecha N" en todas las ligas nuevas (Uruguay
+  Apertura/Intermedio/Clausura, Colombia con cuartos/semis/final, Ecuador Primera fase/Fase final, Paraguay,
+  Perú, Venezuela con Cuadrangular y Final, Chile y Bolivia solo "Fecha N").
+- Observaciones sin acción: `col.superliga` trae "Ida"/"Vuelta" sin etapa y `chi.super_cup` un partido sin
+  ronda (ESPN no informa la etapa); `ecu.supercopa`, `par.1.supercopa` y `bol.ply.rel` no tienen partidos hoy;
+  el chequeo de nombres repetidos marca Liverpool (Uruguay) y Portuguesa (Venezuela), que son equipos distintos
+  con el mismo nombre que otro ya cargado (se distinguen por ID).
