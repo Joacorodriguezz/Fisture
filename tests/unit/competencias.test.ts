@@ -8,6 +8,7 @@ describe("competencias configuradas", () => {
     const destacadas = LEAGUES_CONFIG.filter((l) => l.destacada).map((l) => l.externalId);
     expect(destacadas).toEqual([
       "eng.1", "esp.1", "ita.1", "ger.1", "fra.1", "arg.1", "bra.1",
+      "uru.1", "col.1", "chi.1", "ecu.1", "par.1", "per.1", "bol.1", "ven.1",
       "uefa.champions", "uefa.europa", "uefa.europa.conf", "conmebol.libertadores", "conmebol.sudamericana",
     ]);
   });
@@ -27,6 +28,26 @@ describe("competencias configuradas", () => {
   ])("incluye las copas nacionales de %s sin listarlas", (_pais, slugs) => {
     for (const slug of slugs) {
       expect(LEAGUES_CONFIG.find((l) => l.externalId === slug)).toMatchObject({ tipo: "copa", destacada: false });
+    }
+  });
+
+  // docs/32 Fase A: las 10 ligas de CONMEBOL son destacadas y sus copas nacionales no
+  it("las 10 ligas de CONMEBOL son destacadas", () => {
+    const sudamericanas = ["arg.1", "bra.1", "uru.1", "col.1", "chi.1", "ecu.1", "par.1", "per.1", "bol.1", "ven.1"];
+    for (const slug of sudamericanas) {
+      expect(LEAGUES_CONFIG.find((l) => l.externalId === slug)).toMatchObject({ tipo: "liga", destacada: true, region: "sudamerica" });
+    }
+  });
+
+  it.each([
+    ["Colombia", ["col.copa", "col.superliga"]],
+    ["Chile", ["chi.copa_chi", "chi.super_cup"]],
+    ["Ecuador", ["ecu.supercopa"]],
+    ["Paraguay", ["par.1.supercopa"]],
+    ["Bolivia", ["bol.copa", "bol.ply.rel"]],
+  ])("incluye las copas nacionales de %s sin listarlas", (pais, slugs) => {
+    for (const slug of slugs) {
+      expect(LEAGUES_CONFIG.find((l) => l.externalId === slug)).toMatchObject({ tipo: "copa", destacada: false, country: pais });
     }
   });
 

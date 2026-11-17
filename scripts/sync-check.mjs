@@ -19,6 +19,8 @@ const MIGRACIONES = [
   "0004_sync_runs.sql",
   "0006_calendar_syncs_idempotencia.sql",
   "0009_leagues_is_featured.sql",
+  "0014_matches_league_source_idx.sql",
+  "0016_slugs_equipos_ligas.sql",
 ];
 
 const salida = join(tmpdir(), "fisture-sync.bundle.mjs");
