@@ -31,6 +31,19 @@ interface EspnTeam {
   logo?: string;
 }
 
+interface EspnTeamConLogos extends EspnTeam {
+  logos?: { href?: string }[];
+}
+
+interface EspnTeamsResponse {
+  sports?: { leagues?: { teams?: { team?: EspnTeamConLogos }[] }[] }[];
+}
+
+// Correcciones al nombre en español que devuelve ESPN, por ID de equipo (docs/32 D5)
+const NOMBRES_SELECCION: Record<string, string> = {
+  "204": "Bolivia", // ESPN: "Bolívia"
+};
+
 interface EspnCompetitor {
   homeAway?: "home" | "away";
   score?: string;
@@ -172,37 +185,49 @@ export function aniosATraer(ahora: Date = new Date()): number[] {
 }
 
 export function createEspnClient(): DataProvider {
-  async function pedirTemporada(slug: string, anio: number): Promise<EspnEvent[]> {
-    const url = `${BASE_URL}/${slug}/scoreboard?dates=${anio}&limit=1000`;
+  // GET con tres intentos. `vacioEn400`: ESPN responde 400 cuando no hay calendario para ese año todavía
+  async function pedirJson<T>(url: string, etiqueta: string, vacioEn400: boolean): Promise<T | null> {
     let ultimoError: unknown;
 
     for (let intento = 0; intento < 3; intento++) {
       try {
         const res = await fetch(url, { headers: { Accept: "application/json" } });
-        // ESPN responde 400 cuando no hay calendario para ese año todavía
-        if (res.status === 400) return [];
-        if (!res.ok) throw new Error(`ESPN ${slug} ${anio}: HTTP ${res.status}`);
-
-        const data = (await res.json()) as { events?: EspnEvent[] };
-        return data.events ?? [];
+        if (vacioEn400 && res.status === 400) return null;
+        if (!res.ok) throw new Error(`ESPN ${etiqueta}: HTTP ${res.status}`);
+        return (await res.json()) as T;
       } catch (error) {
         ultimoError = error;
         await new Promise((r) => setTimeout(r, 400 * (intento + 1)));
       }
     }
-    throw ultimoError instanceof Error ? ultimoError : new Error(`ESPN ${slug} ${anio}: sin respuesta`);
+    throw ultimoError instanceof Error ? ultimoError : new Error(`ESPN ${etiqueta}: sin respuesta`);
+  }
+
+  async function pedirTemporada(slug: string, anio: number, idioma?: "es"): Promise<EspnEvent[]> {
+    const url = `${BASE_URL}/${slug}/scoreboard?dates=${anio}&limit=1000${idioma ? `&lang=${idioma}` : ""}`;
+    const data = await pedirJson<{ events?: EspnEvent[] }>(url, `${slug} ${anio}`, true);
+    return data?.events ?? [];
+  }
+
+  // Plantel de una competencia (docs/32 D4): sus equipos existen aunque ESPN no publique partidos
+  async function pedirPlantel(slug: string, idioma?: "es"): Promise<EspnTeamConLogos[]> {
+    const url = `${BASE_URL}/${slug}/teams${idioma ? `?lang=${idioma}` : ""}`;
+    const data = await pedirJson<EspnTeamsResponse>(url, `${slug} equipos`, false);
+    return (data?.sports?.[0]?.leagues?.[0]?.teams ?? []).map((t) => t.team).filter((t): t is EspnTeamConLogos => !!t);
   }
 
   async function getFixture(slug: string, options?: FixtureOptions): Promise<ProviderFixture> {
     const anios = options?.years ?? aniosATraer();
+    const idioma = options?.idioma;
     const porId = new Map<string, EspnEvent>();
 
     for (const anio of anios) {
-      const eventos = await pedirTemporada(slug, anio);
+      const eventos = await pedirTemporada(slug, anio, idioma);
       for (const e of eventos) porId.set(e.id, e);
     }
 
     const equipos = new Map<string, ProviderTeam>();
+    const nombre = (t: EspnTeam) => (idioma ? NOMBRES_SELECCION[t.id ?? ""] : undefined) ?? t.displayName!;
     const eventos = [...porId.values()].sort((a, b) => a.date.localeCompare(b.date));
 
     // Temporada en curso: la del partido más cercano a hoy. Los equipos de temporadas
@@ -233,7 +258,7 @@ export function createEspnClient(): DataProvider {
         if (e.season?.year === temporada) participantes.add(`${PREFIJO}${t.id}`);
         equipos.set(`${PREFIJO}${t.id}`, {
           externalId: `${PREFIJO}${t.id}`,
-          name: t.displayName!,
+          name: nombre(t),
           shortName: t.abbreviation || t.shortDisplayName,
           logo: t.logo,
         });
@@ -291,6 +316,24 @@ export function createEspnClient(): DataProvider {
         awayScore: goles(visitante),
         round: partes.length ? partes.join(" · ") : undefined,
       });
+    }
+
+    // Plantel fijo: los participantes son los de /teams, no los de la temporada en curso
+    if (options?.participantes === "plantel-fijo") {
+      const plantel = (await pedirPlantel(slug, idioma)).filter((t) => !esPlaceholder(t));
+      // Un 200 sin equipos (o con otra estructura) no puede vaciar los participantes
+      if (plantel.length === 0) throw new Error(`ESPN ${slug}: plantel vacío`);
+      participantes.clear();
+      for (const t of plantel) {
+        const externalId = `${PREFIJO}${t.id}`;
+        participantes.add(externalId);
+        equipos.set(externalId, {
+          externalId,
+          name: nombre(t),
+          shortName: t.abbreviation || t.shortDisplayName,
+          logo: t.logos?.[0]?.href ?? t.logo,
+        });
+      }
     }
 
     return { teams: [...equipos.values()], matches: partidos, participantIds: [...participantes] };

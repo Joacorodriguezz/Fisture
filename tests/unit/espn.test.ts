@@ -116,3 +116,93 @@ describe("rondas de las ligas sudamericanas (docs/32)", () => {
     expect(partirEtapa("2025-argentine-trofeo-de-campeones---final")).toEqual({ torneo: null, etapa: "final" });
   });
 });
+
+// docs/32 Fase B: plantel fijo (Eliminatorias), idioma y nombres de selecciones
+describe("selecciones de CONMEBOL (docs/32 Fase B)", () => {
+  const SELECCIONES = [
+    ["202", "Argentina"], ["204", "Bolívia"], ["205", "Brasil"], ["207", "Chile"], ["208", "Colombia"],
+    ["209", "Ecuador"], ["210", "Paraguay"], ["211", "Perú"], ["212", "Uruguay"], ["213", "Venezuela"],
+  ];
+  const teamsPayload = () => ({
+    sports: [{ leagues: [{ teams: SELECCIONES.map(([id, displayName]) => ({
+      team: { id, displayName, abbreviation: displayName.slice(0, 3).toUpperCase(), shortDisplayName: displayName, logos: [{ href: `https://logo/${id}.png` }] },
+    })) }] }],
+  });
+  // Responde /teams con el plantel y el scoreboard con `scoreboardPayload`
+  function mockEspn(scoreboardPayload: unknown = { events: [] }, teamsStatus = 200) {
+    const fetch = vi.fn().mockImplementation(async (url: string) =>
+      url.includes("/teams") ? Response.json(teamsPayload(), { status: teamsStatus }) : Response.json(scoreboardPayload)
+    );
+    vi.stubGlobal("fetch", fetch);
+    return fetch;
+  }
+  const urls = (fetch: ReturnType<typeof vi.fn>) => fetch.mock.calls.map((c) => String(c[0]));
+  const conBolivia = () => {
+    const data = payload();
+    const c = data.events[0].competitions[0].competitors[0];
+    c.team = { ...c.team, id: "204", displayName: "Bolívia" };
+    return data;
+  };
+
+  it("con plantel fijo y sin partidos, las 10 selecciones son participantes", async () => {
+    mockEspn();
+    const f = await createEspnClient().getFixture!("fifa.worldq.conmebol", { years: [2026], participantes: "plantel-fijo", idioma: "es" });
+    expect(f.matches).toEqual([]);
+    expect(f.teams).toHaveLength(10);
+    expect([...f.participantIds!].sort()).toEqual(SELECCIONES.map(([id]) => `espn:${id}`).sort());
+    expect(f.teams.find((t) => t.externalId === "espn:202")).toMatchObject({ name: "Argentina", logo: "https://logo/202.png" });
+  });
+
+  it("corrige 'Bolívia' a 'Bolivia' en el plantel y en los partidos", async () => {
+    mockEspn(conBolivia());
+    const f = await createEspnClient().getFixture!("fifa.friendly", { years: [2026], idioma: "es" });
+    expect(f.teams.find((t) => t.externalId === "espn:204")?.name).toBe("Bolivia");
+    const p = await createEspnClient().getFixture!("fifa.worldq.conmebol", { years: [2026], participantes: "plantel-fijo", idioma: "es" });
+    expect(p.teams.find((t) => t.externalId === "espn:204")?.name).toBe("Bolivia");
+  });
+
+  it("agrega lang=es solo cuando la configuración lo pide", async () => {
+    const con = mockEspn();
+    await createEspnClient().getFixture!("fifa.worldq.conmebol", { years: [2026], participantes: "plantel-fijo", idioma: "es" });
+    expect(urls(con)).toHaveLength(2);
+    expect(urls(con).every((u) => u.includes("lang=es"))).toBe(true);
+    const sin = mockEspn(payload());
+    await createEspnClient().getFixture!("arg.1", { years: [2026] });
+    expect(urls(sin).some((u) => u.includes("lang="))).toBe(false);
+  });
+
+  it("sin plantel fijo no pide /teams", async () => {
+    const fetch = mockEspn(payload());
+    await createEspnClient().getFixture!("arg.1", { years: [2026] });
+    expect(urls(fetch).some((u) => u.includes("/teams"))).toBe(false);
+  });
+
+  it("no corrige nombres en competencias sin idioma", async () => {
+    mockEspn(conBolivia());
+    const f = await createEspnClient().getFixture!("arg.1", { years: [2026] });
+    expect(f.teams.find((t) => t.externalId === "espn:204")?.name).toBe("Bolívia");
+  });
+
+  it("si /teams responde 500 reintenta tres veces y falla la competencia", async () => {
+    vi.useFakeTimers();
+    const fetch = mockEspn({ events: [] }, 500);
+    const operation = expect(
+      createEspnClient().getFixture!("fifa.worldq.conmebol", { years: [2026], participantes: "plantel-fijo", idioma: "es" })
+    ).rejects.toThrow("HTTP 500");
+    await vi.runAllTimersAsync();
+    await operation;
+    expect(urls(fetch).filter((u) => u.includes("/teams"))).toHaveLength(3);
+  });
+
+  it.each([
+    ["sin equipos", { sports: [{ leagues: [{ teams: [] }] }] }],
+    ["con otra estructura", { inesperado: true }],
+  ])("si /teams responde 200 %s, falla la competencia en vez de vaciar los participantes", async (_caso, cuerpo) => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) =>
+      url.includes("/teams") ? Response.json(cuerpo) : Response.json({ events: [] })
+    ));
+    await expect(
+      createEspnClient().getFixture!("fifa.worldq.conmebol", { years: [2026], participantes: "plantel-fijo", idioma: "es" })
+    ).rejects.toThrow("plantel vacío");
+  });
+});

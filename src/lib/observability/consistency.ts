@@ -2,6 +2,7 @@
 // los hallazgos se guardan en sync_runs.issues y no bloquean el sync.
 import { sql, type SQL } from "drizzle-orm";
 import type { Database } from "../db";
+import { LEAGUES_CONFIG } from "../data-providers/types";
 import type { ConsistencyIssue, IssueSeverity } from "./types";
 
 const MUESTRA = 5;
@@ -27,6 +28,9 @@ async function ejecutar(db: Database, c: Chequeo): Promise<ConsistencyIssue | nu
 export async function checkConsistency(db: Database, now = Date.now()): Promise<ConsistencyIssue[]> {
   // matches.date_time se guarda en segundos
   const limiteVencido = Math.floor(now / 1000) - HORAS_VENCIDO * 3600;
+  // Slugs de plantel fijo: salen de la configuración y entran al SQL como parámetros
+  const plantelFijo = LEAGUES_CONFIG.filter((l) => l.participantes === "plantel-fijo").map((l) => sql`${l.externalId}`);
+  const excluirPlantelFijo = plantelFijo.length ? sql`l.external_id NOT IN (${sql.join(plantelFijo, sql`, `)})` : sql`1 = 1`;
 
   const chequeos: Chequeo[] = [
     {
@@ -68,8 +72,9 @@ export async function checkConsistency(db: Database, now = Date.now()): Promise<
       code: "empty_league",
       severity: "warn",
       id: sql`l.id`,
-      // Una copa no destacada puede no tener partidos de equipos conocidos todavía (FA Cup antes de la 3.ª ronda)
-      from: sql`leagues l WHERE l.is_active = 1 AND l.is_featured = 1 AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.league_id = l.id)`,
+      // Una copa no destacada puede no tener partidos de equipos conocidos todavía (FA Cup antes de la 3.ª ronda).
+      // Las destacadas de plantel fijo (Eliminatorias) están vacías hasta que ESPN publique su calendario (docs/32 D7)
+      from: sql`leagues l WHERE l.is_active = 1 AND l.is_featured = 1 AND ${excluirPlantelFijo} AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.league_id = l.id)`,
     },
     {
       // Los cubre el fallback legado del callback (docs/18 D6); aviso, no error

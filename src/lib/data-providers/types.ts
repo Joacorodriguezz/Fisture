@@ -37,6 +37,9 @@ export interface ProviderFixture {
 }
 
 export interface FixtureOptions {
+  // Ver LeagueConfig.participantes / idioma (docs/32)
+  participantes?: "temporada" | "plantel-fijo";
+  idioma?: "es";
   // Años calendario a traer (por defecto el actual y el siguiente)
   years?: number[];
 }
@@ -69,9 +72,22 @@ export interface LeagueConfig {
   // se guardan los partidos en los que juega algún equipo de una competencia destacada, y
   // aparecen en el fixture de ese equipo (docs/22).
   destacada: boolean;
+  // De dónde salen los participantes: "temporada" (por defecto) los deduce de los partidos de la
+  // temporada en curso; "plantel-fijo" los pide a /teams, porque la competencia los define aunque
+  // ESPN no tenga partidos publicados (Eliminatorias: las 10 selecciones de CONMEBOL, docs/32 D4).
+  participantes?: "temporada" | "plantel-fijo";
+  // Idioma en que se piden los nombres de los equipos. Solo las competencias donde aparecen
+  // selecciones (docs/32 D5); las de clubes no cambian para no reescribir nombres ya guardados.
+  idioma?: "es";
 }
 
-type Datos = Pick<LeagueConfig, "externalId" | "name" | "country" | "region">;
+// Competencia cuyos equipos son su "liga de origen" (alta y adopción del país): las ligas y las
+// de plantel fijo (docs/32 D6)
+export function defineOrigen(config: Pick<LeagueConfig, "tipo" | "participantes">): boolean {
+  return config.tipo === "liga" || config.participantes === "plantel-fijo";
+}
+
+type Datos = Pick<LeagueConfig, "externalId" | "name" | "country" | "region" | "participantes" | "idioma">;
 const liga = (c: Datos): LeagueConfig => ({ ...c, tipo: "liga", source: "espn", destacada: true });
 const copaDestacada = (c: Datos): LeagueConfig => ({ ...c, tipo: "copa", source: "espn", destacada: true });
 const copa = (c: Datos): LeagueConfig => ({ ...c, tipo: "copa", source: "espn", destacada: false });
@@ -105,6 +121,8 @@ export const LEAGUES_CONFIG: LeagueConfig[] = [
   copaDestacada({ externalId: "uefa.europa.conf", name: "UEFA Conference League", country: "Europa", region: "europa" }),
   copaDestacada({ externalId: "conmebol.libertadores", name: "Copa Libertadores", country: "Sudamérica", region: "sudamerica" }),
   copaDestacada({ externalId: "conmebol.sudamericana", name: "Copa Sudamericana", country: "Sudamérica", region: "sudamerica" }),
+  // Hace "conocidas" a las 10 selecciones de CONMEBOL: los amistosos y la Copa América guardan sus partidos
+  copaDestacada({ externalId: "fifa.worldq.conmebol", name: "Eliminatorias Sudamericanas", country: "Sudamérica", region: "sudamerica", participantes: "plantel-fijo", idioma: "es" }),
 
   // Clasificatorias, supercopas y torneos de clubes: solo en el fixture de cada equipo
   copa({ externalId: "uefa.champions_qual", name: "Clasificación a la Champions League", country: "Europa", region: "europa" }),
@@ -159,6 +177,9 @@ export const LEAGUES_CONFIG: LeagueConfig[] = [
   // Bolivia
   copa({ externalId: "bol.copa", name: "Copa Bolivia", country: "Bolivia", region: "sudamerica" }),
   copa({ externalId: "bol.ply.rel", name: "Promoción de Bolivia", country: "Bolivia", region: "sudamerica" }),
+  // Selecciones: solo los partidos de una selección de CONMEBOL (docs/32). Sin el Mundial por ahora.
+  copa({ externalId: "fifa.friendly", name: "Amistosos internacionales", country: "Mundial", region: "mundial", idioma: "es" }),
+  copa({ externalId: "conmebol.america", name: "Copa América", country: "Sudamérica", region: "sudamerica", idioma: "es" }),
 ];
 
 export function getLeaguesBySource(source: DataSource): LeagueConfig[] {

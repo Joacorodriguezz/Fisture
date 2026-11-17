@@ -182,6 +182,25 @@ test("las copas no destacadas no se listan pero aparecen en el equipo", async ({
   await expect(page.getByText("Juega Liga E2E · Copa E2E", { exact: true })).toBeVisible();
 });
 
+// docs/32 Fase B: las selecciones se buscan por las Eliminatorias; los amistosos no se listan
+test("buscar Uruguay ofrece la selección y no su rival de amistosos", async ({ page }) => {
+  await page.goto("/equipos/buscar");
+  const search = page.getByRole("searchbox", { name: "Buscar equipos" });
+  await ready(page, search);
+  await search.fill("Uruguay");
+  await expect(page.getByText("Eliminatorias Sudamericanas", { exact: false }).first()).toBeVisible();
+  const api = await page.request.get("/api/equipos/buscar?q=Uruguay");
+  expect(await api.json()).toEqual([expect.objectContaining({ id: "sel-uruguay", league: expect.objectContaining({ name: "Eliminatorias Sudamericanas" }) })]);
+  // Costa Rica solo es rival de un amistoso: no participa de ninguna competencia destacada
+  expect(await (await page.request.get("/api/equipos/buscar?q=Costa Rica")).json()).toEqual([]);
+});
+
+test("la página de la selección muestra sus competencias y su próximo amistoso", async ({ page }) => {
+  await page.goto("/equipos/uruguay");
+  await expect(page.getByText("Juega Eliminatorias Sudamericanas · Amistosos internacionales", { exact: true })).toBeVisible();
+  await expect(page.getByText("Costa Rica").first()).toBeVisible();
+});
+
 test("las acciones personales piden login y conservan un retorno seguro", async ({ page }) => {
   await page.goto("/equipos/river");
   const follow = page.getByRole("button", { name: "Seguir equipo", exact: true });

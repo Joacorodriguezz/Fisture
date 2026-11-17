@@ -79,6 +79,13 @@ try {
     // pero su liga principal es la copa no destacada, así que su página no muestra la sección
     "INSERT INTO teams (id, external_id, name, short_name, league_id, source, slug) VALUES ('talleres-id', 'e2e:talleres', 'Talleres E2E', 'TAL', 'e2e-copa', 'espn', 'talleres-e2e');",
     "INSERT INTO league_teams (league_id, team_id) VALUES ('e2e-league', 'talleres-id'), ('e2e-copa', 'talleres-id');",
+    // Selecciones (docs/32 Fase B): entran por las Eliminatorias (destacada, plantel fijo) y juegan amistosos
+    // (copa no destacada). Costa Rica es solo rival del amistoso: no se busca.
+    "INSERT INTO leagues (id, external_id, name, country, season, source, is_active, slug) VALUES ('e2e-eliminatorias', 'fifa.worldq.conmebol', 'Eliminatorias Sudamericanas', 'Sudamérica', 2026, 'espn', 1, 'eliminatorias-sudamericanas');",
+    "INSERT INTO leagues (id, external_id, name, country, season, source, is_active, is_featured) VALUES ('e2e-amistosos', 'fifa.friendly', 'Amistosos internacionales', 'Mundial', 2026, 'espn', 1, 0);",
+    "INSERT INTO teams (id, external_id, name, short_name, country, league_id, source, slug) VALUES ('sel-uruguay', 'espn:212', 'Uruguay', 'URU', 'Sudamérica', 'e2e-eliminatorias', 'espn', 'uruguay'), ('sel-argentina', 'espn:202', 'Argentina', 'ARG', 'Sudamérica', 'e2e-eliminatorias', 'espn', 'argentina'), ('sel-costa-rica', 'espn:214', 'Costa Rica', 'CRC', NULL, 'e2e-amistosos', 'espn', NULL);",
+    "INSERT INTO league_teams (league_id, team_id) VALUES ('e2e-eliminatorias', 'sel-uruguay'), ('e2e-eliminatorias', 'sel-argentina'), ('e2e-amistosos', 'sel-uruguay'), ('e2e-amistosos', 'sel-argentina'), ('e2e-amistosos', 'sel-costa-rica');",
+    `INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, venue, status) VALUES ('amistoso-uruguay', 'e2e:amistoso-uruguay', 'sel-uruguay', 'sel-costa-rica', 'e2e-amistosos', ${kickoff + 3600}, 'Estadio Centenario', 'scheduled');`,
     `INSERT INTO sync_runs (id, trigger, started_at, finished_at, status, duration_ms, results, issues) VALUES ('e2e-sync', 'admin', ${now}, ${now}, 'success', 1, '[]', '[]');`,
   ];
   const sessions = [];
