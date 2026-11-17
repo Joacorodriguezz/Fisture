@@ -126,9 +126,9 @@ const jsonLd = [
                 <time class="lg-cuando" datetime={match.dateTime.toISOString()}>{fechaCorta(match.dateTime)} · {hora(match.dateTime)}</time>
                 <span class="lg-partido">
                   <span class="lg-equipos">
-                    <span class="lg-eq"><Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={28} pad={2} />{homeTeam.name}</span>
+                    <span class="lg-eq">{homeTeam.logo && <Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={28} pad={2} />}{homeTeam.name}</span>
                     <span class="lg-vs">vs</span>
-                    <span class="lg-eq"><Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={28} pad={2} />{awayTeam.name}</span>
+                    <span class="lg-eq">{awayTeam.logo && <Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={28} pad={2} />}{awayTeam.name}</span>
                   </span>
                   {match.round?.trim() && <span class="lg-detalle">{match.round.trim()}</span>}
                 </span>
@@ -153,9 +153,9 @@ const jsonLd = [
                 <time class="lg-cuando" datetime={match.dateTime.toISOString()}>{fechaCorta(match.dateTime)}</time>
                 <span class="lg-partido">
                   <span class="lg-equipos">
-                    <span class="lg-eq"><Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={28} pad={2} />{marcador ? `${homeTeam.name} ${marcador.local},` : homeTeam.name}</span>
+                    <span class="lg-eq">{homeTeam.logo && <Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={28} pad={2} />}{marcador ? `${homeTeam.name} ${marcador.local},` : homeTeam.name}</span>
                     {!marcador && <span class="lg-vs">vs</span>}
-                    <span class="lg-eq"><Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={28} pad={2} />{marcador ? `${awayTeam.name} ${marcador.visitante}` : awayTeam.name}</span>
+                    <span class="lg-eq">{awayTeam.logo && <Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={28} pad={2} />}{marcador ? `${awayTeam.name} ${marcador.visitante}` : awayTeam.name}</span>
                   </span>
                   <span class="lg-detalle">
                     {match.round?.trim() && <>{match.round.trim()}</>}
