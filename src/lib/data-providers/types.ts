@@ -34,6 +34,8 @@ export interface ProviderFixture {
   matches: ProviderMatch[];
   // Equipos de la temporada en curso (externalId). Si no viene, participan todos los de teams.
   participantIds?: string[];
+  // Logo de la competencia (variante clara), si el proveedor lo informa (docs/36 D2)
+  logoLiga?: string;
 }
 
 export interface FixtureOptions {
@@ -79,11 +81,11 @@ export interface LeagueConfig {
   // Idioma en que se piden los nombres de los equipos. Solo las competencias donde aparecen
   // selecciones (docs/32 D5); las de clubes no cambian para no reescribir nombres ya guardados.
   idioma?: "es";
-}
-
   // Orden en que se listan las competencias destacadas (menor = primero). Única entre destacadas
   // (docs/36 D1); las no destacadas llevan una prioridad alta fija.
   prioridad: number;
+}
+
 // Competencia cuyos equipos son su "liga de origen" (alta y adopción del país): las ligas y las
 // de plantel fijo (docs/32 D6)
 export function defineOrigen(config: Pick<LeagueConfig, "tipo" | "participantes">): boolean {

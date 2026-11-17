@@ -27,6 +27,32 @@ describe("ingesta ESPN a D1", () => {
     });
   });
 
+  describe("logo de la competencia (docs/36)", () => {
+    const logoDe = (href: string) => ({ logos: [{ href, rel: ["full", "default"] }] });
+    const logoGuardado = async (id: string) => (await t.db.select().from(leagues).where(eq(leagues.externalId, id)))[0].logo;
+
+    // La Copa Argentina no tiene logo propio: se usa el de ESPN
+    it("sin logo propio: lo escribe, lo actualiza si cambia y no lo pisa con null", async () => {
+      Object.assign(data, { leagues: [logoDe("https://x/1.png")] });
+      await sync("arg.copa");
+      expect(await logoGuardado("arg.copa")).toBe("https://x/1.png");
+
+      Object.assign(data, { leagues: [logoDe("https://x/2.png")] });
+      await sync("arg.copa");
+      expect(await logoGuardado("arg.copa")).toBe("https://x/2.png");
+
+      Object.assign(data, { leagues: [{}] });
+      await sync("arg.copa");
+      expect(await logoGuardado("arg.copa")).toBe("https://x/2.png");
+    });
+
+    it("con logo propio: gana sobre el de ESPN", async () => {
+      Object.assign(data, { leagues: [logoDe("https://x/1.png")] });
+      await sync("arg.1");
+      expect(await logoGuardado("arg.1")).toBe("/logos/competencias/arg.1.png");
+    });
+  });
+
   describe("ingesta repetida", () => {
     beforeEach(async () => {
       await sync();
