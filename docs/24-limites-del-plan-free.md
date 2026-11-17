@@ -34,7 +34,7 @@ Revisarla en cada release que cambie el patrón de consultas. Lo medido sale de 
 | KV escrituras (1.000/día) | ~0 desde docs/20 y docs/21 | ~0 | ~0 | ~0 |
 | KV lecturas (100.000/día) | a medir | OK | OK | OK |
 | GitHub Actions | gratis (repo público) | — | — | — |
-| ESPN (sin cuota publicada) | ~90 pedidos/día | igual | igual | igual |
+| ESPN (sin cuota publicada) | ~90 pedidos/día (~125 por barrido con docs/32) | igual | igual | igual |
 | football-data / API-Football | no se usan en `LEAGUES_CONFIG` | — | — | — |
 
 ⚠ = a menos de 2× del tope. ❌ = supera el tope.
