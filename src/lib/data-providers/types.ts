@@ -90,6 +90,14 @@ export const LEAGUES_CONFIG: LeagueConfig[] = [
   liga({ externalId: "fra.1", name: "Ligue 1", country: "Francia", region: "europa" }),
   liga({ externalId: "arg.1", name: "Liga Profesional Argentina", country: "Argentina", region: "sudamerica" }),
   liga({ externalId: "bra.1", name: "Brasileirão", country: "Brasil", region: "sudamerica" }),
+  liga({ externalId: "uru.1", name: "Liga AUF Uruguaya", country: "Uruguay", region: "sudamerica" }),
+  liga({ externalId: "col.1", name: "Liga BetPlay", country: "Colombia", region: "sudamerica" }),
+  liga({ externalId: "chi.1", name: "Primera División de Chile", country: "Chile", region: "sudamerica" }),
+  liga({ externalId: "ecu.1", name: "LigaPro Ecuador", country: "Ecuador", region: "sudamerica" }),
+  liga({ externalId: "par.1", name: "Primera División de Paraguay", country: "Paraguay", region: "sudamerica" }),
+  liga({ externalId: "per.1", name: "Liga 1 de Perú", country: "Perú", region: "sudamerica" }),
+  liga({ externalId: "bol.1", name: "División Profesional de Bolivia", country: "Bolivia", region: "sudamerica" }),
+  liga({ externalId: "ven.1", name: "Liga FUTVE", country: "Venezuela", region: "sudamerica" }),
 
   // Copas internacionales destacadas
   copaDestacada({ externalId: "uefa.champions", name: "UEFA Champions League", country: "Europa", region: "europa" }),
@@ -138,6 +146,19 @@ export const LEAGUES_CONFIG: LeagueConfig[] = [
   copa({ externalId: "bra.camp.carioca", name: "Campeonato Carioca", country: "Brasil", region: "sudamerica" }),
   copa({ externalId: "bra.camp.mineiro", name: "Campeonato Mineiro", country: "Brasil", region: "sudamerica" }),
   copa({ externalId: "bra.camp.gaucho", name: "Campeonato Gaúcho", country: "Brasil", region: "sudamerica" }),
+  // Colombia
+  copa({ externalId: "col.copa", name: "Copa Colombia", country: "Colombia", region: "sudamerica" }),
+  copa({ externalId: "col.superliga", name: "Superliga de Colombia", country: "Colombia", region: "sudamerica" }),
+  // Chile
+  copa({ externalId: "chi.copa_chi", name: "Copa Chile", country: "Chile", region: "sudamerica" }),
+  copa({ externalId: "chi.super_cup", name: "Supercopa de Chile", country: "Chile", region: "sudamerica" }),
+  // Ecuador
+  copa({ externalId: "ecu.supercopa", name: "Supercopa de Ecuador", country: "Ecuador", region: "sudamerica" }),
+  // Paraguay
+  copa({ externalId: "par.1.supercopa", name: "Supercopa de Paraguay", country: "Paraguay", region: "sudamerica" }),
+  // Bolivia
+  copa({ externalId: "bol.copa", name: "Copa Bolivia", country: "Bolivia", region: "sudamerica" }),
+  copa({ externalId: "bol.ply.rel", name: "Promoción de Bolivia", country: "Bolivia", region: "sudamerica" }),
 ];
 
 export function getLeaguesBySource(source: DataSource): LeagueConfig[] {

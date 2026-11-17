@@ -64,6 +64,17 @@ const ETAPAS: Record<string, string> = {
   finals: "Final",
   "torneo-apertura": "Apertura",
   "torneo-clausura": "Clausura",
+  // Ligas sudamericanas (docs/32)
+  apertura: "Apertura",
+  clausura: "Clausura",
+  "apertura-quadrangular": "Apertura · Cuadrangular",
+  "clausura-quadrangular": "Clausura · Cuadrangular",
+  "apertura-final": "Apertura · Final",
+  "torneo-intermedio": "Torneo Intermedio",
+  "intermedio-final": "Torneo Intermedio · Final",
+  "final-stage": "Fase final",
+  "group-stage1a": "Fase de grupos",
+  "stage-1b": "Fase 1B",
   // Copas nacionales y clasificatorias
   "preliminary-round": "Ronda preliminar",
   "qualifying-round": "Ronda previa",
@@ -92,8 +103,16 @@ const ETAPAS: Record<string, string> = {
 const ETAPAS_CON_FECHAS = new Set([
   "league-phase",
   "group-stage",
+  "first-stage",
   "torneo-apertura",
   "torneo-clausura",
+  "apertura",
+  "clausura",
+  "apertura-quadrangular",
+  "clausura-quadrangular",
+  "torneo-intermedio",
+  "final-stage",
+  "group-stage1a",
   "regular-season",
   "temporada-regular",
   "relegation-stage",
@@ -135,9 +154,11 @@ function mapStatus(status: EspnEvent["status"]): ProviderMatch["status"] {
 // empieza con el año es el nombre de la competencia ("2025-argentine-trofeo-de-campeones---final"): se omite.
 export function partirEtapa(slug: string): { torneo: string | null; etapa: string } {
   const m = slug.match(/^(.+?)---(.+)$/);
-  if (!m) return { torneo: null, etapa: slug };
+  // Sufijo de año ("torneo-apertura-2026"): ESPN lo cambia cada temporada, la etapa es la misma
+  const sinAnio = (s: string) => s.replace(/-\d{4}$/, "");
+  if (!m) return { torneo: null, etapa: sinAnio(slug) };
   const [, prefijo, etapa] = m;
-  if (/^\d{4}/.test(prefijo)) return { torneo: null, etapa };
+  if (/^\d{4}/.test(prefijo)) return { torneo: null, etapa: sinAnio(etapa) };
   const torneo =
     TORNEOS[prefijo] ?? prefijo.split("-").map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
   return { torneo, etapa };
@@ -235,7 +256,10 @@ export function createEspnClient(): DataProvider {
       else if (torneo) partes.push(torneo, ETAPAS[etapa]);
       else if (ETAPAS[etapa]) partes.push(ETAPAS[etapa]);
 
-      const numeraFecha = ETAPAS_CON_FECHAS.has(etapa) || (etapaEsLiga && esLigaLocal(slug));
+      // "first-stage" solo numera en una liga local (Ecuador); en las copas es una ronda única
+      const numeraFecha =
+        (ETAPAS_CON_FECHAS.has(etapa) && (etapa !== "first-stage" || esLigaLocal(slug))) ||
+        (etapaEsLiga && esLigaLocal(slug));
       if (numeraFecha) {
         // Un partido aplazado le resta una fecha a uno de los dos equipos: vale el que más jugó
         const base = `${e.season?.year ?? ""}|${slugTemporada}|`;

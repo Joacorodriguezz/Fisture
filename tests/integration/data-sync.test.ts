@@ -153,6 +153,26 @@ describe("ingesta ESPN a D1", () => {
     });
   });
 
+  // docs/32 Fase A: mismo mecanismo con las ligas sudamericanas nuevas
+  describe("liga de origen en las ligas sudamericanas nuevas (docs/32)", () => {
+    it("un club que entró por la Libertadores sin país adopta uru.1", async () => {
+      const [local, visitante] = data.events[0].competitions[0].competitors;
+      local.team = { id: "2000", displayName: "Peñarol", abbreviation: "PEN" };
+      visitante.team = { id: "2001", displayName: "Nacional", abbreviation: "NAC" };
+      await sync("conmebol.libertadores");
+      expect((await t.db.select().from(teams)).map((e) => e.country)).toEqual([null, null]);
+
+      expect(await sync("uru.1")).toMatchObject({ teamsCreated: 0, teamsUpdated: 2, errors: [] });
+      const [liga] = await t.db.select().from(leagues).where(eq(leagues.externalId, "uru.1"));
+      expect(liga).toMatchObject({ isFeatured: true, name: "Liga AUF Uruguaya" });
+      expect(await t.db.select().from(teams)).toEqual([
+        expect.objectContaining({ leagueId: liga.id, country: "Uruguay" }),
+        expect.objectContaining({ leagueId: liga.id, country: "Uruguay" }),
+      ]);
+      expect(await sync("uru.1")).toMatchObject({ teamsUpdated: 0, matchesUpdated: 0 });
+    });
+  });
+
   describe("sync por lotes (docs/22 D4)", () => {
     it("cada lote informa el siguiente y el último cierra con null", async () => {
       const total = lotesDeSync().length;
@@ -205,13 +225,27 @@ describe("ingesta ESPN a D1", () => {
       });
 
       it("una copa ve los equipos que cargó una competencia destacada del mismo lote", async () => {
-        const lote = loteDe("conmebol.libertadores");
-        const { DB, distintos } = conConsultas();
+        // Con la configuración real una destacada y una copa ya no caen en el mismo lote (las ligas
+        // sudamericanas corrieron los cortes): se reordena la configuración, que es un array mutable
+        const original = [...LEAGUES_CONFIG];
+        try {
+          const libertadores = LEAGUES_CONFIG.splice(LEAGUES_CONFIG.findIndex((c) => c.externalId === "conmebol.libertadores"), 1)[0];
+          LEAGUES_CONFIG.splice(LEAGUES_CONFIG.findIndex((c) => c.externalId === "uefa.champions_qual"), 0, libertadores);
+          while (loteDe("conmebol.libertadores") !== loteDe("uefa.champions_qual")) {
+            // Corre los cortes sacando una destacada que no es la Libertadores
+            const i = LEAGUES_CONFIG.findIndex((c) => c.tipo === "copa" && c.destacada && c.externalId !== "conmebol.libertadores");
+            LEAGUES_CONFIG.push(...LEAGUES_CONFIG.splice(i, 1));
+          }
+          const lote = loteDe("conmebol.libertadores");
+          const { DB, distintos } = conConsultas();
 
-        await syncLote({ DB }, lote);
-        expect(distintos()).toBe(1);
-        const [qual] = await t.db.select().from(leagues).where(eq(leagues.externalId, "uefa.champions_qual"));
-        expect(await t.db.select().from(matches).where(eq(matches.leagueId, qual.id))).toHaveLength(1);
+          await syncLote({ DB }, lote);
+          expect(distintos()).toBe(1);
+          const [qual] = await t.db.select().from(leagues).where(eq(leagues.externalId, "uefa.champions_qual"));
+          expect(await t.db.select().from(matches).where(eq(matches.leagueId, qual.id))).toHaveLength(1);
+        } finally {
+          LEAGUES_CONFIG.splice(0, LEAGUES_CONFIG.length, ...original);
+        }
       });
     });
 
