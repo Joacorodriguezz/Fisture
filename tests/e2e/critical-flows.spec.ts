@@ -198,7 +198,8 @@ test("buscar Uruguay ofrece la selección y no su rival de amistosos", async ({ 
 test("la página de la selección muestra sus competencias y su próximo amistoso", async ({ page }) => {
   await page.goto("/equipos/uruguay");
   await expect(page.getByText("Juega Eliminatorias Sudamericanas · Amistosos internacionales", { exact: true })).toBeVisible();
-  await expect(page.getByText("Costa Rica").first()).toBeVisible();});
+  await expect(page.getByText("Costa Rica").first()).toBeVisible();
+});
 
 test("las acciones personales piden login y conservan un retorno seguro", async ({ page }) => {
   await page.goto("/equipos/river");
