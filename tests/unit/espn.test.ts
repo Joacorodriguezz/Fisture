@@ -193,4 +193,16 @@ describe("selecciones de CONMEBOL (docs/32 Fase B)", () => {
     await operation;
     expect(urls(fetch).filter((u) => u.includes("/teams"))).toHaveLength(3);
   });
+
+  it.each([
+    ["sin equipos", { sports: [{ leagues: [{ teams: [] }] }] }],
+    ["con otra estructura", { inesperado: true }],
+  ])("si /teams responde 200 %s, falla la competencia en vez de vaciar los participantes", async (_caso, cuerpo) => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) =>
+      url.includes("/teams") ? Response.json(cuerpo) : Response.json({ events: [] })
+    ));
+    await expect(
+      createEspnClient().getFixture!("fifa.worldq.conmebol", { years: [2026], participantes: "plantel-fijo", idioma: "es" })
+    ).rejects.toThrow("plantel vacío");
+  });
 });

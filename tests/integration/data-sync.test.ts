@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import scoreboard from "../fixtures/espn-scoreboard.json";
 import { useTestDb } from "../helpers/use-test-db";
@@ -248,6 +248,10 @@ describe("ingesta ESPN a D1", () => {
       expect(await sync("fifa.friendly")).toMatchObject({ teamsCreated: 0, teamsUpdated: 0, matchesCreated: 0, matchesUpdated: 0, errors: [] });
     });
 
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it("si /teams falla, falla solo esa competencia y no deja datos a medias", async () => {
       vi.useFakeTimers({ toFake: ["setTimeout"] });
       vi.stubGlobal("fetch", vi.fn(async (url: string) =>
@@ -256,6 +260,14 @@ describe("ingesta ESPN a D1", () => {
       const resultado = sync("fifa.worldq.conmebol");
       await vi.runAllTimersAsync();
       expect((await resultado).errors).toEqual([expect.stringContaining("HTTP 500")]);
+      expect(await t.db.select().from(teams)).toHaveLength(0);
+    });
+
+    it("si /teams responde 200 sin equipos, falla esa competencia y no escribe nada", async () => {
+      vi.stubGlobal("fetch", vi.fn(async (url: string) =>
+        url.includes("/teams") ? Response.json({ sports: [{ leagues: [{ teams: [] }] }] }) : Response.json({ events: [] })
+      ));
+      expect((await sync("fifa.worldq.conmebol")).errors).toEqual([expect.stringContaining("plantel vacío")]);
       expect(await t.db.select().from(teams)).toHaveLength(0);
     });
   });

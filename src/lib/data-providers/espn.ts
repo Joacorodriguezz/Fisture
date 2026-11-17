@@ -320,9 +320,11 @@ export function createEspnClient(): DataProvider {
 
     // Plantel fijo: los participantes son los de /teams, no los de la temporada en curso
     if (options?.participantes === "plantel-fijo") {
+      const plantel = (await pedirPlantel(slug, idioma)).filter((t) => !esPlaceholder(t));
+      // Un 200 sin equipos (o con otra estructura) no puede vaciar los participantes
+      if (plantel.length === 0) throw new Error(`ESPN ${slug}: plantel vacío`);
       participantes.clear();
-      for (const t of await pedirPlantel(slug, idioma)) {
-        if (esPlaceholder(t)) continue;
+      for (const t of plantel) {
         const externalId = `${PREFIJO}${t.id}`;
         participantes.add(externalId);
         equipos.set(externalId, {
