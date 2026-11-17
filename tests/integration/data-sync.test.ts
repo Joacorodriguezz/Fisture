@@ -173,6 +173,93 @@ describe("ingesta ESPN a D1", () => {
     });
   });
 
+  // docs/32 Fase B: las selecciones entran por las Eliminatorias (plantel fijo, sin partidos) y los
+  // amistosos solo guardan los partidos de una selección sudamericana
+  describe("selecciones de CONMEBOL (docs/32 Fase B)", () => {
+    const PLANTEL: [string, string][] = [
+      ["202", "Argentina"], ["204", "Bolívia"], ["205", "Brasil"], ["207", "Chile"], ["208", "Colombia"],
+      ["209", "Ecuador"], ["210", "Paraguay"], ["211", "Perú"], ["212", "Uruguay"], ["213", "Venezuela"],
+    ];
+    const amistoso = (id: string, local: [string, string], visitante: [string, string]) => ({
+      ...structuredClone(scoreboard.events[0]),
+      id,
+      date: new Date(AHORA.getTime() + DIA_MS).toISOString(),
+      season: { year: AHORA.getUTCFullYear(), slug: "regular-season" },
+      competitions: [{ venue: { fullName: "Estadio" }, competitors: [
+        { homeAway: "home", score: "0", team: { id: local[0], displayName: local[1], abbreviation: local[1].slice(0, 3), logo: `https://logo/${local[0]}.png` } },
+        { homeAway: "away", score: "0", team: { id: visitante[0], displayName: visitante[1], abbreviation: visitante[1].slice(0, 3), logo: `https://logo/${visitante[0]}.png` } },
+      ] }],
+    });
+
+    beforeEach(() => {
+      const eventos = [
+        amistoso("f1", ["202", "Argentina"], ["300", "Costa Rica"]),
+        amistoso("f2", ["400", "Japón"], ["401", "Corea del Sur"]),
+      ];
+      vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+        if (url.includes("/teams")) {
+          return Response.json({ sports: [{ leagues: [{ teams: PLANTEL.map(([id, displayName]) => ({ team: { id, displayName, abbreviation: displayName.slice(0, 3), logos: [{ href: `https://logo/${id}.png` }] } })) }] }] });
+        }
+        return Response.json({ events: url.includes("/fifa.friendly/") ? eventos : [] });
+      }));
+    });
+
+    const eliminatorias = () => sync("fifa.worldq.conmebol");
+
+    it("las Eliminatorias sin partidos cargan las 10 selecciones con su país y nombre en español", async () => {
+      expect(await eliminatorias()).toMatchObject({ teamsCreated: 10, matchesCreated: 0, errors: [] });
+      const [liga] = await t.db.select().from(leagues).where(eq(leagues.externalId, "fifa.worldq.conmebol"));
+      expect(liga).toMatchObject({ isFeatured: true, name: "Eliminatorias Sudamericanas" });
+      const filas = await t.db.select().from(teams);
+      expect(filas).toHaveLength(10);
+      expect(filas.every((e) => e.leagueId === liga.id && e.country === "Sudamérica")).toBe(true);
+      expect(filas.find((e) => e.externalId === "espn:204")?.name).toBe("Bolivia");
+      expect(await t.db.select().from(leagueTeams)).toHaveLength(10);
+    });
+
+    it("un amistoso de una selección sudamericana se guarda con su rival; Japón-Corea no", async () => {
+      await eliminatorias();
+      expect(await sync("fifa.friendly")).toMatchObject({ teamsCreated: 1, matchesCreated: 1, errors: [] });
+      const [amistosos] = await t.db.select().from(leagues).where(eq(leagues.externalId, "fifa.friendly"));
+      expect(amistosos).toMatchObject({ isFeatured: false });
+      expect(await t.db.select().from(matches)).toEqual([expect.objectContaining({ externalId: "espn:f1", leagueId: amistosos.id })]);
+      const nombres = (await t.db.select().from(teams)).map((e) => e.name);
+      expect(nombres).toContain("Costa Rica");
+      expect(nombres).not.toContain("Japón");
+    });
+
+    it("el rival de un amistoso no participa de ninguna competencia destacada (no se busca)", async () => {
+      await eliminatorias();
+      await sync("fifa.friendly");
+      const [costaRica] = await t.db.select().from(teams).where(eq(teams.externalId, "espn:300"));
+      expect(costaRica).toMatchObject({ country: null, leagueId: expect.any(String) });
+      const destacadas = await t.db
+        .select({ id: leagueTeams.teamId })
+        .from(leagueTeams)
+        .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))
+        .where(eq(leagues.isFeatured, true));
+      expect(destacadas.map((d) => d.id)).not.toContain(costaRica.id);
+    });
+
+    it("un segundo sync no escribe nada, ni siquiera nombres", async () => {
+      await eliminatorias();
+      await sync("fifa.friendly");
+      expect(await eliminatorias()).toMatchObject({ teamsCreated: 0, teamsUpdated: 0, matchesCreated: 0, matchesUpdated: 0, errors: [] });
+      expect(await sync("fifa.friendly")).toMatchObject({ teamsCreated: 0, teamsUpdated: 0, matchesCreated: 0, matchesUpdated: 0, errors: [] });
+    });
+
+    it("si /teams falla, falla solo esa competencia y no deja datos a medias", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout"] });
+      vi.stubGlobal("fetch", vi.fn(async (url: string) =>
+        url.includes("/teams") ? new Response("{}", { status: 500 }) : Response.json({ events: [] })
+      ));
+      const resultado = sync("fifa.worldq.conmebol");
+      await vi.runAllTimersAsync();
+      expect((await resultado).errors).toEqual([expect.stringContaining("HTTP 500")]);
+      expect(await t.db.select().from(teams)).toHaveLength(0);
+    });
+  });
+
   describe("sync por lotes (docs/22 D4)", () => {
     it("cada lote informa el siguiente y el último cierra con null", async () => {
       const total = lotesDeSync().length;
