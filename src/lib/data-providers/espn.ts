@@ -210,7 +210,7 @@ export function createEspnClient(): DataProvider {
   }
 
   // Plantel de una competencia (docs/32 D4): sus equipos existen aunque ESPN no publique partidos
-  async function pedirPlantel(slug: string, idioma?: "es"): Promise<EspnTeam[]> {
+  async function pedirPlantel(slug: string, idioma?: "es"): Promise<EspnTeamConLogos[]> {
     const url = `${BASE_URL}/${slug}/teams${idioma ? `?lang=${idioma}` : ""}`;
     const data = await pedirJson<EspnTeamsResponse>(url, `${slug} equipos`, false);
     return (data?.sports?.[0]?.leagues?.[0]?.teams ?? []).map((t) => t.team).filter((t): t is EspnTeamConLogos => !!t);
