@@ -90,6 +90,7 @@ const jsonLd = [
     <div style="display:flex;flex-direction:column;gap:16px">
       <a href="/ligas" class="tb-volver"><span aria-hidden="true">←</span> Ligas</a>
       <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+        {liga.logo && <Escudo src={liga.logo} nombre={liga.name} size={48} pad={4} prioridad />}
         <Volanta tono="rojo">{liga.country}</Volanta>
         <Titular nivel="1">{encabezadoLiga(liga.name)}</Titular>
       </div>
