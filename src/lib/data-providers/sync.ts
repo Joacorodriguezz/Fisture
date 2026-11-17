@@ -16,6 +16,7 @@ import {
   createEspnClient,
   createFootballDataClient,
   createPromiedosClient,
+  defineOrigen,
   LEAGUES_CONFIG,
   lotesDeSync,
   type DataProvider,
@@ -251,7 +252,7 @@ async function syncLeague(
 
     // 2. Fixture de la competencia (equipos + partidos)
     const completo = provider.getFixture
-      ? await provider.getFixture(config.externalId)
+      ? await provider.getFixture(config.externalId, { participantes: config.participantes, idioma: config.idioma })
       : {
           teams: await provider.getTeams(config.externalId),
           matches: await provider.getMatches(config.externalId, { from: desde() }),
@@ -360,7 +361,7 @@ async function syncEquipos(
         shortName: t.shortName,
         logo: t.logo,
         // Las copas no tienen país propio; el equipo hereda el de su liga de origen cuando se conoce
-        country: config.tipo === "liga" ? config.country : null,
+        country: defineOrigen(config) ? config.country : null,
         leagueId: ligaId,
         source: config.source,
       });
@@ -370,7 +371,7 @@ async function syncEquipos(
     ids.set(t.externalId, actual.id);
     // Un equipo que entró por una copa (sin país) pasa a su liga cuando esa liga se sincroniza:
     // p. ej. Flamengo, cargado por la Libertadores antes de que existiera el Brasileirão
-    const adoptaLiga = config.tipo === "liga" && actual.country === null;
+    const adoptaLiga = defineOrigen(config) && actual.country === null;
     const cambio =
       adoptaLiga ||
       actual.name !== t.name ||

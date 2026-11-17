@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import scoreboard from "../fixtures/espn-scoreboard.json";
 import { useTestDb } from "../helpers/use-test-db";
@@ -153,6 +153,125 @@ describe("ingesta ESPN a D1", () => {
     });
   });
 
+  // docs/32 Fase A: mismo mecanismo con las ligas sudamericanas nuevas
+  describe("liga de origen en las ligas sudamericanas nuevas (docs/32)", () => {
+    it("un club que entró por la Libertadores sin país adopta uru.1", async () => {
+      const [local, visitante] = data.events[0].competitions[0].competitors;
+      local.team = { id: "2000", displayName: "Peñarol", abbreviation: "PEN" };
+      visitante.team = { id: "2001", displayName: "Nacional", abbreviation: "NAC" };
+      await sync("conmebol.libertadores");
+      expect((await t.db.select().from(teams)).map((e) => e.country)).toEqual([null, null]);
+
+      expect(await sync("uru.1")).toMatchObject({ teamsCreated: 0, teamsUpdated: 2, errors: [] });
+      const [liga] = await t.db.select().from(leagues).where(eq(leagues.externalId, "uru.1"));
+      expect(liga).toMatchObject({ isFeatured: true, name: "Liga AUF Uruguaya" });
+      expect(await t.db.select().from(teams)).toEqual([
+        expect.objectContaining({ leagueId: liga.id, country: "Uruguay" }),
+        expect.objectContaining({ leagueId: liga.id, country: "Uruguay" }),
+      ]);
+      expect(await sync("uru.1")).toMatchObject({ teamsUpdated: 0, matchesUpdated: 0 });
+    });
+  });
+
+  // docs/32 Fase B: las selecciones entran por las Eliminatorias (plantel fijo, sin partidos) y los
+  // amistosos solo guardan los partidos de una selección sudamericana
+  describe("selecciones de CONMEBOL (docs/32 Fase B)", () => {
+    const PLANTEL: [string, string][] = [
+      ["202", "Argentina"], ["204", "Bolívia"], ["205", "Brasil"], ["207", "Chile"], ["208", "Colombia"],
+      ["209", "Ecuador"], ["210", "Paraguay"], ["211", "Perú"], ["212", "Uruguay"], ["213", "Venezuela"],
+    ];
+    const amistoso = (id: string, local: [string, string], visitante: [string, string]) => ({
+      ...structuredClone(scoreboard.events[0]),
+      id,
+      date: new Date(AHORA.getTime() + DIA_MS).toISOString(),
+      season: { year: AHORA.getUTCFullYear(), slug: "regular-season" },
+      competitions: [{ venue: { fullName: "Estadio" }, competitors: [
+        { homeAway: "home", score: "0", team: { id: local[0], displayName: local[1], abbreviation: local[1].slice(0, 3), logo: `https://logo/${local[0]}.png` } },
+        { homeAway: "away", score: "0", team: { id: visitante[0], displayName: visitante[1], abbreviation: visitante[1].slice(0, 3), logo: `https://logo/${visitante[0]}.png` } },
+      ] }],
+    });
+
+    beforeEach(() => {
+      const eventos = [
+        amistoso("f1", ["202", "Argentina"], ["300", "Costa Rica"]),
+        amistoso("f2", ["400", "Japón"], ["401", "Corea del Sur"]),
+      ];
+      vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+        if (url.includes("/teams")) {
+          return Response.json({ sports: [{ leagues: [{ teams: PLANTEL.map(([id, displayName]) => ({ team: { id, displayName, abbreviation: displayName.slice(0, 3), logos: [{ href: `https://logo/${id}.png` }] } })) }] }] });
+        }
+        return Response.json({ events: url.includes("/fifa.friendly/") ? eventos : [] });
+      }));
+    });
+
+    const eliminatorias = () => sync("fifa.worldq.conmebol");
+
+    it("las Eliminatorias sin partidos cargan las 10 selecciones con su país y nombre en español", async () => {
+      expect(await eliminatorias()).toMatchObject({ teamsCreated: 10, matchesCreated: 0, errors: [] });
+      const [liga] = await t.db.select().from(leagues).where(eq(leagues.externalId, "fifa.worldq.conmebol"));
+      expect(liga).toMatchObject({ isFeatured: true, name: "Eliminatorias Sudamericanas" });
+      const filas = await t.db.select().from(teams);
+      expect(filas).toHaveLength(10);
+      expect(filas.every((e) => e.leagueId === liga.id && e.country === "Sudamérica")).toBe(true);
+      expect(filas.find((e) => e.externalId === "espn:204")?.name).toBe("Bolivia");
+      expect(await t.db.select().from(leagueTeams)).toHaveLength(10);
+    });
+
+    it("un amistoso de una selección sudamericana se guarda con su rival; Japón-Corea no", async () => {
+      await eliminatorias();
+      expect(await sync("fifa.friendly")).toMatchObject({ teamsCreated: 1, matchesCreated: 1, errors: [] });
+      const [amistosos] = await t.db.select().from(leagues).where(eq(leagues.externalId, "fifa.friendly"));
+      expect(amistosos).toMatchObject({ isFeatured: false });
+      expect(await t.db.select().from(matches)).toEqual([expect.objectContaining({ externalId: "espn:f1", leagueId: amistosos.id })]);
+      const nombres = (await t.db.select().from(teams)).map((e) => e.name);
+      expect(nombres).toContain("Costa Rica");
+      expect(nombres).not.toContain("Japón");
+    });
+
+    it("el rival de un amistoso no participa de ninguna competencia destacada (no se busca)", async () => {
+      await eliminatorias();
+      await sync("fifa.friendly");
+      const [costaRica] = await t.db.select().from(teams).where(eq(teams.externalId, "espn:300"));
+      expect(costaRica).toMatchObject({ country: null, leagueId: expect.any(String) });
+      const destacadas = await t.db
+        .select({ id: leagueTeams.teamId })
+        .from(leagueTeams)
+        .innerJoin(leagues, eq(leagueTeams.leagueId, leagues.id))
+        .where(eq(leagues.isFeatured, true));
+      expect(destacadas.map((d) => d.id)).not.toContain(costaRica.id);
+    });
+
+    it("un segundo sync no escribe nada, ni siquiera nombres", async () => {
+      await eliminatorias();
+      await sync("fifa.friendly");
+      expect(await eliminatorias()).toMatchObject({ teamsCreated: 0, teamsUpdated: 0, matchesCreated: 0, matchesUpdated: 0, errors: [] });
+      expect(await sync("fifa.friendly")).toMatchObject({ teamsCreated: 0, teamsUpdated: 0, matchesCreated: 0, matchesUpdated: 0, errors: [] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("si /teams falla, falla solo esa competencia y no deja datos a medias", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout"] });
+      vi.stubGlobal("fetch", vi.fn(async (url: string) =>
+        url.includes("/teams") ? new Response("{}", { status: 500 }) : Response.json({ events: [] })
+      ));
+      const resultado = sync("fifa.worldq.conmebol");
+      await vi.runAllTimersAsync();
+      expect((await resultado).errors).toEqual([expect.stringContaining("HTTP 500")]);
+      expect(await t.db.select().from(teams)).toHaveLength(0);
+    });
+
+    it("si /teams responde 200 sin equipos, falla esa competencia y no escribe nada", async () => {
+      vi.stubGlobal("fetch", vi.fn(async (url: string) =>
+        url.includes("/teams") ? Response.json({ sports: [{ leagues: [{ teams: [] }] }] }) : Response.json({ events: [] })
+      ));
+      expect((await sync("fifa.worldq.conmebol")).errors).toEqual([expect.stringContaining("plantel vacío")]);
+      expect(await t.db.select().from(teams)).toHaveLength(0);
+    });
+  });
+
   describe("sync por lotes (docs/22 D4)", () => {
     it("cada lote informa el siguiente y el último cierra con null", async () => {
       const total = lotesDeSync().length;
@@ -205,13 +324,30 @@ describe("ingesta ESPN a D1", () => {
       });
 
       it("una copa ve los equipos que cargó una competencia destacada del mismo lote", async () => {
-        const lote = loteDe("conmebol.libertadores");
-        const { DB, distintos } = conConsultas();
+        // Con la configuración real una destacada y una copa ya no caen en el mismo lote (las ligas
+        // sudamericanas corrieron los cortes): se reordena la configuración, que es un array mutable
+        const original = [...LEAGUES_CONFIG];
+        try {
+          const libertadores = LEAGUES_CONFIG.splice(LEAGUES_CONFIG.findIndex((c) => c.externalId === "conmebol.libertadores"), 1)[0];
+          LEAGUES_CONFIG.splice(LEAGUES_CONFIG.findIndex((c) => c.externalId === "uefa.champions_qual"), 0, libertadores);
+          // Tope de vueltas: si no hay otra destacada para mover, el test falla en vez de colgarse
+          for (let vueltas = 0; loteDe("conmebol.libertadores") !== loteDe("uefa.champions_qual"); vueltas++) {
+            // Corre los cortes sacando una destacada que no es la Libertadores
+            const i = LEAGUES_CONFIG.findIndex((c) => c.tipo === "copa" && c.destacada && c.externalId !== "conmebol.libertadores");
+            expect(i).toBeGreaterThanOrEqual(0);
+            expect(vueltas).toBeLessThan(LEAGUES_CONFIG.length);
+            LEAGUES_CONFIG.push(...LEAGUES_CONFIG.splice(i, 1));
+          }
+          const lote = loteDe("conmebol.libertadores");
+          const { DB, distintos } = conConsultas();
 
-        await syncLote({ DB }, lote);
-        expect(distintos()).toBe(1);
-        const [qual] = await t.db.select().from(leagues).where(eq(leagues.externalId, "uefa.champions_qual"));
-        expect(await t.db.select().from(matches).where(eq(matches.leagueId, qual.id))).toHaveLength(1);
+          await syncLote({ DB }, lote);
+          expect(distintos()).toBe(1);
+          const [qual] = await t.db.select().from(leagues).where(eq(leagues.externalId, "uefa.champions_qual"));
+          expect(await t.db.select().from(matches).where(eq(matches.leagueId, qual.id))).toHaveLength(1);
+        } finally {
+          LEAGUES_CONFIG.splice(0, LEAGUES_CONFIG.length, ...original);
+        }
       });
     });
 

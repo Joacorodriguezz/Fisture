@@ -26,7 +26,7 @@ Revisarla en cada release que cambie el patrón de consultas. Lo medido sale de 
 | Recurso (tope Free) | Medido (oct-2026) | 100 usuarios | 1.000 usuarios | 10.000 usuarios |
 | --- | --- | --- | --- | --- |
 | Requests a Workers/Functions (100.000/día) | a medir (dashboard) | ~3.600 | ~9.000 | ~63.000 ⚠ |
-| CPU por request (10 ms) | OK salvo el sync completo | OK | OK | OK |
+| CPU por request (10 ms) | Una página SSR gasta más que el tope: mediana de 15 a 30 ms, p99 de 50 a 120 ms. El 15/11/2026 cortó 557 invocaciones (`exceededResources`, ~9 % del día) por un crawler; mitigado con la caché del HTML público (`docs/35`) | ⚠ ráfagas | ⚠ ráfagas | ⚠ ráfagas |
 | Subrequests por invocación (50) | El sync completo ya no entra: por lotes | — | — | — |
 | D1 filas leídas (5 M/día) | ~0,8 M/día en producción y hasta ~2 M/día más en staging (nov-2026, antes de docs/30) | ~0,6 M | ~1,4 M | ~9,5 M ❌ |
 | D1 filas escritas (100 k/día) | < 300/día (20 k el día de carga) | ~2.200 | ~3.500 | ~17.000 |
@@ -34,7 +34,7 @@ Revisarla en cada release que cambie el patrón de consultas. Lo medido sale de 
 | KV escrituras (1.000/día) | ~0 desde docs/20 y docs/21 | ~0 | ~0 | ~0 |
 | KV lecturas (100.000/día) | a medir | OK | OK | OK |
 | GitHub Actions | gratis (repo público) | — | — | — |
-| ESPN (sin cuota publicada) | ~90 pedidos/día | igual | igual | igual |
+| ESPN (sin cuota publicada) | ~90 pedidos/día (~125 por barrido con docs/32) | igual | igual | igual |
 | football-data / API-Football | no se usan en `LEAGUES_CONFIG` | — | — | — |
 
 ⚠ = a menos de 2× del tope. ❌ = supera el tope.

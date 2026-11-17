@@ -19,6 +19,8 @@ const MIGRACIONES = [
   "0004_sync_runs.sql",
   "0006_calendar_syncs_idempotencia.sql",
   "0009_leagues_is_featured.sql",
+  "0014_matches_league_source_idx.sql",
+  "0016_slugs_equipos_ligas.sql",
 ];
 
 const salida = join(tmpdir(), "fisture-sync.bundle.mjs");
@@ -101,6 +103,23 @@ try {
       WHERE m.date_time >= strftime('%s','now')
     ) WHERE n <= 2 ORDER BY competencia, fecha`)
   );
+
+  // Selecciones (docs/32 Fase B): las 10 de CONMEBOL con su país, un amistoso con rival extranjero y ningún
+  // amistoso entre selecciones no sudamericanas
+  const selecciones = await q("SELECT name, country FROM teams WHERE country = 'Sudamérica' ORDER BY name");
+  if (selecciones.length) {
+    console.log(`Selecciones (${selecciones.length}):`, selecciones.map((s) => s.name).join(", "));
+    console.table(
+      await q(`SELECT strftime('%Y-%m-%d', m.date_time, 'unixepoch') AS fecha, h.name AS local, a.name AS visitante
+        FROM matches m JOIN leagues l ON l.id = m.league_id
+        JOIN teams h ON h.id = m.home_team_id JOIN teams a ON a.id = m.away_team_id
+        WHERE l.external_id = 'fifa.friendly' AND (h.country IS NULL OR a.country IS NULL) ORDER BY m.date_time LIMIT 3`)
+    );
+    const [ajenos] = await q(`SELECT COUNT(*) AS n FROM matches m JOIN leagues l ON l.id = m.league_id
+      JOIN teams h ON h.id = m.home_team_id JOIN teams a ON a.id = m.away_team_id
+      WHERE l.external_id = 'fifa.friendly' AND h.country IS NOT 'Sudamérica' AND a.country IS NOT 'Sudamérica'`);
+    console.log(`  amistosos sin selección sudamericana: ${ajenos.n}`);
+  }
 
   console.log("Integridad:");
   const [sinEquipo] = await q(`SELECT COUNT(*) AS n FROM matches m

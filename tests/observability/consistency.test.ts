@@ -107,6 +107,18 @@ describe("checkConsistency", () => {
     expect(issues).toEqual([{ code: "empty_league", severity: "warn", count: 1, sample: ["vacia"] }]);
   });
 
+  // docs/32 D7: las Eliminatorias no tienen partidos hasta que ESPN publique el calendario
+  it("empty_league: una destacada de plantel fijo sin partidos no avisa, una liga destacada vacía sí", async () => {
+    await t.DB.prepare(
+      "INSERT INTO leagues (id, name, country, external_id, season, is_active, is_featured) VALUES ('elim', 'Eliminatorias', 'Sudamérica', 'fifa.worldq.conmebol', 2026, 1, 1)"
+    ).run();
+    await partido("m1");
+    expect(await codigos()).not.toContain("empty_league");
+    await liga("vacia");
+    const issues = await checkConsistency(t.db, AHORA_MS);
+    expect(issues).toEqual([{ code: "empty_league", severity: "warn", count: 1, sample: ["vacia"] }]);
+  });
+
   it("finished_without_score: finalizado sin marcador", async () => {
     await partido("m1", { status: "finished", date: AHORA_S - 10 * HORA, hs: 2, as: null });
     await partido("m2", { status: "finished", date: AHORA_S - 10 * HORA, away: "t3", hs: 1, as: 0 });

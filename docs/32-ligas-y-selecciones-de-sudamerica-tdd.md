@@ -1,6 +1,6 @@
 # TDD: Ligas y selecciones de Sudamérica
 
-> Technical Design Document. Estado: **propuesto** (pendiente de revisión). Se implementa en dos entregas
+> Technical Design Document. Estado: **Fase A y Fase B implementadas**. Se implementa en dos entregas
 > independientes, cada una con su rama desde `development` y su PR: **Fase A** (ligas,
 > `feat/ligas-sudamerica`) y **Fase B** (selecciones, `feat/selecciones-sudamerica`).
 
@@ -183,7 +183,7 @@ copa({ externalId: "fifa.world", name: "Mundial", country: "Mundial", region: "m
 
 Los nombres exactos de las ligas se confirman en la revisión. Los de arriba son los comerciales vigentes.
 
-Totales: 43 → 59 competencias (12 lotes) con la Fase A, y 63 (13 lotes) con la B.
+Totales: 43 → 59 competencias (12 lotes) con la Fase A, y 62 (13 lotes) con la B (sin el Mundial, §8 y §9).
 
 ### 4.2 Etapas (`data-providers/espn.ts`)
 
@@ -340,9 +340,65 @@ Cada punto se escribe primero en rojo.
 
 **Decisiones abiertas**
 
-- Si el Mundial (`fifa.world`) entra ya o recién cuando se acerque 2030: hoy solo traería partidos jugados
-  de 2026.
+- ~~Si el Mundial (`fifa.world`) entra ya o recién cuando se acerque 2030~~: resuelta por el usuario, el
+  Mundial **no** entra por ahora (hoy solo traería partidos jugados de 2026). Pisa a §4.1 y §4.3 (el TDD
+  lo listaba).
 
 ## 9. Notas de implementación (desvíos respecto del diseño original)
 
-_Vacío hasta la implementación._
+**Estado: Fase A y Fase B implementadas** (`feat/ligas-sudamerica` y `feat/selecciones-sudamerica`).
+
+Desvíos y hallazgos de la Fase B:
+
+- **Sin el Mundial** (decisión del usuario, pisa al TDD): `fifa.world` no está en `LEAGUES_CONFIG`. Son 62
+  competencias en 13 lotes (el TDD preveía 63), y `competencias.test.ts` fija que no se sincroniza. Para
+  sumarlo después basta una entrada `copa({ ..., idioma: "es" })` al final.
+- No hizo falta reordenar `LEAGUES_CONFIG`: hay una sola competencia de plantel fijo (Eliminatorias, después de
+  las copas destacadas), así que la regla de un plantel fijo por lote se cumple sola. Queda como test para que
+  no se rompa si se agrega otra.
+- `defineOrigen` vive en `types.ts` (se exporta desde `data-providers/index.ts`) y la usa `syncEquipos` para el
+  alta del país y la adopción de liga. `FixtureOptions` recibe `participantes` e `idioma`; `syncLeague` los pasa
+  siempre (los otros proveedores no implementan `getFixture`).
+- `espn.ts`: `pedirTemporada` y `pedirPlantel` comparten `pedirJson` (3 intentos con espera creciente). El 400
+  vale como "sin calendario" solo en el scoreboard; en `/teams` un 400 es error. El logo del plantel sale de
+  `logos[0].href` (en el scoreboard es `logo`; ambos son la misma URL, verificado, así que un equipo no alterna
+  entre fuentes y el segundo sync no escribe).
+- `empty_league` excluye por `external_id` con la lista de slugs de plantel fijo de `LEAGUES_CONFIG` como
+  parámetros del SQL; sin migración. Hace que `consistency.ts` importe `data-providers/types` (módulo sin
+  dependencias de runtime).
+- El test D5 es genérico: toda competencia cuyo slug parezca de selecciones (`fifa.world*`, `fifa.friendly`,
+  `conmebol.america`, Eurocopa, Nations League, CONCACAF, AFC, CAF) debe declarar `idioma: "es"`, y ninguna otra
+  puede declararlo.
+- E2E sembrados en `scripts/e2e-server.mjs` (Eliminatorias, amistosos, Uruguay, Argentina y Costa Rica como
+  rival): `critical-flows.spec.ts` prueba la búsqueda y la página de la selección. **No se ejecutaron**: el
+  puerto 4322 estaba ocupado por un servidor de demo. Pendiente correrlos con `npm run test:e2e`.
+- `scripts/sync-check.mjs` imprime ahora las selecciones cargadas, tres amistosos con rival extranjero y cuántos
+  amistosos no tienen una selección sudamericana (debe ser 0).
+- `sync:check` real (17/11/2026, 62 competencias, `SYNC_TWICE=1`): 134 s, 649 equipos únicos, 6.565 partidos,
+  segunda pasada sin escrituras. Las 10 selecciones cargadas con país "Sudamérica" y nombres en español (Bolivia
+  corregida). Amistosos internacionales: 78 partidos, +44 equipos (los rivales), 0 amistosos sin selección
+  sudamericana. Las Eliminatorias traen 10 equipos y 0 partidos; la Copa América 0 y 0, como se esperaba.
+  Los rivales salen todos en español ("Arabia Saudita", "Países Bajos", "Estados Unidos", "Corea del Sur",
+  "República Democrática del Congo"). Nombres a vigilar: "Qatar" (ESPN no lo traduce a "Catar").
+- Sin migraciones ni variables de entorno.
+
+Desvíos y hallazgos de la Fase A:
+
+- `partirEtapa` quita el sufijo `-AAAA` de la etapa (con o sin prefijo de torneo). `first-stage` se agregó a
+  `ETAPAS_CON_FECHAS` y la excepción para las copas vive en la condición de `numeraFecha`
+  (`etapa !== "first-stage" || esLigaLocal(slug)`).
+- Las etapas compuestas (`apertura-quadrangular`, `intermedio-final`...) son entradas de `ETAPAS` con el texto ya
+  armado ("Apertura · Cuadrangular"), sin tocar `TORNEOS`.
+- Un test existente de `data-sync.test.ts` ("una copa ve los equipos que cargó una competencia destacada del
+  mismo lote") dependía de que la Libertadores y la clasificatoria cayeran en el mismo lote. Con 59 competencias
+  ya no coinciden: el test reordena temporalmente `LEAGUES_CONFIG` para reproducir el caso.
+- `scripts/sync-check.mjs` no aplicaba las migraciones 0014 y 0016 (columna `slug`) y fallaba en la D1
+  efímera; se agregaron a su lista.
+- `sync:check` real (17/11/2026, 59 competencias, `SYNC_TWICE=1`): 102 s, 595 equipos únicos, 6.487 partidos, la
+  segunda pasada no escribió nada. Rondas en español y con "Fecha N" en todas las ligas nuevas (Uruguay
+  Apertura/Intermedio/Clausura, Colombia con cuartos/semis/final, Ecuador Primera fase/Fase final, Paraguay,
+  Perú, Venezuela con Cuadrangular y Final, Chile y Bolivia solo "Fecha N").
+- Observaciones sin acción: `col.superliga` trae "Ida"/"Vuelta" sin etapa y `chi.super_cup` un partido sin
+  ronda (ESPN no informa la etapa); `ecu.supercopa`, `par.1.supercopa` y `bol.ply.rel` no tienen partidos hoy;
+  el chequeo de nombres repetidos marca Liverpool (Uruguay) y Portuguesa (Venezuela), que son equipos distintos
+  con el mismo nombre que otro ya cargado (se distinguen por ID).
