@@ -3,15 +3,16 @@ import Layout from "../../layouts/Layout.astro";
 import Volanta from "../../components/tribuna/Volanta.astro";
 import Titular from "../../components/tribuna/Titular.astro";
 import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
+import Escudo from "../../components/tribuna/Escudo.astro";
 import FiltroEquipos from "../../components/islands/FiltroEquipos";
 import { getLeagueBySlugOrId, getLeagueRecentMatches, getLeagueUpcomingMatches } from "../../lib/db/queries";
-import { fechaLarga, hora, horaConDia, horaPorPais, listaConY } from "../../lib/format";
+import { fechaCorta, fechaLarga, hora, horaConDia, horaPorPais, listaConY } from "../../lib/format";
 import { createDb } from "../../lib/db";
 import { asc, eq } from "drizzle-orm";
 import { leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 import { jsonLdLiga, jsonLdMigas, jsonLdProximosPartidos, redireccionASlug, rutaPublica } from "../../lib/seo";
 import { descripcionLiga, encabezadoLiga, respuestaLiga, tituloLiga } from "../../lib/seo-liga";
-import { textoResultado } from "../../lib/seo-partido";
+import { marcadorPartido } from "../../lib/seo-partido";
 
 // Página pública: sin sesión nadie "sigue" ningún equipo
 const user = Astro.locals.user;
@@ -71,7 +72,7 @@ const proximo = proximos[0];
 const respuesta = respuestaLiga(liga, proximo, recientes[0]);
 // Hora del próximo partido en cada país (docs/34 L4), en el servidor
 const horasProximo = proximo
-  ? horaPorPais(proximo.match.dateTime).map((g) => `${horaConDia(g)} en ${listaConY(g.paises)}`).join("; ")
+  ? horaPorPais(proximo.match.dateTime).map((g) => ({ paises: listaConY(g.paises), hora: horaConDia(g) }))
   : null;
 const jsonLd = [
   jsonLdLiga(appUrl, liga, equiposLiga),
@@ -96,18 +97,40 @@ const jsonLd = [
 
     <section aria-labelledby="fixture-liga" class="fixture-publico">
       <h2 id="fixture-liga">Próximos partidos</h2>
-      <p class="lg-respuesta">{respuesta}</p>
-      {horasProximo && <p class="lg-horas"><b>Hora en cada país:</b> {horasProximo}.</p>}
+      {proximo && horasProximo ? (
+        <article class="lg-proximo" aria-label="Próximo partido">
+          <Volanta tono="rojo">Próximo partido</Volanta>
+          <div class="lg-proximo-cruce">
+            <Escudo src={proximo.homeTeam.logo} nombre={proximo.homeTeam.name} sigla={proximo.homeTeam.shortName} size={56} pad={6} prioridad />
+            <p class="lg-proximo-equipos">{proximo.homeTeam.name} vs {proximo.awayTeam.name}</p>
+            <Escudo src={proximo.awayTeam.logo} nombre={proximo.awayTeam.name} sigla={proximo.awayTeam.shortName} size={56} pad={6} prioridad />
+          </div>
+          {proximo.match.round?.trim() && <p class="lg-proximo-ronda">{proximo.match.round.trim()}</p>}
+          <p class="lg-proximo-cuando"><time datetime={proximo.match.dateTime.toISOString()}>{fechaLarga(proximo.match.dateTime)} · {hora(proximo.match.dateTime)} hs</time> (hora de Argentina)</p>
+          <div class="lg-horas" role="group" aria-label="Hora en cada país">
+            <p class="lg-horas-titulo">Hora en cada país</p>
+            <dl>
+              {horasProximo.map((g) => (
+                <div class="lg-hora-fila"><dt>{g.paises}</dt><dd>{g.hora}</dd></div>
+              ))}
+            </dl>
+          </div>
+        </article>
+      ) : <p class="lg-respuesta">{respuesta}</p>}
       {proximos.length > 0 ? (
         <>
           <p class="lg-nota">Hasta 20 encuentros programados en los próximos 30 días. Los horarios de la lista están en hora de Argentina (UTC−3).</p>
           <ul>
             {proximos.map(({ match, homeTeam, awayTeam }) => (
               <li><a href={rutaPublica("partidos", match.id)}>
-                <span class="lg-equipos">{homeTeam.name} vs {awayTeam.name}</span>
-                <span class="lg-detalle">
-                  {match.round?.trim() && <>{match.round.trim()} · </>}
-                  <time datetime={match.dateTime.toISOString()}>{fechaLarga(match.dateTime)} · {hora(match.dateTime)} hs</time>
+                <time class="lg-cuando" datetime={match.dateTime.toISOString()}>{fechaCorta(match.dateTime)} · {hora(match.dateTime)}</time>
+                <span class="lg-partido">
+                  <span class="lg-equipos">
+                    <span class="lg-eq">{homeTeam.logo && <Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={28} pad={2} />}{homeTeam.name}</span>
+                    <span class="lg-vs">vs</span>
+                    <span class="lg-eq">{awayTeam.logo && <Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={28} pad={2} />}{awayTeam.name}</span>
+                  </span>
+                  {match.round?.trim() && <span class="lg-detalle">{match.round.trim()}</span>}
                 </span>
               </a></li>
             ))}
@@ -124,14 +147,20 @@ const jsonLd = [
           {recientes.map((partido) => {
             const { match, homeTeam, awayTeam } = partido;
             // Solo con los dos goles cargados: un marcador nunca se inventa (docs/33 D3)
-            const resultado = textoResultado(partido);
+            const marcador = marcadorPartido(match);
             return (
               <li><a href={rutaPublica("partidos", match.id)}>
-                <span class="lg-equipos">{resultado ?? `${homeTeam.name} vs ${awayTeam.name}`}</span>
-                <span class="lg-detalle">
-                  {match.round?.trim() && <>{match.round.trim()} · </>}
-                  <time datetime={match.dateTime.toISOString()}>{fechaLarga(match.dateTime)}</time>
-                  {!resultado && " · Terminado"}
+                <time class="lg-cuando" datetime={match.dateTime.toISOString()}>{fechaCorta(match.dateTime)}</time>
+                <span class="lg-partido">
+                  <span class="lg-equipos">
+                    <span class="lg-eq">{homeTeam.logo && <Escudo src={homeTeam.logo} nombre={homeTeam.name} sigla={homeTeam.shortName} size={28} pad={2} />}{marcador ? `${homeTeam.name} ${marcador.local},` : homeTeam.name}</span>
+                    {!marcador && <span class="lg-vs">vs</span>}
+                    <span class="lg-eq">{awayTeam.logo && <Escudo src={awayTeam.logo} nombre={awayTeam.name} sigla={awayTeam.shortName} size={28} pad={2} />}{marcador ? `${awayTeam.name} ${marcador.visitante}` : awayTeam.name}</span>
+                  </span>
+                  <span class="lg-detalle">
+                    {match.round?.trim() && <>{match.round.trim()}</>}
+                    {!marcador && <>{match.round?.trim() ? " · " : ""}Terminado</>}
+                  </span>
                 </span>
               </a></li>
             );
@@ -161,13 +190,35 @@ const jsonLd = [
   .fixture-publico h2 { margin: 0; font: 400 32px/1.1 var(--font-titular); }
   .fixture-publico p { font: 400 16px/1.6 var(--font-texto); }
   .fixture-publico .lg-respuesta { margin: 12px 0 0; max-width: 68ch; font: 400 19px/1.55 var(--font-texto); }
-  .fixture-publico .lg-horas { margin: 12px 0 0; max-width: 68ch; }
   .fixture-publico .lg-nota { font-size: 15px; color: var(--tinta-suave); }
-  .fixture-publico ul, .fixture-publico ol { list-style: none; padding: 0; }
+  .fixture-publico ul, .fixture-publico ol { list-style: none; padding: 0; margin: 0 0 16px; }
   .fixture-publico li { border-bottom: 1px solid var(--linea); }
-  .fixture-publico li a { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding: 16px 0; }
   .fixture-publico a { color: var(--tinta); text-decoration: underline; text-underline-offset: 4px; }
-  .fixture-publico li a { text-decoration: none; }
-  .fixture-publico .lg-equipos { text-decoration: underline; text-underline-offset: 4px; font: 700 18px/1.4 var(--font-rotulo); }
-  .fixture-publico .lg-detalle { font: 500 15px/1.6 var(--font-rotulo); }
+  .fixture-publico li a { display: grid; grid-template-columns: 9.5rem 1fr; align-items: baseline; gap: 4px 24px; padding: 14px 8px; text-decoration: none; }
+  .fixture-publico li a:hover, .fixture-publico li a:focus-visible { background: var(--papel-2); }
+  .fixture-publico li a:focus-visible { outline: 2px solid var(--rojo); outline-offset: -2px; }
+  .fixture-publico li a:hover .lg-equipos, .fixture-publico li a:focus-visible .lg-equipos { text-decoration: underline; text-underline-offset: 4px; }
+  .fixture-publico .lg-cuando { font: 700 14px/1.4 var(--font-rotulo); letter-spacing: 0.04em; text-transform: uppercase; color: var(--rojo); }
+  .fixture-publico .lg-partido { display: flex; flex-direction: column; gap: 2px; }
+  .fixture-publico .lg-equipos { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font: 700 18px/1.4 var(--font-rotulo); }
+  .fixture-publico .lg-eq { display: inline-flex; align-items: center; gap: 8px; }
+  .fixture-publico .lg-vs { font-weight: 500; color: var(--tinta-suave); }
+  .fixture-publico .lg-proximo-cruce { display: flex; align-items: center; gap: 16px; align-self: stretch; }
+  .fixture-publico .lg-proximo-cruce p { flex: 1; min-width: 0; text-align: center; }
+  .fixture-publico .lg-detalle { font: 500 14px/1.5 var(--font-rotulo); color: var(--tinta-suave); }
+  .fixture-publico .lg-proximo { margin: 16px 0; padding: 20px 24px; background: var(--papel-2); border-left: 4px solid var(--rojo); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+  .fixture-publico .lg-proximo p { margin: 0; }
+  .fixture-publico .lg-proximo-equipos { font: 400 clamp(28px, 5vw, 40px)/1.1 var(--font-titular); }
+  .fixture-publico .lg-proximo-ronda { font: 700 14px/1.4 var(--font-rotulo); letter-spacing: 0.04em; text-transform: uppercase; color: var(--tinta-suave); }
+  .fixture-publico .lg-proximo-cuando { font: 700 17px/1.4 var(--font-rotulo); }
+  .fixture-publico .lg-horas { align-self: stretch; margin-top: 8px; border-top: 1px solid var(--linea); padding-top: 12px; }
+  .fixture-publico .lg-horas-titulo { font: 700 13px/1.4 var(--font-rotulo); letter-spacing: 0.06em; text-transform: uppercase; color: var(--tinta-suave); }
+  .fixture-publico .lg-horas dl { margin: 6px 0 0; }
+  .fixture-publico .lg-hora-fila { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-bottom: 1px dotted var(--linea); font: 500 15px/1.5 var(--font-rotulo); }
+  .fixture-publico .lg-hora-fila dt { margin: 0; }
+  .fixture-publico .lg-hora-fila dd { margin: 0; font-weight: 700; text-align: right; white-space: nowrap; }
+  @media (max-width: 640px) {
+    .fixture-publico li a { grid-template-columns: 1fr; padding: 12px 0; }
+    .fixture-publico .lg-proximo { padding: 16px; }
+  }
 </style>
