@@ -39,6 +39,22 @@ interface EspnTeamsResponse {
   sports?: { leagues?: { teams?: { team?: EspnTeamConLogos }[] }[] }[];
 }
 
+interface EspnLogo {
+  href?: string;
+  rel?: string[];
+}
+
+interface EspnScoreboard {
+  events?: EspnEvent[];
+  leagues?: { logos?: EspnLogo[] }[];
+}
+
+// Logo de la competencia: la variante `default` (clara); la oscura no se guarda (docs/36 D3)
+export function logoDeCompetencia(logos: EspnLogo[] | undefined): string | undefined {
+  const href = logos?.find((l) => l.href && l.rel?.includes("default"))?.href;
+  return href || undefined;
+}
+
 // Correcciones al nombre en español que devuelve ESPN, por ID de equipo (docs/32 D5)
 const NOMBRES_SELECCION: Record<string, string> = {
   "204": "Bolivia", // ESPN: "Bolívia"
@@ -203,10 +219,14 @@ export function createEspnClient(): DataProvider {
     throw ultimoError instanceof Error ? ultimoError : new Error(`ESPN ${etiqueta}: sin respuesta`);
   }
 
-  async function pedirTemporada(slug: string, anio: number, idioma?: "es"): Promise<EspnEvent[]> {
+  async function pedirTemporada(
+    slug: string,
+    anio: number,
+    idioma?: "es"
+  ): Promise<{ eventos: EspnEvent[]; logo?: string }> {
     const url = `${BASE_URL}/${slug}/scoreboard?dates=${anio}&limit=1000${idioma ? `&lang=${idioma}` : ""}`;
-    const data = await pedirJson<{ events?: EspnEvent[] }>(url, `${slug} ${anio}`, true);
-    return data?.events ?? [];
+    const data = await pedirJson<EspnScoreboard>(url, `${slug} ${anio}`, true);
+    return { eventos: data?.events ?? [], logo: logoDeCompetencia(data?.leagues?.[0]?.logos) };
   }
 
   // Plantel de una competencia (docs/32 D4): sus equipos existen aunque ESPN no publique partidos
@@ -221,9 +241,11 @@ export function createEspnClient(): DataProvider {
     const idioma = options?.idioma;
     const porId = new Map<string, EspnEvent>();
 
+    let logoLiga: string | undefined;
     for (const anio of anios) {
-      const eventos = await pedirTemporada(slug, anio, idioma);
+      const { eventos, logo } = await pedirTemporada(slug, anio, idioma);
       for (const e of eventos) porId.set(e.id, e);
+      logoLiga ??= logo;
     }
 
     const equipos = new Map<string, ProviderTeam>();
@@ -336,7 +358,7 @@ export function createEspnClient(): DataProvider {
       }
     }
 
-    return { teams: [...equipos.values()], matches: partidos, participantIds: [...participantes] };
+    return { teams: [...equipos.values()], matches: partidos, participantIds: [...participantes], logoLiga };
   }
 
   return {

@@ -8,6 +8,7 @@ import { createDb } from "../../lib/db";
 import { and, asc, eq } from "drizzle-orm";
 import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 import { rutaPublica } from "../../lib/seo";
+import { ordenarCompetencias } from "../../lib/competencias";
 
 // Página pública: sin sesión se puede buscar; seguir un equipo pide iniciar sesión
 const user = Astro.locals.user;
@@ -15,11 +16,12 @@ const user = Astro.locals.user;
 const db = createDb(Astro.locals.runtime.env.DB);
 
 // Solo las destacadas: un equipo aparece si juega alguna (docs/22)
-const todasLasLigas = await db
-  .select()
-  .from(leagues)
-  .where(and(eq(leagues.isActive, true), eq(leagues.isFeatured, true)))
-  .orderBy(asc(leagues.name));
+const todasLasLigas = ordenarCompetencias(
+  await db
+    .select()
+    .from(leagues)
+    .where(and(eq(leagues.isActive, true), eq(leagues.isFeatured, true)))
+);
 const ligaPorId = new Map(todasLasLigas.map((l) => [l.id, l.name]));
 
 const todosLosEquipos = await db

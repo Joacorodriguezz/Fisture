@@ -34,6 +34,8 @@ export interface ProviderFixture {
   matches: ProviderMatch[];
   // Equipos de la temporada en curso (externalId). Si no viene, participan todos los de teams.
   participantIds?: string[];
+  // Logo de la competencia (variante clara), si el proveedor lo informa (docs/36 D2)
+  logoLiga?: string;
 }
 
 export interface FixtureOptions {
@@ -79,6 +81,9 @@ export interface LeagueConfig {
   // Idioma en que se piden los nombres de los equipos. Solo las competencias donde aparecen
   // selecciones (docs/32 D5); las de clubes no cambian para no reescribir nombres ya guardados.
   idioma?: "es";
+  // Orden en que se listan las competencias destacadas (menor = primero). Única entre destacadas
+  // (docs/36 D1); las no destacadas llevan una prioridad alta fija.
+  prioridad: number;
 }
 
 // Competencia cuyos equipos son su "liga de origen" (alta y adopción del país): las ligas y las
@@ -88,9 +93,12 @@ export function defineOrigen(config: Pick<LeagueConfig, "tipo" | "participantes"
 }
 
 type Datos = Pick<LeagueConfig, "externalId" | "name" | "country" | "region" | "participantes" | "idioma">;
-const liga = (c: Datos): LeagueConfig => ({ ...c, tipo: "liga", source: "espn", destacada: true });
-const copaDestacada = (c: Datos): LeagueConfig => ({ ...c, tipo: "copa", source: "espn", destacada: true });
-const copa = (c: Datos): LeagueConfig => ({ ...c, tipo: "copa", source: "espn", destacada: false });
+type DatosDestacada = Datos & Pick<LeagueConfig, "prioridad">;
+// Las no destacadas no se listan, así que su prioridad es fija y alta
+const PRIORIDAD_NO_DESTACADA = 1000;
+const liga = (c: DatosDestacada): LeagueConfig => ({ ...c, tipo: "liga", source: "espn", destacada: true });
+const copaDestacada = (c: DatosDestacada): LeagueConfig => ({ ...c, tipo: "copa", source: "espn", destacada: true });
+const copa = (c: Datos): LeagueConfig => ({ ...c, tipo: "copa", source: "espn", destacada: false, prioridad: PRIORIDAD_NO_DESTACADA });
 
 // Competencias que sincroniza el backend. Fuente: ESPN (sin API key); el slug de ESPN es el externalId.
 // El orden importa:
@@ -99,30 +107,30 @@ const copa = (c: Datos): LeagueConfig => ({ ...c, tipo: "copa", source: "espn", 
 // 3. al final las copas no destacadas, que solo guardan partidos de equipos ya conocidos.
 export const LEAGUES_CONFIG: LeagueConfig[] = [
   // Ligas
-  liga({ externalId: "eng.1", name: "Premier League", country: "Inglaterra", region: "europa" }),
-  liga({ externalId: "esp.1", name: "La Liga", country: "España", region: "europa" }),
-  liga({ externalId: "ita.1", name: "Serie A", country: "Italia", region: "europa" }),
-  liga({ externalId: "ger.1", name: "Bundesliga", country: "Alemania", region: "europa" }),
-  liga({ externalId: "fra.1", name: "Ligue 1", country: "Francia", region: "europa" }),
-  liga({ externalId: "arg.1", name: "Liga Profesional Argentina", country: "Argentina", region: "sudamerica" }),
-  liga({ externalId: "bra.1", name: "Brasileirão", country: "Brasil", region: "sudamerica" }),
-  liga({ externalId: "uru.1", name: "Liga AUF Uruguaya", country: "Uruguay", region: "sudamerica" }),
-  liga({ externalId: "col.1", name: "Liga BetPlay", country: "Colombia", region: "sudamerica" }),
-  liga({ externalId: "chi.1", name: "Primera División de Chile", country: "Chile", region: "sudamerica" }),
-  liga({ externalId: "ecu.1", name: "LigaPro Ecuador", country: "Ecuador", region: "sudamerica" }),
-  liga({ externalId: "par.1", name: "Primera División de Paraguay", country: "Paraguay", region: "sudamerica" }),
-  liga({ externalId: "per.1", name: "Liga 1 de Perú", country: "Perú", region: "sudamerica" }),
-  liga({ externalId: "bol.1", name: "División Profesional de Bolivia", country: "Bolivia", region: "sudamerica" }),
-  liga({ externalId: "ven.1", name: "Liga FUTVE", country: "Venezuela", region: "sudamerica" }),
+  liga({ externalId: "eng.1", prioridad: 4, name: "Premier League", country: "Inglaterra", region: "europa" }),
+  liga({ externalId: "esp.1", prioridad: 6, name: "La Liga", country: "España", region: "europa" }),
+  liga({ externalId: "ita.1", prioridad: 7, name: "Serie A", country: "Italia", region: "europa" }),
+  liga({ externalId: "ger.1", prioridad: 8, name: "Bundesliga", country: "Alemania", region: "europa" }),
+  liga({ externalId: "fra.1", prioridad: 9, name: "Ligue 1", country: "Francia", region: "europa" }),
+  liga({ externalId: "arg.1", prioridad: 1, name: "Liga Profesional Argentina", country: "Argentina", region: "sudamerica" }),
+  liga({ externalId: "bra.1", prioridad: 12, name: "Brasileirão", country: "Brasil", region: "sudamerica" }),
+  liga({ externalId: "uru.1", prioridad: 13, name: "Liga AUF Uruguaya", country: "Uruguay", region: "sudamerica" }),
+  liga({ externalId: "col.1", prioridad: 14, name: "Liga BetPlay", country: "Colombia", region: "sudamerica" }),
+  liga({ externalId: "chi.1", prioridad: 15, name: "Primera División de Chile", country: "Chile", region: "sudamerica" }),
+  liga({ externalId: "ecu.1", prioridad: 16, name: "LigaPro Ecuador", country: "Ecuador", region: "sudamerica" }),
+  liga({ externalId: "par.1", prioridad: 17, name: "Primera División de Paraguay", country: "Paraguay", region: "sudamerica" }),
+  liga({ externalId: "per.1", prioridad: 18, name: "Liga 1 de Perú", country: "Perú", region: "sudamerica" }),
+  liga({ externalId: "bol.1", prioridad: 19, name: "División Profesional de Bolivia", country: "Bolivia", region: "sudamerica" }),
+  liga({ externalId: "ven.1", prioridad: 20, name: "Liga FUTVE", country: "Venezuela", region: "sudamerica" }),
 
   // Copas internacionales destacadas
-  copaDestacada({ externalId: "uefa.champions", name: "UEFA Champions League", country: "Europa", region: "europa" }),
-  copaDestacada({ externalId: "uefa.europa", name: "UEFA Europa League", country: "Europa", region: "europa" }),
-  copaDestacada({ externalId: "uefa.europa.conf", name: "UEFA Conference League", country: "Europa", region: "europa" }),
-  copaDestacada({ externalId: "conmebol.libertadores", name: "Copa Libertadores", country: "Sudamérica", region: "sudamerica" }),
-  copaDestacada({ externalId: "conmebol.sudamericana", name: "Copa Sudamericana", country: "Sudamérica", region: "sudamerica" }),
+  copaDestacada({ externalId: "uefa.champions", prioridad: 5, name: "UEFA Champions League", country: "Europa", region: "europa" }),
+  copaDestacada({ externalId: "uefa.europa", prioridad: 10, name: "UEFA Europa League", country: "Europa", region: "europa" }),
+  copaDestacada({ externalId: "uefa.europa.conf", prioridad: 11, name: "UEFA Conference League", country: "Europa", region: "europa" }),
+  copaDestacada({ externalId: "conmebol.libertadores", prioridad: 2, name: "Copa Libertadores", country: "Sudamérica", region: "sudamerica" }),
+  copaDestacada({ externalId: "conmebol.sudamericana", prioridad: 3, name: "Copa Sudamericana", country: "Sudamérica", region: "sudamerica" }),
   // Hace "conocidas" a las 10 selecciones de CONMEBOL: los amistosos y la Copa América guardan sus partidos
-  copaDestacada({ externalId: "fifa.worldq.conmebol", name: "Eliminatorias Sudamericanas", country: "Sudamérica", region: "sudamerica", participantes: "plantel-fijo", idioma: "es" }),
+  copaDestacada({ externalId: "fifa.worldq.conmebol", prioridad: 21, name: "Eliminatorias Sudamericanas", country: "Sudamérica", region: "sudamerica", participantes: "plantel-fijo", idioma: "es" }),
 
   // Clasificatorias, supercopas y torneos de clubes: solo en el fixture de cada equipo
   copa({ externalId: "uefa.champions_qual", name: "Clasificación a la Champions League", country: "Europa", region: "europa" }),

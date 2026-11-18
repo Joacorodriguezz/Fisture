@@ -10,6 +10,7 @@ import {
 } from "../../../drizzle/schema";
 import type { Database } from "./index";
 import { diaISO } from "../format";
+import { ordenarCompetencias } from "../competencias";
 
 const awayTeams = alias(teams, "away_team");
 
@@ -273,12 +274,12 @@ export async function getFollowedIds(db: Database, userId: string): Promise<Set<
 }
 
 // Ligas activas y destacadas, para llms.txt y el sitemap
-export function getLigasPublicas(db: Database) {
-  return db
-    .select({ id: leagues.id, name: leagues.name, country: leagues.country, slug: leagues.slug })
+export async function getLigasPublicas(db: Database) {
+  const filas = await db
+    .select({ id: leagues.id, externalId: leagues.externalId, name: leagues.name, country: leagues.country, slug: leagues.slug })
     .from(leagues)
-    .where(and(eq(leagues.isActive, true), eq(leagues.isFeatured, true)))
-    .orderBy(asc(leagues.name));
+    .where(and(eq(leagues.isActive, true), eq(leagues.isFeatured, true)));
+  return ordenarCompetencias(filas);
 }
 
 // Páginas públicas dinámicas para el sitemap: ligas activas, sus equipos con algún partido y los
