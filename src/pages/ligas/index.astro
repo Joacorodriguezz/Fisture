@@ -8,7 +8,7 @@ import { createDb } from "../../lib/db";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 import { rutaPublica } from "../../lib/seo";
-import { ordenarCompetencias } from "../../lib/competencias";
+import { nombreCorto, ordenarCompetencias } from "../../lib/competencias";
 
 // Página pública: sin sesión no hay "tus equipos"
 const user = Astro.locals.user;
@@ -96,10 +96,8 @@ const tarjetas = allLeagues.map((liga) => {
           href={rutaPublica("ligas", liga)}
           class="lg-tarjeta"
         >
-          <div style="display:flex;align-items:center;gap:14px">
-            <Escudo src={liga.logo} nombre={liga.name} size={44} pad={4} />
-            <span class="lg-nombre" style="font:400 34px/1 var(--font-titular);text-transform:uppercase">{liga.name}</span>
-          </div>
+          <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">{liga.country}</span>
+          <span class="lg-nombre" style="font:400 40px/1 var(--font-titular);text-transform:uppercase">{nombreCorto(liga.externalId, liga.name)}</span>
           <div style="display:flex;flex-wrap:wrap;gap:6px">
             {muestra.map((t) => (
               <Escudo src={t.logo} nombre={t.name} sigla={t.shortName} size={34} pad={3} />

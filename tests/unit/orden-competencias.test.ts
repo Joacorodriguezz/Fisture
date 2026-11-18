@@ -1,7 +1,7 @@
 // Orden de las competencias destacadas al listarlas (docs/36 D1)
 import { describe, expect, it } from "vitest";
 import { LEAGUES_CONFIG } from "../../src/lib/data-providers";
-import { ordenarCompetencias } from "../../src/lib/competencias";
+import { nombreCorto, ordenarCompetencias } from "../../src/lib/competencias";
 
 const fila = (externalId: string) => ({ externalId, name: `Nombre ${externalId}` });
 
@@ -60,5 +60,20 @@ describe("ordenarCompetencias", () => {
   it("conserva los demás campos de cada fila", () => {
     const res = ordenarCompetencias([{ externalId: "arg.1", name: "A", id: "l1" }]);
     expect(res[0].id).toBe("l1");
+  });
+});
+
+describe("nombreCorto", () => {
+  it("acorta los nombres largos y deja el resto igual", () => {
+    expect(nombreCorto("bol.1", "División Profesional de Bolivia")).toBe("Liga Boliviana");
+    expect(nombreCorto("fifa.worldq.conmebol", "Eliminatorias Sudamericanas")).toBe("Eliminatorias");
+    expect(nombreCorto("eng.1", "Premier League")).toBe("Premier League");
+    expect(nombreCorto(null, "Otra")).toBe("Otra");
+  });
+
+  it("ningún nombre corto supera los 20 caracteres", () => {
+    for (const id of ["arg.1", "bol.1", "chi.1", "par.1", "per.1", "uru.1", "uefa.champions", "uefa.europa", "uefa.europa.conf", "fifa.worldq.conmebol"]) {
+      expect(nombreCorto(id, "x").length, id).toBeLessThanOrEqual(20);
+    }
   });
 });
