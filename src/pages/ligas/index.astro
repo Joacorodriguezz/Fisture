@@ -8,6 +8,7 @@ import { createDb } from "../../lib/db";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { leagues, leagueTeams, teams, userTeams } from "../../../drizzle/schema";
 import { rutaPublica } from "../../lib/seo";
+import { nombreCorto, ordenarCompetencias } from "../../lib/competencias";
 
 // Página pública: sin sesión no hay "tus equipos"
 const user = Astro.locals.user;
@@ -15,11 +16,12 @@ const user = Astro.locals.user;
 const db = createDb(Astro.locals.runtime.env.DB);
 
 // Solo las destacadas: las copas nacionales y supercopas aparecen en el fixture de cada equipo (docs/22)
-const allLeagues = await db
-  .select()
-  .from(leagues)
-  .where(and(eq(leagues.isActive, true), eq(leagues.isFeatured, true)))
-  .orderBy(asc(leagues.name));
+const allLeagues = ordenarCompetencias(
+  await db
+    .select()
+    .from(leagues)
+    .where(and(eq(leagues.isActive, true), eq(leagues.isFeatured, true)))
+);
 // Un equipo aparece en todas las competencias que juega (su liga y las copas)
 const allTeams = await db
   .select({ id: teams.id, name: teams.name, shortName: teams.shortName, logo: teams.logo, leagueId: leagueTeams.leagueId })
@@ -95,7 +97,7 @@ const tarjetas = allLeagues.map((liga) => {
           class="lg-tarjeta"
         >
           <span style="font:700 13px/16px var(--font-rotulo);letter-spacing:.06em;text-transform:uppercase;color:var(--rojo)">{liga.country}</span>
-          <span class="lg-nombre" style="font:400 40px/1 var(--font-titular);text-transform:uppercase">{liga.name}</span>
+          <span class="lg-nombre" style="font:400 40px/1 var(--font-titular);text-transform:uppercase">{nombreCorto(liga.externalId, liga.name)}</span>
           <div style="display:flex;flex-wrap:wrap;gap:6px">
             {muestra.map((t) => (
               <Escudo src={t.logo} nombre={t.name} sigla={t.shortName} size={34} pad={3} />

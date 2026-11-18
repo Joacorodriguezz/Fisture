@@ -16,6 +16,30 @@ it("pide los años que completan la temporada europea", () => {
   expect(aniosATraer(new Date("2026-08-01T00:00:00Z"))).toEqual([2026, 2027]);
 });
 
+describe("logo de la competencia (docs/36 D2)", () => {
+  const logos = [
+    { href: "https://a.espncdn.com/i/leaguelogos/soccer/500-dark/1.png", rel: ["full", "dark"] },
+    { href: "https://a.espncdn.com/i/leaguelogos/soccer/500/1.png", rel: ["full", "default"] },
+  ];
+  const fixtureCon = async (leagues: unknown) => {
+    mockResponse({ ...payload(), leagues });
+    return createEspnClient().getFixture!("arg.1", { years: [2026] });
+  };
+
+  it("toma la variante default sin pedidos extra", async () => {
+    const fetch = mockResponse({ ...payload(), leagues: [{ logos }] });
+    const fixture = await createEspnClient().getFixture!("arg.1", { years: [2026] });
+    expect(fixture.logoLiga).toBe("https://a.espncdn.com/i/leaguelogos/soccer/500/1.png");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it("tolera logos ausentes, vacíos o sin variante default", async () => {
+    expect((await fixtureCon(undefined)).logoLiga).toBeUndefined();
+    expect((await fixtureCon([{}])).logoLiga).toBeUndefined();
+    expect((await fixtureCon([{ logos: [] }])).logoLiga).toBeUndefined();
+    expect((await fixtureCon([{ logos: [logos[0]] }])).logoLiga).toBeUndefined();
+  });
+});
+
 describe("contrato ESPN con fixture sin red", () => {
   it("normaliza IDs, local/visitante y elimina duplicados entre años", async () => {
     vi.useFakeTimers();

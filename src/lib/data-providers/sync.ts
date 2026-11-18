@@ -12,6 +12,7 @@ import { mensajeDeError, rootLogger } from "../observability/logger";
 import { guardarSlugs, resolverSlugsNuevos } from "../db/slugs";
 import type { FilaSinSlug } from "../slug";
 import { teams, matches, leagues, leagueTeams } from "../../../drizzle/schema";
+import { logoDeCompetencia } from "../logos-competencias";
 import {
   createEspnClient,
   createFootballDataClient,
@@ -246,7 +247,7 @@ async function syncLeague(
         },
       })
       // El slug no se escribe acá: una vez asignado no cambia aunque cambie el nombre (docs/33 D9)
-      .returning({ id: leagues.id, slug: leagues.slug });
+      .returning({ id: leagues.id, slug: leagues.slug, logo: leagues.logo });
     const ligaId = liga.id;
     if (!liga.slug) ligasSinSlug.push({ id: ligaId, name: config.name, country: config.country });
 
@@ -257,6 +258,12 @@ async function syncLeague(
           teams: await provider.getTeams(config.externalId),
           matches: await provider.getMatches(config.externalId, { from: desde() }),
         };
+    // Logo de la competencia: el propio (public/logos/competencias) o, si no hay, el de ESPN. Un UPDATE solo
+    // si cambió y nunca se pisa con null (docs/36 D2)
+    const logoLiga = logoDeCompetencia(config.externalId, completo.logoLiga);
+    if (logoLiga && logoLiga !== liga.logo) {
+      await db.update(leagues).set({ logo: logoLiga }).where(eq(leagues.id, ligaId));
+    }
     const fixture = config.destacada ? completo : await soloEquiposConocidos(db, config, completo, conocidos);
 
     // 3. Equipos: participantes de la temporada y los que aparecen en partidos que se guardan
