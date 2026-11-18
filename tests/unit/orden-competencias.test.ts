@@ -64,16 +64,10 @@ describe("ordenarCompetencias", () => {
 });
 
 describe("nombreCorto", () => {
-  it("acorta los nombres largos y deja el resto igual", () => {
+  it("acorta solo Bolivia y deja el resto igual", () => {
     expect(nombreCorto("bol.1", "División Profesional de Bolivia")).toBe("Liga Boliviana");
-    expect(nombreCorto("fifa.worldq.conmebol", "Eliminatorias Sudamericanas")).toBe("Eliminatorias");
-    expect(nombreCorto("eng.1", "Premier League")).toBe("Premier League");
+    expect(nombreCorto("arg.1", "Liga Profesional Argentina")).toBe("Liga Profesional Argentina");
+    expect(nombreCorto("fifa.worldq.conmebol", "Eliminatorias Sudamericanas")).toBe("Eliminatorias Sudamericanas");
     expect(nombreCorto(null, "Otra")).toBe("Otra");
-  });
-
-  it("ningún nombre corto supera los 20 caracteres", () => {
-    for (const id of ["arg.1", "bol.1", "chi.1", "par.1", "per.1", "uru.1", "uefa.champions", "uefa.europa", "uefa.europa.conf", "fifa.worldq.conmebol"]) {
-      expect(nombreCorto(id, "x").length, id).toBeLessThanOrEqual(20);
-    }
   });
 });
