@@ -35,6 +35,9 @@ export const users = sqliteTable(
     calendarAuthStatus: text("calendar_auth_status").notNull().default("ok"),
     // Cuándo terminó (o salteó) el onboarding de /bienvenida. NULL = todavía no lo vio (docs/31 D13).
     onboardedAt: integer("onboarded_at", { mode: "timestamp" }),
+    // Nombre visible del prode (posiciones y grupos). NULL = no lo eligió. Validado por
+    // lib/prode/nombre-visible.ts; nunca se loguea.
+    displayName: text("display_name"),
   },
   (table) => ({
     calendarReconciledIdx: index("idx_users_calendar_reconciled").on(table.calendarReconciledAt),
