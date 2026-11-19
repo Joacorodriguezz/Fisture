@@ -47,3 +47,23 @@ Te podés sumar en cualquier momento. Empezás con **0 puntos** y podés pronost
 
 ## Notas de implementación
 
+
+- **`getSessionUser` no se desacopla de `users.display_name`.** Hace `select` de `users` completo y `cuenta.astro` lee `user.displayName` del resultado; una selección explícita sin esa columna rompería ese consumidor (y el tipo `User`). Por eso el orden de despliegue es la defensa: las migraciones van antes que el código (ver "Despliegue del prode"). Con el código nuevo sobre una D1 sin la 0017, todo request con sesión da 500.
+
+## Despliegue del prode
+
+Tres migraciones, todas **solo aditivas** (el código anterior no las lee y sigue funcionando con la base migrada):
+
+| Migración | Efecto |
+|---|---|
+| `0017_users_display_name` | `ALTER TABLE users ADD COLUMN display_name TEXT` (nullable) |
+| `0018_prode_grupos` | tablas `prode_groups` y `prode_group_members` (`owner_id` es `RESTRICT`) |
+| `0019_prode_pronosticos` | tabla `prode_predictions` (PK `(user_id, match_id)`) |
+
+**Orden obligatorio: migraciones ANTES del deploy del código**, en cada entorno.
+
+- Producción: `deploy.yml` aplica las migraciones de D1 antes de desplegar el artefacto; si se despliega a mano, correr `npm run db:migrate:prod` primero.
+- Staging (`fisture-staging`, `docs/26`): aplicar las migraciones a esa D1 antes del push a `development` que trae el código del prode (`npx wrangler d1 migrations apply fisture-staging --remote`, con el binding de `[env.preview]`); si no, el sitio de staging responde 500 a toda petición con sesión.
+- Verificación: `/api/health` y una navegación con sesión (por ejemplo `/cuenta`) tras el deploy.
+
+**Rollback.** Como son aditivas, revertir el código basta: la base migrada sigue siendo compatible con la versión anterior. No se borran las tablas ni la columna (perderían nombres, grupos y pronósticos). Si hubiera que quitarlas, hacerlo recién con el código anterior ya desplegado y en este orden: `DROP TABLE prode_predictions`, `prode_group_members`, `prode_groups`; `ALTER TABLE users DROP COLUMN display_name`. Atención: `DELETE FROM users` manual falla si el usuario es dueño de un grupo (`docs/23`, `docs/14`).
