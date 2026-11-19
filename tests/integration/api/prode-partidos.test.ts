@@ -303,6 +303,13 @@ describe("/api/admin/prode/partidos", () => {
       expect(await cuenta()).toBe(1);
     });
 
+    it("la ventana es de menos de 6 h: a 5:59 es duplicado, a 6:00 no", async () => {
+      await llamar("POST", cruce);
+      for (const horario of ["2026-11-22T15:01", "2026-11-23T02:59"]) expect((await llamar("POST", { ...cruce, horario })).status).toBe(409);
+      expect((await llamar("POST", { ...cruce, horario: "2026-11-22T15:00" })).status).toBe(201);
+      expect((await llamar("POST", { ...cruce, horario: "2026-11-23T03:00" })).status).toBe(201);
+    });
+
     it("POST permite los mismos equipos con dos días de diferencia (ida y vuelta)", async () => {
       await llamar("POST", cruce);
       expect((await llamar("POST", { ...cruce, horario: "2026-11-24T21:00" })).status).toBe(201);

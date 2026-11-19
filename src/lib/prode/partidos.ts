@@ -6,7 +6,7 @@
 // - date_time es el único horario: el que se muestra y el que cierra el pronóstico (horario.ts).
 // Corregir el horario alcanza para el calendario: la reconciliación compara date_time con el horario
 // sincronizado de cada evento y lo marca needs_update (docs/11).
-import { and, eq, gte, inArray, lte, ne } from "drizzle-orm";
+import { and, eq, gt, inArray, lt, ne } from "drizzle-orm";
 import { leagues, matches, prodeMatches, teams } from "../../../drizzle/schema";
 import type { Database } from "../db";
 import { cierraPronostico, esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
@@ -99,8 +99,9 @@ async function buscarDuplicado(
         eq(matches.leagueId, c.leagueId),
         eq(matches.homeTeamId, c.homeTeamId),
         eq(matches.awayTeamId, c.awayTeamId),
-        gte(matches.dateTime, new Date(t - VENTANA_DUPLICADO_MS)),
-        lte(matches.dateTime, new Date(t + VENTANA_DUPLICADO_MS)),
+        // Menos de 6 h, estricto: a 6:00 exactas es otro partido (igual que esMismoCruce)
+        gt(matches.dateTime, new Date(t - VENTANA_DUPLICADO_MS)),
+        lt(matches.dateTime, new Date(t + VENTANA_DUPLICADO_MS)),
         ...(c.excluirId ? [ne(matches.id, c.excluirId)] : [])
       )
     )
