@@ -62,19 +62,24 @@ export function codigoValido(valor: unknown): valor is string {
 // Tope de grupos creados por dueño (los grupos a los que solo se une no cuentan)
 export const MAX_GRUPOS_POR_DUENO = 10;
 
-export async function contarGruposCreados(db: Database, ownerId: string): Promise<number> {
-  const [fila] = await db.select({ n: sql<number>`count(*)` }).from(prodeGroups).where(eq(prodeGroups.ownerId, ownerId));
-  return Number(fila?.n ?? 0);
-}
-
-export async function crearGrupo(db: Database, ownerId: string, nombre: unknown, ahora = Date.now()): Promise<GrupoCreado | null> {
+// null: nombre inválido; "limite": el dueño ya tiene MAX_GRUPOS_POR_DUENO grupos.
+// El tope se evalúa dentro del propio INSERT (una sola sentencia atómica): dos creaciones simultáneas no lo superan.
+// La membresía del dueño solo se inserta si el grupo quedó creado (mismo batch).
+export async function crearGrupo(db: Database, ownerId: string, nombre: unknown, ahora = Date.now()): Promise<GrupoCreado | null | "limite"> {
   const name = normalizarNombre(nombre);
   if (!name) return null;
   const grupo = { id: crypto.randomUUID(), name, inviteCode: generarCodigoInvitacion(), ownerId, createdAt: ahora };
-  await db.batch([
-    db.insert(prodeGroups).values(grupo),
-    db.insert(prodeGroupMembers).values({ groupId: grupo.id, userId: ownerId, joinedAt: ahora }),
+  const [resGrupo] = await db.batch([
+    db.insert(prodeGroups).select(
+      sql`SELECT ${grupo.id}, ${name}, ${grupo.inviteCode}, ${ownerId}, ${ahora}
+        WHERE (SELECT count(*) FROM prode_groups WHERE owner_id = ${ownerId}) < ${MAX_GRUPOS_POR_DUENO}`,
+    ),
+    db.insert(prodeGroupMembers).select(
+      sql`SELECT ${grupo.id}, ${ownerId}, ${ahora} WHERE EXISTS (SELECT 1 FROM prode_groups WHERE id = ${grupo.id})`,
+    ),
   ]);
+  const cambios = (resGrupo as { meta?: { changes?: number } }).meta?.changes ?? 0;
+  if (cambios === 0) return "limite";
   return { id: grupo.id, name, inviteCode: grupo.inviteCode };
 }
 
