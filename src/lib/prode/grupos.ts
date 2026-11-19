@@ -3,10 +3,11 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { Database } from "../db";
 import { prodeGroupMembers, prodeGroups } from "../../../drizzle/schema";
+import { validarTextoPublico } from "./nombre-visible";
 
 export const NOMBRE_MIN = 3;
 export const NOMBRE_MAX = 40;
-// users todavía no tiene nombre visible (display_name): mientras tanto, un genérico
+// Para quien todavía no eligió nombre visible (users.display_name es null)
 export const NOMBRE_GENERICO = "Participante";
 
 // 16 bytes aleatorios (128 bits) en base64url: 22 caracteres, imposible de adivinar
@@ -42,9 +43,9 @@ export interface GrupoDetalle {
 }
 
 export function normalizarNombre(valor: unknown): string | null {
-  if (typeof valor !== "string") return null;
-  const nombre = valor.trim().replace(/\s+/g, " ");
-  return nombre.length >= NOMBRE_MIN && nombre.length <= NOMBRE_MAX ? nombre : null;
+  // Mismas reglas que el nombre visible (code points, sin invisibles/bidi, sin emails ni URLs), rango propio
+  const r = validarTextoPublico(valor, NOMBRE_MIN, NOMBRE_MAX);
+  return r.ok ? r.texto : null;
 }
 
 export function generarCodigoInvitacion(): string {

@@ -33,6 +33,21 @@ describe("prode: grupos privados", () => {
     });
   });
 
+  describe("normalizarNombre: reglas de nombre público", () => {
+    it("cuenta code points: 40 emojis entran, 41 no", () => {
+      expect(normalizarNombre("😀".repeat(40))).not.toBeNull();
+      expect(normalizarNombre("😀".repeat(41))).toBeNull();
+    });
+    it("rechaza emails, URLs e invisibles o bidi", () => {
+      for (const n of ["escribime@mail.com", "https://sitio.com", "www.sitio", "mi-sitio.com.ar", "Los​amigos", "Los‮amigos", "Los\namigos"]) {
+        expect(normalizarNombre(n), n).toBeNull();
+      }
+    });
+    it("acepta puntos entre palabras", () => {
+      expect(normalizarNombre("Los.Pibes")).toBe("Los.Pibes");
+    });
+  });
+
   it("el código de invitación es aleatorio, url-safe y largo", () => {
     const a = generarCodigoInvitacion();
     const b = generarCodigoInvitacion();
