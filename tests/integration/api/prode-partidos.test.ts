@@ -2,12 +2,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "../../helpers/use-test-db";
 import { apiCtx, kvEnMemoria, silenciarConsola } from "../../helpers/ctx";
+import { relojFijo } from "../../helpers/clock";
 import { GET, PATCH, POST } from "../../../src/pages/api/admin/prode/partidos";
 
 const ADMIN = "admin-de-prueba";
 
 describe("/api/admin/prode/partidos", () => {
   const t = useTestDb();
+  // Hora del servidor fija antes de los cruces de prueba (22/11): los PATCH no dependen del día en que corre la suite
+  relojFijo(new Date("2026-11-20T15:00:00Z"));
 
   beforeEach(async () => {
     silenciarConsola(vi);
@@ -77,6 +80,44 @@ describe("/api/admin/prode/partidos", () => {
     expect(res.status).toBe(200);
     expect(res.body.partido).toMatchObject({ fase: "semifinal", horario: { iso: "2026-11-23T19:15-03:00", hora: "19:15" } });
     expect(await fila(body.partido.id)).toMatchObject({ date_time: Date.parse("2026-11-23T22:15:00Z") / 1000, round: "semifinal" });
+  });
+
+  it("PATCH rechaza cambiar horario o fase de un partido que ya empezó", async () => {
+    const { body } = await llamar("POST", cruce);
+    const id = body.partido.id;
+    const original = await fila(id);
+    const intentar = async () => {
+      for (const cambio of [{ horario: "2026-11-25T21:00" }, { fase: "semifinal" }]) {
+        const res = await llamar("PATCH", { id, ...cambio });
+        expect(res.status).toBe(409);
+        expect(res.body.error).toBe("partido_ya_empezado");
+      }
+      expect(await fila(id)).toMatchObject({ date_time: original.date_time, round: "cuartos" });
+    };
+
+    // Horario ya alcanzado (hora del servidor), aunque el estado siga programado
+    vi.setSystemTime(new Date("2026-11-23T00:00:00Z"));
+    await intentar();
+
+    // Horario futuro pero en vivo o terminado
+    vi.setSystemTime(new Date("2026-11-20T15:00:00Z"));
+    for (const status of ["live", "finished", "cancelled"]) {
+      await t.DB.prepare("UPDATE matches SET status = ? WHERE id = ?").bind(status, id).run();
+      await intentar();
+    }
+
+    // Suspendido después de empezar: queda postponed con el horario ya pasado
+    vi.setSystemTime(new Date("2026-11-23T00:30:00Z"));
+    await t.DB.prepare("UPDATE matches SET status = 'postponed' WHERE id = ?").bind(id).run();
+    await intentar();
+  });
+
+  it("PATCH permite reprogramar un partido postergado antes de empezar", async () => {
+    const { body } = await llamar("POST", cruce);
+    await t.DB.prepare("UPDATE matches SET status = 'postponed' WHERE id = ?").bind(body.partido.id).run();
+    const res = await llamar("PATCH", { id: body.partido.id, horario: "2026-11-29T19:00" });
+    expect(res.status).toBe(200);
+    expect(res.body.partido.horario.iso).toBe("2026-11-29T19:00-03:00");
   });
 
   it("GET lista solo los cruces manuales, ordenados por horario", async () => {

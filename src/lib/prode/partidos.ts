@@ -8,7 +8,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { leagues, matches, teams } from "../../../drizzle/schema";
 import type { Database } from "../db";
-import { esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
+import { cierraPronostico, esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
 
 export const SOURCE_MANUAL = "manual";
 
@@ -96,10 +96,17 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
   const dateTime = horario === undefined ? undefined : parsearHorarioArgentino(horario);
   if (dateTime === null) return error(400, "horario_invalido");
 
-  const [m] = await db.select({ source: matches.source }).from(matches).where(eq(matches.id, id)).limit(1);
+  const [m] = await db
+    .select({ source: matches.source, dateTime: matches.dateTime, status: matches.status })
+    .from(matches)
+    .where(eq(matches.id, id))
+    .limit(1);
   if (!m) return error(404, "partido_inexistente");
   // Un partido que trae el sync se corrige solo: el próximo sync pisaría el cambio manual
   if (m.source !== SOURCE_MANUAL) return error(409, "partido_no_manual");
+  // Un partido empezado (hora del servidor o estado) no se toca: una nueva fecha reabriría los
+  // pronósticos de un suspendido a mitad de partido (docs/37 §5)
+  if (cierraPronostico(m, new Date())) return error(409, "partido_ya_empezado");
 
   await db
     .update(matches)

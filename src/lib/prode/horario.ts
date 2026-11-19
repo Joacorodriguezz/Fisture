@@ -51,8 +51,18 @@ export function horarioArgentino(instante: Date): HorarioMostrado {
   return { fecha: fechaCorta(instante), hora: hora(instante), iso: `${local}${OFFSET}` };
 }
 
-// El pronóstico cierra en el instante exacto del partido (el mismo que se muestra)
-export function cierraPronostico(partido: { dateTime: Date | number }, ahora: Date): boolean {
+// Estados de matches.status en los que el partido sigue sin empezar. Un suspendido después de empezar
+// queda en postponed con su horario ya pasado, así que el criterio de hora lo mantiene cerrado.
+const ESTADOS_SIN_EMPEZAR: readonly string[] = ["scheduled", "postponed"];
+
+export function estadoSinEmpezar(status: string | null | undefined): boolean {
+  return status == null || ESTADOS_SIN_EMPEZAR.includes(status);
+}
+
+// El pronóstico cierra en el instante exacto del partido (el mismo que se muestra), o antes si el
+// partido ya está en vivo, terminado o cancelado (docs/37 §5)
+export function cierraPronostico(partido: { dateTime: Date | number; status?: string | null }, ahora: Date): boolean {
+  if (!estadoSinEmpezar(partido.status)) return true;
   const inicio = partido.dateTime instanceof Date ? partido.dateTime.getTime() : partido.dateTime;
   return ahora.getTime() >= inicio;
 }

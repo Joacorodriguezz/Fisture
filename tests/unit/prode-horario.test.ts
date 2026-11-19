@@ -48,6 +48,22 @@ describe("cierraPronostico", () => {
     expect(cierraPronostico(reprogramado, new Date("2026-11-23T00:00:00.000Z"))).toBe(false);
   });
 
+  it("cierra por estado aunque el horario sea futuro: en vivo, terminado o cancelado", () => {
+    const antes = new Date("2026-11-22T12:00:00.000Z");
+    for (const status of ["live", "finished", "cancelled"]) {
+      expect(cierraPronostico({ ...partido, status }, antes)).toBe(true);
+    }
+  });
+
+  it("programado, postergado o sin estado: solo cierra por horario, con el borde exacto", () => {
+    const borde = new Date("2026-11-23T00:00:00.000Z");
+    const unMsAntes = new Date(borde.getTime() - 1);
+    for (const status of ["scheduled", "postponed", null, undefined]) {
+      expect(cierraPronostico({ ...partido, status }, unMsAntes)).toBe(false);
+      expect(cierraPronostico({ ...partido, status }, borde)).toBe(true);
+    }
+  });
+
   it("acepta el instante en epoch (segundos de D1 ya convertidos a Date) o en ms", () => {
     expect(cierraPronostico({ dateTime: partido.dateTime.getTime() }, new Date("2026-11-23T00:00:00.000Z"))).toBe(true);
   });
