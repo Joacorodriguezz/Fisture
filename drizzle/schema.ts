@@ -216,6 +216,31 @@ export const matches = sqliteTable(
 );
 
 // ============================================
+// PRODE: PRONÓSTICOS
+// ============================================
+
+// Un pronóstico por usuario y partido (migración 0018). El cierre sale de matches.date_time.
+export const prodePredictions = sqliteTable(
+  "prode_predictions",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    matchId: text("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+    homeGoals: integer("home_goals").notNull(),
+    awayGoals: integer("away_goals").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.userId, table.matchId] }),
+    matchIdx: index("idx_prode_predictions_match").on(table.matchId),
+  })
+);
+
+// ============================================
 // SINCRONIZACIÓN DE CALENDARIO
 // ============================================
 
