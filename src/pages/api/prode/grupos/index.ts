@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { createDb } from "../../../../lib/db";
-import { crearGrupo, misGrupos, NOMBRE_MAX, NOMBRE_MIN } from "../../../../lib/prode/grupos";
+import { contarGruposCreados, crearGrupo, MAX_GRUPOS_POR_DUENO, misGrupos, normalizarNombre, NOMBRE_MAX, NOMBRE_MIN } from "../../../../lib/prode/grupos";
 import { withApi } from "../../../../lib/observability/with-api";
 
 function json(body: unknown, status = 200) {
@@ -26,9 +26,15 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
 
   const body = (await request.json().catch(() => null)) as { nombre?: unknown } | null;
   const db = createDb(locals.runtime.env.DB);
+  if (normalizarNombre(body?.nombre) === null) {
+    return json({ error: `El nombre debe tener entre ${NOMBRE_MIN} y ${NOMBRE_MAX} caracteres, sin emails ni direcciones web` }, 400);
+  }
+  if ((await contarGruposCreados(db, user.id)) >= MAX_GRUPOS_POR_DUENO) {
+    return json({ error: "limite_de_grupos", max: MAX_GRUPOS_POR_DUENO }, 409);
+  }
   const grupo = await crearGrupo(db, user.id, body?.nombre);
-  if (!grupo) return json({ error: `El nombre debe tener entre ${NOMBRE_MIN} y ${NOMBRE_MAX} caracteres` }, 400);
+  if (!grupo) return json({ error: "No se pudo crear el grupo" }, 400);
 
   locals.logger?.info("prode_grupo_creado", { groupId: grupo.id });
   return json(grupo, 201);
-}, { rateLimit: ["mutation_ip", "mutation"] });
+}, { rateLimit: ["prode_grupo_crear_ip", "prode_grupo_crear"] });

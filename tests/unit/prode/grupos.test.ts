@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { users } from "../../../drizzle/schema";
 import { useTestDb } from "../../helpers/use-test-db";
 import { seedApp } from "../../helpers/fixtures";
 import {
@@ -30,6 +32,21 @@ describe("prode: grupos privados", () => {
       expect(normalizarNombre(123)).toBeNull();
       expect(normalizarNombre("abc")).toBe("abc");
       expect(normalizarNombre("x".repeat(40))).toBe("x".repeat(40));
+    });
+  });
+
+  describe("normalizarNombre: reglas de nombre público", () => {
+    it("cuenta code points: 40 emojis entran, 41 no", () => {
+      expect(normalizarNombre("😀".repeat(40))).not.toBeNull();
+      expect(normalizarNombre("😀".repeat(41))).toBeNull();
+    });
+    it("rechaza emails, URLs e invisibles o bidi", () => {
+      for (const n of ["escribime@mail.com", "https://sitio.com", "www.sitio", "mi-sitio.com.ar", "Los​amigos", "Los‮amigos", "Los\namigos"]) {
+        expect(normalizarNombre(n), n).toBeNull();
+      }
+    });
+    it("acepta puntos entre palabras", () => {
+      expect(normalizarNombre("Los.Pibes")).toBe("Los.Pibes");
     });
   });
 
@@ -89,6 +106,27 @@ describe("prode: grupos privados", () => {
     const texto = JSON.stringify(await detalleGrupo(t.db, fixtures.user.id, g.id));
     expect(texto).not.toContain("@");
     expect(texto).not.toContain(fixtures.other.id);
+  });
+
+  it("los integrantes muestran su nombre visible, y el genérico si no tienen", async () => {
+    await t.db.update(users).set({ displayName: "La Pulga" }).where(eq(users.id, fixtures.user.id));
+    const g = (await crearGrupo(t.db, fixtures.user.id, "Amigos"))!;
+    await unirseConCodigo(t.db, fixtures.other.id, g.inviteCode);
+    const detalle = await detalleGrupo(t.db, fixtures.other.id, g.id);
+    expect(detalle?.integrantes).toEqual([
+      { nombre: "La Pulga", esDueno: true, esVos: false },
+      { nombre: NOMBRE_GENERICO, esDueno: false, esVos: true },
+    ]);
+  });
+
+  it("dos integrantes con nombres distintos se ven con su nombre", async () => {
+    await t.db.update(users).set({ displayName: "La Pulga" }).where(eq(users.id, fixtures.user.id));
+    await t.db.update(users).set({ displayName: "El Diez" }).where(eq(users.id, fixtures.other.id));
+    const g = (await crearGrupo(t.db, fixtures.user.id, "Amigos"))!;
+    await unirseConCodigo(t.db, fixtures.other.id, g.inviteCode);
+    const detalle = await detalleGrupo(t.db, fixtures.user.id, g.id);
+    expect(detalle?.integrantes.map((i) => i.nombre)).toEqual(["La Pulga", "El Diez"]);
+    expect(JSON.stringify(detalle)).not.toContain(fixtures.other.email);
   });
 
   it("misGrupos lista solo los grupos donde participa", async () => {

@@ -2,11 +2,12 @@
 // Los integrantes se ven entre sí sin exponer email ni ids.
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { Database } from "../db";
-import { prodeGroupMembers, prodeGroups } from "../../../drizzle/schema";
+import { prodeGroupMembers, prodeGroups, users } from "../../../drizzle/schema";
+import { validarTextoPublico } from "./nombre-visible";
 
 export const NOMBRE_MIN = 3;
 export const NOMBRE_MAX = 40;
-// users todavía no tiene nombre visible (display_name): mientras tanto, un genérico
+// Para quien todavía no eligió nombre visible (users.display_name es null)
 export const NOMBRE_GENERICO = "Participante";
 
 // 16 bytes aleatorios (128 bits) en base64url: 22 caracteres, imposible de adivinar
@@ -42,9 +43,9 @@ export interface GrupoDetalle {
 }
 
 export function normalizarNombre(valor: unknown): string | null {
-  if (typeof valor !== "string") return null;
-  const nombre = valor.trim().replace(/\s+/g, " ");
-  return nombre.length >= NOMBRE_MIN && nombre.length <= NOMBRE_MAX ? nombre : null;
+  // Mismas reglas que el nombre visible (code points, sin invisibles/bidi, sin emails ni URLs), rango propio
+  const r = validarTextoPublico(valor, NOMBRE_MIN, NOMBRE_MAX);
+  return r.ok ? r.texto : null;
 }
 
 export function generarCodigoInvitacion(): string {
@@ -56,6 +57,14 @@ export function generarCodigoInvitacion(): string {
 
 export function codigoValido(valor: unknown): valor is string {
   return typeof valor === "string" && FORMATO_CODIGO.test(valor);
+}
+
+// Tope de grupos creados por dueño (los grupos a los que solo se une no cuentan)
+export const MAX_GRUPOS_POR_DUENO = 10;
+
+export async function contarGruposCreados(db: Database, ownerId: string): Promise<number> {
+  const [fila] = await db.select({ n: sql<number>`count(*)` }).from(prodeGroups).where(eq(prodeGroups.ownerId, ownerId));
+  return Number(fila?.n ?? 0);
 }
 
 export async function crearGrupo(db: Database, ownerId: string, nombre: unknown, ahora = Date.now()): Promise<GrupoCreado | null> {
@@ -108,8 +117,9 @@ export async function detalleGrupo(db: Database, userId: string, groupId: string
   if (!grupo) return null;
 
   const miembros = await db
-    .select({ userId: prodeGroupMembers.userId })
+    .select({ userId: prodeGroupMembers.userId, displayName: users.displayName })
     .from(prodeGroupMembers)
+    .innerJoin(users, eq(users.id, prodeGroupMembers.userId))
     .where(eq(prodeGroupMembers.groupId, groupId))
     .orderBy(asc(prodeGroupMembers.joinedAt));
 
@@ -119,6 +129,6 @@ export async function detalleGrupo(db: Database, userId: string, groupId: string
     name: grupo.name,
     esDueno,
     ...(esDueno ? { inviteCode: grupo.inviteCode } : {}),
-    integrantes: miembros.map((m) => ({ nombre: NOMBRE_GENERICO, esDueno: m.userId === grupo.ownerId, esVos: m.userId === userId })),
+    integrantes: miembros.map((m) => ({ nombre: m.displayName ?? NOMBRE_GENERICO, esDueno: m.userId === grupo.ownerId, esVos: m.userId === userId })),
   };
 }

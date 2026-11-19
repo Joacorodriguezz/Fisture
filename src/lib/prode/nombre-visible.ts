@@ -19,20 +19,37 @@ export const MENSAJES_NOMBRE: Record<ErrorNombre, string> = {
 // Control (Cc), formato invisible (Cf: zero-width, bidi), separadores de línea/párrafo y no asignados
 const INVISIBLES = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Cn}\p{Co}\p{Cs}]/u;
 const EMAIL = /@/;
-const URL = /(?:[a-z][a-z0-9+.-]*:\/\/|\bwww\.|[\p{L}\p{N}-]+\.(?:[a-z]{2,})(?:\b|$))/iu;
+// Decisión: una URL es un esquema (`://`), `www.` o `palabra.tld` con un TLD común seguido de fin, espacio
+// o `/:?#`. No se usa el límite de palabra ASCII (parte "Campeón") ni un TLD genérico de 2+ letras, que rechazaba
+// nombres legítimos como "Juan.Perez" o "D10S.de.Fiorito". Un TLD fuera de la lista pasa: es el costo
+// de no bloquear puntos entre palabras.
+const TLDS = "com|net|org|ar|io|es|me|co|app|dev|xyz|info|edu|gov|ly|tv|cl|uy|br|mx";
+const URL = new RegExp(
+  String.raw`[a-z][a-z0-9+.-]*://|(?:^|[^\p{L}\p{N}])www\.|[\p{L}\p{N}-]\.(?:${TLDS})(?=$|[\s/:?#])`,
+  "iu"
+);
 
-export function validarNombreVisible(valor: unknown): ResultadoNombre {
+export type ResultadoTexto = { ok: true; texto: string } | { ok: false; error: ErrorNombre };
+
+// Reglas comunes de texto público (nombre visible, nombre de grupo): sin invisibles, largo en code points,
+// sin emails ni direcciones web. Cada uso fija su rango.
+export function validarTextoPublico(valor: unknown, min: number, max: number): ResultadoTexto {
   if (typeof valor !== "string") return { ok: false, error: "tipo" };
 
   // Los espacios y saltos de los bordes se descartan con el trim; adentro, cualquier invisible rechaza
   if (INVISIBLES.test(valor.trim())) return { ok: false, error: "caracteres" };
 
-  const nombre = valor.normalize("NFC").trim().replace(/\s+/g, " ");
-  const largo = [...nombre].length;
+  const texto = valor.normalize("NFC").trim().replace(/\s+/g, " ");
+  const largo = [...texto].length;
 
-  if (largo < NOMBRE_MIN) return { ok: false, error: "corto" };
-  if (largo > NOMBRE_MAX) return { ok: false, error: "largo" };
-  if (EMAIL.test(nombre) || URL.test(nombre)) return { ok: false, error: "contacto" };
+  if (largo < min) return { ok: false, error: "corto" };
+  if (largo > max) return { ok: false, error: "largo" };
+  if (EMAIL.test(texto) || URL.test(texto)) return { ok: false, error: "contacto" };
 
-  return { ok: true, nombre };
+  return { ok: true, texto };
+}
+
+export function validarNombreVisible(valor: unknown): ResultadoNombre {
+  const r = validarTextoPublico(valor, NOMBRE_MIN, NOMBRE_MAX);
+  return r.ok ? { ok: true, nombre: r.texto } : r;
 }

@@ -54,6 +54,18 @@ describe("validarNombreVisible", () => {
     }
   });
 
+  it("rechaza URLs y dominios reales en más formas", () => {
+    for (const n of ["http://x", "www.algo.com", "algo.com/ruta", "mi-sitio.com.ar", "Mirá algo.com", "bit.ly/x", "x.io?a=1", "mirá.com"]) {
+      expect(validarNombreVisible(n), n).toEqual({ ok: false, error: "contacto" });
+    }
+  });
+
+  it("acepta puntos entre palabras de un nombre", () => {
+    for (const n of ["Juan.Perez", "River.Campeón", "D10S.de.Fiorito", "Dr. Bilardo", "Juan.comprador", "a.b.c.d"]) {
+      expect(validarNombreVisible(n), n).toEqual({ ok: true, nombre: n });
+    }
+  });
+
   it("rechaza lo que no es string", () => {
     expect(validarNombreVisible(undefined)).toEqual({ ok: false, error: "tipo" });
     expect(validarNombreVisible(42)).toEqual({ ok: false, error: "tipo" });
