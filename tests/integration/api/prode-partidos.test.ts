@@ -228,4 +228,67 @@ describe("/api/admin/prode/partidos", () => {
     expect(ajeno.body.error).toBe("partido_no_manual");
     expect(await fila("espn-1")).toMatchObject({ round: null, date_time: 1795000000 });
   });
+
+  describe("cruces duplicados (ventana de 6 horas, misma liga y mismos equipos)", () => {
+    const espn = (id: string, iso: string) =>
+      t.DB.prepare("INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, source) VALUES (?, ?, 'boca', 'edlp', 'lpf', ?, 'espn')")
+        .bind(id, `espn:${id}`, Date.parse(iso) / 1000)
+        .run();
+    const cuenta = async () => (await t.DB.prepare("SELECT COUNT(*) AS n FROM matches").first<any>()).n;
+
+    it("POST rechaza un cruce manual repetido con 409 y el id del existente", async () => {
+      const primero = await llamar("POST", cruce);
+      const res = await llamar("POST", { ...cruce, horario: "2026-11-22T18:00" });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ error: "cruce_duplicado", existente: { id: primero.body.partido.id, source: "manual" } });
+      expect(await cuenta()).toBe(1);
+    });
+
+    it("POST rechaza un cruce que ya trajo el sync de ESPN", async () => {
+      await espn("espn-1", "2026-11-23T00:30:00Z");
+      const res = await llamar("POST", cruce);
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ error: "cruce_duplicado", existente: { id: "espn-1", source: "espn" } });
+      expect(await cuenta()).toBe(1);
+    });
+
+    it("POST permite los mismos equipos con dos días de diferencia (ida y vuelta)", async () => {
+      await llamar("POST", cruce);
+      expect((await llamar("POST", { ...cruce, horario: "2026-11-24T21:00" })).status).toBe(201);
+    });
+
+    it("POST permite los equipos invertidos: es otro partido", async () => {
+      await llamar("POST", cruce);
+      expect((await llamar("POST", { ...cruce, homeTeamId: "edlp", awayTeamId: "boca" })).status).toBe(201);
+    });
+
+    it("POST permite el mismo cruce en otra liga", async () => {
+      await t.DB.prepare("INSERT INTO leagues (id, external_id, name, country, season) VALUES ('copa', 'espn:copa', 'Copa', 'Argentina', 2026)").run();
+      await llamar("POST", cruce);
+      expect((await llamar("POST", { ...cruce, leagueId: "copa" })).status).toBe(201);
+    });
+
+    it("PATCH rechaza mover un cruce encima de otro y no escribe", async () => {
+      const a = await llamar("POST", cruce);
+      const b = await llamar("POST", { ...cruce, horario: "2026-11-26T21:00" });
+      const antes = await fila(b.body.partido.id);
+      const res = await llamar("PATCH", { id: b.body.partido.id, horario: "2026-11-22T20:00" });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ error: "cruce_duplicado", existente: { id: a.body.partido.id, source: "manual" } });
+      expect(await fila(b.body.partido.id)).toEqual(antes);
+    });
+
+    it("PATCH rechaza mover un cruce encima de uno de ESPN", async () => {
+      await espn("espn-1", "2026-11-28T00:00:00Z");
+      const { body } = await llamar("POST", cruce);
+      const res = await llamar("PATCH", { id: body.partido.id, horario: "2026-11-27T22:00" });
+      expect(res.status).toBe(409);
+      expect(res.body.existente).toEqual({ id: "espn-1", source: "espn" });
+    });
+
+    it("PATCH no se choca consigo mismo al corregir unos minutos", async () => {
+      const { body } = await llamar("POST", cruce);
+      expect((await llamar("PATCH", { id: body.partido.id, horario: "2026-11-22T21:30" })).status).toBe(200);
+    });
+  });
 });

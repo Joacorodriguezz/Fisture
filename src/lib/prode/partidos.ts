@@ -5,7 +5,7 @@
 // - date_time es el único horario: el que se muestra y el que cierra el pronóstico (horario.ts).
 // Corregir el horario alcanza para el calendario: la reconciliación compara date_time con el horario
 // sincronizado de cada evento y lo marca needs_update (docs/11).
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { leagues, matches, teams } from "../../../drizzle/schema";
 import type { Database } from "../db";
 import { cierraPronostico, esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
@@ -26,7 +26,8 @@ export interface PartidoProde {
 
 export type Resultado =
   | { ok: true; partido: PartidoProde }
-  | { ok: false; status: 400 | 404 | 409; error: string };
+  // existente: solo en cruce_duplicado, el partido que ya está cargado (id y origen, nada más)
+  | { ok: false; status: 400 | 404 | 409; error: string; existente?: { id: string; source: string } };
 
 const error = (status: 400 | 404 | 409, codigo: string): Resultado => ({ ok: false, status, error: codigo });
 
@@ -58,7 +59,37 @@ async function leerPartido(db: Database, id: string): Promise<PartidoProde> {
   return (await armar(db, filas))[0];
 }
 
-const textoNoVacio = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
+// Dos partidos de la misma liga y con el mismo local y visitante a menos de 6 h son el mismo cruce (de
+// cualquier source: ESPN o manual). Evita dos eventos en el calendario de quien sigue al equipo y el
+// chequeo duplicate_match (consistency.ts, que solo ve horarios idénticos). Equipos invertidos o más de
+// 6 h de diferencia (ida y vuelta) son otro partido.
+const VENTANA_DUPLICADO_MS = 6 * 60 * 60 * 1000;
+
+async function buscarDuplicado(
+  db: Database,
+  c: { leagueId: string; homeTeamId: string; awayTeamId: string; dateTime: Date; excluirId?: string }
+): Promise<{ id: string; source: string } | null> {
+  const t = c.dateTime.getTime();
+  const filas = await db
+    .select({ id: matches.id, source: matches.source })
+    .from(matches)
+    .where(
+      and(
+        eq(matches.leagueId, c.leagueId),
+        eq(matches.homeTeamId, c.homeTeamId),
+        eq(matches.awayTeamId, c.awayTeamId),
+        gte(matches.dateTime, new Date(t - VENTANA_DUPLICADO_MS)),
+        lte(matches.dateTime, new Date(t + VENTANA_DUPLICADO_MS)),
+        ...(c.excluirId ? [ne(matches.id, c.excluirId)] : [])
+      )
+    )
+    .limit(1);
+  return filas[0] ? { id: filas[0].id, source: filas[0].source ?? "" } : null;
+}
+
+const duplicado = (existente: { id: string; source: string }): Resultado => ({ ok: false, status: 409, error: "cruce_duplicado", existente });
+
+const textoNoVacio =(v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 
 export async function agregarCruce(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
   const { leagueId, homeTeamId, awayTeamId, fase, venue } = datos;
@@ -73,6 +104,9 @@ export async function agregarCruce(db: Database, datos: Record<string, unknown>)
   if (!liga) return error(404, "liga_inexistente");
   const equipos = await db.select({ id: teams.id }).from(teams).where(inArray(teams.id, [homeTeamId, awayTeamId]));
   if (equipos.length !== 2) return error(404, "equipo_inexistente");
+
+  const repetido = await buscarDuplicado(db, { leagueId, homeTeamId, awayTeamId, dateTime });
+  if (repetido) return duplicado(repetido);
 
   const id = crypto.randomUUID();
   await db.insert(matches).values({
@@ -122,7 +156,7 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
   if ("codigo" in estado) return error(400, estado.codigo);
 
   const [m] = await db
-    .select({ source: matches.source, dateTime: matches.dateTime, status: matches.status })
+    .select({ source: matches.source, dateTime: matches.dateTime, status: matches.status, leagueId: matches.leagueId, homeTeamId: matches.homeTeamId, awayTeamId: matches.awayTeamId })
     .from(matches)
     .where(eq(matches.id, id))
     .limit(1);
@@ -133,6 +167,11 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
   // fecha reabriría los pronósticos de un suspendido a mitad de partido (docs/37 §5). Su estado y
   // resultado sí se cargan: es justamente cuando hacen falta.
   if ((dateTime || fase !== undefined) && cierraPronostico(m, new Date())) return error(409, "partido_ya_empezado");
+  // Mover el horario no puede dejar el cruce encima de otro (manual o de ESPN)
+  if (dateTime) {
+    const repetido = await buscarDuplicado(db, { ...m, dateTime, excluirId: id });
+    if (repetido) return duplicado(repetido);
+  }
 
   await db
     .update(matches)

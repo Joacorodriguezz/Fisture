@@ -9,6 +9,10 @@ import { agregarCruce, corregirPartido, listarCruces, type Resultado } from "../
 // en hora argentina, venue?}); PATCH corrige un cruce manual ({id, horario?, fase?, status?, homeScore?,
 // awayScore?}). Goles enteros 0-20 a los 90' más adicionado, solo y siempre con status "finished"; otro
 // estado los borra. Horario y fase no se cambian si el partido ya empezó (409); estado y resultado sí.
+// Duplicados: POST y el PATCH de horario responden 409 {error: "cruce_duplicado", existente: {id, source}} si ya hay
+// un partido de la misma liga, mismo local y visitante, de cualquier source (manual o espn), a menos de 6 h. Si el
+// existente es de ESPN ("espn"), ese es el partido a usar: no se carga a mano. Equipos invertidos o con más de 6 h
+// de diferencia (ida y vuelta) no cuentan como duplicado.
 // Límite de tasa: como el resto de /api/admin, solo cuentan los fallos de Bearer (admin_fail en verificarAdmin).
 const headers = { "Cache-Control": "no-store" };
 const OPCIONES: WithApiOptions = { origin: "none", contentType: "json", rateLimit: [] };
@@ -23,7 +27,10 @@ async function leerJson(request: Request): Promise<Record<string, unknown> | nul
 }
 
 function responder(resultado: Resultado, okStatus: number): Response {
-  if (!resultado.ok) return Response.json({ error: resultado.error }, { status: resultado.status, headers });
+  if (!resultado.ok) {
+    const cuerpo = resultado.existente ? { error: resultado.error, existente: resultado.existente } : { error: resultado.error };
+    return Response.json(cuerpo, { status: resultado.status, headers });
+  }
   return Response.json({ partido: resultado.partido }, { status: okStatus, headers });
 }
 
@@ -43,7 +50,7 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
 
   const resultado = await agregarCruce(createDb(env.DB), datos);
   if (resultado.ok) locals.logger?.info("prode_cruce_agregado", { matchId: resultado.partido.id, fase: resultado.partido.fase });
-  else locals.logger?.warn("prode_cruce_rechazado", { error: resultado.error });
+  else locals.logger?.warn("prode_cruce_rechazado", { error: resultado.error, existenteId: resultado.existente?.id, existenteSource: resultado.existente?.source, ...(resultado.existente?.source === "espn" ? { nota: "usar el partido de ESPN existente" } : {}) });
   return responder(resultado, 201);
 }, OPCIONES);
 
@@ -56,6 +63,6 @@ export const PATCH: APIRoute = withApi(async ({ request, locals }) => {
 
   const resultado = await corregirPartido(createDb(env.DB), datos);
   if (resultado.ok) locals.logger?.info("prode_cruce_corregido", { matchId: resultado.partido.id, fase: resultado.partido.fase, horario: resultado.partido.horario.iso, estado: resultado.partido.estado });
-  else locals.logger?.warn("prode_cruce_rechazado", { error: resultado.error });
+  else locals.logger?.warn("prode_cruce_rechazado", { error: resultado.error, existenteId: resultado.existente?.id, existenteSource: resultado.existente?.source, ...(resultado.existente?.source === "espn" ? { nota: "usar el partido de ESPN existente" } : {}) });
   return responder(resultado, 200);
 }, OPCIONES);
