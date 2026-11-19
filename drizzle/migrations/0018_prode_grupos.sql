@@ -1,4 +1,4 @@
--- Migration: 0017_prode_grupos
+-- Migration: 0018_prode_grupos
 -- Description: grupos privados del prode de playoffs. Un grupo se crea con un nombre y un código de
 -- invitación aleatorio y único; solo los integrantes (prode_group_members) pueden verlo.
 -- Solo aditiva: tablas nuevas que el código anterior no lee.
