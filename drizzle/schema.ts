@@ -222,7 +222,7 @@ export const matches = sqliteTable(
 // PRODE: PRONÓSTICOS
 // ============================================
 
-// Un pronóstico por usuario y partido (migración 0018). El cierre sale de matches.date_time.
+// Un pronóstico por usuario y partido (migración 0019). El cierre sale de matches.date_time.
 export const prodePredictions = sqliteTable(
   "prode_predictions",
   {
