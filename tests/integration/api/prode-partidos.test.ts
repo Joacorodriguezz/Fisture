@@ -229,6 +229,57 @@ describe("/api/admin/prode/partidos", () => {
     expect(await fila("espn-1")).toMatchObject({ round: null, date_time: 1795000000 });
   });
 
+  describe("vínculo prode_matches y adopción de partidos de ESPN", () => {
+    const vinculo = (id: string) => t.DB.prepare("SELECT * FROM prode_matches WHERE match_id = ?").bind(id).first<any>();
+    const espn = () =>
+      t.DB.prepare("INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, source, round) VALUES ('espn-1', 'espn:1', 'boca', 'edlp', 'lpf', ?, 'espn', 'Quarterfinals')")
+        .bind(Date.parse("2026-11-23T00:30:00Z") / 1000)
+        .run();
+
+    it("POST de un cruce manual crea su vínculo con la fase", async () => {
+      const { body } = await llamar("POST", cruce);
+      expect(await vinculo(body.partido.id)).toMatchObject({ fase: "cuartos" });
+    });
+
+    it("PATCH de fase actualiza también el vínculo", async () => {
+      const { body } = await llamar("POST", cruce);
+      expect((await llamar("PATCH", { id: body.partido.id, fase: "semifinal" })).status).toBe(200);
+      expect(await vinculo(body.partido.id)).toMatchObject({ fase: "semifinal" });
+    });
+
+    it("POST {adoptar, fase} suma un partido de ESPN al prode sin tocarlo", async () => {
+      await espn();
+      const antes = await fila("espn-1");
+      const res = await llamar("POST", { adoptar: "espn-1", fase: "cuartos" });
+      expect(res.status).toBe(201);
+      expect(res.body.partido).toMatchObject({ id: "espn-1", fase: "cuartos", local: { id: "boca" }, visitante: { id: "edlp" } });
+      expect(await vinculo("espn-1")).toMatchObject({ fase: "cuartos" });
+      expect(await fila("espn-1")).toEqual(antes);
+    });
+
+    it("POST {adoptar} valida fase, existencia y que no esté ya en el prode", async () => {
+      await espn();
+      expect((await llamar("POST", { adoptar: "espn-1", fase: "grupos" })).status).toBe(400);
+      expect((await llamar("POST", { adoptar: "", fase: "cuartos" })).status).toBe(400);
+      const inexistente = await llamar("POST", { adoptar: "no-existe", fase: "cuartos" });
+      expect(inexistente).toMatchObject({ status: 404, body: { error: "partido_inexistente" } });
+      await llamar("POST", { adoptar: "espn-1", fase: "cuartos" });
+      const repetido = await llamar("POST", { adoptar: "espn-1", fase: "final" });
+      expect(repetido).toMatchObject({ status: 409, body: { error: "ya_en_prode" } });
+      expect(await vinculo("espn-1")).toMatchObject({ fase: "cuartos" });
+    });
+
+    it("un partido adoptado figura en el GET pero no se edita a mano", async () => {
+      await espn();
+      await llamar("POST", { adoptar: "espn-1", fase: "cuartos" });
+      const res = await GET(apiCtx({ url: "https://fisture.test/api/admin/prode/partidos", headers: { Authorization: `Bearer ${ADMIN}` }, env: { ENVIRONMENT: "test", DB: t.DB, KV: kvEnMemoria(), ADMIN_SECRET: ADMIN } }));
+      expect(((await res.json()) as any).partidos.map((p: any) => p.id)).toEqual(["espn-1"]);
+      for (const cambio of [{ horario: "2026-11-25T21:00" }, { status: "finished", homeScore: 1, awayScore: 0 }, { fase: "final" }]) {
+        expect(await llamar("PATCH", { id: "espn-1", ...cambio })).toMatchObject({ status: 409, body: { error: "partido_no_manual" } });
+      }
+    });
+  });
+
   describe("cruces duplicados (ventana de 6 horas, misma liga y mismos equipos)", () => {
     const espn = (id: string, iso: string) =>
       t.DB.prepare("INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, source) VALUES (?, ?, 'boca', 'edlp', 'lpf', ?, 'espn')")

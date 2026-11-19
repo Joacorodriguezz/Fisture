@@ -4,9 +4,8 @@
 // derivados que puedan quedar desfasados. Una consulta fija (dos con filtro de grupo), nunca una por
 // usuario ni por partido: cuida las lecturas de D1 y las subrequests de Workers Free.
 import { and, eq, inArray, isNotNull, type SQL } from "drizzle-orm";
-import { matches, prodeGroupMembers, prodePredictions } from "../../../drizzle/schema";
+import { matches, prodeGroupMembers, prodeMatches, prodePredictions } from "../../../drizzle/schema";
 import type { Database } from "../db";
-import { SOURCE_MANUAL } from "./partidos";
 import { calcularPuntos, PUNTOS_EXACTO } from "./reglas";
 
 export interface FiltroPuntos {
@@ -48,13 +47,13 @@ export interface PuntosProde {
  * administrativo cargado, docs/37 §5). Sin pronóstico no hay fila: suma 0.
  */
 export async function puntosPorUsuario(db: Database, filtro: FiltroPuntos = {}): Promise<PuntosProde> {
+  // Del prode es lo vinculado en prode_matches (innerJoin abajo): manual o adoptado de ESPN
   const condiciones: SQL[] = [
-    eq(matches.source, SOURCE_MANUAL),
     eq(matches.status, "finished"),
     isNotNull(matches.homeScore),
     isNotNull(matches.awayScore),
   ];
-  if (filtro.fase !== undefined) condiciones.push(eq(matches.round, filtro.fase));
+  if (filtro.fase !== undefined) condiciones.push(eq(prodeMatches.fase, filtro.fase));
   if (filtro.userId !== undefined) condiciones.push(eq(prodePredictions.userId, filtro.userId));
   const delGrupo =
     filtro.grupoId !== undefined
@@ -69,12 +68,13 @@ export async function puntosPorUsuario(db: Database, filtro: FiltroPuntos = {}):
         matchId: prodePredictions.matchId,
         homeGoals: prodePredictions.homeGoals,
         awayGoals: prodePredictions.awayGoals,
-        fase: matches.round,
+        fase: prodeMatches.fase,
         homeScore: matches.homeScore,
         awayScore: matches.awayScore,
       })
       .from(prodePredictions)
       .innerJoin(matches, eq(matches.id, prodePredictions.matchId))
+      .innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id))
       .where(and(...condiciones)),
     delGrupo ?? Promise.resolve([] as { userId: string }[]),
   ]);

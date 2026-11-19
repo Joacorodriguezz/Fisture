@@ -1,12 +1,13 @@
-// Partidos del prode de playoffs: cruces cargados a mano sobre la tabla `matches` (sin migración).
-// - source = 'manual' y external_id = 'prode:<uuid>': el sync de ESPN no los toca (actualiza por
-//   external_id de su proveedor y nunca borra partidos).
-// - round guarda la fase (octavos, cuartos, semifinal, final).
+// Partidos del prode de playoffs. Un partido es del prode si tiene fila en prode_matches (migración
+// 0020), con su fase, venga de donde venga:
+// - Cruce cargado a mano: source = 'manual' y external_id = 'prode:<uuid>'; round repite la fase. Si
+//   después el sync de ESPN trae el mismo partido, lo reemplaza (reemplazarCrucesManuales, sync.ts).
+// - Partido de ESPN adoptado ({adoptar}): lo gobierna el sync (horario, estado, resultado); acá no se edita.
 // - date_time es el único horario: el que se muestra y el que cierra el pronóstico (horario.ts).
 // Corregir el horario alcanza para el calendario: la reconciliación compara date_time con el horario
 // sincronizado de cada evento y lo marca needs_update (docs/11).
 import { and, eq, gte, inArray, lte, ne } from "drizzle-orm";
-import { leagues, matches, teams } from "../../../drizzle/schema";
+import { leagues, matches, prodeMatches, teams } from "../../../drizzle/schema";
 import type { Database } from "../db";
 import { cierraPronostico, esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
 
@@ -54,9 +55,13 @@ async function armar(db: Database, filas: Fila[]): Promise<PartidoProde[]> {
   });
 }
 
+// La fase sale del vínculo (en un partido de ESPN, matches.round es la del proveedor)
+const conFase = (filas: { matches: Fila; prode_matches: { fase: string } }[]): Fila[] =>
+  filas.map((f) => ({ ...f.matches, round: f.prode_matches.fase }));
+
 async function leerPartido(db: Database, id: string): Promise<PartidoProde> {
-  const filas = await db.select().from(matches).where(eq(matches.id, id)).limit(1);
-  return (await armar(db, filas))[0];
+  const filas = await db.select().from(matches).innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id)).where(eq(matches.id, id)).limit(1);
+  return (await armar(db, conFase(filas)))[0];
 }
 
 // Dos partidos de la misma liga y con el mismo local y visitante a menos de 6 h son el mismo cruce (de
@@ -91,7 +96,9 @@ const duplicado = (existente: { id: string; source: string }): Resultado => ({ o
 
 const textoNoVacio =(v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 
+// POST: con {adoptar} suma al prode un partido existente (de ESPN); si no, carga un cruce manual
 export async function agregarCruce(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
+  if (datos.adoptar !== undefined) return adoptarPartido(db, datos);
   const { leagueId, homeTeamId, awayTeamId, fase, venue } = datos;
   if (!textoNoVacio(leagueId) || !textoNoVacio(homeTeamId) || !textoNoVacio(awayTeamId)) return error(400, "faltan_datos");
   if (homeTeamId === awayTeamId) return error(400, "equipos_iguales");
@@ -109,20 +116,41 @@ export async function agregarCruce(db: Database, datos: Record<string, unknown>)
   if (repetido) return duplicado(repetido);
 
   const id = crypto.randomUUID();
-  await db.insert(matches).values({
-    id,
-    externalId: `prode:${id}`,
-    homeTeamId,
-    awayTeamId,
-    leagueId,
-    dateTime,
-    venue: venue ?? null,
-    status: "scheduled",
-    round: fase,
-    source: SOURCE_MANUAL,
-    updatedAt: new Date(),
-  });
+  const ahora = new Date();
+  await db.batch([
+    db.insert(matches).values({
+      id,
+      externalId: `prode:${id}`,
+      homeTeamId,
+      awayTeamId,
+      leagueId,
+      dateTime,
+      venue: venue ?? null,
+      status: "scheduled",
+      round: fase,
+      source: SOURCE_MANUAL,
+      updatedAt: ahora,
+    }),
+    db.insert(prodeMatches).values({ matchId: id, fase, createdAt: ahora }),
+  ]);
   return { ok: true, partido: await leerPartido(db, id) };
+}
+
+// Suma al prode un partido que ya existe: el de ESPN que agregarCruce informó como cruce_duplicado.
+// No toca la fila de matches: horario, estado y resultado los sigue gobernando el sync.
+async function adoptarPartido(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
+  const { adoptar, fase } = datos;
+  if (!textoNoVacio(adoptar)) return error(400, "faltan_datos");
+  if (!esFase(fase)) return error(400, "fase_invalida");
+  const [m] = await db.select({ id: matches.id }).from(matches).where(eq(matches.id, adoptar)).limit(1);
+  if (!m) return error(404, "partido_inexistente");
+  const insertado = await db
+    .insert(prodeMatches)
+    .values({ matchId: adoptar, fase, createdAt: new Date() })
+    .onConflictDoNothing()
+    .returning({ id: prodeMatches.matchId });
+  if (insertado.length === 0) return error(409, "ya_en_prode");
+  return { ok: true, partido: await leerPartido(db, adoptar) };
 }
 
 // Valores reales de matches.status
@@ -173,15 +201,18 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
     if (repetido) return duplicado(repetido);
   }
 
-  await db
+  const cambio = db
     .update(matches)
     .set({ ...(dateTime ? { dateTime } : {}), ...(fase !== undefined ? { round: fase } : {}), ...estado.cambios, updatedAt: new Date() })
     .where(eq(matches.id, id));
+  // La fase que vale es la del vínculo; round la repite en los manuales
+  if (fase !== undefined) await db.batch([cambio, db.update(prodeMatches).set({ fase }).where(eq(prodeMatches.matchId, id))]);
+  else await cambio;
   return { ok: true, partido: await leerPartido(db, id) };
 }
 
-// Cruces cargados para el prode, ordenados por horario
+// Partidos del prode (manuales y adoptados), ordenados por horario
 export async function listarCruces(db: Database): Promise<PartidoProde[]> {
-  const filas = await db.select().from(matches).where(eq(matches.source, SOURCE_MANUAL)).orderBy(matches.dateTime);
-  return armar(db, filas);
+  const filas = await db.select().from(matches).innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id)).orderBy(matches.dateTime);
+  return armar(db, conFase(filas));
 }

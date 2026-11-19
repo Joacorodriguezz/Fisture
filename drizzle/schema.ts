@@ -243,6 +243,15 @@ export const prodePredictions = sqliteTable(
   })
 );
 
+// Partidos del prode (migración 0020): un cruce manual o un partido de ESPN adoptado. La fase vive acá.
+export const prodeMatches = sqliteTable("prode_matches", {
+  matchId: text("match_id")
+    .primaryKey()
+    .references(() => matches.id, { onDelete: "cascade" }),
+  fase: text("fase").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 // ============================================
 // SINCRONIZACIÓN DE CALENDARIO
 // ============================================

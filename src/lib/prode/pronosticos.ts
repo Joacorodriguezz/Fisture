@@ -1,11 +1,11 @@
 // Pronósticos del prode: un marcador por usuario y partido, editable hasta el inicio.
 // El cierre se decide siempre con la hora del servidor (cierraPronostico, horario.ts): el cuerpo del
 // pedido nunca trae la hora, así un formulario enviado tarde se rechaza aunque se haya abierto a tiempo.
-import { and, eq, sql } from "drizzle-orm";
-import { matches, prodePredictions } from "../../../drizzle/schema";
+import { eq, sql } from "drizzle-orm";
+import { matches, prodeMatches, prodePredictions } from "../../../drizzle/schema";
 import type { Database } from "../db";
 import { cierraPronostico } from "./horario";
-import { listarCruces, SOURCE_MANUAL, type PartidoProde } from "./partidos";
+import { listarCruces, type PartidoProde } from "./partidos";
 
 export const GOLES_MAX = 20;
 
@@ -53,7 +53,8 @@ export async function guardarPronostico(
   const [partido] = await db
     .select({ dateTime: matches.dateTime, status: matches.status })
     .from(matches)
-    .where(and(eq(matches.id, matchId), eq(matches.source, SOURCE_MANUAL)))
+    .innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id))
+    .where(eq(matches.id, matchId))
     .limit(1);
   if (!partido) return { ok: false, status: 404, error: "partido_inexistente" };
   if (cierraPronostico(partido, ahora ?? new Date())) return CERRADO;
@@ -67,8 +68,8 @@ export async function guardarPronostico(
     INSERT INTO prode_predictions (user_id, match_id, home_goals, away_goals, created_at, updated_at)
     SELECT ${userId}, m.id, ${marcador.homeGoals}, ${marcador.awayGoals}, ${ms}, ${ms}
     FROM matches m
+    JOIN prode_matches pm ON pm.match_id = m.id
     WHERE m.id = ${matchId}
-      AND m.source = ${SOURCE_MANUAL}
       AND (m.status IS NULL OR m.status IN ('scheduled', 'postponed'))
       AND m.date_time * 1000 > ${ms}
     ON CONFLICT (user_id, match_id) DO UPDATE SET

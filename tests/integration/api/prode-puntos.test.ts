@@ -6,7 +6,7 @@ import { AHORA, DIA_MS, relojFijo } from "../../helpers/clock";
 import { seedApp } from "../../helpers/fixtures";
 import { callApi } from "../../helpers/api";
 import { silenciarConsola } from "../../helpers/ctx";
-import { matches, prodeGroupMembers, prodeGroups, prodePredictions, users } from "../../../drizzle/schema";
+import { matches, prodeGroupMembers, prodeGroups, prodeMatches, prodePredictions, users } from "../../../drizzle/schema";
 import { puntosPorUsuario } from "../../../src/lib/prode/puntos";
 import { GET } from "../../../src/pages/api/prode/mis-puntos";
 
@@ -40,6 +40,9 @@ describe("puntosPorUsuario", () => {
       // finished con un solo gol cargado: resultado incompleto, no confirmado
       cruce("incompleto", "semifinal", "finished", 1, null),
     ]);
+    // Del prode es lo que está vinculado en prode_matches (la fase sale de ahí)
+    const vinculos: Array<[string, string]> = [["exacto", "octavos"], ["empate", "octavos"], ["cuartos1", "cuartos"], ["pendiente", "cuartos"], ["cancelado", "cuartos"], ["postergado", "cuartos"], ["incompleto", "semifinal"]];
+    await t.db.insert(prodeMatches).values(vinculos.map(([matchId, fase]) => ({ matchId, fase, createdAt: AYER })));
     await t.db.insert(prodePredictions).values([
       pronostico("user-1", "exacto", 2, 1), // 3, exacto
       pronostico("user-1", "empate", 0, 0), // 1, empate no exacto
@@ -123,6 +126,19 @@ describe("puntosPorUsuario", () => {
     await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 1, away_score = 0 WHERE id = 'superclasico'").run();
     await t.db.insert(prodePredictions).values(pronostico("user-3", "superclasico", 1, 0));
     expect(de(await puntosPorUsuario(t.db), "user-3")).toBeUndefined();
+  });
+
+  it("puntúa un partido de ESPN adoptado con su resultado y la fase del vínculo", async () => {
+    await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 1, away_score = 0, date_time = ? WHERE id = 'superclasico'").bind(Math.floor(AYER.getTime() / 1000)).run();
+    await t.db.insert(prodeMatches).values({ matchId: "superclasico", fase: "final", createdAt: AYER });
+    await t.db.insert(prodePredictions).values(pronostico("user-3", "superclasico", 1, 0));
+    const r = await puntosPorUsuario(t.db, { fase: "final" });
+    expect(r.partidos).toEqual([{ userId: "user-3", matchId: "superclasico", fase: "final", puntos: 3, exacto: true, acierto: true }]);
+  });
+
+  it("un cruce manual sin vínculo no puntúa", async () => {
+    await t.DB.prepare("DELETE FROM prode_matches WHERE match_id = 'exacto'").run();
+    expect((await puntosPorUsuario(t.db)).partidos.map((x) => x.matchId)).not.toContain("exacto");
   });
 
   describe("GET /api/prode/mis-puntos", () => {

@@ -11,8 +11,10 @@ import { agregarCruce, corregirPartido, listarCruces, type Resultado } from "../
 // estado los borra. Horario y fase no se cambian si el partido ya empezó (409); estado y resultado sí.
 // Duplicados: POST y el PATCH de horario responden 409 {error: "cruce_duplicado", existente: {id, source}} si ya hay
 // un partido de la misma liga, mismo local y visitante, de cualquier source (manual o espn), a menos de 6 h. Si el
-// existente es de ESPN ("espn"), ese es el partido a usar: no se carga a mano. Equipos invertidos o con más de 6 h
-// de diferencia (ida y vuelta) no cuentan como duplicado.
+// existente es de ESPN ("espn"), ese es el partido a usar: se suma con POST {adoptar: "<matchId>", fase} (201
+// {partido}; 404 partido_inexistente; 409 ya_en_prode). Un adoptado no se edita acá (409 partido_no_manual): lo
+// gobierna el sync. Equipos invertidos o con más de 6 h de diferencia (ida y vuelta) no cuentan como duplicado.
+// GET lista los partidos del prode (vínculo prode_matches): manuales y adoptados.
 // Límite de tasa: como el resto de /api/admin, solo cuentan los fallos de Bearer (admin_fail en verificarAdmin).
 const headers = { "Cache-Control": "no-store" };
 const OPCIONES: WithApiOptions = { origin: "none", contentType: "json", rateLimit: [] };
