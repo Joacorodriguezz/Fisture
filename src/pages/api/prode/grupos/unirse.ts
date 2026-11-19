@@ -23,6 +23,6 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
     return json({ error: "Invitación inválida" }, 404);
   }
 
-  locals.logger?.info("prode_grupo_unido", { groupId: grupo.id });
+  locals.logger?.info("prode_grupo_unido");
   return json(grupo);
 }, { rateLimit: ["prode_unirse_ip", "prode_unirse"] });

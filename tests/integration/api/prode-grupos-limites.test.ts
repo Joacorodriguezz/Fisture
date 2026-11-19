@@ -52,6 +52,22 @@ describe("API /api/prode/grupos: topes y límites", () => {
     expect((await crear(peticion({ user: fixtures.other, body: { nombre: "Del otro" } }))).status).toBe(201);
   });
 
+  it("con 9 grupos, dos creaciones simultáneas: una entra (201) y la otra da 409, quedan 10", async () => {
+    for (let i = 0; i < MAX_GRUPOS_POR_DUENO - 1; i++) await crearGrupo(t.db, fixtures.user.id, `Grupo ${i + 1}`);
+    const [a, b] = await Promise.all([crear(peticion({ body: { nombre: "Carrera A" } })), crear(peticion({ body: { nombre: "Carrera B" } }))]);
+    expect([a.status, b.status].sort()).toEqual([201, 409]);
+    const fila = await t.DB.prepare("SELECT count(*) AS n FROM prode_groups WHERE owner_id = ?").bind(fixtures.user.id).first<{ n: number }>();
+    expect(fila?.n).toBe(MAX_GRUPOS_POR_DUENO);
+    // La membresía del dueño solo existe para los grupos que sí se crearon
+    const m = await t.DB.prepare("SELECT count(*) AS n FROM prode_group_members WHERE user_id = ?").bind(fixtures.user.id).first<{ n: number }>();
+    expect(m?.n).toBe(MAX_GRUPOS_POR_DUENO);
+  });
+
+  it("crearGrupo devuelve 'limite' sin insertar nada cuando el dueño ya tiene 10", async () => {
+    for (let i = 0; i < MAX_GRUPOS_POR_DUENO; i++) await crearGrupo(t.db, fixtures.user.id, `Grupo ${i + 1}`);
+    expect(await crearGrupo(t.db, fixtures.user.id, "Uno más")).toBe("limite");
+  });
+
   it("crear con rate limit: la creación 11 en una hora da 429", async () => {
     // 10 creaciones válidas (el tope de grupos llega justo a 10), la 11 la frena el límite de tasa
     for (let i = 0; i < 10; i++) expect((await crear(peticion({ body: { nombre: `Grupo ${i + 1}` } }))).status).toBe(201);
