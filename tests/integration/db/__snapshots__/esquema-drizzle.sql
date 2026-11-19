@@ -101,7 +101,7 @@ CREATE TABLE `prode_groups` (
 	`invite_code` text NOT NULL,
 	`owner_id` text NOT NULL,
 	`created_at` integer NOT NULL,
-	FOREIGN KEY (`owner_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`owner_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE restrict
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `prode_groups_invite_code_unique` ON `prode_groups` (`invite_code`);--> statement-breakpoint

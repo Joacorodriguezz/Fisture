@@ -354,9 +354,10 @@ export const prodeGroups = sqliteTable("prode_groups", {
     .$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull(),
   inviteCode: text("invite_code").notNull().unique(),
+  // RESTRICT: al borrar la cuenta del dueño, deleteAccount transfiere el grupo (o lo borra si queda vacío)
   ownerId: text("owner_id")
     .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
+    .references(() => users.id, { onDelete: "restrict" }),
   createdAt: integer("created_at").notNull(), // epoch ms
 });
 
