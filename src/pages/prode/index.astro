@@ -1,0 +1,44 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Volanta from "../../components/tribuna/Volanta.astro";
+import Titular from "../../components/tribuna/Titular.astro";
+import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
+import Boton from "../../components/tribuna/Boton.astro";
+import NombreVisible from "../../components/islands/NombreVisible";
+import ProdePronosticos from "../../components/islands/ProdePronosticos";
+import { loginHref } from "../../lib/auth/guards";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect(loginHref("/prode"));
+}
+const sinNombre = !user.displayName;
+---
+
+<Layout title="Prode - FISTURE" pagina={9} noindex>
+  <div style="max-width:760px;display:flex;flex-direction:column;gap:32px">
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+      <Volanta tono="tinta">Prode</Volanta>
+      <Titular nivel="1">TUS PRONÓSTICOS</Titular>
+      <Boton href="/prode/grupos">Mis grupos</Boton>
+    </div>
+
+    {sinNombre && (
+      <div style="display:flex;flex-direction:column">
+        <BarraSeccion tono="rojo">Primero, tu nombre</BarraSeccion>
+        <NombreVisible client:load inicial={null} />
+      </div>
+    )}
+
+    <div style="display:flex;flex-direction:column">
+      <BarraSeccion tono="tinta">Partidos</BarraSeccion>
+      <p style="font:400 14px/19px var(--font-texto);color:var(--tinta-suave);padding:12px 12px 0;margin:0">
+        Horarios de Argentina. Podés cambiar tu marcador hasta el inicio del partido.
+      </p>
+      <ProdePronosticos client:load />
+    </div>
+
+    {/* Posiciones: conectar cuando exista GET /api/prode/ranking
+        <ProdeRanking client:visible url="/api/prode/ranking" /> */}
+  </div>
+</Layout>
