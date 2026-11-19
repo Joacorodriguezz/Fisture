@@ -120,6 +120,88 @@ describe("/api/admin/prode/partidos", () => {
     expect(res.body.partido.horario.iso).toBe("2026-11-29T19:00-03:00");
   });
 
+  it("PATCH carga el resultado de un partido terminado", async () => {
+    const { body } = await llamar("POST", cruce);
+    const res = await llamar("PATCH", { id: body.partido.id, status: "finished", homeScore: 2, awayScore: 1 });
+    expect(res.status).toBe(200);
+    expect(res.body.partido).toMatchObject({ estado: "finished", resultado: { local: 2, visitante: 1 } });
+    expect(await fila(body.partido.id)).toMatchObject({ status: "finished", home_score: 2, away_score: 1, round: "cuartos" });
+  });
+
+  it("PATCH valida estado y marcador antes de escribir", async () => {
+    const { body } = await llamar("POST", cruce);
+    const id = body.partido.id;
+    const casos: Array<[Record<string, unknown>, string]> = [
+      [{ status: "finished" }, "faltan_goles"],
+      [{ status: "finished", homeScore: 1 }, "faltan_goles"],
+      [{ homeScore: 1, awayScore: 0 }, "resultado_sin_finalizar"],
+      [{ status: "live", homeScore: 1, awayScore: 0 }, "resultado_sin_finalizar"],
+      [{ status: "finished", homeScore: 21, awayScore: 0 }, "marcador_invalido"],
+      [{ status: "finished", homeScore: -1, awayScore: 0 }, "marcador_invalido"],
+      [{ status: "finished", homeScore: 1.5, awayScore: 0 }, "marcador_invalido"],
+      [{ status: "finished", homeScore: "2", awayScore: 0 }, "marcador_invalido"],
+      [{ status: "terminado" }, "estado_invalido"],
+    ];
+    for (const [cambio, codigo] of casos) {
+      const res = await llamar("PATCH", { id, ...cambio });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe(codigo);
+    }
+    expect(await fila(id)).toMatchObject({ status: "scheduled", home_score: null, away_score: null });
+    // Los límites del rango valen
+    expect((await llamar("PATCH", { id, status: "finished", homeScore: 0, awayScore: 20 })).status).toBe(200);
+  });
+
+  it("PATCH corrige un resultado ya cargado y es idempotente", async () => {
+    const { body } = await llamar("POST", cruce);
+    const id = body.partido.id;
+    await llamar("PATCH", { id, status: "finished", homeScore: 2, awayScore: 1 });
+    const corregido = { id, status: "finished", homeScore: 1, awayScore: 1 };
+    for (let i = 0; i < 2; i++) {
+      const res = await llamar("PATCH", corregido);
+      expect(res.status).toBe(200);
+      expect(res.body.partido.resultado).toEqual({ local: 1, visitante: 1 });
+    }
+    expect(await fila(id)).toMatchObject({ status: "finished", home_score: 1, away_score: 1 });
+  });
+
+  it("PATCH a cancelado, postergado o programado limpia los goles", async () => {
+    const { body } = await llamar("POST", cruce);
+    const id = body.partido.id;
+    for (const status of ["cancelled", "postponed", "scheduled"]) {
+      await llamar("PATCH", { id, status: "finished", homeScore: 3, awayScore: 0 });
+      const res = await llamar("PATCH", { id, status });
+      expect(res.status).toBe(200);
+      expect(res.body.partido).toMatchObject({ estado: status, resultado: null });
+      expect(await fila(id)).toMatchObject({ status, home_score: null, away_score: null });
+    }
+  });
+
+  it("PATCH acepta el resultado de un partido ya empezado pero sigue rechazando cambiarle el horario", async () => {
+    const { body } = await llamar("POST", cruce);
+    const id = body.partido.id;
+    vi.setSystemTime(new Date("2026-11-23T02:00:00Z"));
+    expect((await llamar("PATCH", { id, status: "live" })).status).toBe(200);
+    const res = await llamar("PATCH", { id, status: "finished", homeScore: 0, awayScore: 0 });
+    expect(res.status).toBe(200);
+    expect(res.body.partido.resultado).toEqual({ local: 0, visitante: 0 });
+
+    for (const cambio of [{ horario: "2026-11-25T21:00" }, { fase: "semifinal" }, { status: "finished", homeScore: 1, awayScore: 0, horario: "2026-11-25T21:00" }]) {
+      const rechazo = await llamar("PATCH", { id, ...cambio });
+      expect(rechazo.status).toBe(409);
+      expect(rechazo.body.error).toBe("partido_ya_empezado");
+    }
+    expect(await fila(id)).toMatchObject({ status: "finished", home_score: 0, away_score: 0, round: "cuartos", date_time: Date.parse("2026-11-23T00:00:00Z") / 1000 });
+  });
+
+  it("PATCH no carga resultados en partidos que trae el sync", async () => {
+    await t.DB.prepare("INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, source) VALUES ('espn-1', 'espn:1', 'boca', 'edlp', 'lpf', 1795000000, 'espn')").run();
+    const res = await llamar("PATCH", { id: "espn-1", status: "finished", homeScore: 2, awayScore: 0 });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("partido_no_manual");
+    expect(await fila("espn-1")).toMatchObject({ status: "scheduled", home_score: null, away_score: null });
+  });
+
   it("GET lista solo los cruces manuales, ordenados por horario", async () => {
     const tarde = await llamar("POST", { ...cruce, horario: "2026-11-23T21:00", fase: "semifinal" });
     const temprano = await llamar("POST", cruce);

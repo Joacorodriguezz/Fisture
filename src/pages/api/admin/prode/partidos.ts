@@ -6,7 +6,9 @@ import { agregarCruce, corregirPartido, listarCruces, type Resultado } from "../
 
 // Cruces del prode de playoffs, carga manual (Bearer ADMIN_SECRET).
 // GET lista los cruces; POST agrega uno ({leagueId, homeTeamId, awayTeamId, fase, horario: "AAAA-MM-DDTHH:mm"
-// en hora argentina, venue?}); PATCH corrige horario y/o fase ({id, horario?, fase?}) de un cruce manual.
+// en hora argentina, venue?}); PATCH corrige un cruce manual ({id, horario?, fase?, status?, homeScore?,
+// awayScore?}). Goles enteros 0-20 a los 90' más adicionado, solo y siempre con status "finished"; otro
+// estado los borra. Horario y fase no se cambian si el partido ya empezó (409); estado y resultado sí.
 // Límite de tasa: como el resto de /api/admin, solo cuentan los fallos de Bearer (admin_fail en verificarAdmin).
 const headers = { "Cache-Control": "no-store" };
 const OPCIONES: WithApiOptions = { origin: "none", contentType: "json", rateLimit: [] };
@@ -53,7 +55,7 @@ export const PATCH: APIRoute = withApi(async ({ request, locals }) => {
   if (!datos) return Response.json({ error: "json_invalido" }, { status: 400, headers });
 
   const resultado = await corregirPartido(createDb(env.DB), datos);
-  if (resultado.ok) locals.logger?.info("prode_cruce_corregido", { matchId: resultado.partido.id, fase: resultado.partido.fase, horario: resultado.partido.horario.iso });
+  if (resultado.ok) locals.logger?.info("prode_cruce_corregido", { matchId: resultado.partido.id, fase: resultado.partido.fase, horario: resultado.partido.horario.iso, estado: resultado.partido.estado });
   else locals.logger?.warn("prode_cruce_rechazado", { error: resultado.error });
   return responder(resultado, 200);
 }, OPCIONES);
