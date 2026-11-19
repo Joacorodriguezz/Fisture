@@ -68,7 +68,23 @@ async function leerPartido(db: Database, id: string): Promise<PartidoProde> {
 // cualquier source: ESPN o manual). Evita dos eventos en el calendario de quien sigue al equipo y el
 // chequeo duplicate_match (consistency.ts, que solo ve horarios idénticos). Equipos invertidos o más de
 // 6 h de diferencia (ida y vuelta) son otro partido.
-const VENTANA_DUPLICADO_MS = 6 * 60 * 60 * 1000;
+export const VENTANA_DUPLICADO_MS = 6 * 60 * 60 * 1000;
+
+interface Cruce {
+  homeTeamId: string;
+  awayTeamId: string;
+  dateTime: Date;
+}
+
+// Misma regla que buscarDuplicado, en memoria (la usa el sync para reemplazar cruces manuales por los de
+// ESPN sin consultar partido por partido). La liga la filtra quien llama.
+export function esMismoCruce(a: Cruce, b: Cruce): boolean {
+  return (
+    a.homeTeamId === b.homeTeamId &&
+    a.awayTeamId === b.awayTeamId &&
+    Math.abs(a.dateTime.getTime() - b.dateTime.getTime()) < VENTANA_DUPLICADO_MS
+  );
+}
 
 async function buscarDuplicado(
   db: Database,

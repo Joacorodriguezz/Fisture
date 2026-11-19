@@ -5,7 +5,7 @@ import { useTestDb } from "../helpers/use-test-db";
 import { AHORA, DIA_MS, relojFijo } from "../helpers/clock";
 import { syncLote, syncSingleLeague } from "../../src/lib/data-providers/sync";
 import { LEAGUES_CONFIG, lotesDeSync } from "../../src/lib/data-providers";
-import { leagues, teams, matches, leagueTeams } from "../../drizzle/schema";
+import { leagues, teams, matches, leagueTeams, prodeMatches, prodePredictions, users } from "../../drizzle/schema";
 
 describe("ingesta ESPN a D1", () => {
   const t = useTestDb();
@@ -379,6 +379,55 @@ describe("ingesta ESPN a D1", () => {
 
     it.each([-1, 1.5, 999])("un lote inexistente (%s) es un error", async (lote) => {
       await expect(syncLote({ DB: t.DB }, lote)).rejects.toThrow(RangeError);
+    });
+  });
+
+  // docs/37: un cruce del prode cargado a mano antes de que ESPN publique el partido. Cuando el sync lo
+  // trae, el partido de ESPN reemplaza al manual (vínculo y pronósticos incluidos), sin duplicarlo.
+  describe("cruce manual del prode que después trae ESPN", () => {
+    const H = 3_600_000;
+    let espn: typeof matches.$inferSelect;
+
+    // Primer sync para crear liga y equipos; después se borra el partido de ESPN y se carga el manual
+    const prepararManual = async (desfaseMs: number) => {
+      await sync();
+      [espn] = await t.db.select().from(matches);
+      await t.DB.prepare("DELETE FROM matches").run();
+      await t.db.insert(matches).values({
+        id: "manual-1", externalId: "prode:manual-1", homeTeamId: espn.homeTeamId, awayTeamId: espn.awayTeamId, leagueId: espn.leagueId,
+        dateTime: new Date(espn.dateTime.getTime() + desfaseMs), status: "scheduled", round: "cuartos", source: "manual",
+      });
+      await t.db.insert(prodeMatches).values({ matchId: "manual-1", fase: "cuartos", createdAt: AHORA });
+      await t.db.insert(users).values({ id: "u1", provider: "google", providerId: "p1", email: "u1@example.test", name: "U1" });
+      await t.db.insert(prodePredictions).values({ userId: "u1", matchId: "manual-1", homeGoals: 2, awayGoals: 0, createdAt: AHORA, updatedAt: AHORA });
+    };
+
+    it("reemplaza el manual: un solo partido, con el vínculo y los pronósticos", async () => {
+      await prepararManual(2 * H);
+      expect(await sync()).toMatchObject({ matchesCreated: 1, errors: [] });
+      const todos = await t.db.select().from(matches);
+      expect(todos).toHaveLength(1);
+      expect(todos[0]).toMatchObject({ externalId: espn.externalId, source: espn.source });
+      const nuevoId = todos[0].id;
+      expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ matchId: nuevoId, fase: "cuartos" })]);
+      expect(await t.db.select().from(prodePredictions)).toEqual([expect.objectContaining({ userId: "u1", matchId: nuevoId, homeGoals: 2, awayGoals: 0 })]);
+      // Un segundo sync no cambia nada
+      expect(await sync()).toMatchObject({ matchesCreated: 0, matchesUpdated: 0 });
+    });
+
+    it("a 6 h o más es otro partido: no lo reemplaza", async () => {
+      await prepararManual(6 * H);
+      await sync();
+      expect((await t.db.select().from(matches)).map((m) => m.id).sort()).toContain("manual-1");
+      expect(await t.db.select().from(matches)).toHaveLength(2);
+      expect(await t.db.select().from(prodePredictions)).toEqual([expect.objectContaining({ matchId: "manual-1" })]);
+    });
+
+    it("con los equipos invertidos es otro partido: no lo reemplaza", async () => {
+      await prepararManual(H);
+      await t.DB.prepare("UPDATE matches SET home_team_id = away_team_id, away_team_id = home_team_id WHERE id = 'manual-1'").run();
+      await sync();
+      expect(await t.db.select().from(matches)).toHaveLength(2);
     });
   });
 });

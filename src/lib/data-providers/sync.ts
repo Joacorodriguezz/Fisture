@@ -5,13 +5,14 @@
 // - una sentencia admite como máximo 100 parámetros: los inserts multi-fila se parten en consecuencia
 // - solo se escribe lo que cambió, para no gastar escrituras en un sync diario
 
-import { and, eq, notInArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { createDb, type Database } from "../db";
 import { mensajeDeError, rootLogger } from "../observability/logger";
 import { guardarSlugs, resolverSlugsNuevos } from "../db/slugs";
 import type { FilaSinSlug } from "../slug";
-import { teams, matches, leagues, leagueTeams } from "../../../drizzle/schema";
+import { teams, matches, leagues, leagueTeams, prodeMatches, prodePredictions } from "../../../drizzle/schema";
+import { esMismoCruce, SOURCE_MANUAL } from "../prode/partidos";
 import { logoDeCompetencia } from "../logos-competencias";
 import {
   createEspnClient,
@@ -433,23 +434,33 @@ async function syncPartidos(
   equipoIds: Map<string, string>,
   result: SyncResult
 ): Promise<void> {
-  const existentes = await db
+  // La misma consulta indexada (league_id, source) trae también los cruces manuales del prode de la
+  // liga: sin subrequests de más para reemplazarlos cuando ESPN publica el mismo partido.
+  const filas = await db
     .select({
       id: matches.id,
       externalId: matches.externalId,
+      homeTeamId: matches.homeTeamId,
+      awayTeamId: matches.awayTeamId,
       dateTime: matches.dateTime,
       venue: matches.venue,
       status: matches.status,
       homeScore: matches.homeScore,
       awayScore: matches.awayScore,
       round: matches.round,
+      source: matches.source,
     })
     .from(matches)
-    .where(and(eq(matches.leagueId, ligaId), eq(matches.source, config.source)));
+    .where(and(eq(matches.leagueId, ligaId), inArray(matches.source, [config.source, SOURCE_MANUAL])));
+  const existentes = filas.filter((m) => m.source === config.source);
+  const manuales = filas.filter((m) => m.source === SOURCE_MANUAL);
   const porExterno = new Map(existentes.map((m) => [m.externalId, m]));
 
   const nuevos: (typeof matches.$inferInsert)[] = [];
   const cambios: Sentencia[] = [];
+  // Cada reemplazo va en su propio batch (atómico): insertar el de ESPN, pasarle el vínculo y los
+  // pronósticos del manual y borrar el manual. Solo ocurre con partidos nuevos de ligas con cruces manuales.
+  const reemplazos: [Sentencia, ...Sentencia[]][] = [];
 
   for (const m of proveedor) {
     const homeTeamId = equipoIds.get(m.homeTeamExternalId);
@@ -479,7 +490,19 @@ async function syncPartidos(
     const actual = porExterno.get(m.externalId);
 
     if (!actual) {
-      nuevos.push({ ...datos, externalId: m.externalId, leagueId: ligaId, source: config.source });
+      const fila = { ...datos, id: crypto.randomUUID(), externalId: m.externalId, leagueId: ligaId, source: config.source };
+      const i = manuales.findIndex((x) => esMismoCruce(x, datos));
+      if (i === -1) {
+        nuevos.push(fila);
+        continue;
+      }
+      const [manual] = manuales.splice(i, 1);
+      reemplazos.push([
+        db.insert(matches).values(fila),
+        db.update(prodeMatches).set({ matchId: fila.id }).where(eq(prodeMatches.matchId, manual.id)),
+        db.update(prodePredictions).set({ matchId: fila.id }).where(eq(prodePredictions.matchId, manual.id)),
+        db.delete(matches).where(eq(matches.id, manual.id)),
+      ]);
       continue;
     }
 
@@ -505,7 +528,9 @@ async function syncPartidos(
     ...partir(nuevos, FILAS_PARTIDOS).map((filas) => db.insert(matches).values(filas).onConflictDoNothing()),
     ...cambios,
   ]);
+  for (const lote of reemplazos) await db.batch(lote);
+  if (reemplazos.length) rootLogger.info("prode_cruce_reemplazado_por_sync", { leagueId: ligaId, cantidad: reemplazos.length });
 
-  result.matchesCreated += nuevos.length;
+  result.matchesCreated += nuevos.length + reemplazos.length;
   result.matchesUpdated += cambios.length;
 }
