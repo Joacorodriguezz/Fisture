@@ -162,7 +162,8 @@ CREATE TABLE `users` (
 	`created_at` integer DEFAULT (strftime('%s', 'now')),
 	`calendar_reconciled_at` integer,
 	`calendar_auth_status` text DEFAULT 'ok' NOT NULL,
-	`onboarded_at` integer
+	`onboarded_at` integer,
+	`display_name` text
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
