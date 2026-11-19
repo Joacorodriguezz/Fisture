@@ -63,7 +63,7 @@ Tres migraciones, todas **solo aditivas** (el código anterior no las lee y sigu
 **Orden obligatorio: migraciones ANTES del deploy del código**, en cada entorno.
 
 - Producción: `deploy.yml` aplica las migraciones de D1 antes de desplegar el artefacto; si se despliega a mano, correr `npm run db:migrate:prod` primero.
-- Staging (`fisture-staging`, `docs/26`): aplicar las migraciones a esa D1 antes del push a `development` que trae el código del prode (`npx wrangler d1 migrations apply fisture-staging --remote`, con el binding de `[env.preview]`); si no, el sitio de staging responde 500 a toda petición con sesión.
+- Staging (`fisture-staging`, `docs/26`): aplicar las migraciones a esa D1 antes del push a `development` que trae el código del prode (`npx wrangler d1 migrations apply fisture-staging --remote --env preview`, como hace `staging.yml`; el push a `development` ya las aplica antes de desplegar); si no, el sitio de staging responde 500 a toda petición con sesión.
 - Verificación: `/api/health` y una navegación con sesión (por ejemplo `/cuenta`) tras el deploy.
 
 **Rollback.** Como son aditivas, revertir el código basta: la base migrada sigue siendo compatible con la versión anterior. No se borran las tablas ni la columna (perderían nombres, grupos y pronósticos). Si hubiera que quitarlas, hacerlo recién con el código anterior ya desplegado y en este orden: `DROP TABLE prode_predictions`, `prode_group_members`, `prode_groups`; `ALTER TABLE users DROP COLUMN display_name`. Atención: `DELETE FROM users` manual falla si el usuario es dueño de un grupo (`docs/23`, `docs/14`).

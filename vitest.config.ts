@@ -27,7 +27,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html", "lcov", "json-summary"],
       include: [
-        "src/lib/format.ts", "src/lib/escudo.ts","src/lib/seo.ts", "src/lib/seo-equipo.ts", "src/lib/seo-liga.ts", "src/lib/seo-partido.ts", "src/lib/slug.ts", "src/lib/security-headers.ts", "src/lib/cache-publico.ts", "src/lib/auth/{guards,session,tokens,revoke,token-crypto,token-store,token-backfill}.ts", "src/lib/sync-ui.ts", "src/lib/prode/reglas.ts",
+        "src/lib/format.ts", "src/lib/escudo.ts","src/lib/seo.ts", "src/lib/seo-equipo.ts", "src/lib/seo-liga.ts", "src/lib/seo-partido.ts", "src/lib/slug.ts", "src/lib/security-headers.ts", "src/lib/cache-publico.ts", "src/lib/auth/{guards,session,tokens,revoke,token-crypto,token-store,token-backfill}.ts", "src/lib/sync-ui.ts", "src/lib/prode/*.ts",
         "src/lib/calendar/*.ts",
         "src/lib/db/{account,preferences,queries,slugs}.ts", "src/lib/data-providers/{espn,sync}.ts",
         "src/lib/observability/*.ts",
