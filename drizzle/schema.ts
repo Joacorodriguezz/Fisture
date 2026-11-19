@@ -342,3 +342,39 @@ export const sessions = sqliteTable(
 );
 
 export type Session = typeof sessions.$inferSelect;
+
+// ============================================
+// PRODE: GRUPOS PRIVADOS
+// ============================================
+
+// Grupo privado del prode. Solo se entra con el código de invitación (aleatorio, no adivinable)
+export const prodeGroups = sqliteTable("prode_groups", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  inviteCode: text("invite_code").notNull().unique(),
+  ownerId: text("owner_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at").notNull(), // epoch ms
+});
+
+export const prodeGroupMembers = sqliteTable(
+  "prode_group_members",
+  {
+    groupId: text("group_id")
+      .notNull()
+      .references(() => prodeGroups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    joinedAt: integer("joined_at").notNull(), // epoch ms
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.groupId, table.userId] }),
+    userIdx: index("prode_group_members_user_idx").on(table.userId),
+  })
+);
+
+export type ProdeGroup = typeof prodeGroups.$inferSelect;

@@ -85,6 +85,26 @@ CREATE TABLE `oauth_identities` (
 CREATE UNIQUE INDEX `oauth_identities_provider_id_idx` ON `oauth_identities` (`provider`,`provider_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `oauth_identities_user_provider_idx` ON `oauth_identities` (`user_id`,`provider`);--> statement-breakpoint
 CREATE INDEX `oauth_identities_user_id_idx` ON `oauth_identities` (`user_id`);--> statement-breakpoint
+CREATE TABLE `prode_group_members` (
+	`group_id` text NOT NULL,
+	`user_id` text NOT NULL,
+	`joined_at` integer NOT NULL,
+	PRIMARY KEY(`group_id`, `user_id`),
+	FOREIGN KEY (`group_id`) REFERENCES `prode_groups`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `prode_group_members_user_idx` ON `prode_group_members` (`user_id`);--> statement-breakpoint
+CREATE TABLE `prode_groups` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`invite_code` text NOT NULL,
+	`owner_id` text NOT NULL,
+	`created_at` integer NOT NULL,
+	FOREIGN KEY (`owner_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `prode_groups_invite_code_unique` ON `prode_groups` (`invite_code`);--> statement-breakpoint
 CREATE TABLE `sessions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
