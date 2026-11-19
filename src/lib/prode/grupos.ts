@@ -2,7 +2,7 @@
 // Los integrantes se ven entre sí sin exponer email ni ids.
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { Database } from "../db";
-import { prodeGroupMembers, prodeGroups } from "../../../drizzle/schema";
+import { prodeGroupMembers, prodeGroups, users } from "../../../drizzle/schema";
 import { validarTextoPublico } from "./nombre-visible";
 
 export const NOMBRE_MIN = 3;
@@ -109,8 +109,9 @@ export async function detalleGrupo(db: Database, userId: string, groupId: string
   if (!grupo) return null;
 
   const miembros = await db
-    .select({ userId: prodeGroupMembers.userId })
+    .select({ userId: prodeGroupMembers.userId, displayName: users.displayName })
     .from(prodeGroupMembers)
+    .innerJoin(users, eq(users.id, prodeGroupMembers.userId))
     .where(eq(prodeGroupMembers.groupId, groupId))
     .orderBy(asc(prodeGroupMembers.joinedAt));
 
@@ -120,6 +121,6 @@ export async function detalleGrupo(db: Database, userId: string, groupId: string
     name: grupo.name,
     esDueno,
     ...(esDueno ? { inviteCode: grupo.inviteCode } : {}),
-    integrantes: miembros.map((m) => ({ nombre: NOMBRE_GENERICO, esDueno: m.userId === grupo.ownerId, esVos: m.userId === userId })),
+    integrantes: miembros.map((m) => ({ nombre: m.displayName ?? NOMBRE_GENERICO, esDueno: m.userId === grupo.ownerId, esVos: m.userId === userId })),
   };
 }
