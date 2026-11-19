@@ -59,6 +59,14 @@ export function codigoValido(valor: unknown): valor is string {
   return typeof valor === "string" && FORMATO_CODIGO.test(valor);
 }
 
+// Tope de grupos creados por dueño (los grupos a los que solo se une no cuentan)
+export const MAX_GRUPOS_POR_DUENO = 10;
+
+export async function contarGruposCreados(db: Database, ownerId: string): Promise<number> {
+  const [fila] = await db.select({ n: sql<number>`count(*)` }).from(prodeGroups).where(eq(prodeGroups.ownerId, ownerId));
+  return Number(fila?.n ?? 0);
+}
+
 export async function crearGrupo(db: Database, ownerId: string, nombre: unknown, ahora = Date.now()): Promise<GrupoCreado | null> {
   const name = normalizarNombre(nombre);
   if (!name) return null;
