@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { createDb } from "../../../../lib/db";
 import { verificarAdmin } from "../../../../lib/observability/admin-auth";
-import { withApi } from "../../../../lib/observability/with-api";
+import { withApi, type WithApiOptions } from "../../../../lib/observability/with-api";
 import { agregarCruce, corregirPartido, listarCruces, type Resultado } from "../../../../lib/prode/partidos";
 
 // Cruces del prode de playoffs, carga manual (Bearer ADMIN_SECRET).
@@ -9,7 +9,7 @@ import { agregarCruce, corregirPartido, listarCruces, type Resultado } from "../
 // en hora argentina, venue?}); PATCH corrige horario y/o fase ({id, horario?, fase?}) de un cruce manual.
 // Límite de tasa: como el resto de /api/admin, solo cuentan los fallos de Bearer (admin_fail en verificarAdmin).
 const headers = { "Cache-Control": "no-store" };
-const OPCIONES = { origin: "none", contentType: "json", rateLimit: [] } as const;
+const OPCIONES: WithApiOptions = { origin: "none", contentType: "json", rateLimit: [] };
 
 async function leerJson(request: Request): Promise<Record<string, unknown> | null> {
   try {
