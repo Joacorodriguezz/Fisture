@@ -81,7 +81,9 @@ describe("DELETE /api/cuenta", () => {
     (await t.DB.prepare(
       `SELECT (SELECT COUNT(*) FROM user_teams WHERE user_id NOT IN (SELECT id FROM users))
             + (SELECT COUNT(*) FROM user_preferences WHERE user_id NOT IN (SELECT id FROM users))
-            + (SELECT COUNT(*) FROM calendar_syncs WHERE user_id NOT IN (SELECT id FROM users)) AS n`
+            + (SELECT COUNT(*) FROM calendar_syncs WHERE user_id NOT IN (SELECT id FROM users))
+            + (SELECT COUNT(*) FROM prode_group_members WHERE user_id NOT IN (SELECT id FROM users))
+            + (SELECT COUNT(*) FROM prode_groups WHERE owner_id NOT IN (SELECT id FROM users)) AS n`
     ).first<{ n: number }>())!.n;
 
   it("C1: sin sesión responde 401 y no borra nada", async () => {
@@ -269,6 +271,81 @@ describe("DELETE /api/cuenta", () => {
       const res = await llamar({ user });
       expect(res.status).toBe(200);
       expect(revocar).not.toHaveBeenCalled();
+    });
+  });
+
+  // Grupos privados del prode: el grupo sobrevive a la baja de su dueño (pasa al integrante más antiguo)
+  describe("grupos del prode", () => {
+    const grupo = (id: string, ownerId: string) =>
+      t.DB.prepare("INSERT INTO prode_groups (id, name, invite_code, owner_id, created_at) VALUES (?, ?, ?, ?, 1)").bind(id, `Grupo ${id}`, `codigo-${id}`, ownerId).run();
+    const integrante = (groupId: string, userId: string, joinedAt: number) =>
+      t.DB.prepare("INSERT INTO prode_group_members (group_id, user_id, joined_at) VALUES (?, ?, ?)").bind(groupId, userId, joinedAt).run();
+    const dueno = async (groupId: string) =>
+      (await t.DB.prepare("SELECT owner_id FROM prode_groups WHERE id = ?").bind(groupId).first<{ owner_id: string }>())?.owner_id ?? null;
+    const integrantes = async (groupId: string) =>
+      (await t.DB.prepare("SELECT user_id FROM prode_group_members WHERE group_id = ? ORDER BY joined_at").bind(groupId).all<{ user_id: string }>()).results.map((r) => r.user_id);
+
+    beforeEach(async () => {
+      await t.DB.prepare("INSERT INTO users (id, provider, provider_id, email, name) VALUES ('user-3', 'google', 'provider-3', 'eva@example.test', 'Eva')").run();
+    });
+
+    it("G1: si el dueño borra su cuenta, el grupo sigue y pasa al integrante más antiguo", async () => {
+      await grupo("g1", "user-1");
+      await integrante("g1", "user-1", 100);
+      await integrante("g1", "user-3", 300);
+      await integrante("g1", "user-2", 200);
+
+      const res = await llamar();
+
+      expect(res.status).toBe(200);
+      expect(await dueno("g1")).toBe("user-2");
+      expect(await integrantes("g1")).toEqual(["user-2", "user-3"]);
+      expect(await huerfanas()).toBe(0);
+    });
+
+    it("G2: si el dueño es el único integrante, el grupo desaparece", async () => {
+      await grupo("g2", "user-1");
+      await integrante("g2", "user-1", 100);
+
+      expect((await llamar()).status).toBe(200);
+
+      expect(await dueno("g2")).toBeNull();
+      expect(await integrantes("g2")).toEqual([]);
+      expect(await huerfanas()).toBe(0);
+    });
+
+    it("G3: un integrante que no es dueño sale del grupo y el grupo no cambia", async () => {
+      await grupo("g3", "user-2");
+      await integrante("g3", "user-2", 100);
+      await integrante("g3", "user-1", 200);
+
+      expect((await llamar()).status).toBe(200);
+
+      expect(await dueno("g3")).toBe("user-2");
+      expect(await integrantes("g3")).toEqual(["user-2"]);
+    });
+
+    it("G4: el log cuenta membresías, grupos transferidos y grupos borrados", async () => {
+      const { deleteAccount } = await import("../../../src/lib/db/account");
+      await grupo("ga", "user-1");
+      await integrante("ga", "user-1", 100);
+      await integrante("ga", "user-2", 200);
+      await grupo("gb", "user-1");
+      await integrante("gb", "user-1", 100);
+      await grupo("gc", "user-2");
+      await integrante("gc", "user-2", 100);
+      await integrante("gc", "user-1", 200);
+
+      const filas = await deleteAccount(t.DB as never, "user-1");
+
+      expect(filas).toMatchObject({ users: 1, prodeGroupMembers: 3, prodeGroupsTransferidos: 1, prodeGroups: 1 });
+    });
+
+    it("G5: la FK no deja borrar al dueño de un grupo sin transferirlo antes (RESTRICT)", async () => {
+      await grupo("g5", "user-1");
+      await integrante("g5", "user-1", 100);
+      await expect(t.DB.prepare("DELETE FROM users WHERE id = 'user-1'").run()).rejects.toThrow(/FOREIGN KEY/);
+      expect(await dueno("g5")).toBe("user-1");
     });
   });
 

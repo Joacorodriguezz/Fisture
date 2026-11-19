@@ -19,7 +19,10 @@ export const POLICIES = {
   mutation: { limit: 60, windowSec: 60, scope: "user" },
   mutation_ip: { limit: 120, windowSec: 60, scope: "ip" },
   admin_fail: { limit: 5, windowSec: 900, scope: "ip" },
-  search_public: { limit: 60, windowSec: 60, scope: "ip", store: "memory" },
+  // Unirse a un grupo del prode: acota el barrido de códigos de invitación
+  prode_unirse: { limit: 10, windowSec: 600, scope: "user" },
+  prode_unirse_ip: { limit: 30, windowSec: 600, scope: "ip" },
+  search_public:{ limit: 60, windowSec: 60, scope: "ip", store: "memory" },
 } as const satisfies Record<string, Policy>;
 
 export type PolicyName = keyof typeof POLICIES;
