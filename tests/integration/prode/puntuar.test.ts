@@ -6,6 +6,8 @@ import { AHORA, DIA_MS, relojFijo } from "../../helpers/clock";
 import { pronosticoDirecto, sembrarProde, seg } from "../../helpers/prode";
 import { puntuarPronosticos, VENTANA_PUNTAJE_DIAS } from "../../../src/lib/prode/puntuar";
 import { puntosDe } from "../../../src/lib/prode/reglas";
+import { crearGrupo, grupoPorCodigo } from "../../../src/lib/prode/repo";
+import { deleteAccount } from "../../../src/lib/db/account";
 
 function contarBatch(DB: D1Database) {
   const llamadas = { prepare: 0, batch: 0 };
@@ -51,7 +53,7 @@ describe("puntuarPronosticos", () => {
     );
 
     const r = await puntuarPronosticos(t.DB, AHORA);
-    expect(r).toEqual({ puntuados: 256, anulados: 0 });
+    expect(r).toEqual({ puntuados: 256, anulados: 0, gruposVacios: 0 });
 
     const { results } = await t.DB.prepare("SELECT user_id, match_id, points FROM prode_predictions WHERE match_id LIKE 'r%'").all<{ user_id: string; match_id: string; points: number }>();
     expect(results).toHaveLength(256);
@@ -71,13 +73,13 @@ describe("puntuarPronosticos", () => {
     await pronosticoDirecto(t.DB, "ana", "cancelado", 1, 0);
 
     const { DB, llamadas } = contarBatch(t.DB);
-    expect(await puntuarPronosticos(DB, AHORA)).toEqual({ puntuados: 2, anulados: 0 });
+    expect(await puntuarPronosticos(DB, AHORA)).toEqual({ puntuados: 2, anulados: 0, gruposVacios: 0 });
     expect(llamadas.batch).toBe(1);
     expect(await puntos("ana", "terminado-1")).toBe(3);
     expect(await puntos("ana", "terminado-2")).toBe(0);
     for (const m of ["sin-marcador", "en-juego", "abierto-1", "cancelado"]) expect(await puntos("ana", m)).toBeNull();
 
-    expect(await puntuarPronosticos(t.DB, AHORA)).toEqual({ puntuados: 0, anulados: 0 });
+    expect(await puntuarPronosticos(t.DB, AHORA)).toEqual({ puntuados: 0, anulados: 0, gruposVacios: 0 });
   });
 
   it("si la fuente corrige el resultado, vuelve a puntuar", async () => {
@@ -88,7 +90,7 @@ describe("puntuarPronosticos", () => {
     // El sync actualiza matches.updated_at solo cuando algo cambió (data-providers/sync.ts)
     await t.DB.prepare("UPDATE matches SET home_score = 1, away_score = 1, updated_at = ?1 WHERE id = 'terminado-1'").bind(seg(AHORA) + 60).run();
     const despues = new Date(AHORA.getTime() + 120_000);
-    expect(await puntuarPronosticos(t.DB, despues)).toEqual({ puntuados: 1, anulados: 0 });
+    expect(await puntuarPronosticos(t.DB, despues)).toEqual({ puntuados: 1, anulados: 0, gruposVacios: 0 });
     expect(await puntos("ana", "terminado-1")).toBe(0);
   });
 
@@ -100,14 +102,26 @@ describe("puntuarPronosticos", () => {
       t.DB.prepare("UPDATE matches SET status = 'cancelled' WHERE id = 'terminado-1'"),
       t.DB.prepare("UPDATE matches SET home_score = NULL WHERE id = 'terminado-2'"),
     ]);
-    expect(await puntuarPronosticos(t.DB, AHORA)).toEqual({ puntuados: 0, anulados: 2 });
+    expect(await puntuarPronosticos(t.DB, AHORA)).toEqual({ puntuados: 0, anulados: 2, gruposVacios: 0 });
     expect(await puntos("ana", "terminado-1")).toBeNull();
     expect(await puntos("beto", "terminado-2")).toBeNull();
   });
 
+  it("borra los grupos que quedaron sin miembros (p. ej. el último borró su cuenta), en el mismo batch", async () => {
+    const vacio = await crearGrupo(t.DB, { userId: "ana", nombre: "Se va", ligaId: "lpf", ahora: AHORA });
+    const conGente = await crearGrupo(t.DB, { userId: "beto", nombre: "Se queda", ligaId: "lpf", ahora: AHORA });
+    if (!vacio.ok || !conGente.ok) throw new Error("sin grupos");
+    await deleteAccount(t.DB, "ana");
+    const { DB, llamadas } = contarBatch(t.DB);
+    expect(await puntuarPronosticos(DB, AHORA)).toEqual({ puntuados: 0, anulados: 0, gruposVacios: 1 });
+    expect(llamadas.batch).toBe(1);
+    expect(await grupoPorCodigo(t.DB, vacio.codigo)).toBeNull();
+    expect(await grupoPorCodigo(t.DB, conGente.codigo)).not.toBeNull();
+  });
+
   it(`no toca partidos de más de ${VENTANA_PUNTAJE_DIAS} días`, async () => {
     await pronosticoDirecto(t.DB, "ana", "viejo", 1, 0);
-    expect(await puntuarPronosticos(t.DB, AHORA)).toEqual({ puntuados: 0, anulados: 0 });
+    expect(await puntuarPronosticos(t.DB, AHORA)).toEqual({ puntuados: 0, anulados: 0, gruposVacios: 0 });
     expect(await puntos("ana", "viejo")).toBeNull();
   });
 });

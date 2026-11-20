@@ -3,6 +3,7 @@
 //    puntos, o cuyo partido cambió después de puntuarse (corrección del resultado: el sync solo toca
 //    matches.updated_at cuando algo cambió).
 // 2. Anula los puntos de los que dejaron de estar terminados o perdieron el marcador.
+// 3. Borra los grupos sin miembros (higiene; la tabla de grupos es chica).
 // Solo mira los partidos de los últimos 30 días (idx_matches_date): el costo no crece con la historia.
 import type { D1Database } from "@cloudflare/workers-types";
 import { sqlPuntos } from "./reglas";
@@ -12,6 +13,9 @@ export const VENTANA_PUNTAJE_DIAS = 30;
 export interface ResultadoPuntaje {
   puntuados: number;
   anulados: number;
+  // Grupos que quedaron sin miembros (el último borró su cuenta o salieron dos a la vez): su código no
+  // debe seguir sirviendo para entrar y quedarse con la administración
+  gruposVacios: number;
 }
 
 const TERMINADO = "COALESCE(m.status, '') = 'finished' AND m.home_score IS NOT NULL AND m.away_score IS NOT NULL";
@@ -19,7 +23,7 @@ const TERMINADO = "COALESCE(m.status, '') = 'finished' AND m.home_score IS NOT N
 export async function puntuarPronosticos(DB: D1Database, ahora: Date = new Date()): Promise<ResultadoPuntaje> {
   const t = Math.floor(ahora.getTime() / 1000);
   const desde = t - VENTANA_PUNTAJE_DIAS * 86_400;
-  const [puntuar, anular] = await DB.batch([
+  const [puntuar, anular, vacios] = await DB.batch([
     DB.prepare(
       `UPDATE prode_predictions
         SET points = ${sqlPuntos("prode_predictions.home_goals", "prode_predictions.away_goals", "m.home_score", "m.away_score")},
@@ -38,6 +42,7 @@ export async function puntuarPronosticos(DB: D1Database, ahora: Date = new Date(
           AND prode_predictions.points IS NOT NULL
           AND NOT (${TERMINADO})`
     ).bind(desde),
+    DB.prepare("DELETE FROM prode_groups WHERE NOT EXISTS (SELECT 1 FROM prode_members m WHERE m.group_id = prode_groups.id)"),
   ]);
-  return { puntuados: puntuar.meta.changes, anulados: anular.meta.changes };
+  return { puntuados: puntuar.meta.changes, anulados: anular.meta.changes, gruposVacios: vacios.meta.changes };
 }

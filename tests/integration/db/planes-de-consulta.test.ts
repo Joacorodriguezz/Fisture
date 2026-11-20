@@ -217,7 +217,11 @@ describe("planes de las consultas calientes", () => {
     expect(consultas.length).toBeGreaterThanOrEqual(7);
     for (const c of consultas) {
       const pasos = (await plan(c)).join("\n");
-      expect(pasos, `${c.sql}\n${pasos}`).not.toMatch(/^SCAN (matches|m|prode_predictions|p|prode_members|mem|yo|c|a|prode_groups|g)\b/m);
+      // Única excepción: la limpieza diaria de grupos sin miembros recorre prode_groups (una fila por grupo,
+      // una vez por barrido, docs/37 §13); cada grupo se mira contra los miembros por clave primaria
+      const limpieza = c.sql.startsWith("DELETE FROM prode_groups WHERE NOT EXISTS");
+      const prohibido = limpieza ? /^SCAN (matches|m|prode_predictions|p|prode_members|mem)\b/m : /^SCAN (matches|m|prode_predictions|p|prode_members|mem|yo|c|a|prode_groups|g)\b/m;
+      expect(pasos, `${c.sql}\n${pasos}`).not.toMatch(prohibido);
       // La tabla busca los pronósticos de cada miembro, no los de toda la competencia (docs/37 §9)
       if (c.sql.includes("FROM prode_members mem")) expect(pasos, pasos).toContain("SEARCH p USING INDEX sqlite_autoindex_prode_predictions_1 (user_id=?");
     }
