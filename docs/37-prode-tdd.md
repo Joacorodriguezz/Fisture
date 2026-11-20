@@ -415,9 +415,9 @@ Implementado en la rama `feat/prode` el 20/11/2026, en la misma corrida que el d
 - En el entorno de esta corrida el Chromium preinstalado no coincide con `@playwright/test` 1.64.1 y no hay
   WebKit: los E2E y la auditoría UX se corrieron con una configuración local (no versionada) que apunta a ese
   Chromium, en los proyectos desktop y mobile. El proyecto `webkit-mobile` lo corre el CI.
-- Resultado: typecheck sin errores; discovery OK; 1404 tests de Vitest con los umbrales de cobertura
-  (`lib/prode` 98,5 % de líneas, `pages/api/prode` 100 %); build OK; 132 E2E y 144 casos de la auditoría UX
-  aprobados (desktop y mobile), sin fallidos.
+- Resultado final (después de los arreglos de la revisión): typecheck sin errores; discovery OK; 1409 tests
+  de Vitest con los umbrales de cobertura (`lib/prode` 98,5 % de líneas, `pages/api/prode` 100 %); build OK;
+  132 E2E y 144 casos de la auditoría UX aprobados (desktop y mobile), sin fallidos ni reintentos.
 
 **Revisión previa al PR** (agente `revisor`, sin hallazgos de fuga de datos ni de autorización)
 
