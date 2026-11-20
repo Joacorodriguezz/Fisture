@@ -211,7 +211,10 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
   // A un partido empezado (hora del servidor o estado) no se le cambia horario ni fase: una nueva
   // fecha reabriría los pronósticos de un suspendido a mitad de partido (docs/37 §5). Su estado y
   // resultado sí se cargan: es justamente cuando hacen falta.
-  if ((dateTime || fase !== undefined) && cierraPronostico(m, new Date())) return error(409, "partido_ya_empezado");
+  const ahora = new Date();
+  if ((dateTime || fase !== undefined) && cierraPronostico(m, ahora)) return error(409, "partido_ya_empezado");
+  // Un resultado antes de la hora de inicio es un error de carga: puntuaría un partido sin jugar
+  if (estado.cambios.status === "finished" && (dateTime ?? m.dateTime).getTime() > ahora.getTime()) return error(409, "partido_no_empezado");
   // Mover el horario no puede dejar el cruce encima de otro (manual o de ESPN)
   if (dateTime) {
     const repetido = await buscarDuplicado(db, { ...m, dateTime, excluirId: id });

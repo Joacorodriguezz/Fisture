@@ -8,7 +8,7 @@ import { agregarCruce, corregirPartido, listarCruces, type Resultado } from "../
 // GET lista los cruces; POST agrega uno ({leagueId, homeTeamId, awayTeamId, fase, horario: "AAAA-MM-DDTHH:mm"
 // en hora argentina, venue?}); PATCH corrige un cruce manual ({id, horario?, fase?, status?, homeScore?,
 // awayScore?}). Goles enteros 0-20 a los 90' más adicionado, solo y siempre con status "finished"; otro
-// estado los borra. Horario y fase no se cambian si el partido ya empezó (409); estado y resultado sí.
+// estado los borra; "finished" antes del horario de inicio da 409 partido_no_empezado. Horario y fase no se cambian si el partido ya empezó (409); estado y resultado sí.
 // Duplicados: POST y el PATCH de horario responden 409 {error: "cruce_duplicado", existente: {id, source}} si ya hay
 // un partido de la misma liga, mismo local y visitante, de cualquier source (manual o espn), a menos de 6 h. Si el
 // existente es de ESPN ("espn"), ese es el partido a usar: se suma con POST {adoptar: "<matchId>", fase} (201

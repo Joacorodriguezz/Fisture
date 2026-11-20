@@ -6,6 +6,8 @@ import { relojFijo } from "../../helpers/clock";
 import { GET, PATCH, POST } from "../../../src/pages/api/admin/prode/partidos";
 
 const ADMIN = "admin-de-prueba";
+// Después del inicio del cruce de prueba (22/11 21:00 ART = 23/11 00:00 UTC): ya se le puede cargar el resultado
+const DESPUES = new Date("2026-11-23T02:00:00Z");
 
 describe("/api/admin/prode/partidos", () => {
   const t = useTestDb();
@@ -120,8 +122,19 @@ describe("/api/admin/prode/partidos", () => {
     expect(res.body.partido.horario.iso).toBe("2026-11-29T19:00-03:00");
   });
 
+  it("PATCH rechaza el resultado de un partido que todavía no empezó", async () => {
+    const { body } = await llamar("POST", cruce);
+    const res = await llamar("PATCH", { id: body.partido.id, status: "finished", homeScore: 2, awayScore: 1 });
+    expect(res).toMatchObject({ status: 409, body: { error: "partido_no_empezado" } });
+    expect(await fila(body.partido.id)).toMatchObject({ status: "scheduled", home_score: null, away_score: null });
+    // Desde el instante del inicio sí se acepta
+    vi.setSystemTime(new Date("2026-11-23T00:00:00Z"));
+    expect((await llamar("PATCH", { id: body.partido.id, status: "finished", homeScore: 2, awayScore: 1 })).status).toBe(200);
+  });
+
   it("PATCH carga el resultado de un partido terminado", async () => {
     const { body } = await llamar("POST", cruce);
+    vi.setSystemTime(DESPUES);
     const res = await llamar("PATCH", { id: body.partido.id, status: "finished", homeScore: 2, awayScore: 1 });
     expect(res.status).toBe(200);
     expect(res.body.partido).toMatchObject({ estado: "finished", resultado: { local: 2, visitante: 1 } });
@@ -149,12 +162,14 @@ describe("/api/admin/prode/partidos", () => {
     }
     expect(await fila(id)).toMatchObject({ status: "scheduled", home_score: null, away_score: null });
     // Los límites del rango valen
+    vi.setSystemTime(DESPUES);
     expect((await llamar("PATCH", { id, status: "finished", homeScore: 0, awayScore: 20 })).status).toBe(200);
   });
 
   it("PATCH corrige un resultado ya cargado y es idempotente", async () => {
     const { body } = await llamar("POST", cruce);
     const id = body.partido.id;
+    vi.setSystemTime(DESPUES);
     await llamar("PATCH", { id, status: "finished", homeScore: 2, awayScore: 1 });
     const corregido = { id, status: "finished", homeScore: 1, awayScore: 1 };
     for (let i = 0; i < 2; i++) {
@@ -168,6 +183,7 @@ describe("/api/admin/prode/partidos", () => {
   it("PATCH a cancelado, postergado o programado limpia los goles", async () => {
     const { body } = await llamar("POST", cruce);
     const id = body.partido.id;
+    vi.setSystemTime(DESPUES);
     for (const status of ["cancelled", "postponed", "scheduled"]) {
       await llamar("PATCH", { id, status: "finished", homeScore: 3, awayScore: 0 });
       const res = await llamar("PATCH", { id, status });
