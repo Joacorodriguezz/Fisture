@@ -7,7 +7,7 @@ import { AHORA, DIA_MS, relojFijo } from "../../helpers/clock";
 import { seedApp } from "../../helpers/fixtures";
 import { callApi } from "../../helpers/api";
 import { silenciarConsola } from "../../helpers/ctx";
-import { matches, prodeGroupMembers, prodeGroups, prodePredictions, users, type User } from "../../../drizzle/schema";
+import { matches, prodeGroupMembers, prodeGroups, prodeMatches, prodePredictions, users, type User } from "../../../drizzle/schema";
 import { rankingProde } from "../../../src/lib/prode/ranking";
 import { GET as GET_GENERAL } from "../../../src/pages/api/prode/ranking";
 import { GET as GET_GRUPO } from "../../../src/pages/api/prode/grupos/[id]/ranking";
@@ -35,6 +35,8 @@ describe("rankings del prode", () => {
     await t.DB.prepare("UPDATE users SET display_name = CASE id WHEN 'user-1' THEN 'Ana' ELSE 'Luis' END").run();
     await t.db.insert(users).values([usuario("user-3", "Zoe"), usuario("user-4", "beto"), usuario("user-5", "Álvaro"), usuario("user-6", null)]);
     await t.db.insert(matches).values([cruce("o1", "octavos", 2, 1), cruce("o2", "octavos", 1, 1), cruce("c1", "cuartos", 0, 3)]);
+    // Solo puntúa lo vinculado en prode_matches (la fase sale de ahí)
+    await t.db.insert(prodeMatches).values([["o1", "octavos"], ["o2", "octavos"], ["c1", "cuartos"]].map(([matchId, fase]) => ({ matchId, fase, createdAt: AYER })));
     await t.db.insert(prodePredictions).values([
       // Ana: 3 + 1 + 3 = 7 (2 exactos, 3 aciertos)
       pronostico("user-1", "o1", 2, 1), pronostico("user-1", "o2", 0, 0), pronostico("user-1", "c1", 0, 3),
@@ -81,6 +83,24 @@ describe("rankings del prode", () => {
         [2, "beto", 1],
         [4, "Zoe", 0],
       ]);
+    });
+
+    it("el general incluye en 0 a quien pronosticó un partido sin resultado, y no a quien no pronosticó", async () => {
+      await t.db.insert(users).values(usuario("user-7", "Nuevo"));
+      await t.db.insert(matches).values({ ...cruce("s1", "semifinal", 0, 0), status: "scheduled", homeScore: null, awayScore: null });
+      await t.db.insert(prodeMatches).values({ matchId: "s1", fase: "semifinal", createdAt: AYER });
+      await t.db.insert(prodePredictions).values(pronostico("user-7", "s1", 1, 0));
+      const general = await rankingProde(t.db, { vos: "user-7" });
+      expect(resumen(general).slice(-2)).toEqual([[5, "Luis", 0], [5, "Nuevo", 0]]);
+      expect(general.map((f) => f.nombre)).not.toContain("Participante"); // user-6 no pronosticó
+      expect(general.filter((f) => f.esVos).map((f) => f.nombre)).toEqual(["Nuevo"]);
+    });
+
+    it("una fase sin partidos finalizados lista a quienes pronosticaron en esa fase", async () => {
+      await t.db.insert(matches).values({ ...cruce("s1", "semifinal", 0, 0), status: "scheduled", homeScore: null, awayScore: null });
+      await t.db.insert(prodeMatches).values({ matchId: "s1", fase: "semifinal", createdAt: AYER });
+      await t.db.insert(prodePredictions).values([pronostico("user-1", "s1", 1, 0), pronostico("user-3", "s1", 0, 0)]);
+      expect(resumen(await rankingProde(t.db, { fase: "semifinal" }))).toEqual([[1, "Ana", 0], [1, "Zoe", 0]]);
     });
 
     it("una corrección de resultado reordena la tabla", async () => {

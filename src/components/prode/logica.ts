@@ -56,14 +56,38 @@ export interface FilaRanking {
   esVos: boolean;
 }
 
+function normalizarFila(f: unknown): FilaRanking | null {
+  if (!f || typeof f !== "object") return null;
+  const { posicion, nombre, puntos, exactos, esVos } = f as Record<string, unknown>;
+  if (typeof posicion !== "number" || typeof nombre !== "string" || typeof puntos !== "number") return null;
+  return { posicion, nombre, puntos, ...(typeof exactos === "number" ? { exactos } : {}), esVos: esVos === true };
+}
+
 // Acepta { filas: [...] } y descarta lo que no tenga forma de fila, sin tirar errores
 export function normalizarRanking(datos: unknown): FilaRanking[] {
   const filas = (datos as { filas?: unknown } | null)?.filas;
   if (!Array.isArray(filas)) return [];
-  return filas.flatMap((f): FilaRanking[] => {
-    if (!f || typeof f !== "object") return [];
-    const { posicion, nombre, puntos, exactos, esVos } = f as Record<string, unknown>;
-    if (typeof posicion !== "number" || typeof nombre !== "string" || typeof puntos !== "number") return [];
-    return [{ posicion, nombre, puntos, ...(typeof exactos === "number" ? { exactos } : {}), esVos: esVos === true }];
-  });
+  return filas.flatMap((f) => normalizarFila(f) ?? []);
+}
+
+export interface RespuestaRanking {
+  filas: FilaRanking[];
+  /** Participantes del ranking completo (la API recorta las filas a 100). */
+  total: number;
+  /** Fila propia según la API; puede estar fuera de `filas`. */
+  yo: FilaRanking | null;
+}
+
+// Lee { filas, total, yo }; sin total válido usa la cantidad de filas
+export function normalizarRespuestaRanking(datos: unknown): RespuestaRanking {
+  const filas = normalizarRanking(datos);
+  const crudo = (datos ?? {}) as { total?: unknown; yo?: unknown };
+  const total = typeof crudo.total === "number" && Number.isFinite(crudo.total) ? crudo.total : filas.length;
+  return { filas, total, yo: normalizarFila(crudo.yo) };
+}
+
+// La fila propia se muestra aparte solo si la API la mandó y no está entre las visibles
+export function filaPropiaAparte(filas: FilaRanking[], yo: FilaRanking | null): FilaRanking | null {
+  if (!yo || filas.some((f) => f.esVos)) return null;
+  return yo;
 }
