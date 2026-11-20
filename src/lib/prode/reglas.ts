@@ -6,7 +6,7 @@ export interface Marcador {
   visitante: number;
 }
 
-/** Totales de un participante en el ranking. `aciertos` cuenta todo pronóstico que sumó puntos (exactos incluidos). */
+/** Totales de un participante en el ranking. `aciertos` cuenta los marcadores con ganador o empate acertado (exactos incluidos); el extra de quién pasa no entra. */
 export interface Participante {
   nombre: string;
   puntos: number;
@@ -27,6 +27,47 @@ export function calcularPuntos(pronostico: Marcador | null, resultado: Marcador 
   if (!pronostico || !resultado) return 0;
   if (pronostico.local === resultado.local && pronostico.visitante === resultado.visitante) return PUNTOS_EXACTO;
   return signo(pronostico) === signo(resultado) ? PUNTOS_ACIERTO : 0;
+}
+
+// --- Quién pasa (docs/40 R1 a R5) ---
+
+/** Equipo que pasa de ronda: el local o el visitante (en alargue o penales también). */
+export type Lado = "home" | "away";
+
+export const PUNTOS_PASA = 1;
+
+/**
+ * Equipo que pasa según un marcador: con ganador, ese equipo (se deriva); con empate, el que se
+ * eligió (`pasa`), o ninguno si falta. En partido único quien gana en 90' pasa.
+ */
+export function ladoQuePasa(marcador: Marcador, pasa: Lado | null | undefined): Lado | null {
+  if (marcador.local !== marcador.visitante) return marcador.local > marcador.visitante ? "home" : "away";
+  return pasa ?? null;
+}
+
+/** +1 por acertar qué equipo pasa; sin pronóstico o sin equipo que pasó, 0. */
+export function calcularExtraPasa(pasaPronostico: Lado | null, pasaReal: Lado | null): number {
+  return pasaPronostico !== null && pasaPronostico === pasaReal ? PUNTOS_PASA : 0;
+}
+
+export interface PuntosDelPartido {
+  marcador: number;
+  extra: number;
+  total: number;
+}
+
+/**
+ * Puntos de un partido: el marcador a 90' (3, 1 o 0, no acumulan) más el extra por quién pasa.
+ * `pasaReal` es el equipo que pasó efectivo (puntos.ts); un empate pronosticado sin `pasa` no suma el extra.
+ */
+export function puntosDelPartido(
+  pronostico: (Marcador & { pasa?: Lado | null }) | null,
+  resultado: Marcador | null,
+  pasaReal: Lado | null
+): PuntosDelPartido {
+  const marcador = calcularPuntos(pronostico, resultado);
+  const extra = pronostico && resultado ? calcularExtraPasa(ladoQuePasa(pronostico, pronostico.pasa), pasaReal) : 0;
+  return { marcador, extra, total: marcador + extra };
 }
 
 const nombres = new Intl.Collator("es", { sensitivity: "base" });
