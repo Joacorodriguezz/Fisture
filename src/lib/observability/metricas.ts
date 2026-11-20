@@ -5,7 +5,7 @@
 import { sql } from "drizzle-orm";
 import type { Database } from "../db";
 import { FASES, esFase, type Fase } from "../prode/horario";
-import { SOURCE_MANUAL } from "../prode/partidos";
+import { goles90Local, goles90Visitante } from "../prode/puntos";
 import { pronosticoAbiertoSql } from "../prode/pronosticos";
 
 const DIA_S = 24 * 60 * 60;
@@ -59,10 +59,10 @@ async function getMetricasProde(db: Database, ahora: number): Promise<MetricasPr
       (SELECT COUNT(*) FROM prode_matches JOIN matches ON matches.id = prode_matches.match_id
         WHERE ${pronosticoAbiertoSql(ahora)}) AS abiertos,
       (SELECT COUNT(*) FROM prode_matches) AS totalPartidos,
-      (SELECT COUNT(*) FROM prode_matches pm JOIN matches m ON m.id = pm.match_id
-        WHERE m.status = 'finished'
-          AND (CASE WHEN m.source = ${SOURCE_MANUAL} THEN m.home_score ELSE pm.home_goals_90 END) IS NOT NULL
-          AND (CASE WHEN m.source = ${SOURCE_MANUAL} THEN m.away_score ELSE pm.away_goals_90 END) IS NOT NULL) AS conResultado
+      (SELECT COUNT(*) FROM prode_matches JOIN matches ON matches.id = prode_matches.match_id
+        WHERE matches.status = 'finished'
+          AND ${goles90Local} IS NOT NULL
+          AND ${goles90Visitante} IS NOT NULL) AS conResultado
   `);
   const fases = await db.all<{ fase: string; participantes: number; regresan: number }>(sql`
     WITH up AS (
