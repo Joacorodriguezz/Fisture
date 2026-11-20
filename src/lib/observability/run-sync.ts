@@ -4,6 +4,7 @@ import { createDb } from "../db";
 import { syncAllLeagues, syncLote, syncSingleLeague, type LoteResult, type SyncEnv, type SyncResult } from "../data-providers/sync";
 import { purgeExpiredSessions } from "../auth/session";
 import { limpiarRateLimits } from "../rate-limit/cleanup";
+import { puntuarPronosticos, type ResultadoPuntaje } from "../prode/puntuar";
 import { checkConsistency } from "./consistency";
 import { mensajeDeError, rootLogger, type Logger } from "./logger";
 import { failSyncRun, finishSyncRun, startSyncRun } from "./sync-runs";
@@ -21,12 +22,14 @@ export interface RunSyncDeps {
   syncSingleLeague: (env: SyncEnv, leagueExternalId: string) => Promise<SyncResult>;
   // Opcional para no obligar a los tests existentes a declararlo
   syncLote?: (env: SyncEnv, lote: number) => Promise<LoteResult>;
+  puntuarPronosticos?: (DB: D1Database, ahora: Date) => Promise<ResultadoPuntaje>;
 }
 
 const depsReales: RunSyncDeps = {
   syncAllLeagues,
   syncSingleLeague,
   syncLote,
+  puntuarPronosticos,
 };
 
 export interface RunSyncOptions {
@@ -100,6 +103,18 @@ export async function runSync(env: RunSyncEnv, trigger: SyncTrigger, options: Ru
     for (const issue of issues) {
       const nivel = issue.severity === "error" ? "error" : "warn";
       logger[nivel]("consistency_issue", { ...issue });
+    }
+
+    // Puntaje del prode (docs/37 §3.5): con los resultados ya al día y en la misma condición que los
+    // chequeos, así en un barrido por lotes suma una sola subrequest, en el último lote (el más liviano).
+    // Un fallo no afecta al sync: el siguiente lo recupera. Solo conteos en el log.
+    if (!lote || lote.siguienteLote === null) {
+      try {
+        const prode = await (deps.puntuarPronosticos ?? puntuarPronosticos)(env.DB, new Date());
+        logger.info("prode_scored", { puntuados: prode.puntuados, anulados: prode.anulados });
+      } catch (err) {
+        logger.warn("prode_scoring_failed", { err });
+      }
     }
 
     // Higiene: las sesiones vencidas ya no autentican (docs/21 D6). Solo conteos en el log, nunca ids.
