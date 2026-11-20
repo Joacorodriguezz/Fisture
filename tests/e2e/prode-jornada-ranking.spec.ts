@@ -1,4 +1,4 @@
-﻿import { expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 test("la jornada usa la fecha argentina y guardar actualiza el ranking de la fase visible", async ({ page }, info) => {
   // A las 02 UTC del 20 todavía es 19 en Argentina. El partido de las 03 UTC ya corresponde al día siguiente.
