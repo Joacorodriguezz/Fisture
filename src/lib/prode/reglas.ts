@@ -108,6 +108,47 @@ export function nombreVisible(name: string | null | undefined): string {
   return `${capital(partes[0])} ${partes[partes.length - 1].charAt(0).toLocaleUpperCase("es")}.`;
 }
 
+// ---- Entrada de PUT /api/prode/pronosticos (docs/37 §3.4) ----
+export interface PronosticoEntrada {
+  partidoId: string;
+  // null y null: borrar el pronóstico
+  local: number | null;
+  visitante: number | null;
+}
+
+export type EntradaPronosticos =
+  | { ok: true; entradas: PronosticoEntrada[]; invalidos: string[] }
+  | { ok: false; error: "cuerpo_invalido" | "demasiados_pronosticos" };
+
+// Valida la forma del cuerpo (400 si no es una lista de pronósticos) y separa los goles inválidos de
+// cada partido, que se informan como rechazo de esa fila sin frenar al resto
+export function interpretarPronosticos(body: unknown): EntradaPronosticos {
+  const lista = (body as { pronosticos?: unknown } | null)?.pronosticos;
+  if (!Array.isArray(lista)) return { ok: false, error: "cuerpo_invalido" };
+  if (lista.length > MAX_PRONOSTICOS_POR_REQUEST) return { ok: false, error: "demasiados_pronosticos" };
+  const porPartido = new Map<string, { local: unknown; visitante: unknown }>();
+  for (const item of lista) {
+    const partidoId = (item as { partidoId?: unknown } | null)?.partidoId;
+    if (typeof partidoId !== "string" || !partidoId || partidoId.length > 100) return { ok: false, error: "cuerpo_invalido" };
+    const { local, visitante } = item as { local?: unknown; visitante?: unknown };
+    // Si se repite un partido vale el último valor
+    porPartido.set(partidoId, { local, visitante });
+  }
+  const entradas: PronosticoEntrada[] = [];
+  const invalidos: string[] = [];
+  for (const [partidoId, { local, visitante }] of porPartido) {
+    if (local === null && visitante === null) {
+      entradas.push({ partidoId, local: null, visitante: null });
+      continue;
+    }
+    const l = validarGoles(local);
+    const v = validarGoles(visitante);
+    if (l === null || v === null) invalidos.push(partidoId);
+    else entradas.push({ partidoId, local: l, visitante: v });
+  }
+  return { ok: true, entradas, invalidos };
+}
+
 // ---- Tabla (docs/37 D4) ----
 export interface FilaTablaCruda {
   userId: string;

@@ -11,7 +11,10 @@ import {
   type EstadoPronostico,
   type FilaTablaCruda,
   type Marcador,
+  type PronosticoEntrada,
 } from "./reglas";
+
+export type { PronosticoEntrada };
 
 const seg = (d: Date) => Math.floor(d.getTime() / 1000);
 const fecha = (s: number) => new Date(s * 1000);
@@ -318,13 +321,6 @@ export async function salirDeGrupo(DB: D1Database, grupoId: string, userId: stri
 // ============================================
 // PRONÓSTICOS
 // ============================================
-
-export interface PronosticoEntrada {
-  partidoId: string;
-  // null y null: borrar el pronóstico
-  local: number | null;
-  visitante: number | null;
-}
 
 export type MotivoRechazo = "cerrado" | "inexistente";
 

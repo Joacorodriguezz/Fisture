@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   ALFABETO_CODIGO,
   LARGO_CODIGO,
+  MAX_PRONOSTICOS_POR_REQUEST,
+  interpretarPronosticos,
+  seRevela,
   PUNTOS_EXACTO,
   PUNTOS_TENDENCIA,
   estadoPartido,
@@ -157,5 +160,45 @@ describe("ordenarTabla", () => {
 
   it("una tabla vacía devuelve una lista vacía", () => {
     expect(ordenarTabla([], "x")).toEqual([]);
+  });
+});
+
+describe("interpretarPronosticos", () => {
+  it("separa guardar, borrar e inválidos; si se repite un partido vale el último", () => {
+    expect(
+      interpretarPronosticos({
+        pronosticos: [
+          { partidoId: "a", local: 1, visitante: 0 },
+          { partidoId: "b", local: null, visitante: null },
+          { partidoId: "c", local: 1 },
+          { partidoId: "d", local: "2", visitante: 1 },
+          { partidoId: "a", local: 2, visitante: 2 },
+        ],
+      })
+    ).toEqual({
+      ok: true,
+      entradas: [
+        { partidoId: "a", local: 2, visitante: 2 },
+        { partidoId: "b", local: null, visitante: null },
+      ],
+      invalidos: ["c", "d"],
+    });
+  });
+
+  it.each([undefined, null, {}, { pronosticos: {} }, { pronosticos: [{ partidoId: "" }] }, { pronosticos: [{ partidoId: "x".repeat(101) }] }, { pronosticos: [7] }])(
+    "rechaza el cuerpo %p",
+    (body) => expect(interpretarPronosticos(body)).toEqual({ ok: false, error: "cuerpo_invalido" })
+  );
+
+  it(`acepta hasta ${MAX_PRONOSTICOS_POR_REQUEST} pronósticos`, () => {
+    const lista = (n: number) => ({ pronosticos: Array.from({ length: n }, (_, i) => ({ partidoId: `p${i}`, local: 0, visitante: 0 })) });
+    expect(interpretarPronosticos(lista(MAX_PRONOSTICOS_POR_REQUEST)).ok).toBe(true);
+    expect(interpretarPronosticos(lista(MAX_PRONOSTICOS_POR_REQUEST + 1))).toEqual({ ok: false, error: "demasiados_pronosticos" });
+  });
+});
+
+describe("seRevela", () => {
+  it("solo lo cerrado se muestra al grupo", () => {
+    expect(["abierto", "cerrado", "postergado", "cancelado"].filter((e) => seRevela(e as never))).toEqual(["cerrado"]);
   });
 });

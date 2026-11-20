@@ -34,6 +34,7 @@ export default defineConfig({
         "src/lib/rate-limit/*.ts",
         "src/pages/api/{preferencias,cuenta}.ts", "src/pages/api/equipos/*.ts", "src/pages/api/calendario/*.ts",
         "src/pages/api/auth/**/*.ts", "src/pages/api/admin/*.ts", "src/pages/api/partidos/*.ts",
+        "src/lib/prode/*.ts", "src/pages/api/prode/**/*.ts",
       ],
       thresholds: {
         lines: 90, statements: 90, functions: 90, branches: 85,

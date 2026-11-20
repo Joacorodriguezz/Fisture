@@ -20,6 +20,11 @@ export const POLICIES = {
   mutation_ip: { limit: 120, windowSec: 60, scope: "ip" },
   admin_fail: { limit: 5, windowSec: 900, scope: "ip" },
   search_public: { limit: 60, windowSec: 60, scope: "ip", store: "memory" },
+  // Prode (docs/37 §3.4): crear grupos, unirse con código (fuerza bruta: por IP y por usuario) y guardar pronósticos
+  prode_crear: { limit: 10, windowSec: 3600, scope: "user" },
+  prode_unirse: { limit: 10, windowSec: 600, scope: "user" },
+  prode_unirse_ip: { limit: 30, windowSec: 600, scope: "ip" },
+  prode_pronosticar: { limit: 30, windowSec: 60, scope: "user" },
 } as const satisfies Record<string, Policy>;
 
 export type PolicyName = keyof typeof POLICIES;
