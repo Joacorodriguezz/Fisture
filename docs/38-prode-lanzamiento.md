@@ -90,7 +90,18 @@ curl -X PATCH "<URL>/api/admin/prode/partidos" -H "Authorization: Bearer $ADMIN_
 
 Enteros 0-20, los dos juntos y sin otros campos (400 `cambios_mezclados`). Errores: 409 `partido_no_empezado`, 409 `partido_manual`, 404 `partido_inexistente`. El partido puntúa cuando además está en `finished`. Corregir el resultado reordena el ranking solo (los puntos se calculan al leer).
 
-### 3.5 Reprogramados, suspendidos y cancelados
+### 3.5 Guardia de resultados durante el piloto
+
+**Responsable titular y suplente** pendientes de asignación antes de abrir el piloto. El titular verifica, carga y comprueba la publicación. El suplente cubre ausencias y revisa resultados dudosos o corregidos.
+
+1. **Una hora antes de cada partido.** Revisar en `GET /api/admin/prode/partidos` el cruce, su ID y la hora publicada, y en `/api/admin/status` el último sync de ligas. Para un cruce manual, volver a comprobar el ID si el sync encuentra el mismo partido en ESPN y reemplaza el registro original.
+2. **Tras el final del partido.** Confirmar con el acta, la ficha oficial o la cronología del partido el marcador al cierre del tiempo reglamentario. Si hubo alargue, penales o discrepancias, cotejar el marcador parcial con una segunda fuente. Si falta confirmación o el partido quedó suspendido, registrar el caso como pendiente.
+3. **Dentro de los 30 minutos de la confirmación, como objetivo.** Cargar por PATCH según el origen (sección 3.4). Comprobar en el GET que el marcador coincide y que el estado es `finished`. Verificar que el resultado se refleja en `/prode` y que el ranking se actualiza cuando hay pronósticos que suman. Tras una corrección, repetir ambas comprobaciones.
+4. **A los 30 y 60 minutos del final.** Revisar los cruces que ya terminaron y siguen sin puntuar. El sync de producción corre a las 06:00 de Argentina. Un adoptado con marcador confirmado solo empieza a puntuar cuando el sync trae `finished`, aunque el PATCH ya haya guardado los goles. Si el estado sigue atrasado, usar el disparo manual del workflow **Sync diario** y comprobar el estado al concluir. Si el caso sigue pendiente una hora después del final, escalarlo al suplente y acordar el próximo control. Para una suspensión, revisar cuando la organización confirme si se reanuda.
+
+Registrar en una bitácora la fecha y fase, el ID y el origen del cruce, el marcador confirmado, la fuente y hora de verificación, quién cargó y revisó, y la hora en que se comprobó el impacto en el ranking. Para pendientes o correcciones, anotar el motivo, los cambios y el seguimiento.
+
+### 3.6 Reprogramados, suspendidos y cancelados
 
 - **Reprogramado antes de empezar**: corregir el horario (3.3); el cierre se mueve con él.
 - **Suspendido después de empezar**: queda cerrado para siempre (`closed_at`). Si se completa otro día, cargar el resultado final (3.4). Si nunca se completa, no hay que hacer nada: no da puntos.
@@ -123,9 +134,9 @@ Rollback: revertir el código basta, la base migrada sigue siendo compatible con
   - `gruposCreados`, `participantes` (usuarios distintos con al menos un pronóstico) y `pronosticos`.
   - `participantesPorFase` y `regresanPorFase` (`octavos`, `cuartos`, `semifinal`, `final`). Regresan quienes pronosticaron en esa fase y en alguna anterior, así que en octavos siempre es 0.
   - `integrantesPorGrupo`: `promedio` y `maximo`.
-  - `partidos`: `abiertos` y `cerrados` (por `closed_at`) y `conResultado`. Si `conResultado` va por detrás de `cerrados`, falta cargar resultados.
+  - `partidos`: `abiertos` y `cerrados` se cuentan por `closed_at`. `conResultado` cuenta los partidos en `finished` con goles a 90 minutos. La brecha entre `cerrados` y `conResultado` puede incluir partidos en juego, suspendidos, cancelados o pendientes de sync o de carga.
 
-La señal puntual de que falta cargar un resultado a 90 minutos sigue siendo `GET /api/admin/prode/partidos` (el campo `resultado` es `null` hasta cargarlo). Los logs del PATCH quedan como `prode_cruce_corregido` y `prode_cruce_rechazado` (`npx wrangler pages deployment tail`).
+Para detectar resultados pendientes de carga, buscar `estado: "finished"` con `resultado: null` en `GET /api/admin/prode/partidos`. Cruzar esa lista con los partidos cuyo final ya se confirmó en la bitácora para detectar también los atrasos de estado en ESPN. Los logs del PATCH quedan como `prode_cruce_corregido` y `prode_cruce_rechazado` (`npx wrangler pages deployment tail`).
 
 ## 6. Evaluar el piloto (tarjeta 9)
 
@@ -133,7 +144,7 @@ Los valores de `metricas.prode` son acumulados al momento de la consulta: convie
 
 **Cuantitativo.**
 - Los participantes por fase muestran cuánta gente juega.
-- `regresanPorFase` dividido por `participantesPorFase` de la fase anterior es la retención.
+- `regresanPorFase` permite contar cuántos participantes vuelven de cualquier fase previa. Para medir la retención entre dos fases consecutivas, dividir quienes pronosticaron en ambas por quienes pronosticaron en la primera. Los conteos actuales permiten calcularla directamente para octavos → cuartos. A partir de semifinal se necesita el cruce agregado de ambas fases. Si la primera fase del par tuvo cero participantes, la tasa no aplica.
 - `integrantesPorGrupo` mide si el prode se juega en grupo o suelto.
 
 **Cualitativo (no es código).** Conversar con 5 a 10 participantes entre fases, incluyendo a quienes dejaron de jugar y a quienes siguieron. Preguntas:
