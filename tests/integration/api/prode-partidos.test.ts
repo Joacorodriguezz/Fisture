@@ -294,6 +294,54 @@ describe("/api/admin/prode/partidos", () => {
         expect(await llamar("PATCH", { id: "espn-1", ...cambio })).toMatchObject({ status: 409, body: { error: "partido_no_manual" } });
       }
     });
+
+    // docs/37 §2: ESPN puede traer alargue, penales o un resultado administrativo; el admin confirma el de 90'
+    describe("PATCH {id, homeGoals90, awayGoals90}: resultado a los 90 minutos de un adoptado", () => {
+      const adoptado = async () => {
+        await espn();
+        await llamar("POST", { adoptar: "espn-1", fase: "cuartos" });
+      };
+
+      it("lo fija en el vínculo sin tocar la fila de matches y lo muestra como resultado", async () => {
+        await adoptado();
+        await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 3, away_score = 2 WHERE id = 'espn-1'").run();
+        const antes = await fila("espn-1");
+        vi.setSystemTime(DESPUES);
+        const res = await llamar("PATCH", { id: "espn-1", homeGoals90: 2, awayGoals90: 2 });
+        expect(res.status).toBe(200);
+        expect(res.body.partido).toMatchObject({ id: "espn-1", resultado: { local: 2, visitante: 2 } });
+        expect(await vinculo("espn-1")).toMatchObject({ home_goals_90: 2, away_goals_90: 2 });
+        expect(await fila("espn-1")).toEqual(antes);
+      });
+
+      it("sin resultado a 90 confirmado, un adoptado no muestra resultado aunque ESPN tenga marcador", async () => {
+        await adoptado();
+        await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 3, away_score = 2 WHERE id = 'espn-1'").run();
+        const res = await GET(apiCtx({ url: "https://fisture.test/api/admin/prode/partidos", headers: { Authorization: `Bearer ${ADMIN}` }, env: { ENVIRONMENT: "test", DB: t.DB, KV: kvEnMemoria(), ADMIN_SECRET: ADMIN } }));
+        expect(((await res.json()) as any).partidos[0].resultado).toBeNull();
+      });
+
+      it("valida goles enteros 0-20, ambos juntos y sin mezclar con otros cambios", async () => {
+        await adoptado();
+        vi.setSystemTime(DESPUES);
+        for (const goles of [{ homeGoals90: -1, awayGoals90: 0 }, { homeGoals90: 21, awayGoals90: 0 }, { homeGoals90: 1.5, awayGoals90: 0 }, { homeGoals90: "1", awayGoals90: 0 }]) {
+          expect(await llamar("PATCH", { id: "espn-1", ...goles })).toMatchObject({ status: 400, body: { error: "marcador_invalido" } });
+        }
+        expect(await llamar("PATCH", { id: "espn-1", homeGoals90: 1 })).toMatchObject({ status: 400, body: { error: "faltan_goles" } });
+        expect((await llamar("PATCH", { id: "espn-1", homeGoals90: 1, awayGoals90: 0, fase: "final" })).status).toBe(400);
+        expect(await vinculo("espn-1")).toMatchObject({ home_goals_90: null, away_goals_90: null });
+      });
+
+      it("409 partido_no_empezado antes del horario, 404 fuera del prode y 409 en un cruce manual", async () => {
+        await adoptado();
+        expect(await llamar("PATCH", { id: "espn-1", homeGoals90: 1, awayGoals90: 0 })).toMatchObject({ status: 409, body: { error: "partido_no_empezado" } });
+        await t.DB.prepare("INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, source) VALUES ('espn-2', 'espn:2', 'edlp', 'boca', 'lpf', 1700000000, 'espn')").run();
+        expect(await llamar("PATCH", { id: "espn-2", homeGoals90: 1, awayGoals90: 0 })).toMatchObject({ status: 404, body: { error: "partido_inexistente" } });
+        const { body } = await llamar("POST", { ...cruce, horario: "2026-11-29T21:00" });
+        // En un manual el resultado a 90' es el de matches: se carga con {status: "finished", homeScore, awayScore}
+        expect(await llamar("PATCH", { id: body.partido.id, homeGoals90: 1, awayGoals90: 0 })).toMatchObject({ status: 409, body: { error: "partido_manual" } });
+      });
+    });
   });
 
   describe("cruces duplicados (ventana de 6 horas, misma liga y mismos equipos)", () => {

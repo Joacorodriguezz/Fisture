@@ -14,6 +14,9 @@ import { agregarCruce, corregirPartido, listarCruces, type Resultado } from "../
 // existente es de ESPN ("espn"), ese es el partido a usar: se suma con POST {adoptar: "<matchId>", fase} (201
 // {partido}; 404 partido_inexistente; 409 ya_en_prode). Un adoptado no se edita acá (409 partido_no_manual): lo
 // gobierna el sync. Equipos invertidos o con más de 6 h de diferencia (ida y vuelta) no cuentan como duplicado.
+// Resultado a los 90' de un adoptado: PATCH {id, homeGoals90, awayGoals90} (enteros 0-20, solos) lo guarda en el
+// vínculo sin tocar matches; 409 partido_no_empezado antes del horario, 409 partido_manual en un manual (ahí va
+// {status: "finished", homeScore, awayScore}), 404 partido_inexistente fuera del prode. Sin él, un adoptado no puntúa.
 // GET lista los partidos del prode (vínculo prode_matches): manuales y adoptados.
 // Límite de tasa: como el resto de /api/admin, solo cuentan los fallos de Bearer (admin_fail en verificarAdmin).
 const headers = { "Cache-Control": "no-store" };

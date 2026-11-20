@@ -33,15 +33,25 @@ export type Resultado =
 const error = (status: 400 | 404 | 409, codigo: string): Resultado => ({ ok: false, status, error: codigo });
 
 type Fila = typeof matches.$inferSelect;
+type Vinculo = typeof prodeMatches.$inferSelect;
+type FilaProde = { matches: Fila; prode_matches: Vinculo };
+
+// Goles a los 90' más adicionado (docs/37 §2): en un manual, los de matches; en un adoptado de ESPN, los
+// confirmados por el admin en el vínculo (el marcador de ESPN puede incluir alargue o penales)
+function resultado90(m: Fila, v: Vinculo): { local: number; visitante: number } | null {
+  const [local, visitante] = m.source === SOURCE_MANUAL ? [m.homeScore, m.awayScore] : [v.homeGoals90, v.awayGoals90];
+  return local !== null && visitante !== null ? { local, visitante } : null;
+}
 
 // Dos consultas en total (partidos y equipos), nunca una por partido: cuida las subrequests de Workers Free
-async function armar(db: Database, filas: Fila[]): Promise<PartidoProde[]> {
+async function armar(db: Database, filas: FilaProde[]): Promise<PartidoProde[]> {
   if (filas.length === 0) return [];
-  const ids = [...new Set(filas.flatMap((m) => [m.homeTeamId, m.awayTeamId]))];
+  const ids = [...new Set(filas.flatMap(({ matches: m }) => [m.homeTeamId, m.awayTeamId]))];
   const equipos = await db.select({ id: teams.id, name: teams.name }).from(teams).where(inArray(teams.id, ids));
   const nombre = (tid: string) => equipos.find((e) => e.id === tid)?.name ?? "";
-  return filas.map((m) => {
-    const fase = esFase(m.round) ? m.round : null;
+  return filas.map(({ matches: m, prode_matches: v }) => {
+    // La fase sale del vínculo (en un partido de ESPN, matches.round es la del proveedor)
+    const fase = esFase(v.fase) ? v.fase : null;
     return {
       id: m.id,
       fase,
@@ -50,18 +60,14 @@ async function armar(db: Database, filas: Fila[]): Promise<PartidoProde[]> {
       local: { id: m.homeTeamId, nombre: nombre(m.homeTeamId) },
       visitante: { id: m.awayTeamId, nombre: nombre(m.awayTeamId) },
       estado: m.status,
-      resultado: m.homeScore !== null && m.awayScore !== null ? { local: m.homeScore, visitante: m.awayScore } : null,
+      resultado: resultado90(m, v),
     };
   });
 }
 
-// La fase sale del vínculo (en un partido de ESPN, matches.round es la del proveedor)
-const conFase = (filas: { matches: Fila; prode_matches: { fase: string } }[]): Fila[] =>
-  filas.map((f) => ({ ...f.matches, round: f.prode_matches.fase }));
-
 async function leerPartido(db: Database, id: string): Promise<PartidoProde> {
   const filas = await db.select().from(matches).innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id)).where(eq(matches.id, id)).limit(1);
-  return (await armar(db, conFase(filas)))[0];
+  return (await armar(db, filas))[0];
 }
 
 // Dos partidos de la misma liga y con el mismo local y visitante a menos de 6 h son el mismo cruce (de
@@ -191,6 +197,7 @@ function validarEstado(datos: Record<string, unknown>): { cambios: Partial<Fila>
 
 // Corrige horario/fase y/o carga estado y resultado de un cruce manual.
 export async function corregirPartido(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
+  if (datos.homeGoals90 !== undefined || datos.awayGoals90 !== undefined) return fijarResultado90(db, datos);
   const { id, fase, horario } = datos;
   if (!textoNoVacio(id)) return error(400, "faltan_datos");
   if ([fase, horario, datos.status, datos.homeScore, datos.awayScore].every((v) => v === undefined)) return error(400, "sin_cambios");
@@ -231,8 +238,33 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
   return { ok: true, partido: await leerPartido(db, id) };
 }
 
+// Resultado a los 90 minutos de un partido adoptado de ESPN ({id, homeGoals90, awayGoals90}). Se guarda
+// en el vínculo, sin tocar la fila de matches (la gobierna el sync). Puntúa cuando además el partido
+// está finished (puntos.ts). En un manual el resultado a 90' es el de matches: 409 partido_manual.
+async function fijarResultado90(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
+  const { id, homeGoals90, awayGoals90 } = datos;
+  if (!textoNoVacio(id)) return error(400, "faltan_datos");
+  const otros = Object.keys(datos).filter((k) => !["id", "homeGoals90", "awayGoals90"].includes(k));
+  if (otros.length > 0) return error(400, "cambios_mezclados");
+  if (homeGoals90 === undefined || awayGoals90 === undefined) return error(400, "faltan_goles");
+  if (!esGoles(homeGoals90) || !esGoles(awayGoals90)) return error(400, "marcador_invalido");
+
+  const [m] = await db
+    .select({ source: matches.source, dateTime: matches.dateTime })
+    .from(matches)
+    .innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id))
+    .where(eq(matches.id, id))
+    .limit(1);
+  if (!m) return error(404, "partido_inexistente");
+  if (m.source === SOURCE_MANUAL) return error(409, "partido_manual");
+  if (m.dateTime.getTime() > Date.now()) return error(409, "partido_no_empezado");
+
+  await db.update(prodeMatches).set({ homeGoals90, awayGoals90 }).where(eq(prodeMatches.matchId, id));
+  return { ok: true, partido: await leerPartido(db, id) };
+}
+
 // Partidos del prode (manuales y adoptados), ordenados por horario
 export async function listarCruces(db: Database): Promise<PartidoProde[]> {
   const filas = await db.select().from(matches).innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id)).orderBy(matches.dateTime);
-  return armar(db, conFase(filas));
+  return armar(db, filas);
 }

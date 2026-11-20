@@ -415,6 +415,13 @@ describe("ingesta ESPN a D1", () => {
       expect(await sync()).toMatchObject({ matchesCreated: 0, matchesUpdated: 0 });
     });
 
+    it("el resultado a 90 del manual pasa al vínculo del partido de ESPN", async () => {
+      await prepararManual(H);
+      await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 1, away_score = 1 WHERE id = 'manual-1'").run();
+      await sync();
+      expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ homeGoals90: 1, awayGoals90: 1 })]);
+    });
+
     it("a 6 h o más es otro partido: no lo reemplaza", async () => {
       await prepararManual(6 * H);
       await sync();

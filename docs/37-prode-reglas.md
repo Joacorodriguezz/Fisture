@@ -50,11 +50,12 @@ Te podés sumar en cualquier momento. Empezás con **0 puntos** y podés pronost
 
 - **`getSessionUser` no se desacopla de `users.display_name`.** Hace `select` de `users` completo y `cuenta.astro` lee `user.displayName` del resultado; una selección explícita sin esa columna rompería ese consumidor (y el tipo `User`). Por eso el orden de despliegue es la defensa: las migraciones van antes que el código (ver "Despliegue del prode"). Con el código nuevo sobre una D1 sin la 0017, todo request con sesión da 500.
 - **Partidos del prode = vínculo `prode_matches` (migración 0020).** Un partido es del prode si tiene fila ahí (cruce manual o partido de ESPN adoptado con `POST {adoptar, fase}`); la fase sale del vínculo. Si el sync de ESPN trae después un cruce cargado a mano (misma liga y equipos, a menos de 6 h), lo reemplaza en un batch: pasa vínculo y pronósticos al de ESPN y borra el manual. Limitación: el registro de `calendar_syncs` del manual se borra en cascada, así que quien tenía ese evento en su calendario lo conserva huérfano y puede recibir el del partido de ESPN como uno nuevo.
+- **Resultado a 90 minutos (migración 0021, §3).** El marcador de ESPN puede incluir alargue, penales o un resultado administrativo, y ESPN da por terminado (`post`) cualquier partido cerrado. Por eso un partido adoptado de ESPN puntúa solo con el resultado confirmado a mano en el vínculo (`prode_matches.home_goals_90` / `away_goals_90`) y con el partido en `finished`; sin ese resultado queda a la espera. Un cruce manual sigue puntuando con `matches.home_score/away_score` (ya es el de 90'). Si el sync reemplaza un manual terminado, su resultado pasa al vínculo. **Flujo operativo: para partidos de ESPN, cargá el resultado a 90 minutos** con `PATCH /api/admin/prode/partidos {id, homeGoals90, awayGoals90}` (enteros 0-20; 409 `partido_no_empezado` antes del horario, 409 `partido_manual` en un manual, 404 `partido_inexistente` si no está en el prode, 400 `cambios_mezclados` si viene con otros campos). No toca la fila de `matches`.
 - **Reprogramar un postergado cuya hora ya pasó: sigue rechazado (§5).** No hay forma de distinguir un `postponed` que nunca empezó de uno suspendido a mitad de partido: `matches` no guarda el historial de estados y pasar a un estado que no es `finished` borra los goles. Hasta tener ese dato (p. ej. una columna `started_at`), cambiar el horario de un postergado solo se permite antes de su hora guardada; si ya pasó, se carga un cruce nuevo.
 
 ## Despliegue del prode
 
-Cuatro migraciones, todas **solo aditivas** (el código anterior no las lee y sigue funcionando con la base migrada):
+Cinco migraciones, todas **solo aditivas** (el código anterior no las lee y sigue funcionando con la base migrada):
 
 | Migración | Efecto |
 |---|---|
@@ -62,6 +63,7 @@ Cuatro migraciones, todas **solo aditivas** (el código anterior no las lee y si
 | `0018_prode_grupos` | tablas `prode_groups` y `prode_group_members` (`owner_id` es `RESTRICT`) |
 | `0019_prode_pronosticos` | tabla `prode_predictions` (PK `(user_id, match_id)`) |
 | `0020_prode_matches` | tabla `prode_matches` (vínculo partido-fase, PK `match_id`) con backfill de los cruces `source = 'manual'`. **Obligatoria antes del código**: sin ella el listado, los pronósticos y los puntos fallan |
+| `0021_prode_resultado_90` | columnas nullable `home_goals_90`, `away_goals_90` y `closed_at` en `prode_matches`. **Obligatoria antes del código** |
 
 **Orden obligatorio: migraciones ANTES del deploy del código**, en cada entorno.
 

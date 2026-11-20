@@ -426,6 +426,10 @@ async function syncEquipos(
   return ids;
 }
 
+function resultado90DelManual(m: { status: string | null; homeScore: number | null; awayScore: number | null }) {
+  return m.status === "finished" && m.homeScore !== null && m.awayScore !== null ? { homeGoals90: m.homeScore, awayGoals90: m.awayScore } : {};
+}
+
 async function syncPartidos(
   db: Database,
   config: LeagueConfig,
@@ -499,7 +503,8 @@ async function syncPartidos(
       const [manual] = manuales.splice(i, 1);
       reemplazos.push([
         db.insert(matches).values(fila),
-        db.update(prodeMatches).set({ matchId: fila.id }).where(eq(prodeMatches.matchId, manual.id)),
+        // El resultado a 90' del manual (matches) pasa al vínculo: en el de ESPN es el que puntúa (docs/37)
+        db.update(prodeMatches).set({ matchId: fila.id, ...resultado90DelManual(manual) }).where(eq(prodeMatches.matchId, manual.id)),
         db.update(prodePredictions).set({ matchId: fila.id }).where(eq(prodePredictions.matchId, manual.id)),
         db.delete(matches).where(eq(matches.id, manual.id)),
       ]);
