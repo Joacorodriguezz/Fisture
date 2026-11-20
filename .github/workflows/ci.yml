@@ -2,7 +2,8 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, development]
+    types: [opened, synchronize, reopened, edited]
+    branches: [main, development, feat/prode-cuentas-grupos, feat/prode-partidos-pronosticos]
   push:
     branches: [development]
 
