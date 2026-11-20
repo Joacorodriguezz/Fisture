@@ -396,6 +396,27 @@ describe("/api/admin/prode/partidos", () => {
         expect(await vinculo(id)).toMatchObject({ pasa: "away" });
       });
 
+      it("un cruce manual: un pasa viejo no sobrevive a un ganador ni a retirar el resultado", async () => {
+        const id = await manualEmpatado();
+        await llamar("PATCH", { id, pasa: "away" });
+        await llamar("PATCH", { id, status: "finished", homeScore: 2, awayScore: 0 });
+        expect(await vinculo(id)).toMatchObject({ pasa: null });
+        const vuelve = await llamar("PATCH", { id, status: "finished", homeScore: 1, awayScore: 1 });
+        expect(vuelve.body.partido).toMatchObject({ pasa: null });
+        expect(await vinculo(id)).toMatchObject({ pasa: null });
+        await llamar("PATCH", { id, pasa: "home" });
+        await llamar("PATCH", { id, status: "live" });
+        expect(await vinculo(id)).toMatchObject({ pasa: null });
+      });
+
+      it("un adoptado: un marcador nuevo con ganador, sin pasa, deja pasa en null", async () => {
+        await adoptado();
+        await llamar("PATCH", { id: "espn-1", homeGoals90: 1, awayGoals90: 1, pasa: "home" });
+        await llamar("PATCH", { id: "espn-1", homeGoals90: 2, awayGoals90: 0 });
+        await llamar("PATCH", { id: "espn-1", homeGoals90: 1, awayGoals90: 1 });
+        expect(await vinculo("espn-1")).toMatchObject({ pasa: null });
+      });
+
       it("con un ganador a 90', pasa que lo contradice responde 409 pasa_inconsistente y no escribe", async () => {
         await adoptado();
         expect(await llamar("PATCH", { id: "espn-1", homeGoals90: 2, awayGoals90: 1, pasa: "away" })).toMatchObject({ status: 409, body: { error: "pasa_inconsistente" } });

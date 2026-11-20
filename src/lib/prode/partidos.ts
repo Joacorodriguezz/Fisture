@@ -257,10 +257,14 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
     .set({ ...(dateTime ? { dateTime } : {}), ...(fase !== undefined ? { round: fase } : {}), ...estado.cambios, updatedAt: new Date() })
     .where(vigente);
   // La fase que vale es la del vínculo; round la repite en los manuales
-  const vinculo =
-    fase !== undefined
-      ? [db.update(prodeMatches).set({ fase }).where(and(eq(prodeMatches.matchId, id), exists(db.select({ id: matches.id }).from(matches).where(vigente))))]
-      : [];
+  // Un `pasa` solo vale con un empate a 90': si el estado cambia y el resultado deja de ser empate (o se
+  // borra), el que había queda huérfano y se retira
+  const sigueEmpate = estado.cambios.status === "finished" && estado.cambios.homeScore === estado.cambios.awayScore;
+  const retiraPasa = estado.cambios.status !== undefined && !sigueEmpate;
+  const vinculo = [
+    ...(fase !== undefined ? [{ fase }] : []),
+    ...(retiraPasa ? [{ pasa: null }] : []),
+  ].map((set) => db.update(prodeMatches).set(set).where(and(eq(prodeMatches.matchId, id), exists(db.select({ id: matches.id }).from(matches).where(vigente)))));
   // Cierre definitivo si la fila vigente muestra que empezó, antes o después del cambio: no se reabre
   // (docs/37 §5). Se decide en SQL, no con la lectura, para no perder un live que escribió el sync.
   const [, ...resultados] = await db.batch([cerrarSiEmpezo(db, id, ahora), ...vinculo, cambio, cerrarSiEmpezo(db, id, ahora)]);
@@ -321,7 +325,7 @@ async function fijarResultado90(db: Database, datos: Record<string, unknown>): P
 
   // Ya empezó (su hora pasó): de paso queda el cierre definitivo
   await db.batch([
-    db.update(prodeMatches).set({ homeGoals90: homeGoals90 as number, awayGoals90: awayGoals90 as number, ...(pasa !== undefined ? { pasa: pasa as Lado | null } : {}) }).where(eq(prodeMatches.matchId, id)),
+    db.update(prodeMatches).set({ homeGoals90: homeGoals90 as number, awayGoals90: awayGoals90 as number, ...(pasa !== undefined ? { pasa: pasa as Lado | null } : homeGoals90 !== awayGoals90 ? { pasa: null } : {}) }).where(eq(prodeMatches.matchId, id)),
     cerrar(db, id, ahora),
   ]);
   return { ok: true, partido: await leerPartido(db, id) };
