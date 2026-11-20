@@ -91,3 +91,22 @@ export function filaPropiaAparte(filas: FilaRanking[], yo: FilaRanking | null): 
   if (!yo || filas.some((f) => f.esVos)) return null;
   return yo;
 }
+
+// Minutos que faltan para un instante ISO (mínimo 0, redondeo hacia arriba)
+export function minutosHasta(iso: string, ahora: number): number {
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? 0 : Math.max(0, Math.ceil((t - ahora) / 60000));
+}
+
+// Botones − / + del marcador: parte de vacío y acota a 0..GOLES_MAX
+export function nuevoGol(delta: 1 | -1, actual: string): string {
+  const n = parsearGol(actual);
+  const base = n === null ? (delta === 1 ? -1 : 0) : n;
+  return String(Math.max(0, Math.min(GOLES_MAX, base + delta)));
+}
+
+// Si el otro lado está vacío queda en 0, como en el diseño
+export function sumarGol(delta: 1 | -1, actual: string, otro: string, poner: (v: string) => void, ponerOtro: (v: string) => void): void {
+  poner(nuevoGol(delta, actual));
+  if (otro.trim() === "") ponerOtro("0");
+}

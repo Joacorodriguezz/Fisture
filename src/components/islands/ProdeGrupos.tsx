@@ -74,7 +74,7 @@ function Lista() {
 
   return (
     <div>
-      <form noValidate onSubmit={crear} style={{ ...fila }}>
+      <form noValidate onSubmit={crear} style={{ ...fila, margin: "16px 0", border: "2px solid var(--tinta)", padding: 16 }}>
         <label htmlFor="grupo-nombre" style={rotulo}>Nuevo grupo</label>
         <span id="grupo-nombre-ayuda" style={suave}>Entre 3 y 40 caracteres. Después compartís el enlace de invitación.</span>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
@@ -107,7 +107,7 @@ function Lista() {
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {grupos.map((g) => (
             <li key={g.id} style={{ borderBottom: "1px solid var(--linea)" }}>
-              <a href={`/prode/grupos/${encodeURIComponent(g.id)}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, minHeight: 44, padding: "12px", color: "inherit", textDecoration: "none" }}>
+              <a href={`/prode/grupos/${encodeURIComponent(g.id)}`} style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6, minHeight: 44, padding: "12px", color: "inherit", textDecoration: "none" }}>
                 <span style={rotulo}>{g.name}</span>
                 <span style={suave}>
                   {g.integrantes} {g.integrantes === 1 ? "integrante" : "integrantes"}

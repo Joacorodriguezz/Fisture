@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enlaceInvitacion, formatearCierre, filaPropiaAparte, mensajeDeError, normalizarRanking, normalizarRespuestaRanking, parsearGol } from "../../../src/components/prode/logica";
+import { enlaceInvitacion, formatearCierre, filaPropiaAparte, mensajeDeError, normalizarRanking, normalizarRespuestaRanking, parsearGol, nuevoGol, sumarGol, minutosHasta } from "../../../src/components/prode/logica";
 
 describe("mensajeDeError", () => {
   it("muestra 'Cerró el pronóstico' ante pronostico_cerrado", () => {
@@ -77,5 +77,31 @@ describe("filaPropiaAparte", () => {
   it("no la repite si ya está visible o si no hay yo", () => {
     expect(filaPropiaAparte([visible, { ...yo, posicion: 2 }], yo)).toBeNull();
     expect(filaPropiaAparte([visible], null)).toBeNull();
+  });
+});
+
+describe("botones de goles y cierre", () => {
+  it("nuevoGol parte de vacío y acota a 0..20", () => {
+    expect(nuevoGol(1, "")).toBe("0");
+    expect(nuevoGol(-1, "")).toBe("0");
+    expect(nuevoGol(1, "2")).toBe("3");
+    expect(nuevoGol(-1, "0")).toBe("0");
+    expect(nuevoGol(1, "20")).toBe("20");
+  });
+
+  it("sumarGol deja en 0 el otro lado si estaba vacío", () => {
+    const calls: string[] = [];
+    sumarGol(1, "", "", (v) => calls.push(`a${v}`), (v) => calls.push(`b${v}`));
+    expect(calls).toEqual(["a0", "b0"]);
+    const c2: string[] = [];
+    sumarGol(1, "1", "3", (v) => c2.push(`a${v}`), (v) => c2.push(`b${v}`));
+    expect(c2).toEqual(["a2"]);
+  });
+
+  it("minutosHasta redondea hacia arriba y no baja de 0", () => {
+    const t = Date.UTC(2026, 10, 22, 20, 0, 0);
+    expect(minutosHasta(new Date(t + 61_000).toISOString(), t)).toBe(2);
+    expect(minutosHasta(new Date(t - 5_000).toISOString(), t)).toBe(0);
+    expect(minutosHasta("no-es-fecha", t)).toBe(0);
   });
 });

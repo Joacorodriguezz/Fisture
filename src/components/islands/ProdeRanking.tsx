@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fila, rotulo, soloLectores, suave, texto, campo } from "../prode/estilos";
+import { soloLectores, suave, texto } from "../prode/estilos";
 import { filaPropiaAparte, normalizarRespuestaRanking, type RespuestaRanking } from "../prode/logica";
 
 interface Props {
@@ -47,13 +47,19 @@ export default function ProdeRanking({ url, fases = FASES }: Props) {
 
   return (
     <div>
-      <div style={{ ...fila, borderBottom: "none" }}>
-        <label htmlFor="ranking-fase" style={rotulo}>Fase</label>
-        <select id="ranking-fase" value={fase} onChange={(e) => setFase(e.target.value)} style={{ ...campo, maxWidth: 260 }}>
-          {fases.map((f) => (
-            <option key={f.valor} value={f.valor}>{f.etiqueta}</option>
-          ))}
-        </select>
+      <div role="tablist" aria-label="Fase del ranking" style={{ display: "flex", border: "2px solid var(--tinta)", margin: "16px 0", overflowX: "auto" }}>
+        {fases.map((f) => (
+          <button
+            key={f.valor}
+            type="button"
+            role="tab"
+            aria-selected={fase === f.valor}
+            onClick={() => setFase(f.valor)}
+            style={{ flex: "1 0 auto", minHeight: 48, padding: "8px 14px", border: 0, borderRight: "1px solid var(--tinta)", borderRadius: 0, font: "700 16px/1 var(--font-rotulo)", textTransform: "uppercase", letterSpacing: ".06em", cursor: "pointer", background: fase === f.valor ? "var(--tinta)" : "var(--papel)", color: fase === f.valor ? "var(--papel)" : "var(--tinta)" }}
+          >
+            {f.etiqueta}
+          </button>
+        ))}
       </div>
       <div aria-live="polite">
         {error ? (
@@ -65,7 +71,7 @@ export default function ProdeRanking({ url, fases = FASES }: Props) {
         ) : (
           <table className="tb-tabla" style={{ width: "100%", borderCollapse: "collapse" }}>
             <caption style={soloLectores}>Posiciones del prode</caption>
-            <thead>
+            <thead style={{ background: "var(--celeste)", color: "var(--tinta)" }}>
               <tr>
                 <th scope="col" style={{ textAlign: "left", padding: "8px 12px" }}>Pos.</th>
                 <th scope="col" style={{ textAlign: "left", padding: "8px 12px" }}>Nombre</th>

@@ -66,13 +66,13 @@ export default function NombreVisible({ inicial }: Props) {
           aria-describedby="nombre-visible-ayuda nombre-visible-mensaje"
           aria-invalid={mensaje?.tipo === "error"}
           onChange={(e) => setValor(e.target.value)}
-          style={{ font: "400 16px/22px var(--font-texto)", padding: "8px 10px", border: "2px solid var(--tinta)", background: "var(--papel)", color: "var(--tinta)" }}
+          style={{ font: "400 16px/22px var(--font-texto)", minHeight: 52, padding: "10px 12px", border: `2px solid ${mensaje?.tipo === "error" ? "var(--rojo)" : "var(--tinta)"}`, background: "var(--papel)", color: "var(--tinta)" }}
         />
         <span id="nombre-visible-mensaje" role="status" style={{ minHeight: 19, font: "400 14px/19px var(--font-texto)", color: mensaje?.tipo === "error" ? "var(--alerta, #b00020)" : "var(--tinta-suave)" }}>
           {mensaje?.texto ?? ""}
         </span>
       </div>
-      <button type="submit" className="tb-boton" disabled={ocupado}>
+      <button type="submit" className={guardado ? "tb-boton" : "tb-boton tb-boton--primario"} disabled={ocupado}>
         {ocupado ? "Guardando…" : guardado ? "Cambiar nombre" : "Guardar nombre"}
       </button>
     </form>

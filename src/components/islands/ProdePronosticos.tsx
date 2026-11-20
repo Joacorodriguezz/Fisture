@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { aviso, boton, campo, fila, rotulo, soloLectores, suave, texto } from "../prode/estilos";
-import { ETIQUETA_ESTADO, formatearCierre, mensajeDeError, parsearGol, type EstadoPartido } from "../prode/logica";
+import { aviso, boton, etiquetaTarjeta, filaEquipo, golBoton, golCampo, insignia, resultadoCerrado, siglaEquipo, soloLectores, suave, tarjeta, texto, tituloEquipo } from "../prode/estilos";
+import { ETIQUETA_ESTADO, formatearCierre, mensajeDeError, minutosHasta, parsearGol, sumarGol, type EstadoPartido } from "../prode/logica";
 
 interface Partido {
   id: string;
@@ -75,18 +75,30 @@ export default function ProdePronosticos() {
   if (!partidos) return <p role="status" style={{ ...suave, padding: 16 }}>Cargando partidos…</p>;
   if (partidos.length === 0) return <p style={{ ...suave, padding: 16 }}>Todavía no hay partidos del prode. Volvé pronto.</p>;
 
+  const abiertos = partidos.filter((p) => p.estado === "abierto" && ahora < new Date(p.cierre).getTime()).length;
+  const celda: React.CSSProperties = { padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 };
+  const rot: React.CSSProperties = { font: "400 14px/1.1 var(--font-rotulo)", textTransform: "uppercase", letterSpacing: ".06em" };
+
   return (
-    <div>
-      {puntos && (
-        <p style={{ ...rotulo, padding: "12px", borderBottom: "1px solid var(--linea)" }}>Tus puntos: {puntos.total}</p>
-      )}
-      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "16px 0" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", border: "2px solid var(--tinta)", background: "var(--celeste-claro)" }}>
+        <div style={{ ...celda, borderRight: "1px solid var(--tinta)" }}>
+          <span style={rot}>Puntaje</span>
+          <p style={{ margin: 0, font: "400 28px/1 var(--font-titular)", textTransform: "uppercase" }}>Tus puntos: {puntos?.total ?? 0}</p>
+        </div>
+        <div style={celda}>
+          <span style={rot}>Abiertos</span>
+          <span style={{ font: "400 40px/1 var(--font-titular)" }}>{abiertos}</span>
+        </div>
+      </div>
+      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 14 }}>
         {partidos.map((p) => (
           <li key={p.id}>
             <TarjetaPartido partido={p} ahora={ahora} puntos={puntos?.porPartido.get(p.id)} />
           </li>
         ))}
       </ul>
+      <p style={{ ...suave, margin: 0, textTransform: "uppercase", letterSpacing: ".06em" }}>Cada pronóstico cierra cuando empieza su partido.</p>
     </div>
   );
 }
@@ -138,23 +150,59 @@ function TarjetaPartido({ partido, ahora, puntos }: { partido: Partido; ahora: n
 
   const sinCambios = guardado !== null && String(guardado.homeGoals) === local.trim() && String(guardado.awayGoals) === visitante.trim();
 
+  const cierraEn = estado === "abierto" ? minutosHasta(partido.cierre, ahora) : null;
+  const urgente = cierraEn !== null && cierraEn <= 60;
+  const filete = urgente ? "var(--amarillo)" : editable ? "var(--rojo)" : "var(--tinta)";
+  const insigniaTxt = urgente ? `Cierra en ${cierraEn} min` : estado === "cerrado" ? "● Cerrado" : estado === "jugado" ? "Final" : null;
+  const equipos = [
+    { nombre: partido.local.nombre, sufijo: "l", valor: local, poner: setLocal, otro: visitante, ponerOtro: setVisitante, res: partido.resultado?.local },
+    { nombre: partido.visitante.nombre, sufijo: "v", valor: visitante, poner: setVisitante, otro: local, ponerOtro: setLocal, res: partido.resultado?.visitante },
+  ];
+
   return (
-    <form noValidate onSubmit={guardar} aria-labelledby={`${id}-titulo`} style={fila}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", ...suave }}>
-        <span>{partido.faseEtiqueta ?? "Prode"}</span>
-        <span>
-          {estado === "abierto" ? `Cierra ${formatearCierre(partido.cierre)}` : `${partido.horario.fecha} ${partido.horario.hora} hs`} · {ETIQUETA_ESTADO[estado]}
+    <form noValidate onSubmit={guardar} aria-labelledby={`${id}-titulo`} style={{ ...tarjeta, borderTop: `4px solid ${filete}` }}>
+      <div style={etiquetaTarjeta}>
+        <span style={{ color: "var(--rojo)", fontWeight: 700 }}>{partido.faseEtiqueta ?? "Prode"}</span>
+        <span style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", color: "var(--tinta-suave)" }}>
+          <span>
+            {estado === "abierto" ? `Cierra ${formatearCierre(partido.cierre)}` : `${partido.horario.fecha} ${partido.horario.hora} hs`} · {ETIQUETA_ESTADO[estado]}
+          </span>
+          {insigniaTxt && <span style={insignia(urgente ? "alerta" : estado === "jugado" ? "borde" : "oscuro")}>{insigniaTxt}</span>}
         </span>
       </div>
-      <span id={`${id}-titulo`} style={rotulo}>
+      <span id={`${id}-titulo`} style={soloLectores}>
         {partido.local.nombre} vs {partido.visitante.nombre}
       </span>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <label htmlFor={`${id}-l`} style={soloLectores}>Goles de {partido.local.nombre}</label>
-        <input id={`${id}-l`} inputMode="numeric" autoComplete="off" disabled={!editable} value={local} onChange={(e) => setLocal(e.target.value)} style={{ ...campo, width: 64, textAlign: "center" }} />
-        <span aria-hidden="true">-</span>
-        <label htmlFor={`${id}-v`} style={soloLectores}>Goles de {partido.visitante.nombre}</label>
-        <input id={`${id}-v`} inputMode="numeric" autoComplete="off" disabled={!editable} value={visitante} onChange={(e) => setVisitante(e.target.value)} style={{ ...campo, width: 64, textAlign: "center" }} />
+      {equipos.map((e) => (
+        <div key={e.sufijo} style={filaEquipo}>
+          <div role="img" aria-label={`Escudo de ${e.nombre}`} style={siglaEquipo}>{e.nombre.slice(0, 3).toUpperCase()}</div>
+          <div style={tituloEquipo}>{e.nombre}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "none" }}>
+            {editable && (
+              <button type="button" aria-label={`Restar gol a ${e.nombre}`} onClick={() => sumarGol(-1, e.valor, e.otro, e.poner, e.ponerOtro)} style={golBoton}>−</button>
+            )}
+            <label htmlFor={`${id}-${e.sufijo}`} style={soloLectores}>Goles de {e.nombre}</label>
+            <input
+              id={`${id}-${e.sufijo}`}
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="–"
+              disabled={!editable}
+              value={e.valor}
+              onChange={(ev) => e.poner(ev.target.value)}
+              style={editable ? golCampo : { ...golCampo, background: "var(--papel-2)" }}
+            />
+            {editable && (
+              <button type="button" aria-label={`Sumar gol a ${e.nombre}`} onClick={() => sumarGol(1, e.valor, e.otro, e.poner, e.ponerOtro)} style={golBoton}>+</button>
+            )}
+            {estado === "jugado" && <div style={resultadoCerrado} aria-hidden="true">{e.res ?? "–"}</div>}
+          </div>
+        </div>
+      ))}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, borderTop: "1px solid var(--linea)", paddingTop: 12 }}>
+        <span style={suave}>
+          {editable ? (sinCambios ? "Podés cambiarlo hasta que empiece" : guardado ? "Cambios sin guardar" : "Todavía no pronosticaste") : ""}
+        </span>
         {editable && (
           <button type="submit" className="tb-boton tb-boton--primario" disabled={ocupado || sinCambios} style={boton}>
             {ocupado ? "Guardando…" : guardado ? "Cambiar" : "Guardar"}
