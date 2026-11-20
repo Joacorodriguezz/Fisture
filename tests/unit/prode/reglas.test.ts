@@ -118,6 +118,13 @@ describe("compararParticipantes", () => {
     expect(ordenar([p("zoe", 3, 1, 1), p("Álvaro", 3, 1, 1), p("Bruno", 3, 1, 1)])).toEqual(["Álvaro", "Bruno", "zoe"]);
   });
 
+  // Los totales de puntos.ts traen además `pasa` (aciertos de quién pasa): informativo, nunca desempata (docs/40 R5)
+  it("el contador de aciertos de quién pasa no desempata: con lo demás igual, decide el nombre", () => {
+    const con = (nombre: string, pasa: number) => ({ ...p(nombre, 6, 1, 3), pasa }) as Participante;
+    expect(ordenar([con("Beto", 9), con("Ana", 0)])).toEqual(["Ana", "Beto"]);
+    expect(compararParticipantes(con("Ana", 0), con("ana", 9))).toBe(0);
+  });
+
   it("devuelve 0 cuando todo coincide, incluido el nombre", () => {
     expect(compararParticipantes(p("Ana", 3, 1, 1), p("ana", 3, 1, 1))).toBe(0);
   });
