@@ -3,7 +3,7 @@ import Layout from "../../layouts/Layout.astro";
 import Volanta from "../../components/tribuna/Volanta.astro";
 import Titular from "../../components/tribuna/Titular.astro";
 import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
-import Boton from "../../components/tribuna/Boton.astro";
+import ProdeNav from "../../components/tribuna/ProdeNav.astro";
 import NombreVisible from "../../components/islands/NombreVisible";
 import ProdePronosticos from "../../components/islands/ProdePronosticos";
 import ProdeRanking from "../../components/islands/ProdeRanking";
@@ -18,10 +18,13 @@ const sinNombre = !user.displayName;
 
 <Layout title="Prode - FISTURE" pagina={9} noindex>
   <div style="max-width:760px;display:flex;flex-direction:column;gap:32px">
+    <ProdeNav actual="pronosticos" />
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
       <Volanta tono="tinta">Prode</Volanta>
       <Titular nivel="1">TUS PRONÓSTICOS</Titular>
-      <Boton href="/prode/grupos">Mis grupos</Boton>
+      <p style="margin:0;max-width:62ch;font:italic 400 19px/1.45 var(--font-texto);border-top:3px solid var(--rojo);border-bottom:1px solid var(--rojo);padding:12px 0;color:var(--tinta-suave)">
+        Pronosticá el marcador a los 90 minutos: exacto vale 3, ganador o empate vale 1.
+      </p>
     </div>
 
     {sinNombre && (
