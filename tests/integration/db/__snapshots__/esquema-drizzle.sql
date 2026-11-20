@@ -105,6 +105,13 @@ CREATE TABLE `prode_groups` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `prode_groups_invite_code_unique` ON `prode_groups` (`invite_code`);--> statement-breakpoint
+CREATE TABLE `prode_matches` (
+	`match_id` text PRIMARY KEY NOT NULL,
+	`fase` text NOT NULL,
+	`created_at` integer NOT NULL,
+	FOREIGN KEY (`match_id`) REFERENCES `matches`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `prode_predictions` (
 	`user_id` text NOT NULL,
 	`match_id` text NOT NULL,

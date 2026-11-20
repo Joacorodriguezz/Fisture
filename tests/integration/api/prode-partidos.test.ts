@@ -6,6 +6,8 @@ import { relojFijo } from "../../helpers/clock";
 import { GET, PATCH, POST } from "../../../src/pages/api/admin/prode/partidos";
 
 const ADMIN = "admin-de-prueba";
+// Después del inicio del cruce de prueba (22/11 21:00 ART = 23/11 00:00 UTC): ya se le puede cargar el resultado
+const DESPUES = new Date("2026-11-23T02:00:00Z");
 
 describe("/api/admin/prode/partidos", () => {
   const t = useTestDb();
@@ -120,8 +122,19 @@ describe("/api/admin/prode/partidos", () => {
     expect(res.body.partido.horario.iso).toBe("2026-11-29T19:00-03:00");
   });
 
+  it("PATCH rechaza el resultado de un partido que todavía no empezó", async () => {
+    const { body } = await llamar("POST", cruce);
+    const res = await llamar("PATCH", { id: body.partido.id, status: "finished", homeScore: 2, awayScore: 1 });
+    expect(res).toMatchObject({ status: 409, body: { error: "partido_no_empezado" } });
+    expect(await fila(body.partido.id)).toMatchObject({ status: "scheduled", home_score: null, away_score: null });
+    // Desde el instante del inicio sí se acepta
+    vi.setSystemTime(new Date("2026-11-23T00:00:00Z"));
+    expect((await llamar("PATCH", { id: body.partido.id, status: "finished", homeScore: 2, awayScore: 1 })).status).toBe(200);
+  });
+
   it("PATCH carga el resultado de un partido terminado", async () => {
     const { body } = await llamar("POST", cruce);
+    vi.setSystemTime(DESPUES);
     const res = await llamar("PATCH", { id: body.partido.id, status: "finished", homeScore: 2, awayScore: 1 });
     expect(res.status).toBe(200);
     expect(res.body.partido).toMatchObject({ estado: "finished", resultado: { local: 2, visitante: 1 } });
@@ -149,12 +162,14 @@ describe("/api/admin/prode/partidos", () => {
     }
     expect(await fila(id)).toMatchObject({ status: "scheduled", home_score: null, away_score: null });
     // Los límites del rango valen
+    vi.setSystemTime(DESPUES);
     expect((await llamar("PATCH", { id, status: "finished", homeScore: 0, awayScore: 20 })).status).toBe(200);
   });
 
   it("PATCH corrige un resultado ya cargado y es idempotente", async () => {
     const { body } = await llamar("POST", cruce);
     const id = body.partido.id;
+    vi.setSystemTime(DESPUES);
     await llamar("PATCH", { id, status: "finished", homeScore: 2, awayScore: 1 });
     const corregido = { id, status: "finished", homeScore: 1, awayScore: 1 };
     for (let i = 0; i < 2; i++) {
@@ -168,6 +183,7 @@ describe("/api/admin/prode/partidos", () => {
   it("PATCH a cancelado, postergado o programado limpia los goles", async () => {
     const { body } = await llamar("POST", cruce);
     const id = body.partido.id;
+    vi.setSystemTime(DESPUES);
     for (const status of ["cancelled", "postponed", "scheduled"]) {
       await llamar("PATCH", { id, status: "finished", homeScore: 3, awayScore: 0 });
       const res = await llamar("PATCH", { id, status });
@@ -229,6 +245,57 @@ describe("/api/admin/prode/partidos", () => {
     expect(await fila("espn-1")).toMatchObject({ round: null, date_time: 1795000000 });
   });
 
+  describe("vínculo prode_matches y adopción de partidos de ESPN", () => {
+    const vinculo = (id: string) => t.DB.prepare("SELECT * FROM prode_matches WHERE match_id = ?").bind(id).first<any>();
+    const espn = () =>
+      t.DB.prepare("INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, source, round) VALUES ('espn-1', 'espn:1', 'boca', 'edlp', 'lpf', ?, 'espn', 'Quarterfinals')")
+        .bind(Date.parse("2026-11-23T00:30:00Z") / 1000)
+        .run();
+
+    it("POST de un cruce manual crea su vínculo con la fase", async () => {
+      const { body } = await llamar("POST", cruce);
+      expect(await vinculo(body.partido.id)).toMatchObject({ fase: "cuartos" });
+    });
+
+    it("PATCH de fase actualiza también el vínculo", async () => {
+      const { body } = await llamar("POST", cruce);
+      expect((await llamar("PATCH", { id: body.partido.id, fase: "semifinal" })).status).toBe(200);
+      expect(await vinculo(body.partido.id)).toMatchObject({ fase: "semifinal" });
+    });
+
+    it("POST {adoptar, fase} suma un partido de ESPN al prode sin tocarlo", async () => {
+      await espn();
+      const antes = await fila("espn-1");
+      const res = await llamar("POST", { adoptar: "espn-1", fase: "cuartos" });
+      expect(res.status).toBe(201);
+      expect(res.body.partido).toMatchObject({ id: "espn-1", fase: "cuartos", local: { id: "boca" }, visitante: { id: "edlp" } });
+      expect(await vinculo("espn-1")).toMatchObject({ fase: "cuartos" });
+      expect(await fila("espn-1")).toEqual(antes);
+    });
+
+    it("POST {adoptar} valida fase, existencia y que no esté ya en el prode", async () => {
+      await espn();
+      expect((await llamar("POST", { adoptar: "espn-1", fase: "grupos" })).status).toBe(400);
+      expect((await llamar("POST", { adoptar: "", fase: "cuartos" })).status).toBe(400);
+      const inexistente = await llamar("POST", { adoptar: "no-existe", fase: "cuartos" });
+      expect(inexistente).toMatchObject({ status: 404, body: { error: "partido_inexistente" } });
+      await llamar("POST", { adoptar: "espn-1", fase: "cuartos" });
+      const repetido = await llamar("POST", { adoptar: "espn-1", fase: "final" });
+      expect(repetido).toMatchObject({ status: 409, body: { error: "ya_en_prode" } });
+      expect(await vinculo("espn-1")).toMatchObject({ fase: "cuartos" });
+    });
+
+    it("un partido adoptado figura en el GET pero no se edita a mano", async () => {
+      await espn();
+      await llamar("POST", { adoptar: "espn-1", fase: "cuartos" });
+      const res = await GET(apiCtx({ url: "https://fisture.test/api/admin/prode/partidos", headers: { Authorization: `Bearer ${ADMIN}` }, env: { ENVIRONMENT: "test", DB: t.DB, KV: kvEnMemoria(), ADMIN_SECRET: ADMIN } }));
+      expect(((await res.json()) as any).partidos.map((p: any) => p.id)).toEqual(["espn-1"]);
+      for (const cambio of [{ horario: "2026-11-25T21:00" }, { status: "finished", homeScore: 1, awayScore: 0 }, { fase: "final" }]) {
+        expect(await llamar("PATCH", { id: "espn-1", ...cambio })).toMatchObject({ status: 409, body: { error: "partido_no_manual" } });
+      }
+    });
+  });
+
   describe("cruces duplicados (ventana de 6 horas, misma liga y mismos equipos)", () => {
     const espn = (id: string, iso: string) =>
       t.DB.prepare("INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, source) VALUES (?, ?, 'boca', 'edlp', 'lpf', ?, 'espn')")
@@ -250,6 +317,13 @@ describe("/api/admin/prode/partidos", () => {
       expect(res.status).toBe(409);
       expect(res.body).toEqual({ error: "cruce_duplicado", existente: { id: "espn-1", source: "espn" } });
       expect(await cuenta()).toBe(1);
+    });
+
+    it("la ventana es de menos de 6 h: a 5:59 es duplicado, a 6:00 no", async () => {
+      await llamar("POST", cruce);
+      for (const horario of ["2026-11-22T15:01", "2026-11-23T02:59"]) expect((await llamar("POST", { ...cruce, horario })).status).toBe(409);
+      expect((await llamar("POST", { ...cruce, horario: "2026-11-22T15:00" })).status).toBe(201);
+      expect((await llamar("POST", { ...cruce, horario: "2026-11-23T03:00" })).status).toBe(201);
     });
 
     it("POST permite los mismos equipos con dos días de diferencia (ida y vuelta)", async () => {

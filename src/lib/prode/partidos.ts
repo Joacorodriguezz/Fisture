@@ -1,12 +1,13 @@
-// Partidos del prode de playoffs: cruces cargados a mano sobre la tabla `matches` (sin migración).
-// - source = 'manual' y external_id = 'prode:<uuid>': el sync de ESPN no los toca (actualiza por
-//   external_id de su proveedor y nunca borra partidos).
-// - round guarda la fase (octavos, cuartos, semifinal, final).
+// Partidos del prode de playoffs. Un partido es del prode si tiene fila en prode_matches (migración
+// 0020), con su fase, venga de donde venga:
+// - Cruce cargado a mano: source = 'manual' y external_id = 'prode:<uuid>'; round repite la fase. Si
+//   después el sync de ESPN trae el mismo partido, lo reemplaza (reemplazarCrucesManuales, sync.ts).
+// - Partido de ESPN adoptado ({adoptar}): lo gobierna el sync (horario, estado, resultado); acá no se edita.
 // - date_time es el único horario: el que se muestra y el que cierra el pronóstico (horario.ts).
 // Corregir el horario alcanza para el calendario: la reconciliación compara date_time con el horario
 // sincronizado de cada evento y lo marca needs_update (docs/11).
-import { and, eq, gte, inArray, lte, ne } from "drizzle-orm";
-import { leagues, matches, teams } from "../../../drizzle/schema";
+import { and, eq, gt, inArray, lt, ne } from "drizzle-orm";
+import { leagues, matches, prodeMatches, teams } from "../../../drizzle/schema";
 import type { Database } from "../db";
 import { cierraPronostico, esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
 
@@ -54,16 +55,36 @@ async function armar(db: Database, filas: Fila[]): Promise<PartidoProde[]> {
   });
 }
 
+// La fase sale del vínculo (en un partido de ESPN, matches.round es la del proveedor)
+const conFase = (filas: { matches: Fila; prode_matches: { fase: string } }[]): Fila[] =>
+  filas.map((f) => ({ ...f.matches, round: f.prode_matches.fase }));
+
 async function leerPartido(db: Database, id: string): Promise<PartidoProde> {
-  const filas = await db.select().from(matches).where(eq(matches.id, id)).limit(1);
-  return (await armar(db, filas))[0];
+  const filas = await db.select().from(matches).innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id)).where(eq(matches.id, id)).limit(1);
+  return (await armar(db, conFase(filas)))[0];
 }
 
 // Dos partidos de la misma liga y con el mismo local y visitante a menos de 6 h son el mismo cruce (de
 // cualquier source: ESPN o manual). Evita dos eventos en el calendario de quien sigue al equipo y el
 // chequeo duplicate_match (consistency.ts, que solo ve horarios idénticos). Equipos invertidos o más de
 // 6 h de diferencia (ida y vuelta) son otro partido.
-const VENTANA_DUPLICADO_MS = 6 * 60 * 60 * 1000;
+export const VENTANA_DUPLICADO_MS = 6 * 60 * 60 * 1000;
+
+interface Cruce {
+  homeTeamId: string;
+  awayTeamId: string;
+  dateTime: Date;
+}
+
+// Misma regla que buscarDuplicado, en memoria (la usa el sync para reemplazar cruces manuales por los de
+// ESPN sin consultar partido por partido). La liga la filtra quien llama.
+export function esMismoCruce(a: Cruce, b: Cruce): boolean {
+  return (
+    a.homeTeamId === b.homeTeamId &&
+    a.awayTeamId === b.awayTeamId &&
+    Math.abs(a.dateTime.getTime() - b.dateTime.getTime()) < VENTANA_DUPLICADO_MS
+  );
+}
 
 async function buscarDuplicado(
   db: Database,
@@ -78,8 +99,9 @@ async function buscarDuplicado(
         eq(matches.leagueId, c.leagueId),
         eq(matches.homeTeamId, c.homeTeamId),
         eq(matches.awayTeamId, c.awayTeamId),
-        gte(matches.dateTime, new Date(t - VENTANA_DUPLICADO_MS)),
-        lte(matches.dateTime, new Date(t + VENTANA_DUPLICADO_MS)),
+        // Menos de 6 h, estricto: a 6:00 exactas es otro partido (igual que esMismoCruce)
+        gt(matches.dateTime, new Date(t - VENTANA_DUPLICADO_MS)),
+        lt(matches.dateTime, new Date(t + VENTANA_DUPLICADO_MS)),
         ...(c.excluirId ? [ne(matches.id, c.excluirId)] : [])
       )
     )
@@ -91,7 +113,9 @@ const duplicado = (existente: { id: string; source: string }): Resultado => ({ o
 
 const textoNoVacio =(v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 
+// POST: con {adoptar} suma al prode un partido existente (de ESPN); si no, carga un cruce manual
 export async function agregarCruce(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
+  if (datos.adoptar !== undefined) return adoptarPartido(db, datos);
   const { leagueId, homeTeamId, awayTeamId, fase, venue } = datos;
   if (!textoNoVacio(leagueId) || !textoNoVacio(homeTeamId) || !textoNoVacio(awayTeamId)) return error(400, "faltan_datos");
   if (homeTeamId === awayTeamId) return error(400, "equipos_iguales");
@@ -109,20 +133,41 @@ export async function agregarCruce(db: Database, datos: Record<string, unknown>)
   if (repetido) return duplicado(repetido);
 
   const id = crypto.randomUUID();
-  await db.insert(matches).values({
-    id,
-    externalId: `prode:${id}`,
-    homeTeamId,
-    awayTeamId,
-    leagueId,
-    dateTime,
-    venue: venue ?? null,
-    status: "scheduled",
-    round: fase,
-    source: SOURCE_MANUAL,
-    updatedAt: new Date(),
-  });
+  const ahora = new Date();
+  await db.batch([
+    db.insert(matches).values({
+      id,
+      externalId: `prode:${id}`,
+      homeTeamId,
+      awayTeamId,
+      leagueId,
+      dateTime,
+      venue: venue ?? null,
+      status: "scheduled",
+      round: fase,
+      source: SOURCE_MANUAL,
+      updatedAt: ahora,
+    }),
+    db.insert(prodeMatches).values({ matchId: id, fase, createdAt: ahora }),
+  ]);
   return { ok: true, partido: await leerPartido(db, id) };
+}
+
+// Suma al prode un partido que ya existe: el de ESPN que agregarCruce informó como cruce_duplicado.
+// No toca la fila de matches: horario, estado y resultado los sigue gobernando el sync.
+async function adoptarPartido(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
+  const { adoptar, fase } = datos;
+  if (!textoNoVacio(adoptar)) return error(400, "faltan_datos");
+  if (!esFase(fase)) return error(400, "fase_invalida");
+  const [m] = await db.select({ id: matches.id }).from(matches).where(eq(matches.id, adoptar)).limit(1);
+  if (!m) return error(404, "partido_inexistente");
+  const insertado = await db
+    .insert(prodeMatches)
+    .values({ matchId: adoptar, fase, createdAt: new Date() })
+    .onConflictDoNothing()
+    .returning({ id: prodeMatches.matchId });
+  if (insertado.length === 0) return error(409, "ya_en_prode");
+  return { ok: true, partido: await leerPartido(db, adoptar) };
 }
 
 // Valores reales de matches.status
@@ -166,22 +211,28 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
   // A un partido empezado (hora del servidor o estado) no se le cambia horario ni fase: una nueva
   // fecha reabriría los pronósticos de un suspendido a mitad de partido (docs/37 §5). Su estado y
   // resultado sí se cargan: es justamente cuando hacen falta.
-  if ((dateTime || fase !== undefined) && cierraPronostico(m, new Date())) return error(409, "partido_ya_empezado");
+  const ahora = new Date();
+  if ((dateTime || fase !== undefined) && cierraPronostico(m, ahora)) return error(409, "partido_ya_empezado");
+  // Un resultado antes de la hora de inicio es un error de carga: puntuaría un partido sin jugar
+  if (estado.cambios.status === "finished" && (dateTime ?? m.dateTime).getTime() > ahora.getTime()) return error(409, "partido_no_empezado");
   // Mover el horario no puede dejar el cruce encima de otro (manual o de ESPN)
   if (dateTime) {
     const repetido = await buscarDuplicado(db, { ...m, dateTime, excluirId: id });
     if (repetido) return duplicado(repetido);
   }
 
-  await db
+  const cambio = db
     .update(matches)
     .set({ ...(dateTime ? { dateTime } : {}), ...(fase !== undefined ? { round: fase } : {}), ...estado.cambios, updatedAt: new Date() })
     .where(eq(matches.id, id));
+  // La fase que vale es la del vínculo; round la repite en los manuales
+  if (fase !== undefined) await db.batch([cambio, db.update(prodeMatches).set({ fase }).where(eq(prodeMatches.matchId, id))]);
+  else await cambio;
   return { ok: true, partido: await leerPartido(db, id) };
 }
 
-// Cruces cargados para el prode, ordenados por horario
+// Partidos del prode (manuales y adoptados), ordenados por horario
 export async function listarCruces(db: Database): Promise<PartidoProde[]> {
-  const filas = await db.select().from(matches).where(eq(matches.source, SOURCE_MANUAL)).orderBy(matches.dateTime);
-  return armar(db, filas);
+  const filas = await db.select().from(matches).innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id)).orderBy(matches.dateTime);
+  return armar(db, conFase(filas));
 }
