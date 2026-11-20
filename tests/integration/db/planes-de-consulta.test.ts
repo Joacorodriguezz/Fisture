@@ -11,6 +11,8 @@ import { syncSingleLeague } from "../../../src/lib/data-providers/sync";
 import { checkConsistency } from "../../../src/lib/observability/consistency";
 import { getEquiposDeLaLiga, getLeagueBySlugOrId, getLeagueRecentMatches, getMatchCountsByDay, getMatchesInRange, getPaginasPublicas, getTeamBySlugOrId, getTeamRecentMatches, getTeamUpcomingMatches } from "../../../src/lib/db/queries";
 import { asignarSlugsPendientes, slugsOcupados } from "../../../src/lib/db/slugs";
+import { crearGrupo, grupoParaMiembro, historialDeGrupo, misGrupos, partidosParaPronosticar, pendientesDe, tablaDeGrupo } from "../../../src/lib/prode/repo";
+import { puntuarPronosticos } from "../../../src/lib/prode/puntuar";
 
 interface Consulta {
   sql: string;
@@ -187,6 +189,37 @@ describe("planes de las consultas calientes", () => {
     for (const c of consultas.filter((c) => c.sql.startsWith("select"))) {
       const pasos = (await plan(c)).join("\n");
       expect(pasos, `${c.sql}\n${pasos}`).not.toMatch(/^SCAN (teams|leagues)\b/m);
+    }
+  });
+
+  // docs/37 §3.5 y §9: el puntaje del sync y las pantallas del prode van por índices; ni los pronósticos
+  // ni los partidos ni los miembros se recorren enteros (crecen con cada usuario y cada fecha)
+  it("el prode busca pronósticos, partidos y miembros por índice", async () => {
+    await t.DB.prepare("INSERT INTO users (id, email, name, provider, provider_id) VALUES ('u-plan', 'plan@example.test', 'Plan', 'google', 'u-plan')").run();
+    const [liga] = (await t.DB.prepare("SELECT id FROM leagues WHERE external_id = 'arg.1'").all<{ id: string }>()).results;
+    await t.DB.prepare("UPDATE leagues SET is_featured = 1, is_active = 1 WHERE id = ?1").bind(liga.id).run();
+    const creado = await crearGrupo(t.DB, { userId: "u-plan", nombre: "Plan", ligaId: liga.id, ahora: new Date(AHORA.getTime() - 5 * DIA_MS) });
+    if (!creado.ok) throw new Error(creado.error);
+    const grupo = (await grupoParaMiembro(t.DB, creado.id, "u-plan"))!;
+
+    const consultas = await capturar(
+      async (DB) => {
+        await puntuarPronosticos(DB, AHORA);
+        await tablaDeGrupo(DB, grupo);
+        await historialDeGrupo(DB, grupo, "u-plan", AHORA);
+        await partidosParaPronosticar(DB, "u-plan", liga.id, AHORA);
+        await pendientesDe(DB, "u-plan", [liga.id], AHORA);
+        await misGrupos(DB, "u-plan");
+        await grupoParaMiembro(DB, grupo.id, "u-plan");
+      },
+      (sql) => /prode_|FROM matches m/.test(sql)
+    );
+    expect(consultas.length).toBeGreaterThanOrEqual(7);
+    for (const c of consultas) {
+      const pasos = (await plan(c)).join("\n");
+      expect(pasos, `${c.sql}\n${pasos}`).not.toMatch(/^SCAN (matches|m|prode_predictions|p|prode_members|mem|yo|c|a|prode_groups|g)\b/m);
+      // La tabla busca los pronósticos de cada miembro, no los de toda la competencia (docs/37 §9)
+      if (c.sql.includes("FROM prode_members mem")) expect(pasos, pasos).toContain("SEARCH p USING INDEX sqlite_autoindex_prode_predictions_1 (user_id=?");
     }
   });
 });
