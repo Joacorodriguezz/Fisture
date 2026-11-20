@@ -206,10 +206,10 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
   .tb-cabecera__hola { display: none; }
   .tb-cabecera__cuenta { width: 44px; justify-content: center; }
 }
-@media (min-width: 641px) and (max-width: 760px) {
-  .tb-cabecera__cuerpo { gap: var(--space-2); }
-  .tb-cabecera__nombre { font-size: 32px; }
-  .tb-cabecera__nav { gap: var(--space-2); font-size: 14px; letter-spacing: .04em; }
+@media (min-width: 641px) and (max-width: 900px) {
+  .tb-cabecera__cuerpo { height: var(--alto-cabecera); display: grid; grid-template-columns: 1fr auto auto; grid-template-rows: 64px 44px; column-gap: var(--space-3); }
+  .tb-cabecera__nombre { font-size: 32px; justify-self: start; }
+  .tb-cabecera__nav { grid-row: 2; grid-column: 1 / -1; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
   .tb-cabecera__buscar { width: 44px; justify-content: center; padding: 0; }
   .tb-cabecera__buscar span { display: none; }
 }
