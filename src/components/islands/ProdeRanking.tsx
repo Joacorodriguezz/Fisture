@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { rotulo, soloLectores, suave, campo } from "../prode/estilos";
 import { filaPropiaAparte, normalizarRespuestaRanking, type RespuestaRanking } from "../prode/logica";
 
@@ -27,9 +27,17 @@ export default function ProdeRanking({ url, fases = FASES }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const [revision, setRevision] = useState(0);
+  // Último ranking cargado: el listener solo relee si el usuario aún no figuraba (primer pronóstico);
+  // si ya estaba, guardar otro no cambia los puntos hasta que haya resultado
+  const ultimo = useRef<RespuestaRanking | null>(null);
+  ultimo.current = datos;
 
   useEffect(() => {
-    const actualizar = () => setRevision((n) => n + 1);
+    const actualizar = () => {
+      const d = ultimo.current;
+      if (d && (d.yo !== null || d.filas.some((f) => f.esVos))) return;
+      setRevision((n) => n + 1);
+    };
     const general = document.querySelector("[data-ranking-general]");
     const verTotal = () => setFase("");
     general?.addEventListener("click", verTotal);
