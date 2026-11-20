@@ -174,7 +174,7 @@ export async function agregarCruce(db: Database, datos: Record<string, unknown>)
 }
 
 // El adaptador de ESPN suma "Ida" o "Vuelta" a matches.round cuando el evento trae `leg` (espn.ts)
-const RONDA_CON_VUELTA = /\b(Ida|Vuelta)\b/;
+const RONDA_CON_VUELTA = /(?:^|\s)(Ida|Vuelta)$/;
 
 // Suma al prode un partido que ya existe: el de ESPN que agregarCruce informó como cruce_duplicado.
 // No toca la fila de matches: horario, estado y resultado los sigue gobernando el sync.

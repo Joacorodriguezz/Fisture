@@ -333,6 +333,18 @@ describe("/api/admin/prode/partidos", () => {
       }
     });
 
+    // La pierna es lo último que el adaptador suma a la ronda: un torneo con "Vuelta" en el nombre no es una vuelta
+    it("POST {adoptar} solo rechaza la pierna al final de la ronda, no un nombre que contiene Vuelta", async () => {
+      await espn();
+      await t.DB.prepare("UPDATE matches SET round = 'Segunda Vuelta Final' WHERE id = 'espn-1'").run();
+      expect((await llamar("POST", { adoptar: "espn-1", fase: "cuartos" })).status).toBe(201);
+      await t.DB.prepare("DELETE FROM prode_matches WHERE match_id = 'espn-1'").run();
+      for (const ronda of ["Segunda Vuelta Ida", "Segunda Vuelta Vuelta", "Final Ida"]) {
+        await t.DB.prepare("UPDATE matches SET round = ? WHERE id = 'espn-1'").bind(ronda).run();
+        expect(await llamar("POST", { adoptar: "espn-1", fase: "cuartos" })).toMatchObject({ status: 409, body: { error: "partido_con_vuelta" } });
+      }
+    });
+
     // docs/40 R6: "quién pasa" se define por partido único; un partido de ida o vuelta no se adopta
     it("POST {adoptar} rechaza con 409 partido_con_vuelta un partido de ida o de vuelta", async () => {
       await espn();
