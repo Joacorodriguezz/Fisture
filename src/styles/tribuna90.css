@@ -198,9 +198,18 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 .tb-cabecera__login:hover { color: var(--tinta); box-shadow: var(--sombra-registro); transform: var(--hover-lift); }
 .tb-cabecera a:focus-visible { outline: 2px solid var(--on-rojo); outline-offset: 3px; }
 .tb-cabecera__hola { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Con cinco secciones (docs/37 D17) el saludo deja de entrar antes de los 1000px */
+@media (max-width: 1000px) {
+  .tb-cabecera__hola { display: none; }
+}
 /* Tablet: no entran secciones, buscador y saludo; de la cuenta queda solo el avatar */
 @media (max-width: 900px) {
   .tb-cabecera__buscar { width: auto; }
+  /* Con la sección Prode (docs/37 D17) no entran las cinco secciones y el buscador con texto: queda la lupa,
+     con el texto para lectores de pantalla */
+  .tb-cabecera__nav { gap: 14px; letter-spacing: .03em; }
+  .tb-cabecera__buscar { width: 44px; justify-content: center; padding: 0; }
+  .tb-cabecera__buscar-texto { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .tb-cabecera__hola { display: none; }
   .tb-cabecera__cuenta { width: 44px; justify-content: center; }
 }
