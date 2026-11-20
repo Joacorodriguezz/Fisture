@@ -234,6 +234,8 @@ export const prodePredictions = sqliteTable(
       .references(() => matches.id, { onDelete: "cascade" }),
     homeGoals: integer("home_goals").notNull(),
     awayGoals: integer("away_goals").notNull(),
+    // Quién pasa ('home' | 'away'), solo con empate pronosticado (migración 0022; docs/40 R2)
+    pasa: text("pasa"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
@@ -255,6 +257,8 @@ export const prodeMatches = sqliteTable("prode_matches", {
   awayGoals90: integer("away_goals_90"),
   // Cierre irreversible del pronóstico: se fija al observar que el partido empezó (ms epoch)
   closedAt: integer("closed_at"),
+  // Equipo que pasó ('home' | 'away'), cargado por el admin; vale solo si el marcador a 90' es empate (migración 0022; docs/40 R3)
+  pasa: text("pasa"),
 });
 
 // ============================================
