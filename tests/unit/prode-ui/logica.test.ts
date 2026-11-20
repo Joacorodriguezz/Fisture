@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enlaceInvitacion, formatearCierre, mensajeDeError, normalizarRanking, parsearGol } from "../../../src/components/prode/logica";
+import { enlaceInvitacion, formatearCierre, filaPropiaAparte, mensajeDeError, normalizarRanking, normalizarRespuestaRanking, parsearGol } from "../../../src/components/prode/logica";
 
 describe("mensajeDeError", () => {
   it("muestra 'Cerró el pronóstico' ante pronostico_cerrado", () => {
@@ -50,5 +50,32 @@ describe("normalizarRanking", () => {
     expect(normalizarRanking({ filas: [{ posicion: 1, nombre: "Ana", puntos: 5, esVos: true }, { nombre: "x" }, 3] })).toEqual([
       { posicion: 1, nombre: "Ana", puntos: 5, esVos: true },
     ]);
+  });
+});
+
+describe("normalizarRespuestaRanking", () => {
+  const ana = { posicion: 1, nombre: "Ana", puntos: 5, esVos: false };
+  const yo = { posicion: 130, nombre: "Luis", puntos: 0, exactos: 0, esVos: true };
+
+  it("lee filas, total y yo", () => {
+    expect(normalizarRespuestaRanking({ filas: [ana], total: 130, yo })).toEqual({ filas: [ana], total: 130, yo });
+  });
+  it("tolera cuerpos inválidos, yo mal formado y total ausente", () => {
+    expect(normalizarRespuestaRanking(null)).toEqual({ filas: [], total: 0, yo: null });
+    expect(normalizarRespuestaRanking({ filas: [ana], yo: { nombre: "x" } })).toEqual({ filas: [ana], total: 1, yo: null });
+    expect(normalizarRespuestaRanking({ filas: [ana], total: "7" }).total).toBe(1);
+  });
+});
+
+describe("filaPropiaAparte", () => {
+  const visible = { posicion: 1, nombre: "Ana", puntos: 5, esVos: false };
+  const yo = { posicion: 130, nombre: "Luis", puntos: 0, esVos: true };
+
+  it("devuelve yo cuando no está entre las filas visibles", () => {
+    expect(filaPropiaAparte([visible], yo)).toEqual(yo);
+  });
+  it("no la repite si ya está visible o si no hay yo", () => {
+    expect(filaPropiaAparte([visible, { ...yo, posicion: 2 }], yo)).toBeNull();
+    expect(filaPropiaAparte([visible], null)).toBeNull();
   });
 });
