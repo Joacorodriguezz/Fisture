@@ -190,6 +190,7 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
 .tb-cabecera__nav a:hover, .tb-cabecera__nav a[aria-current] { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }
 .tb-cabecera__buscar { flex: none; display: flex; align-items: center; gap: var(--space-2); width: 220px; height: 40px; box-sizing: border-box; padding: 0 var(--space-3); background: var(--papel); color: var(--tinta-suave); border: 2px solid var(--rojo-profundo); font: 600 15px/1 var(--font-rotulo); text-decoration: none; }
 .tb-cabecera__buscar:hover { color: var(--tinta); }
+.tb-cabecera__lupa { display: none; }
 .tb-cabecera__cuenta { flex: none; display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--on-rojo); font: 700 15px/18px var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; text-decoration: none; }
 .tb-cabecera__cuenta:hover { color: var(--on-rojo); }
 .tb-cabecera__avatar { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--papel); color: var(--rojo); font: 400 18px/1 var(--font-titular); }
@@ -208,6 +209,8 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
   .tb-cabecera__cuerpo { padding: 0 var(--space-4); justify-content: space-between; }
   .tb-cabecera__nombre { font-size: 32px; }
   .tb-cabecera__nav, .tb-cabecera__buscar, .tb-cabecera__hola { display: none; }
+  .tb-cabecera__lupa { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-left: auto; color: var(--on-rojo); }
+  .tb-cabecera__lupa:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .tb-cabecera__cuenta { width: 44px; justify-content: center; }
   .tb-cabecera__login { min-height: 40px; padding: 0 var(--space-3); font-size: 14px; }
 }

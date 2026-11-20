@@ -1,0 +1,65 @@
+---
+// ProdeNav.astro: pestañas del prode, fijas bajo la cabecera. Son enlaces reales (sin JavaScript para
+// navegar). En /prode, Pronósticos y Ranking son anclas de la misma página; el script marca la que se ve.
+interface Props {
+  actual: "pronosticos" | "grupos";
+}
+
+const { actual } = Astro.props;
+const pestañas = [
+  { id: "pronosticos", label: "Pronósticos", href: "/prode#partidos" },
+  { id: "ranking", label: "Ranking", href: "/prode#posiciones" },
+  { id: "grupos", label: "Grupos", href: "/prode/grupos" },
+];
+---
+
+<nav class="tb-prode-nav" aria-label="Prode">
+  {pestañas.map((p) => (
+    <a href={p.href} data-pestana={p.id} aria-current={p.id === actual ? "page" : undefined}>{p.label}</a>
+  ))}
+</nav>
+
+<style is:global>
+  .tb-prode-nav {
+    position: sticky;
+    top: var(--alto-cabecera);
+    z-index: 10;
+    display: flex;
+    background: var(--papel);
+    border: 2px solid var(--tinta);
+    margin-bottom: var(--space-4, 16px);
+  }
+  .tb-prode-nav a {
+    flex: 1 1 0;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    border-right: 1px solid var(--tinta);
+    color: var(--tinta);
+    font: 700 16px/1 var(--font-rotulo);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+  .tb-prode-nav a:last-child { border-right: 0; }
+  .tb-prode-nav a[aria-current="page"] { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
+  .tb-prode-nav a:focus-visible { outline: none; box-shadow: inset var(--focus-ring, 0 0 0 3px var(--rojo)); }
+</style>
+
+<script>
+  // En /prode, marca Ranking mientras la sección de posiciones ocupa la pantalla
+  const posiciones = document.getElementById("posiciones");
+  const pron = document.querySelector<HTMLElement>('.tb-prode-nav [data-pestana="pronosticos"]');
+  const rank = document.querySelector<HTMLElement>('.tb-prode-nav [data-pestana="ranking"]');
+  if (posiciones && pron && rank && "IntersectionObserver" in window) {
+    const marcar = (enRanking: boolean) => {
+      rank.toggleAttribute("aria-current", enRanking);
+      if (enRanking) rank.setAttribute("aria-current", "page");
+      if (enRanking) pron.removeAttribute("aria-current");
+      else pron.setAttribute("aria-current", "page");
+    };
+    new IntersectionObserver(([e]) => marcar(e.isIntersecting), { rootMargin: "-40% 0px -40% 0px" }).observe(posiciones);
+  }
+</script>

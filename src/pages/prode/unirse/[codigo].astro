@@ -1,0 +1,23 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import Volanta from "../../../components/tribuna/Volanta.astro";
+import Titular from "../../../components/tribuna/Titular.astro";
+import ProdeUnirse from "../../../components/islands/ProdeUnirse";
+import { loginHref } from "../../../lib/auth/guards";
+
+const { codigo } = Astro.params;
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect(loginHref(`/prode/unirse/${codigo}`));
+}
+---
+
+<Layout title="Unirse a un grupo - FISTURE" pagina={9} noindex>
+  <div style="max-width:760px;display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+      <Volanta tono="tinta">Prode</Volanta>
+      <Titular nivel="1">INVITACIÓN</Titular>
+    </div>
+    <ProdeUnirse client:load codigo={codigo ?? ""} />
+  </div>
+</Layout>
