@@ -6,6 +6,7 @@ import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
 import Boton from "../../components/tribuna/Boton.astro";
 import NombreVisible from "../../components/islands/NombreVisible";
 import ProdePronosticos from "../../components/islands/ProdePronosticos";
+import ProdeRanking from "../../components/islands/ProdeRanking";
 import { loginHref } from "../../lib/auth/guards";
 
 const user = Astro.locals.user;
@@ -38,7 +39,9 @@ const sinNombre = !user.displayName;
       <ProdePronosticos client:load />
     </div>
 
-    {/* Posiciones: conectar cuando exista GET /api/prode/ranking
-        <ProdeRanking client:visible url="/api/prode/ranking" /> */}
+    <div style="display:flex;flex-direction:column">
+      <BarraSeccion tono="tinta">Posiciones</BarraSeccion>
+      <ProdeRanking client:visible url="/api/prode/ranking" />
+    </div>
   </div>
 </Layout>

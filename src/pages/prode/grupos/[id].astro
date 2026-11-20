@@ -5,6 +5,7 @@ import Titular from "../../../components/tribuna/Titular.astro";
 import BarraSeccion from "../../../components/tribuna/BarraSeccion.astro";
 import Boton from "../../../components/tribuna/Boton.astro";
 import ProdeGrupos from "../../../components/islands/ProdeGrupos";
+import ProdeRanking from "../../../components/islands/ProdeRanking";
 import { loginHref } from "../../../lib/auth/guards";
 
 const { id } = Astro.params;
@@ -26,7 +27,9 @@ if (!user) {
       <ProdeGrupos client:load grupoId={id} />
     </div>
 
-    {/* Posiciones del grupo: conectar cuando exista GET /api/prode/ranking/<grupoId>
-        <ProdeRanking client:visible url={`/api/prode/ranking/${id}`} /> */}
+    <div style="display:flex;flex-direction:column">
+      <BarraSeccion tono="tinta">Posiciones</BarraSeccion>
+      <ProdeRanking client:visible url={`/api/prode/grupos/${id}/ranking`} />
+    </div>
   </div>
 </Layout>
