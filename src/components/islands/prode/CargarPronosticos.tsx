@@ -52,6 +52,15 @@ function Escudo({ equipo }: { equipo: EquipoVista }) {
   );
 }
 
+// Íconos de trazo recto de 2px (Tribuna 90): Anton no trae el signo menos tipográfico
+function Signo({ mas }: { mas: boolean }) {
+  return (
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="square">
+      <path d={mas ? "M12 5v14 M5 12h14" : "M5 12h14"} />
+    </svg>
+  );
+}
+
 function faltaParaCierre(ms: number): string {
   const min = Math.max(1, Math.round(ms / 60_000));
   if (min < 60) return `Cierra en ${min} min`;
@@ -220,7 +229,7 @@ export default function CargarPronosticos({ partidos }: Props) {
                           </span>
                           <span className="pr-goles">
                             <button type="button" aria-label={`Restar un gol a ${equipo.nombre}`} disabled={bloqueado || valor === "0"} onClick={() => paso(p.id, lado, -1)}>
-                              −
+                              <Signo mas={false} />
                             </button>
                             <input
                               type="text"
@@ -237,7 +246,7 @@ export default function CargarPronosticos({ partidos }: Props) {
                               onFocus={(e) => e.target.select()}
                             />
                             <button type="button" aria-label={`Sumar un gol a ${equipo.nombre}`} disabled={bloqueado || valor === String(MAX_GOLES)} onClick={() => paso(p.id, lado, 1)}>
-                              +
+                              <Signo mas />
                             </button>
                           </span>
                         </div>
