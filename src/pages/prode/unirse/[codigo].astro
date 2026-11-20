@@ -1,7 +1,6 @@
 ---
 import Layout from "../../../layouts/Layout.astro";
-import Volanta from "../../../components/tribuna/Volanta.astro";
-import Titular from "../../../components/tribuna/Titular.astro";
+import MarcoProde from "../../../components/prode/MarcoProde.astro";
 import ProdeUnirse from "../../../components/islands/ProdeUnirse";
 import { loginHref } from "../../../lib/auth/guards";
 
@@ -13,11 +12,9 @@ if (!user) {
 ---
 
 <Layout title="Unirse a un grupo - FISTURE" pagina={9} noindex>
-  <div style="max-width:760px;display:flex;flex-direction:column;gap:24px">
-    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
-      <Volanta tono="tinta">Prode</Volanta>
-      <Titular nivel="1">INVITACIÓN</Titular>
+  <MarcoProde titulo="INVITACIÓN">
+    <div class="prode-panel prode-panel--acotado">
+      <ProdeUnirse client:load codigo={codigo ?? ""} />
     </div>
-    <ProdeUnirse client:load codigo={codigo ?? ""} />
-  </div>
+  </MarcoProde>
 </Layout>

@@ -1,0 +1,25 @@
+---
+import Volanta from "../tribuna/Volanta.astro";
+import Titular from "../tribuna/Titular.astro";
+import Boton from "../tribuna/Boton.astro";
+import "./prode.css";
+
+interface Props {
+  titulo: string;
+  href?: string;
+  accion?: string;
+}
+const { titulo, href, accion } = Astro.props;
+---
+
+<div class="prode">
+  <header class="prode-cabecera">
+    <div class="prode-cabecera__texto">
+      <Volanta tono="tinta">Prode</Volanta>
+      <Titular nivel="1">{titulo}</Titular>
+    </div>
+    <slot name="acciones" />
+    {href && accion && <Boton href={href}>{accion}</Boton>}
+  </header>
+  <slot />
+</div>

@@ -1,9 +1,7 @@
 ---
 import Layout from "../../../layouts/Layout.astro";
-import Volanta from "../../../components/tribuna/Volanta.astro";
-import Titular from "../../../components/tribuna/Titular.astro";
+import MarcoProde from "../../../components/prode/MarcoProde.astro";
 import BarraSeccion from "../../../components/tribuna/BarraSeccion.astro";
-import Boton from "../../../components/tribuna/Boton.astro";
 import ProdeGrupos from "../../../components/islands/ProdeGrupos";
 import ProdeRanking from "../../../components/islands/ProdeRanking";
 import { loginHref } from "../../../lib/auth/guards";
@@ -16,20 +14,16 @@ if (!user) {
 ---
 
 <Layout title="Grupo del prode - FISTURE" pagina={9} noindex>
-  <div style="max-width:760px;display:flex;flex-direction:column;gap:32px">
-    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
-      <Volanta tono="tinta">Prode</Volanta>
-      <Titular nivel="1">GRUPO</Titular>
-      <Boton href="/prode/grupos">Mis grupos</Boton>
-    </div>
-    <div style="display:flex;flex-direction:column">
-      <BarraSeccion tono="tinta">Integrantes</BarraSeccion>
-      <ProdeGrupos client:load grupoId={id} />
-    </div>
+  <MarcoProde titulo="GRUPO" href="/prode/grupos" accion="Mis grupos">
+    <div class="prode-columnas">
+      <section class="prode-panel" aria-label="Detalle del grupo">
+        <ProdeGrupos client:load grupoId={id} />
+      </section>
 
-    <div style="display:flex;flex-direction:column">
-      <BarraSeccion tono="tinta">Posiciones</BarraSeccion>
-      <ProdeRanking client:visible url={`/api/prode/grupos/${id}/ranking`} />
+      <section class="prode-panel">
+        <BarraSeccion tono="tinta">Posiciones</BarraSeccion>
+        <ProdeRanking client:visible url={`/api/prode/grupos/${id}/ranking`} />
+      </section>
     </div>
-  </div>
+  </MarcoProde>
 </Layout>

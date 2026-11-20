@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fila, rotulo, soloLectores, suave, texto, campo } from "../prode/estilos";
+import { rotulo, soloLectores, suave, campo } from "../prode/estilos";
 import { filaPropiaAparte, normalizarRespuestaRanking, type RespuestaRanking } from "../prode/logica";
 
 interface Props {
@@ -26,6 +26,20 @@ export default function ProdeRanking({ url, fases = FASES }: Props) {
   const [datos, setDatos] = useState<RespuestaRanking | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    const actualizar = () => setRevision((n) => n + 1);
+    const general = document.querySelector("[data-ranking-general]");
+    const verTotal = () => setFase("");
+    general?.addEventListener("click", verTotal);
+    window.addEventListener("prode:pronostico-guardado", actualizar);
+    return () => {
+      general?.removeEventListener("click", verTotal);
+      window.removeEventListener("prode:pronostico-guardado", actualizar);
+    };
+  }, []);
+
   useEffect(() => {
     let vivo = true;
     setDatos(null);
@@ -41,15 +55,15 @@ export default function ProdeRanking({ url, fases = FASES }: Props) {
     return () => {
       vivo = false;
     };
-  }, [url, fase]);
+  }, [url, fase, revision]);
 
   const propia = datos ? filaPropiaAparte(datos.filas, datos.yo) : null;
 
   return (
     <div>
-      <div style={{ ...fila, borderBottom: "none" }}>
+      <div className="prode-ranking__filtro">
         <label htmlFor="ranking-fase" style={rotulo}>Fase</label>
-        <select id="ranking-fase" value={fase} onChange={(e) => setFase(e.target.value)} style={{ ...campo, maxWidth: 260 }}>
+        <select id="ranking-fase" value={fase} onChange={(e) => setFase(e.target.value)} style={campo}>
           {fases.map((f) => (
             <option key={f.valor} value={f.valor}>{f.etiqueta}</option>
           ))}
@@ -57,45 +71,54 @@ export default function ProdeRanking({ url, fases = FASES }: Props) {
       </div>
       <div aria-live="polite">
         {error ? (
-          <p role="alert" style={{ ...texto, padding: 12, color: "var(--alerta, #b00020)" }}>{error}</p>
+          <p role="alert" className="prode-estado-vacio">{error}</p>
         ) : !datos ? (
-          <p style={{ ...suave, padding: 12 }}>Cargando posiciones…</p>
+          <p className="prode-estado-vacio">Cargando posiciones…</p>
         ) : datos.filas.length === 0 ? (
-          <p style={{ ...suave, padding: 12 }}>Todavía no hay posiciones para mostrar.</p>
+          <p className="prode-estado-vacio">Todavía no hay posiciones para mostrar.</p>
         ) : (
-          <table className="tb-tabla" style={{ width: "100%", borderCollapse: "collapse" }}>
+          <>
+          <table className="tb-tabla prode-ranking__tabla">
             <caption style={soloLectores}>Posiciones del prode</caption>
             <thead>
               <tr>
-                <th scope="col" style={{ textAlign: "left", padding: "8px 12px" }}>Pos.</th>
-                <th scope="col" style={{ textAlign: "left", padding: "8px 12px" }}>Nombre</th>
-                <th scope="col" style={{ textAlign: "right", padding: "8px 12px" }}>Puntos</th>
+                <th scope="col">Pos.</th>
+                <th scope="col">Nombre</th>
+                <th scope="col"><abbr title="Exactos" aria-label="Exactos">Ex.</abbr></th>
+                <th scope="col"><abbr title="Aciertos" aria-label="Aciertos">Ac.</abbr></th>
+                <th scope="col">Puntos</th>
               </tr>
             </thead>
             <tbody>
               {datos.filas.map((f, n) => (
-                <tr key={n} aria-current={f.esVos ? "true" : undefined} style={f.esVos ? { background: "var(--amarillo)", color: "var(--on-amarillo)", fontWeight: 700 } : undefined}>
-                  <td style={{ padding: "10px 12px" }}>{f.posicion}</td>
-                  <td style={{ padding: "10px 12px" }}>{f.nombre}{f.esVos ? " (vos)" : ""}</td>
-                  <td style={{ padding: "10px 12px", textAlign: "right" }}>{f.puntos}</td>
+                <tr key={n} aria-current={f.esVos ? "true" : undefined}>
+                  <td>{f.posicion}</td>
+                  <td>{f.nombre}{f.esVos ? " (vos)" : ""}</td>
+                  <td>{f.exactos ?? "–"}</td>
+                  <td>{f.aciertos ?? "–"}</td>
+                  <td>{f.puntos}</td>
                 </tr>
               ))}
             </tbody>
             {propia && (
               <tbody aria-label="Tu posición">
                 <tr>
-                  <th scope="colgroup" colSpan={3} style={{ ...suave, textAlign: "left", padding: "8px 12px", borderTop: "1px solid currentColor", fontWeight: 400 }}>
+                  <th scope="colgroup" colSpan={5} style={{ ...suave, textAlign: "left", padding: "8px 12px", borderTop: "1px solid currentColor", fontWeight: 400 }}>
                     Tu posición{datos.total > 0 ? ` (de ${datos.total})` : ""}
                   </th>
                 </tr>
-                <tr aria-current="true" style={{ background: "var(--amarillo)", color: "var(--on-amarillo)", fontWeight: 700 }}>
-                  <td style={{ padding: "10px 12px" }}>{propia.posicion}</td>
-                  <td style={{ padding: "10px 12px" }}>{propia.nombre} (vos)</td>
-                  <td style={{ padding: "10px 12px", textAlign: "right" }}>{propia.puntos}</td>
+                <tr aria-current="true">
+                  <td>{propia.posicion}</td>
+                  <td>{propia.nombre} (vos)</td>
+                  <td>{propia.exactos ?? "–"}</td>
+                  <td>{propia.aciertos ?? "–"}</td>
+                  <td>{propia.puntos}</td>
                 </tr>
               </tbody>
             )}
           </table>
+          <p className="prode-ranking__clave">Ex. = marcadores exactos · Ac. = aciertos de ganador o empate</p>
+          </>
         )}
       </div>
     </div>

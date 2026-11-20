@@ -37,12 +37,12 @@ export default function ProdeUnirse({ codigo }: { codigo: string }) {
   }, []);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16 }}>
+    <div className="prode-formulario">
       {ocupado ? (
         <p role="status" style={suave}>Uniéndote al grupo…</p>
       ) : (
         <>
-          <p role="alert" style={{ ...rotulo, color: "var(--alerta, #b00020)" }}>No pudimos unirte</p>
+          <p role="alert" className="prode-formulario__error" style={rotulo}>No pudimos unirte</p>
           <p style={texto}>{error}</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
             <button type="button" className="tb-boton tb-boton--primario" onClick={() => void unirse()} style={boton}>Reintentar</button>

@@ -1,7 +1,6 @@
 ---
 // BarraInferior.astro: navegación de secciones en mobile (≤640px), fija al pie (docs/31 D2, menú «D»
-// del prototipo). Hoy y Partidos a la izquierda, Buscar al centro como botón amarillo elevado, Ligas y
-// Calendario a la derecha. Son enlaces reales: funciona sin JavaScript. En escritorio no se muestra.
+// del prototipo). El botón elevado Buscar separa Hoy y Partidos de Ligas, Calendario y Prode.
 interface Seccion {
   label: string;
   href: string;
@@ -21,9 +20,10 @@ const ICONOS: Record<string, string> = {
   "/partidos": "M9 6h11 M9 12h11 M9 18h11 M4 6h1 M4 12h1 M4 18h1",
   "/ligas": "M7 4h10v5a5 5 0 0 1-10 0z M12 14v4 M8 20h8 M7 6H4v2a3 3 0 0 0 3 3 M17 6h3v2a3 3 0 0 1-3 3",
   "/calendario": "M4 5h16v15H4z M4 10h16 M8 3v4 M16 3v4 M8.5 15l2.5 2.5 4.5-4.5",
+  "/prode": "M5 3h14v18H5z M8 7h8 M8 12h3 M8 16h3 M13 15l2 2 3-4",
 };
 
-const mitad = Math.ceil(secciones.length / 2);
+const mitad = Math.floor(secciones.length / 2);
 const izquierda = secciones.slice(0, mitad);
 const derecha = secciones.slice(mitad);
 ---

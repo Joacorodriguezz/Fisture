@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { aviso, boton, campo, fila, rotulo, suave, texto } from "../prode/estilos";
+import { aviso, boton, campo, rotulo, suave, texto } from "../prode/estilos";
 import { enlaceInvitacion, mensajeDeError } from "../prode/logica";
 
 interface GrupoResumen {
@@ -76,10 +76,10 @@ function Lista() {
 
   return (
     <div>
-      <form noValidate onSubmit={crear} style={{ ...fila }}>
+      <form noValidate onSubmit={crear} className="prode-formulario">
         <label htmlFor="grupo-nombre" style={rotulo}>Nuevo grupo</label>
         <span id="grupo-nombre-ayuda" style={suave}>Entre 3 y 40 caracteres. Después compartís el enlace de invitación.</span>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        <div className="prode-formulario__campos">
           <input
             id="grupo-nombre"
             type="text"
@@ -90,7 +90,7 @@ function Lista() {
             aria-describedby="grupo-nombre-ayuda grupo-nombre-mensaje"
             aria-invalid={mensaje !== null}
             onChange={(e) => setNombre(e.target.value)}
-            style={{ ...campo, flex: 1, minWidth: 200 }}
+            style={campo}
           />
           <button type="submit" className="tb-boton tb-boton--primario" disabled={!hidratado || ocupado} style={boton}>
             {ocupado ? "Creando…" : "Crear grupo"}
@@ -99,28 +99,30 @@ function Lista() {
         <span id="grupo-nombre-mensaje" role="alert" style={aviso("error")}>{mensaje ?? ""}</span>
       </form>
 
-      <h2 style={{ ...rotulo, padding: "16px 12px 4px", margin: 0 }}>Mis grupos</h2>
-      {error ? (
-        <p role="alert" style={{ ...texto, padding: 12, color: "var(--alerta, #b00020)" }}>{error}</p>
-      ) : !grupos ? (
-        <p role="status" style={{ ...suave, padding: 12 }}>Cargando grupos…</p>
-      ) : grupos.length === 0 ? (
-        <p style={{ ...suave, padding: 12 }}>Todavía no estás en ningún grupo. Creá uno o abrí un enlace de invitación.</p>
-      ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-          {grupos.map((g) => (
-            <li key={g.id} style={{ borderBottom: "1px solid var(--linea)" }}>
-              <a href={`/prode/grupos/${encodeURIComponent(g.id)}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, minHeight: 44, padding: "12px", color: "inherit", textDecoration: "none" }}>
-                <span style={rotulo}>{g.name}</span>
-                <span style={suave}>
-                  {g.integrantes} {g.integrantes === 1 ? "integrante" : "integrantes"}
-                  {g.esDueno ? " · Dueño" : ""}
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="prode-grupos__lista">
+        <h2 className="prode-grupos__titulo">Mis grupos</h2>
+        {error ? (
+          <p role="alert" className="prode-estado-vacio">{error}</p>
+        ) : !grupos ? (
+          <p role="status" className="prode-estado-vacio">Cargando grupos…</p>
+        ) : grupos.length === 0 ? (
+          <p className="prode-estado-vacio">Todavía no estás en ningún grupo. Creá uno o abrí un enlace de invitación.</p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {grupos.map((g) => (
+              <li key={g.id} style={{ borderBottom: "1px solid var(--linea)" }}>
+                <a href={`/prode/grupos/${encodeURIComponent(g.id)}`} className="prode-grupos__enlace">
+                  <span style={rotulo}>{g.name}</span>
+                  <span style={suave}>
+                    {g.integrantes} {g.integrantes === 1 ? "integrante" : "integrantes"}
+                    {g.esDueno ? " · Dueño" : ""}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
@@ -155,20 +157,20 @@ function Detalle({ id }: { id: string }) {
     }
   }
 
-  if (error) return <p role="alert" style={{ ...texto, padding: 16, color: "var(--alerta, #b00020)" }}>{error}</p>;
-  if (!grupo) return <p role="status" style={{ ...suave, padding: 16 }}>Cargando grupo…</p>;
+  if (error) return <p role="alert" className="prode-estado-vacio">{error}</p>;
+  if (!grupo) return <p role="status" className="prode-estado-vacio">Cargando grupo…</p>;
 
   const enlace = grupo.inviteCode ? enlaceInvitacion(window.location.origin, grupo.inviteCode) : null;
 
   return (
-    <div>
-      <h2 style={{ ...rotulo, padding: "16px 12px 4px", margin: 0 }}>{grupo.name}</h2>
+    <div className="prode-grupos__detalle">
+      <h2 className="prode-grupos__titulo">{grupo.name}</h2>
       {enlace && (
-        <div style={fila}>
+        <div className="prode-formulario">
           <label htmlFor="grupo-enlace" style={rotulo}>Enlace de invitación</label>
           <span style={suave}>Quien lo abra, con sesión iniciada, entra al grupo. Compartilo solo con quienes quieras.</span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-            <input id="grupo-enlace" readOnly value={enlace} onFocus={(e) => e.currentTarget.select()} style={{ ...campo, flex: 1, minWidth: 200 }} />
+          <div className="prode-formulario__campos">
+            <input id="grupo-enlace" readOnly value={enlace} onFocus={(e) => e.currentTarget.select()} style={campo} />
             <button type="button" className="tb-boton" onClick={() => copiar(enlace)} style={boton}>Copiar enlace</button>
           </div>
           <span role="status" aria-live="polite" style={aviso(copiado === "error" ? "error" : "ok")}>
@@ -176,11 +178,11 @@ function Detalle({ id }: { id: string }) {
           </span>
         </div>
       )}
-      <h3 style={{ ...rotulo, padding: "16px 12px 4px", margin: 0 }}>Integrantes ({grupo.integrantes.length})</h3>
+      <h3 className="prode-grupos__integrantes" style={rotulo}>Integrantes ({grupo.integrantes.length})</h3>
       <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {grupo.integrantes.map((i, n) => (
           <li key={n} style={{ ...texto, display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 12px", borderBottom: "1px solid var(--linea)", fontWeight: i.esVos ? 700 : 400 }}>
-            <span>{i.nombre}{i.esVos ? " (vos)" : ""}</span>
+            <span className="prode-grupos__nombre">{i.nombre}{i.esVos ? " (vos)" : ""}</span>
             {i.esDueno && <span style={suave}>Dueño</span>}
           </li>
         ))}

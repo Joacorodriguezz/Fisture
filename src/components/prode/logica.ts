@@ -53,14 +53,15 @@ export interface FilaRanking {
   nombre: string;
   puntos: number;
   exactos?: number;
+  aciertos?: number;
   esVos: boolean;
 }
 
 function normalizarFila(f: unknown): FilaRanking | null {
   if (!f || typeof f !== "object") return null;
-  const { posicion, nombre, puntos, exactos, esVos } = f as Record<string, unknown>;
+  const { posicion, nombre, puntos, exactos, aciertos, esVos } = f as Record<string, unknown>;
   if (typeof posicion !== "number" || typeof nombre !== "string" || typeof puntos !== "number") return null;
-  return { posicion, nombre, puntos, ...(typeof exactos === "number" ? { exactos } : {}), esVos: esVos === true };
+  return { posicion, nombre, puntos, ...(typeof exactos === "number" ? { exactos } : {}), ...(typeof aciertos === "number" ? { aciertos } : {}), esVos: esVos === true };
 }
 
 // Acepta { filas: [...] } y descarta lo que no tenga forma de fila, sin tirar errores

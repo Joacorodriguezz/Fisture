@@ -121,15 +121,13 @@ test("prode: el ranking general y el del grupo muestran nombre, posición y punt
   const fila = page.getByRole("row", { name: new RegExp(`${nombre} \\(vos\\)`) });
   await expect(fila).toBeVisible();
   // Todos los dueños sembrados empatan con un exacto (3 puntos): comparten la posición 1
-  await expect(fila.getByRole("cell").nth(0)).toHaveText("1");
-  await expect(fila.getByRole("cell").nth(2)).toHaveText("3");
+  await expect(fila.getByRole("cell")).toHaveText(["1", `${nombre} (vos)`, "1", "1", "3"]);
 
   await page.goto(`/prode/grupos/grupo-${idDueno(info)}`);
   await expect(page.getByRole("heading", { name: "Integrantes (1)" })).toBeVisible();
   const filaGrupo = page.getByRole("row", { name: new RegExp(`${nombre} \\(vos\\)`) });
   await expect(filaGrupo).toBeVisible();
-  await expect(filaGrupo.getByRole("cell").nth(0)).toHaveText("1");
-  await expect(filaGrupo.getByRole("cell").nth(2)).toHaveText("3");
+  await expect(filaGrupo.getByRole("cell")).toHaveText(["1", `${nombre} (vos)`, "1", "1", "3"]);
 });
 
 test("prode: sin scroll horizontal en /prode y /prode/grupos", async ({ page }, info) => {

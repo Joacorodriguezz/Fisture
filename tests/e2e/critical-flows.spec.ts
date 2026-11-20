@@ -269,13 +269,32 @@ const soloMovil = () => test.skip(({ isMobile }) => !isMobile, "solo en el proye
 const soloEscritorio = () => test.skip(({ isMobile }) => isMobile, "solo en el proyecto de escritorio");
 const navegacionPrincipal = (page: Page) => page.getByRole("navigation", { name: "Secciones", exact: true });
 const enlaceCuenta = (page: Page) => page.getByRole("link", { name: /Tu cuenta$/ });
-const SECCIONES = ["Hoy", "Partidos", "Ligas", "Calendario"];
+const SECCIONES = ["Hoy", "Partidos", "Ligas", "Calendario", "Prode"];
+
+test("la navegación lleva al Prode con y sin sesión", async ({ page, isMobile }, info) => {
+  await page.setViewportSize({ width: isMobile ? 320 : 641, height: 800 });
+  const enlaceProde = navegacionPrincipal(page).getByRole("link", { name: "Prode", exact: true });
+  await page.goto("/");
+  await expect(enlaceProde).toBeInViewport({ ratio: 1 });
+  const cabecera = page.getByRole("banner");
+  await expect(cabecera.getByRole("link", { name: "Iniciar sesión" })).toBeInViewport({ ratio: 1 });
+  await enlaceProde.click();
+  await expect(page).toHaveURL(/\/login\?next=%2Fprode$/);
+
+  await login(page, info, "responsive-menu");
+  await page.goto("/");
+  await enlaceProde.click();
+  await expect(page).toHaveURL(/\/prode$/);
+  await expect(enlaceProde).toHaveAttribute("aria-current", "page");
+  await page.goto("/prode/grupos");
+  await expect(enlaceProde).toHaveAttribute("aria-current", "page");
+});
 
 // docs/31 D1 y D2: cabecera compacta y fija; en mobile, barra inferior con Buscar al centro
 test.describe("navegación responsive: móvil", () => {
   soloMovil();
 
-  test("la barra inferior tiene las cuatro secciones y Buscar, y marca la actual", async ({ page }) => {
+  test("la barra inferior muestra las secciones y Buscar, y marca la actual", async ({ page }) => {
     await page.goto("/ligas");
     const barra = navegacionPrincipal(page);
     await expect(barra).toBeVisible();

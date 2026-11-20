@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { aviso, boton, campo, fila, rotulo, soloLectores, suave, texto } from "../prode/estilos";
+import { suave, texto } from "../prode/estilos";
 import { ETIQUETA_ESTADO, formatearCierre, mensajeDeError, parsearGol, type EstadoPartido } from "../prode/logica";
 
 interface Partido {
@@ -32,6 +32,8 @@ export default function ProdePronosticos() {
   const [partidos, setPartidos] = useState<Partido[] | null>(null);
   const [puntos, setPuntos] = useState<{ total: number; porPartido: Map<string, PuntosPartido> } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorPuntos, setErrorPuntos] = useState(false);
+  const [intentoPuntos, setIntentoPuntos] = useState(0);
   const [ahora, setAhora] = useState(() => Date.now());
 
   useEffect(() => {
@@ -43,19 +45,13 @@ export default function ProdePronosticos() {
     let vivo = true;
     (async () => {
       try {
-        const [rp, rm] = await Promise.all([fetch("/api/prode/pronosticos"), fetch("/api/prode/mis-puntos")]);
+        const rp = await fetch("/api/prode/pronosticos");
         const dp = (await rp.json().catch(() => ({}))) as { partidos?: Partido[]; error?: string };
         if (!rp.ok || !Array.isArray(dp.partidos)) {
           if (vivo) setError(mensajeDeError(rp.status, dp.error));
           return;
         }
         if (vivo) setPartidos(dp.partidos);
-        if (rm.ok) {
-          const dm = (await rm.json().catch(() => null)) as { puntos?: number; partidos?: PuntosPartido[] } | null;
-          if (vivo && dm && Array.isArray(dm.partidos)) {
-            setPuntos({ total: dm.puntos ?? 0, porPartido: new Map(dm.partidos.map((p) => [p.matchId, p])) });
-          }
-        }
       } catch {
         if (vivo) setError("No se pudo cargar el prode. Probá de nuevo.");
       }
@@ -65,28 +61,64 @@ export default function ProdePronosticos() {
     };
   }, []);
 
+  useEffect(() => {
+    let vivo = true;
+    setErrorPuntos(false);
+    (async () => {
+      try {
+        const res = await fetch("/api/prode/mis-puntos");
+        if (!res.ok) throw new Error();
+        const datos = await res.json() as { puntos: number; partidos: PuntosPartido[] };
+        if (!Array.isArray(datos.partidos) || typeof datos.puntos !== "number") throw new Error();
+        if (vivo) setPuntos({ total: datos.puntos, porPartido: new Map(datos.partidos.map((p) => [p.matchId, p])) });
+      } catch {
+        if (vivo) setErrorPuntos(true);
+      }
+    })();
+    return () => { vivo = false; };
+  }, [intentoPuntos]);
+
   if (error) {
     return (
-      <p role="alert" style={{ ...texto, padding: 16, color: "var(--alerta, #b00020)" }}>
+      <p role="alert" className="prode-estado-vacio">
         {error}
       </p>
     );
   }
-  if (!partidos) return <p role="status" style={{ ...suave, padding: 16 }}>Cargando partidos…</p>;
-  if (partidos.length === 0) return <p style={{ ...suave, padding: 16 }}>Todavía no hay partidos del prode. Volvé pronto.</p>;
+  if (!partidos) return <p role="status" className="prode-estado-vacio">Cargando partidos…</p>;
+  const fechaArgentina = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+  const hoy = fechaArgentina.format(ahora);
+  const diaDe = (p: Partido) => fechaArgentina.format(new Date(p.cierre));
+  const fechaSiguiente = partidos.map(diaDe).filter((dia) => dia > hoy).sort()[0];
+  const abierto = (p: Partido) => p.estado === "abierto" && Date.parse(p.cierre) > ahora;
+  const partidosHoy = partidos.filter((p) => diaDe(p) === hoy);
+  partidosHoy.sort((a, b) => Number(abierto(b)) - Number(abierto(a)));
+  const bloques = [
+    { titulo: "Hoy", filas: partidosHoy, mostrarFecha: true },
+    { titulo: "Próxima fecha", filas: partidos.filter((p) => diaDe(p) === fechaSiguiente), mostrarFecha: true },
+    { titulo: "Próximos partidos", filas: partidos.filter((p) => fechaSiguiente && diaDe(p) > fechaSiguiente), mostrarFecha: false },
+    { titulo: "Partidos anteriores", filas: partidos.filter((p) => diaDe(p) < hoy).reverse(), mostrarFecha: false },
+  ];
 
   return (
     <div>
+      {errorPuntos && <div className="prode-ranking__filtro"><span role="status">No se pudieron cargar tus puntos.</span><button type="button" className="tb-boton" onClick={() => setIntentoPuntos((n) => n + 1)}>Reintentar</button></div>}
       {puntos && (
-        <p style={{ ...rotulo, padding: "12px", borderBottom: "1px solid var(--linea)" }}>Tus puntos: {puntos.total}</p>
+        <p className="prode-puntos">Tus puntos: <strong>{puntos.total}</strong></p>
       )}
-      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-        {partidos.map((p) => (
-          <li key={p.id}>
-            <TarjetaPartido partido={p} ahora={ahora} puntos={puntos?.porPartido.get(p.id)} />
-          </li>
-        ))}
-      </ul>
+      {bloques.filter(({ titulo, filas }) => titulo === "Hoy" || filas.length > 0).map(({ titulo, filas, mostrarFecha }) => (
+        <section key={titulo}>
+          <h3 className="prode-jornada">{titulo}<span>{mostrarFecha ? filas[0]?.horario.fecha : filas.length}</span></h3>
+          {filas.length === 0 && <p className="prode-estado-vacio">{fechaSiguiente ? "Hoy no hay partidos del prode." : "Hoy no hay partidos y todavía no se programó la próxima fecha."}</p>}
+          {filas.length > 0 && <ul className="prode-partidos">
+            {filas.map((p) => (
+              <li key={p.id}>
+                <TarjetaPartido partido={p} ahora={ahora} puntos={puntos?.porPartido.get(p.id)} />
+              </li>
+            ))}
+          </ul>}
+        </section>
+      ))}
     </div>
   );
 }
@@ -128,6 +160,7 @@ function TarjetaPartido({ partido, ahora, puntos }: { partido: Partido; ahora: n
         return;
       }
       setGuardado({ homeGoals, awayGoals });
+      window.dispatchEvent(new Event("prode:pronostico-guardado"));
       setMensaje({ tipo: "ok", texto: "Pronóstico guardado." });
     } catch {
       setMensaje({ tipo: "error", texto: "No se pudo guardar. Probá de nuevo." });
@@ -139,39 +172,43 @@ function TarjetaPartido({ partido, ahora, puntos }: { partido: Partido; ahora: n
   const sinCambios = guardado !== null && String(guardado.homeGoals) === local.trim() && String(guardado.awayGoals) === visitante.trim();
 
   return (
-    <form noValidate onSubmit={guardar} aria-labelledby={`${id}-titulo`} style={fila}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", ...suave }}>
+    <form noValidate onSubmit={guardar} aria-label={`${partido.local.nombre} vs ${partido.visitante.nombre}`} className="prode-partido" data-estado={estado}>
+      <div className="prode-partido__meta">
         <span>{partido.faseEtiqueta ?? "Prode"}</span>
         <span>
-          {estado === "abierto" ? `Cierra ${formatearCierre(partido.cierre)}` : `${partido.horario.fecha} ${partido.horario.hora} hs`} · {ETIQUETA_ESTADO[estado]}
+          {estado === "abierto" ? `Cierra ${formatearCierre(partido.cierre)}` : `${partido.horario.fecha} ${partido.horario.hora} hs`}
         </span>
+        <span className="prode-partido__estado">{ETIQUETA_ESTADO[estado]}</span>
       </div>
-      <span id={`${id}-titulo`} style={rotulo}>
-        {partido.local.nombre} vs {partido.visitante.nombre}
-      </span>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <label htmlFor={`${id}-l`} style={soloLectores}>Goles de {partido.local.nombre}</label>
-        <input id={`${id}-l`} inputMode="numeric" autoComplete="off" disabled={!editable} value={local} onChange={(e) => setLocal(e.target.value)} style={{ ...campo, width: 64, textAlign: "center" }} />
-        <span aria-hidden="true">-</span>
-        <label htmlFor={`${id}-v`} style={soloLectores}>Goles de {partido.visitante.nombre}</label>
-        <input id={`${id}-v`} inputMode="numeric" autoComplete="off" disabled={!editable} value={visitante} onChange={(e) => setVisitante(e.target.value)} style={{ ...campo, width: 64, textAlign: "center" }} />
+      <div className="prode-partido__tablero">
+        <label className="prode-partido__equipo">
+          <span>{partido.local.nombre}</span>
+          <input id={`${id}-l`} className="prode-partido__gol" aria-label={`Goles de ${partido.local.nombre}`} inputMode="numeric" autoComplete="off" placeholder="–" disabled={!editable || ocupado} value={local} onChange={(e) => { setLocal(e.target.value); setMensaje(null); }} />
+        </label>
+        <label className="prode-partido__equipo">
+          <span>{partido.visitante.nombre}</span>
+          <input id={`${id}-v`} className="prode-partido__gol" aria-label={`Goles de ${partido.visitante.nombre}`} inputMode="numeric" autoComplete="off" placeholder="–" disabled={!editable || ocupado} value={visitante} onChange={(e) => { setVisitante(e.target.value); setMensaje(null); }} />
+        </label>
+      </div>
+      {estado === "cerrado" && <span style={suave}>{guardado ? "Cerró el pronóstico" : "Cerró el pronóstico. No cargaste uno."}</span>}
+      {estado === "cerrado" && !partido.resultado && <span style={suave}>Resultado pendiente de confirmación.</span>}
+      {estado === "jugado" && (
+        <div className="prode-partido__resultado" style={texto}>
+          {partido.resultado && <strong>Resultado: {partido.resultado.local} - {partido.resultado.visitante}.</strong>}
+          {!guardado && <span>No cargaste pronóstico.</span>}
+          {puntos && <span>Sumaste {puntos.puntos} {puntos.puntos === 1 ? "punto" : "puntos"}{puntos.exacto ? " (resultado exacto)" : ""}.</span>}
+        </div>
+      )}
+      <div className="prode-partido__pie">
+        <span role="status" aria-live="polite" data-tipo={mensaje?.tipo}>
+          {mensaje?.texto ?? (editable && guardado ? sinCambios ? "Marcador guardado." : "Cambios sin guardar." : "")}
+        </span>
         {editable && (
-          <button type="submit" className="tb-boton tb-boton--primario" disabled={ocupado || sinCambios} style={boton}>
+          <button type="submit" className="tb-boton tb-boton--primario" disabled={ocupado || sinCambios}>
             {ocupado ? "Guardando…" : guardado ? "Cambiar" : "Guardar"}
           </button>
         )}
       </div>
-      {estado === "cerrado" && <span style={suave}>{guardado ? "Cerró el pronóstico" : "Cerró el pronóstico. No cargaste uno."}</span>}
-      {estado === "jugado" && (
-        <span style={texto}>
-          {partido.resultado ? `Resultado: ${partido.resultado.local} - ${partido.resultado.visitante}. ` : ""}
-          {guardado ? "" : "No cargaste pronóstico. "}
-          {puntos ? `Sumaste ${puntos.puntos} ${puntos.puntos === 1 ? "punto" : "puntos"}${puntos.exacto ? " (resultado exacto)" : ""}.` : ""}
-        </span>
-      )}
-      <span role="status" aria-live="polite" style={aviso(mensaje?.tipo ?? "ok")}>
-        {mensaje?.texto ?? ""}
-      </span>
     </form>
   );
 }
