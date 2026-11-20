@@ -41,6 +41,29 @@ describe("RL16: descubrimiento de handlers", () => {
     expect(callback).toMatch(/rateLimitRedirect:\s*"\/login\?error=rate_limited"/);
   });
 
+  // docs/37 §3.4: los handlers del prode declaran su política explícita. Una mutación sin política cae en
+  // el límite genérico, que no protege los códigos de invitación de la fuerza bruta.
+  const prode = archivos.filter((f) => f.startsWith("prode/"));
+
+  it("encuentra los endpoints del prode", () => {
+    expect(prode.length).toBeGreaterThan(0);
+  });
+
+  it.each(prode)("%s declara rateLimit en cada withApi", (archivo) => {
+    const fuente = readFileSync(join(RAIZ, archivo), "utf8");
+    const envolturas = fuente.match(/withApi\(/g)?.length ?? 0;
+    const politicas = fuente.match(/rateLimit:\s*\[\s*"/g)?.length ?? 0;
+    expect(
+      politicas,
+      `${archivo}: cada withApi(handler, { rateLimit: [...] }) del prode necesita políticas de lib/rate-limit/policies.ts (docs/37 §3.4)`
+    ).toBe(envolturas);
+  });
+
+  it("unirse a un grupo del prode se limita por IP y por usuario", () => {
+    const fuente = readFileSync(join(RAIZ, "prode/unirse.ts"), "utf8");
+    expect(fuente).toMatch(/rateLimit:\s*\[\s*"prode_unirse_ip",\s*"prode_unirse"\s*\]/);
+  });
+
   const admin = archivos.filter((f) => f.startsWith("admin/"));
 
   it("encuentra los endpoints de admin", () => {
