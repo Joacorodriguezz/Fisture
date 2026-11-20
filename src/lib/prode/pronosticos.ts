@@ -60,8 +60,6 @@ export async function guardarPronostico(
   if (!marcador) return { ok: false, status: 400, error: "marcador_invalido" };
   // Quién pasa solo se pide con empate; con ganador se deriva y se guarda null (docs/40 R2)
   const empate = marcador.homeGoals === marcador.awayGoals;
-  if (empate && !esLado(datos.pasa)) return { ok: false, status: 400, error: "falta_quien_pasa" };
-  const pasa: Lado | null = empate ? (datos.pasa as Lado) : null;
   const [partido] = await db
     .select({ dateTime: matches.dateTime, status: matches.status, closedAt: prodeMatches.closedAt })
     .from(matches)
@@ -70,6 +68,9 @@ export async function guardarPronostico(
     .limit(1);
   if (!partido) return { ok: false, status: 404, error: "partido_inexistente" };
   if (cierraPronostico(partido, ahora ?? new Date())) return CERRADO;
+  // El cierre manda sobre la falta de pasa; esta validación va antes de escribir
+  if (empate && !esLado(datos.pasa)) return { ok: false, status: 400, error: "falta_quien_pasa" };
+  const pasa: Lado | null = empate ? (datos.pasa as Lado) : null;
 
   // Cierre atómico: la hora y el estado se vuelven a comprobar en la misma sentencia que escribe, con la
   // hora del servidor al escribir. Un pedido demorado que llega después del inicio, o después de que el

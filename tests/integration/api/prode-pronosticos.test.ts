@@ -97,6 +97,14 @@ describe("/api/prode/pronosticos", () => {
       expect(await fila("user-1", "p1")).toBeNull();
     });
 
+    it("un partido cerrado responde 409 pronostico_cerrado aunque falte pasa (el cierre se mira primero)", async () => {
+      vi.setSystemTime(INICIO);
+      const res = await put({ matchId: "p1", homeGoals: 1, awayGoals: 1 });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: "pronostico_cerrado" });
+      expect(await fila("user-1", "p1")).toBeNull();
+    });
+
     it("un empate con pasa lo guarda y lo devuelve en PUT y GET", async () => {
       const res = await put({ matchId: "p1", homeGoals: 2, awayGoals: 2, pasa: "away" });
       expect(res.status).toBe(200);
