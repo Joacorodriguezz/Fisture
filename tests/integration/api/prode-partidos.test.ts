@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTestDb } from "../../helpers/use-test-db";
 import { apiCtx, kvEnMemoria, silenciarConsola } from "../../helpers/ctx";
 import { relojFijo } from "../../helpers/clock";
+import { d1ConCambioAntesDelBatch } from "../../helpers/d1-intercalado";
 import { GET, PATCH, POST } from "../../../src/pages/api/admin/prode/partidos";
 
 const ADMIN = "admin-de-prueba";
@@ -208,6 +209,34 @@ describe("/api/admin/prode/partidos", () => {
       expect(rechazo.body.error).toBe("partido_ya_empezado");
     }
     expect(await fila(id)).toMatchObject({ status: "finished", home_score: 0, away_score: 0, round: "cuartos", date_time: Date.parse("2026-11-23T00:00:00Z") / 1000 });
+  });
+
+  // Carrera con el sync: entre la lectura del PATCH y su batch el partido pasa a live. El PATCH, con su
+  // lectura vieja, no puede dejar el pronóstico abierto: 409 partido_cambio, fila sin tocar y cerrado.
+  it("PATCH con el partido cambiado entre la lectura y la escritura responde 409 y no lo reabre", async () => {
+    for (const cambio of [{ horario: "2026-11-23T19:15", fase: "semifinal" }, { status: "scheduled" }]) {
+      const { body } = await llamar("POST", cruce);
+      const id = body.partido.id;
+      const DB = d1ConCambioAntesDelBatch(t.DB, /update\s+"matches"/i, () =>
+        t.DB.prepare("UPDATE matches SET status = 'live' WHERE id = ?").bind(id).run()
+      );
+      const res = await PATCH(
+        apiCtx({
+          url: "https://fisture.test/api/admin/prode/partidos",
+          method: "PATCH",
+          body: { id, ...cambio },
+          headers: { Authorization: `Bearer ${ADMIN}` },
+          env: { ENVIRONMENT: "test", DB, KV: kvEnMemoria(), ADMIN_SECRET: ADMIN },
+        })
+      );
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as any).error).toBe("partido_cambio");
+      expect(await fila(id)).toMatchObject({ status: "live", round: "cuartos", date_time: Date.parse("2026-11-23T00:00:00Z") / 1000 });
+      const vinculo = await t.DB.prepare("SELECT fase, closed_at FROM prode_matches WHERE match_id = ?").bind(id).first<any>();
+      expect(vinculo).toMatchObject({ fase: "cuartos", closed_at: expect.any(Number) });
+      await t.DB.prepare("DELETE FROM prode_matches").run();
+      await t.DB.prepare("DELETE FROM matches").run();
+    }
   });
 
   it("PATCH no carga resultados en partidos que trae el sync", async () => {

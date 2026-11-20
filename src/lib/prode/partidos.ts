@@ -6,10 +6,10 @@
 // - date_time es el único horario: el que se muestra y el que cierra el pronóstico (horario.ts).
 // Corregir el horario alcanza para el calendario: la reconciliación compara date_time con el horario
 // sincronizado de cada evento y lo marca needs_update (docs/11).
-import { and, eq, gt, inArray, isNull, lt, ne } from "drizzle-orm";
+import { and, eq, exists, gt, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { leagues, matches, prodeMatches, teams } from "../../../drizzle/schema";
 import type { Database } from "../db";
-import { cierraPronostico, empezo, esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
+import { cierraPronostico, ESTADOS_EMPEZADO, esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
 
 export const SOURCE_MANUAL = "manual";
 
@@ -232,16 +232,36 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
     if (repetido) return duplicado(repetido);
   }
 
+  // Las decisiones de arriba valen para la fila leída. Si el sync la cambió entre medio (p. ej. la pasó a
+  // live), la escritura no aplica: 409 partido_cambio y el admin reintenta con la fila nueva
+  const vigente = and(eq(matches.id, id), sql`${matches.status} IS ${m.status}`, eq(matches.dateTime, m.dateTime));
   const cambio = db
     .update(matches)
     .set({ ...(dateTime ? { dateTime } : {}), ...(fase !== undefined ? { round: fase } : {}), ...estado.cambios, updatedAt: new Date() })
-    .where(eq(matches.id, id));
+    .where(vigente);
   // La fase que vale es la del vínculo; round la repite en los manuales
-  const vinculo = fase !== undefined ? [db.update(prodeMatches).set({ fase }).where(eq(prodeMatches.matchId, id))] : [];
-  // Cierre definitivo si se ve que empezó (antes o con este cambio): no se reabre (docs/37 §5)
-  const cierre = empezo(m, ahora) || empezo({ dateTime: m.dateTime, status: estado.cambios.status }, ahora) ? [cerrar(db, id, ahora)] : [];
-  await db.batch([cambio, ...vinculo, ...cierre]);
+  const vinculo =
+    fase !== undefined
+      ? [db.update(prodeMatches).set({ fase }).where(and(eq(prodeMatches.matchId, id), exists(db.select({ id: matches.id }).from(matches).where(vigente))))]
+      : [];
+  // Cierre definitivo si la fila vigente muestra que empezó, antes o después del cambio: no se reabre
+  // (docs/37 §5). Se decide en SQL, no con la lectura, para no perder un live que escribió el sync.
+  const [, ...resultados] = await db.batch([cerrarSiEmpezo(db, id, ahora), ...vinculo, cambio, cerrarSiEmpezo(db, id, ahora)]);
+  const escrito = resultados[vinculo.length] as D1Result;
+  if (!escrito.meta.changes) return error(409, "partido_cambio");
   return { ok: true, partido: await leerPartido(db, id) };
+}
+
+// Fija prode_matches.closed_at si el partido, tal como está en la fila vigente, ya empezó (idempotente)
+function cerrarSiEmpezo(db: Database, id: string, ahora: Date) {
+  const empezado = db
+    .select({ id: matches.id })
+    .from(matches)
+    .where(and(eq(matches.id, id), or(lte(matches.dateTime, ahora), inArray(matches.status, [...ESTADOS_EMPEZADO]))));
+  return db
+    .update(prodeMatches)
+    .set({ closedAt: ahora.getTime() })
+    .where(and(eq(prodeMatches.matchId, id), isNull(prodeMatches.closedAt), exists(empezado)));
 }
 
 // Fija prode_matches.closed_at si todavía no estaba (idempotente)
