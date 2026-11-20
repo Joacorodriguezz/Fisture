@@ -5,7 +5,7 @@
 // - una sentencia admite como máximo 100 parámetros: los inserts multi-fila se parten en consecuencia
 // - solo se escribe lo que cambió, para no gastar escrituras en un sync diario
 
-import { and, eq, inArray, isNull, lte, notInArray, or } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, lte, notInArray, or } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { createDb, type Database } from "../db";
 import { mensajeDeError, rootLogger } from "../observability/logger";
@@ -443,6 +443,19 @@ function cerrarEmpezadosDelProde(db: Database, ligaId: string): Sentencia {
     .where(and(isNull(prodeMatches.closedAt), inArray(prodeMatches.matchId, empezados)));
 }
 
+// Cierre del vínculo de un manual que ya empezó, decidido sobre la fila vigente (no la leída al
+// principio del sync): antes de pasarlo al partido de ESPN, cuya hora puede ser futura (docs/37 §5)
+function cerrarManualEmpezado(db: Database, manualId: string, ahora: Date): Sentencia {
+  const empezado = db
+    .select({ id: matches.id })
+    .from(matches)
+    .where(and(eq(matches.id, manualId), or(lte(matches.dateTime, ahora), inArray(matches.status, [...ESTADOS_EMPEZADO]))));
+  return db
+    .update(prodeMatches)
+    .set({ closedAt: ahora.getTime() })
+    .where(and(eq(prodeMatches.matchId, manualId), isNull(prodeMatches.closedAt), exists(empezado)));
+}
+
 function resultado90DelManual(m: { status: string | null; homeScore: number | null; awayScore: number | null }) {
   return m.status === "finished" && m.homeScore !== null && m.awayScore !== null ? { homeGoals90: m.homeScore, awayGoals90: m.awayScore } : {};
 }
@@ -479,7 +492,8 @@ async function syncPartidos(
 
   const nuevos: (typeof matches.$inferInsert)[] = [];
   const cambios: Sentencia[] = [];
-  // Cada reemplazo va en su propio batch (atómico): insertar el de ESPN, pasarle el vínculo y los
+  // Cada reemplazo va en su propio batch (atómico): insertar el de ESPN, cerrar el vínculo si el manual
+  // ya empezó, pasarle el vínculo y los
   // pronósticos del manual y borrar el manual. Solo ocurre con partidos nuevos de ligas con cruces manuales.
   const reemplazos: [Sentencia, ...Sentencia[]][] = [];
   let reemplazosPendientes = 0;
@@ -527,6 +541,7 @@ async function syncPartidos(
       const [manual] = manuales.splice(i, 1);
       reemplazos.push([
         db.insert(matches).values(fila),
+        cerrarManualEmpezado(db, manual.id, new Date()),
         // El resultado a 90' del manual (matches) pasa al vínculo: en el de ESPN es el que puntúa (docs/37)
         db.update(prodeMatches).set({ matchId: fila.id, ...resultado90DelManual(manual) }).where(eq(prodeMatches.matchId, manual.id)),
         db.update(prodePredictions).set({ matchId: fila.id }).where(eq(prodePredictions.matchId, manual.id)),

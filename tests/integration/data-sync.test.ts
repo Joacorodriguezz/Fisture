@@ -454,6 +454,27 @@ describe("ingesta ESPN a D1", () => {
       expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ homeGoals90: 1, awayGoals90: 1 })]);
     });
 
+    // El reemplazo es el único cambio de la corrida: el manual ya empezó (hora pasada, closed_at NULL,
+    // como los que entraron por el backfill de 0020) y ESPN lo trae con hora futura a menos de 6 h
+    it("un manual empezado se reemplaza cerrado: el de ESPN con hora futura rechaza pronósticos", async () => {
+      data.events[0].date = new Date(AHORA.getTime() + 2 * H).toISOString();
+      await prepararManual(-3 * H);
+      expect(await sync()).toMatchObject({ matchesCreated: 1, matchesUpdated: 0, errors: [] });
+      const [nuevo] = await t.db.select().from(matches);
+      expect(nuevo.source).toBe(espn.source);
+      expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ matchId: nuevo.id, closedAt: AHORA.getTime() })]);
+      expect(await guardarPronostico(t.db, "u1", { matchId: nuevo.id, homeGoals: 1, awayGoals: 0 })).toMatchObject({ ok: false, status: 409, error: "pronostico_cerrado" });
+    });
+
+    it("un manual futuro se reemplaza abierto", async () => {
+      data.events[0].date = new Date(AHORA.getTime() + 2 * H).toISOString();
+      await prepararManual(H);
+      await sync();
+      const [nuevo] = await t.db.select().from(matches);
+      expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ matchId: nuevo.id, closedAt: null })]);
+      expect(await guardarPronostico(t.db, "u1", { matchId: nuevo.id, homeGoals: 1, awayGoals: 0 })).toMatchObject({ ok: true });
+    });
+
     it(`reemplaza como máximo ${MAX_REEMPLAZOS_PRODE} por corrida; el resto, en la siguiente`, async () => {
       const total = MAX_REEMPLAZOS_PRODE + 2;
       await prepararManual(H);
