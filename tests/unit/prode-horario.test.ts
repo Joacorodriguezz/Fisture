@@ -25,7 +25,13 @@ describe("parsearHorarioArgentino", () => {
 describe("horarioArgentino", () => {
   it("muestra fecha y hora en hora argentina aunque el servidor corra en UTC", () => {
     const instante = new Date("2026-11-23T00:00:00.000Z");
-    expect(horarioArgentino(instante)).toEqual({ fecha: "Dom 22/11", hora: "21:00", iso: "2026-11-22T21:00-03:00" });
+    expect(horarioArgentino(instante)).toEqual({ fecha: "Dom 22/11", hora: "21:00", iso: "2026-11-22T21:00-03:00", cierraEn: instante.getTime() });
+  });
+
+  // Un partido de ESPN puede empezar a las 21:00:45: iso se trunca al minuto (para mostrar), el cierre no
+  it("cierraEn conserva los segundos del instante; iso queda truncado al minuto", () => {
+    const instante = new Date("2026-11-23T00:00:45.000Z");
+    expect(horarioArgentino(instante)).toMatchObject({ iso: "2026-11-22T21:00-03:00", cierraEn: instante.getTime() });
   });
 
   it("ida y vuelta: lo cargado es lo que se muestra", () => {

@@ -43,12 +43,13 @@ export function parsearHorarioArgentino(valor: unknown): Date | null {
 export interface HorarioMostrado {
   fecha: string; // "Dom 22/11"
   hora: string; // "21:00"
-  iso: string; // "2026-11-22T21:00-03:00"
+  iso: string; // "2026-11-22T21:00-03:00": truncado al minuto, solo para mostrar
+  cierraEn: number; // instante exacto (ms epoch, con segundos): el que cierra el pronóstico
 }
 
 export function horarioArgentino(instante: Date): HorarioMostrado {
   const local = new Date(instante.getTime() - OFFSET_MS).toISOString().slice(0, 16);
-  return { fecha: fechaCorta(instante), hora: hora(instante), iso: `${local}${OFFSET}` };
+  return { fecha: fechaCorta(instante), hora: hora(instante), iso: `${local}${OFFSET}`, cierraEn: instante.getTime() };
 }
 
 // Estados de matches.status en los que el partido sigue sin empezar. Un suspendido después de empezar
