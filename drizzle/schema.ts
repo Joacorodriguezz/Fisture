@@ -219,6 +219,45 @@ export const matches = sqliteTable(
 );
 
 // ============================================
+// PRODE: PRONÓSTICOS
+// ============================================
+
+// Un pronóstico por usuario y partido (migración 0019). El cierre sale de matches.date_time.
+export const prodePredictions = sqliteTable(
+  "prode_predictions",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    matchId: text("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+    homeGoals: integer("home_goals").notNull(),
+    awayGoals: integer("away_goals").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.userId, table.matchId] }),
+    matchIdx: index("idx_prode_predictions_match").on(table.matchId),
+  })
+);
+
+// Partidos del prode (migración 0020): un cruce manual o un partido de ESPN adoptado. La fase vive acá.
+export const prodeMatches = sqliteTable("prode_matches", {
+  matchId: text("match_id")
+    .primaryKey()
+    .references(() => matches.id, { onDelete: "cascade" }),
+  fase: text("fase").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  // Resultado a los 90' más adicionado confirmado por el admin (solo adoptados de ESPN; migración 0021)
+  homeGoals90: integer("home_goals_90"),
+  awayGoals90: integer("away_goals_90"),
+  // Cierre irreversible del pronóstico: se fija al observar que el partido empezó (ms epoch)
+  closedAt: integer("closed_at"),
+});
+
+// ============================================
 // SINCRONIZACIÓN DE CALENDARIO
 // ============================================
 

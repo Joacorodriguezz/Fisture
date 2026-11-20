@@ -5,13 +5,15 @@
 // - una sentencia admite como máximo 100 parámetros: los inserts multi-fila se parten en consecuencia
 // - solo se escribe lo que cambió, para no gastar escrituras en un sync diario
 
-import { and, eq, notInArray } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, lte, notInArray, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { createDb, type Database } from "../db";
 import { mensajeDeError, rootLogger } from "../observability/logger";
 import { guardarSlugs, resolverSlugsNuevos } from "../db/slugs";
 import type { FilaSinSlug } from "../slug";
-import { teams, matches, leagues, leagueTeams } from "../../../drizzle/schema";
+import { teams, matches, leagues, leagueTeams, prodeMatches, prodePredictions } from "../../../drizzle/schema";
+import { esMismoCruce, SOURCE_MANUAL } from "../prode/partidos";
+import { ESTADOS_EMPEZADO } from "../prode/horario";
 import { logoDeCompetencia } from "../logos-competencias";
 import {
   createEspnClient,
@@ -425,6 +427,46 @@ async function syncEquipos(
   return ids;
 }
 
+// Cada reemplazo de un cruce manual del prode por el de ESPN es un db.batch propio (una subrequest).
+// Tope por competencia y por invocación para no pasarse del presupuesto de Workers Free (docs/22).
+export const MAX_REEMPLAZOS_PRODE = 5;
+
+function cerrarEmpezadosDelProde(db: Database, ligaId: string): Sentencia {
+  const ahora = new Date();
+  const empezados = db
+    .select({ id: matches.id })
+    .from(matches)
+    .where(and(eq(matches.leagueId, ligaId), or(lte(matches.dateTime, ahora), inArray(matches.status, [...ESTADOS_EMPEZADO]))));
+  return db
+    .update(prodeMatches)
+    .set({ closedAt: ahora.getTime() })
+    .where(and(isNull(prodeMatches.closedAt), inArray(prodeMatches.matchId, empezados)));
+}
+
+// Cierre del vínculo de un manual que ya empezó, decidido sobre la fila vigente (no la leída al
+// principio del sync): antes de pasarlo al partido de ESPN, cuya hora puede ser futura (docs/37 §5)
+function cerrarManualEmpezado(db: Database, manualId: string, ahora: Date): Sentencia {
+  const empezado = db
+    .select({ id: matches.id })
+    .from(matches)
+    .where(and(eq(matches.id, manualId), or(lte(matches.dateTime, ahora), inArray(matches.status, [...ESTADOS_EMPEZADO]))));
+  return db
+    .update(prodeMatches)
+    .set({ closedAt: ahora.getTime() })
+    .where(and(eq(prodeMatches.matchId, manualId), isNull(prodeMatches.closedAt), exists(empezado)));
+}
+
+// Resultado a 90' del manual (matches) para el vínculo, leído de la fila vigente dentro del batch: si el
+// admin lo carga después de la lectura del sync, igual pasa. Sin resultado completo se conserva el que había.
+function resultado90DelManual(manualId: string) {
+  const gol = (columna: typeof matches.homeScore | typeof matches.awayScore) =>
+    sql`(SELECT ${columna} FROM ${matches} WHERE ${matches.id} = ${manualId} AND ${matches.status} = 'finished' AND ${matches.homeScore} IS NOT NULL AND ${matches.awayScore} IS NOT NULL)`;
+  return {
+    homeGoals90: sql`COALESCE(${gol(matches.homeScore)}, ${prodeMatches.homeGoals90})`,
+    awayGoals90: sql`COALESCE(${gol(matches.awayScore)}, ${prodeMatches.awayGoals90})`,
+  };
+}
+
 async function syncPartidos(
   db: Database,
   config: LeagueConfig,
@@ -433,23 +475,35 @@ async function syncPartidos(
   equipoIds: Map<string, string>,
   result: SyncResult
 ): Promise<void> {
-  const existentes = await db
+  // La misma consulta indexada (league_id, source) trae también los cruces manuales del prode de la
+  // liga: sin subrequests de más para reemplazarlos cuando ESPN publica el mismo partido.
+  const filas = await db
     .select({
       id: matches.id,
       externalId: matches.externalId,
+      homeTeamId: matches.homeTeamId,
+      awayTeamId: matches.awayTeamId,
       dateTime: matches.dateTime,
       venue: matches.venue,
       status: matches.status,
       homeScore: matches.homeScore,
       awayScore: matches.awayScore,
       round: matches.round,
+      source: matches.source,
     })
     .from(matches)
-    .where(and(eq(matches.leagueId, ligaId), eq(matches.source, config.source)));
+    .where(and(eq(matches.leagueId, ligaId), inArray(matches.source, [config.source, SOURCE_MANUAL])));
+  const existentes = filas.filter((m) => m.source === config.source);
+  const manuales = filas.filter((m) => m.source === SOURCE_MANUAL);
   const porExterno = new Map(existentes.map((m) => [m.externalId, m]));
 
   const nuevos: (typeof matches.$inferInsert)[] = [];
   const cambios: Sentencia[] = [];
+  // Cada reemplazo va en su propio batch (atómico): insertar el de ESPN, cerrar el vínculo si el manual
+  // ya empezó, pasarle el vínculo y los
+  // pronósticos del manual y borrar el manual. Solo ocurre con partidos nuevos de ligas con cruces manuales.
+  const reemplazos: [Sentencia, ...Sentencia[]][] = [];
+  let reemplazosPendientes = 0;
 
   for (const m of proveedor) {
     const homeTeamId = equipoIds.get(m.homeTeamExternalId);
@@ -479,7 +533,27 @@ async function syncPartidos(
     const actual = porExterno.get(m.externalId);
 
     if (!actual) {
-      nuevos.push({ ...datos, externalId: m.externalId, leagueId: ligaId, source: config.source });
+      const fila = { ...datos, id: crypto.randomUUID(), externalId: m.externalId, leagueId: ligaId, source: config.source };
+      const i = manuales.findIndex((x) => esMismoCruce(x, datos));
+      if (i === -1) {
+        nuevos.push(fila);
+        continue;
+      }
+      // Tope por invocación (subrequests, docs/22): el resto queda para la próxima corrida; el manual
+      // sigue visible y no se inserta el de ESPN (sería un duplicado)
+      if (reemplazos.length >= MAX_REEMPLAZOS_PRODE) {
+        reemplazosPendientes++;
+        continue;
+      }
+      const [manual] = manuales.splice(i, 1);
+      reemplazos.push([
+        db.insert(matches).values(fila),
+        cerrarManualEmpezado(db, manual.id, new Date()),
+        // El resultado a 90' del manual (matches) pasa al vínculo: en el de ESPN es el que puntúa (docs/37)
+        db.update(prodeMatches).set({ matchId: fila.id, ...resultado90DelManual(manual.id) }).where(eq(prodeMatches.matchId, manual.id)),
+        db.update(prodePredictions).set({ matchId: fila.id }).where(eq(prodePredictions.matchId, manual.id)),
+        db.delete(matches).where(eq(matches.id, manual.id)),
+      ]);
       continue;
     }
 
@@ -502,10 +576,16 @@ async function syncPartidos(
   }
 
   await ejecutarEnLotes(db, [
+    // Antes de pisar horario y estado: cierre definitivo de los partidos del prode de la liga que ya
+    // empezaron (en vivo, terminados u hora pasada), así una fecha nueva de ESPN no reabre sus
+    // pronósticos (docs/37 §5). Una sola sentencia, en el mismo batch: sin subrequests de más.
+    ...(cambios.length ? [cerrarEmpezadosDelProde(db, ligaId)] : []),
     ...partir(nuevos, FILAS_PARTIDOS).map((filas) => db.insert(matches).values(filas).onConflictDoNothing()),
     ...cambios,
   ]);
+  for (const lote of reemplazos) await db.batch(lote);
+  if (reemplazos.length) rootLogger.info("prode_cruce_reemplazado_por_sync", { leagueId: ligaId, cantidad: reemplazos.length, pendientes: reemplazosPendientes });
 
-  result.matchesCreated += nuevos.length;
+  result.matchesCreated += nuevos.length + reemplazos.length;
   result.matchesUpdated += cambios.length;
 }
