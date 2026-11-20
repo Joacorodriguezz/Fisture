@@ -5,13 +5,14 @@
 // - una sentencia admite como máximo 100 parámetros: los inserts multi-fila se parten en consecuencia
 // - solo se escribe lo que cambió, para no gastar escrituras en un sync diario
 
-import { and, eq, exists, inArray, isNull, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, lte, notExists, notInArray, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
+import { alias } from "drizzle-orm/sqlite-core";
 import { createDb, type Database } from "../db";
 import { mensajeDeError, rootLogger } from "../observability/logger";
 import { guardarSlugs, resolverSlugsNuevos } from "../db/slugs";
 import type { FilaSinSlug } from "../slug";
-import { teams, matches, leagues, leagueTeams, prodeMatches, prodePredictions } from "../../../drizzle/schema";
+import { calendarSyncs, teams, matches, leagues, leagueTeams, prodeMatches, prodePredictions } from "../../../drizzle/schema";
 import { esMismoCruce, SOURCE_MANUAL } from "../prode/partidos";
 import { ESTADOS_EMPEZADO } from "../prode/horario";
 import { logoDeCompetencia } from "../logos-competencias";
@@ -499,10 +500,10 @@ async function syncPartidos(
 
   const nuevos: (typeof matches.$inferInsert)[] = [];
   const cambios: Sentencia[] = [];
-  // Cada reemplazo va en su propio batch (atómico): insertar el de ESPN, cerrar el vínculo si el manual
-  // ya empezó, pasarle el vínculo y los
-  // pronósticos del manual y borrar el manual. Solo ocurre con partidos nuevos de ligas con cruces manuales.
+  // Cada reemplazo va en su propio batch atómico. El seguimiento del calendario pasa al partido de
+  // ESPN antes de que el borrado del manual se lleve sus filas por cascada.
   const reemplazos: [Sentencia, ...Sentencia[]][] = [];
+  const syncDeEspn = alias(calendarSyncs, "sync_de_espn");
   let reemplazosPendientes = 0;
 
   for (const m of proveedor) {
@@ -552,6 +553,13 @@ async function syncPartidos(
         // El resultado a 90' del manual (matches) pasa al vínculo: en el de ESPN es el que puntúa (docs/37)
         db.update(prodeMatches).set({ matchId: fila.id, ...resultado90DelManual(manual.id) }).where(eq(prodeMatches.matchId, manual.id)),
         db.update(prodePredictions).set({ matchId: fila.id }).where(eq(prodePredictions.matchId, manual.id)),
+        db.update(calendarSyncs).set({ matchId: fila.id }).where(and(
+          eq(calendarSyncs.matchId, manual.id),
+          notExists(db.select({ id: syncDeEspn.id }).from(syncDeEspn).where(and(
+            eq(syncDeEspn.matchId, fila.id),
+            eq(syncDeEspn.userId, calendarSyncs.userId),
+          ))),
+        )),
         db.delete(matches).where(eq(matches.id, manual.id)),
       ]);
       continue;
