@@ -88,7 +88,7 @@ const base = Astro.locals.runtime.env.PUBLIC_APP_URL || Astro.url.origin;
       <Titular nivel="1">{grupo.name}</Titular>
       <p class="pr-meta">
         {grupo.miembros === 1 ? "1 jugador" : `${grupo.miembros} jugadores`}
-        {yo && hayPuntos ? <> · <b>vas {yo.posicion}.º con {yo.puntos} {yo.puntos === 1 ? "punto" : "puntos"}</b></> : " · la tabla arranca con el primer resultado"}
+        {yo && hayPuntos ? <> · <b>{`vas ${yo.posicion}.º con ${yo.puntos} ${yo.puntos === 1 ? "punto" : "puntos"}`}</b></> : " · la tabla arranca con el primer resultado"}
       </p>
     </div>
 
@@ -197,7 +197,7 @@ const base = Astro.locals.runtime.env.PUBLIC_APP_URL || Astro.url.origin;
                           {p.grupo.map((g) => (
                             <li>
                               <span>{g.nombre}{g.userId === user.id && <span class="pr-vos">Vos</span>}</span>
-                              <span>{g.local} – {g.visitante}{g.puntos !== null && <> · {g.puntos} {g.puntos === 1 ? "pt" : "pts"}</>}</span>
+                              <span>{`${g.local} – ${g.visitante}${g.puntos !== null ? ` · ${g.puntos} ${g.puntos === 1 ? "pt" : "pts"}` : ""}`}</span>
                             </li>
                           ))}
                         </ul>
