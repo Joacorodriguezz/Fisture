@@ -127,6 +127,17 @@ La sesión principal orquesta: entiende el pedido, diseña (TDD), decide y revis
 
 No delegar lo trivial: un cambio de uno o dos archivos ya identificados, o una búsqueda puntual, se hace directo (un agente arranca en frío y sale más caro). Pedir a los agentes informes breves y no releer lo que ya informaron.
 
+## Errores de agentes: una regla automática, no una línea en el prompt
+
+Cuando un agente (o una persona) comete un error que puede repetirse, la corrección no es agregar otra instrucción a este archivo: es convertir el error en una verificación automática que falle en `npm run check` y en el CI.
+
+- **Primero el test que falla.** Escribir el caso que reproduce el error y verlo en rojo; recién después corregir el código. El mismo test queda como regla para el próximo agente.
+- **Dónde vive la regla.** Un test que lea el código fuente en `tests/unit/` (modelo: `tests/unit/rate-limit/descubrimiento.test.ts`, que falla si un handler de `pages/api` no está envuelto en `withApi` o si `esMismoOrigen` se define más de una vez), o un script en `scripts/` enganchado a `npm run check` (modelo: `scripts/check-test-discovery.mjs`). Si el repo suma un linter, ahí van las reglas que sean sintácticas.
+- **El mensaje de falla enseña.** Dice qué regla se rompió, en qué archivo y cómo se arregla, para que un agente lo corrija solo sin leer este archivo.
+- **Cuándo sí va una línea en este archivo.** Solo si la regla no se puede verificar con código (una decisión de producto, una convención de nombres sin patrón claro). Si ya existe una verificación, no se repite acá: se referencia el test.
+- **Al cerrar un bug**, el PR dice qué regla automática nueva lo cubre en "Resumen" o declara en "Despliegue y riesgos" por qué no se pudo automatizar.
+- El `revisor` no es la red de seguridad de las reglas de este archivo: lo que ya tiene verificación automática lo cubre `npm run check`, y el revisor se concentra en lo que un test no ve.
+
 ## Convenciones
 
 - Archivos `.astro` para páginas y componentes estáticos (0 JS)
