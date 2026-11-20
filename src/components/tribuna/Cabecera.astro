@@ -15,9 +15,12 @@ interface Props {
   usuario?: { nombre: string };
   // Sin sesión: a dónde lleva el botón de ingreso (no se muestra en /login)
   loginHref?: string;
+  // Acceso al prode en móvil, junto a la cuenta: la barra inferior ya tiene 5 destinos (docs/37 D17).
+  // El ícono es un tanteador (1 | 0): la copa ya es de Ligas
+  prode?: { actual: boolean };
 }
 
-const { volanta, secciones = [], usuario, loginHref } = Astro.props;
+const { volanta, secciones = [], usuario, loginHref, prode } = Astro.props;
 ---
 
 <header class="tb-cabecera">
@@ -35,6 +38,12 @@ const { volanta, secciones = [], usuario, loginHref } = Astro.props;
       <a class="tb-cabecera__buscar" href="/equipos/buscar">
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5L21 21"></path></svg>
         Buscar equipo
+      </a>
+    )}
+    {prode && (
+      <a class="tb-cabecera__prode" href="/prode" aria-label="Prode" aria-current={prode.actual ? "page" : undefined}>
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"><path d="M3 6h18v12H3z M12 6v12 M7 10l1.5-1v6 M15 9h2.5v6H15z"></path></svg>
+        <span class="tb-cabecera__prode-texto" aria-hidden="true">Prode</span>
       </a>
     )}
     {usuario ? (

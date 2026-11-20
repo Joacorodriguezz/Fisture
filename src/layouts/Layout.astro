@@ -69,8 +69,12 @@ const secciones = showNavbar
       { label: "Partidos", href: "/partidos", actual: enSeccion("/partidos") },
       { label: "Ligas", href: "/ligas", actual: enSeccion("/ligas", "/equipos") },
       { label: "Calendario", href: "/calendario", actual: enSeccion("/calendario") },
+      { label: "Prode", href: "/prode", actual: enSeccion("/prode") },
     ]
   : [];
+// La barra inferior móvil queda con sus 5 destinos; en móvil el prode va en la cabecera (docs/37 D17)
+const seccionesBarra = secciones.filter((s) => s.href !== "/prode");
+const prodeActual = enSeccion("/prode");
 
 // Sin sesión: botón de login que vuelve a la página actual (salvo en /login)
 const loginDeCabecera = user || enSeccion("/login") ? undefined : loginHref(ruta + Astro.url.search);
@@ -126,7 +130,7 @@ const fecha = fechaLarga(new Date());
         Staging · rama development · datos de prueba
       </div>
     )}
-    <Cabecera volanta={volanta} secciones={secciones} loginHref={loginDeCabecera} usuario={user ? { nombre: primerNombre(user.name, user.email) } : undefined} />
+    <Cabecera volanta={volanta} secciones={secciones} loginHref={loginDeCabecera} usuario={user ? { nombre: primerNombre(user.name, user.email) } : undefined} prode={secciones.length > 0 ? { actual: prodeActual } : undefined} />
     <main class="tb-main" id="contenido" tabindex="-1">
       <slot />
       <div style="margin-top:56px">
@@ -137,6 +141,6 @@ const fecha = fechaLarga(new Date());
       <span translate="no" style="font:400 20px/1 var(--font-titular);transform:skewX(-8deg)">FISTURE</span>
       <span><a href="/ayuda" class="tb-footer__enlace">Ayuda</a> · <a href={`mailto:${CONTACTO_EMAIL}`} class="tb-footer__enlace">Contacto</a> · <a href="/privacidad" class="tb-footer__enlace">Privacidad</a> · <a href="/terminos" class="tb-footer__enlace">Condiciones</a></span>
     </footer>
-    {secciones.length > 0 && <BarraInferior secciones={secciones} buscarActual={enSeccion("/equipos/buscar")} />}
+    {seccionesBarra.length > 0 && <BarraInferior secciones={seccionesBarra} buscarActual={enSeccion("/equipos/buscar")} />}
   </body>
 </html>

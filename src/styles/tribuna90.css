@@ -204,6 +204,17 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font-family: va
   .tb-cabecera__hola { display: none; }
   .tb-cabecera__cuenta { width: 44px; justify-content: center; }
 }
+/* Prode en la cabecera: solo en móvil, donde las secciones viven en la barra inferior (docs/37 D17) */
+.tb-cabecera__prode { display: none; }
+@media (max-width: 640px) {
+  .tb-cabecera__prode { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; margin-left: auto; padding: 0 var(--space-2); box-sizing: border-box; color: var(--on-rojo); font: 700 15px/1 var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; text-decoration: none; }
+  .tb-cabecera__prode svg { flex: none; }
+  .tb-cabecera__prode:hover { color: var(--on-rojo); }
+  .tb-cabecera__prode[aria-current="page"] { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }
+}
+@media (max-width: 380px) {
+  .tb-cabecera__prode-texto { display: none; }
+}
 @media (max-width: 640px) {
   .tb-cabecera__cuerpo { padding: 0 var(--space-4); justify-content: space-between; }
   .tb-cabecera__nombre { font-size: 32px; }
