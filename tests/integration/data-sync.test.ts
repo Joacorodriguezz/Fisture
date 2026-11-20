@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import scoreboard from "../fixtures/espn-scoreboard.json";
 import { useTestDb } from "../helpers/use-test-db";
 import { AHORA, DIA_MS, relojFijo } from "../helpers/clock";
+import { d1ConCambioAntesDelBatch } from "../helpers/d1-intercalado";
 import { MAX_REEMPLAZOS_PRODE, syncLote, syncSingleLeague } from "../../src/lib/data-providers/sync";
 import { LEAGUES_CONFIG, lotesDeSync } from "../../src/lib/data-providers";
 import { guardarPronostico, listarPronosticos } from "../../src/lib/prode/pronosticos";
@@ -452,6 +453,17 @@ describe("ingesta ESPN a D1", () => {
       await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 1, away_score = 1 WHERE id = 'manual-1'").run();
       await sync();
       expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ homeGoals90: 1, awayGoals90: 1 })]);
+    });
+
+    // El admin carga el resultado entre la lectura del sync y el batch del reemplazo
+    it("el resultado cargado entre la lectura y el batch del reemplazo pasa al vínculo", async () => {
+      await prepararManual(H);
+      const d1 = d1ConCambioAntesDelBatch(t.DB, /delete from\s+"?matches/i, () =>
+        t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 2, away_score = 1 WHERE id = 'manual-1'").run()
+      );
+      expect(await syncSingleLeague({ DB: d1 }, "arg.1")).toMatchObject({ matchesCreated: 1, errors: [] });
+      expect(await t.db.select().from(matches)).toHaveLength(1);
+      expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ homeGoals90: 2, awayGoals90: 1 })]);
     });
 
     // El reemplazo es el único cambio de la corrida: el manual ya empezó (hora pasada, closed_at NULL,

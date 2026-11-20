@@ -5,7 +5,7 @@
 // - una sentencia admite como máximo 100 parámetros: los inserts multi-fila se parten en consecuencia
 // - solo se escribe lo que cambió, para no gastar escrituras en un sync diario
 
-import { and, eq, exists, inArray, isNull, lte, notInArray, or } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, lte, notInArray, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { createDb, type Database } from "../db";
 import { mensajeDeError, rootLogger } from "../observability/logger";
@@ -456,8 +456,15 @@ function cerrarManualEmpezado(db: Database, manualId: string, ahora: Date): Sent
     .where(and(eq(prodeMatches.matchId, manualId), isNull(prodeMatches.closedAt), exists(empezado)));
 }
 
-function resultado90DelManual(m: { status: string | null; homeScore: number | null; awayScore: number | null }) {
-  return m.status === "finished" && m.homeScore !== null && m.awayScore !== null ? { homeGoals90: m.homeScore, awayGoals90: m.awayScore } : {};
+// Resultado a 90' del manual (matches) para el vínculo, leído de la fila vigente dentro del batch: si el
+// admin lo carga después de la lectura del sync, igual pasa. Sin resultado completo se conserva el que había.
+function resultado90DelManual(manualId: string) {
+  const gol = (columna: typeof matches.homeScore | typeof matches.awayScore) =>
+    sql`(SELECT ${columna} FROM ${matches} WHERE ${matches.id} = ${manualId} AND ${matches.status} = 'finished' AND ${matches.homeScore} IS NOT NULL AND ${matches.awayScore} IS NOT NULL)`;
+  return {
+    homeGoals90: sql`COALESCE(${gol(matches.homeScore)}, ${prodeMatches.homeGoals90})`,
+    awayGoals90: sql`COALESCE(${gol(matches.awayScore)}, ${prodeMatches.awayGoals90})`,
+  };
 }
 
 async function syncPartidos(
@@ -543,7 +550,7 @@ async function syncPartidos(
         db.insert(matches).values(fila),
         cerrarManualEmpezado(db, manual.id, new Date()),
         // El resultado a 90' del manual (matches) pasa al vínculo: en el de ESPN es el que puntúa (docs/37)
-        db.update(prodeMatches).set({ matchId: fila.id, ...resultado90DelManual(manual) }).where(eq(prodeMatches.matchId, manual.id)),
+        db.update(prodeMatches).set({ matchId: fila.id, ...resultado90DelManual(manual.id) }).where(eq(prodeMatches.matchId, manual.id)),
         db.update(prodePredictions).set({ matchId: fila.id }).where(eq(prodePredictions.matchId, manual.id)),
         db.delete(matches).where(eq(matches.id, manual.id)),
       ]);
