@@ -42,10 +42,10 @@ describe("/api/prode/pronosticos", () => {
 
   it("un partido de ESPN adoptado se lista y se pronostica", async () => {
     await t.db.insert(prodeMatches).values({ matchId: "superclasico", fase: "semifinal", createdAt: AHORA });
-    const res = await put({ matchId: "superclasico", homeGoals: 1, awayGoals: 1 });
+    const res = await put({ matchId: "superclasico", homeGoals: 1, awayGoals: 1, pasa: "home" });
     expect(res.status).toBe(200);
     const { partidos } = await get();
-    expect(partidos.find((p: any) => p.id === "superclasico")).toMatchObject({ fase: "semifinal", estado: "abierto", pronostico: { homeGoals: 1, awayGoals: 1 } });
+    expect(partidos.find((p: any) => p.id === "superclasico")).toMatchObject({ fase: "semifinal", estado: "abierto", pronostico: { homeGoals: 1, awayGoals: 1, pasa: "home" } });
   });
 
   it("un cruce manual sin vínculo no se lista ni se pronostica", async () => {
@@ -74,23 +74,72 @@ describe("/api/prode/pronosticos", () => {
   it("guarda y modifica el pronóstico antes del inicio (UPSERT)", async () => {
     const res = await put({ matchId: "p1", homeGoals: 2, awayGoals: 1 });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ pronostico: { matchId: "p1", homeGoals: 2, awayGoals: 1 } });
+    expect(await res.json()).toMatchObject({ pronostico: { matchId: "p1", homeGoals: 2, awayGoals: 1, pasa: null } });
 
     vi.setSystemTime(INICIO.getTime() - 1);
-    expect((await put({ matchId: "p1", homeGoals: 0, awayGoals: 0 })).status).toBe(200);
+    expect((await put({ matchId: "p1", homeGoals: 0, awayGoals: 0, pasa: "away" })).status).toBe(200);
     expect(await fila("user-1", "p1")).toMatchObject({ home_goals: 0, away_goals: 0 });
     expect((await t.DB.prepare("SELECT COUNT(*) AS n FROM prode_predictions").first<any>()).n).toBe(1);
 
     const { partidos } = await get();
-    expect(partidos.find((p: any) => p.id === "p1").pronostico).toEqual({ homeGoals: 0, awayGoals: 0 });
+    expect(partidos.find((p: any) => p.id === "p1").pronostico).toEqual({ homeGoals: 0, awayGoals: 0, pasa: "away" });
     // Cada usuario ve solo lo suyo
     expect((await get(fixtures.other)).partidos.find((p: any) => p.id === "p1").pronostico).toBeNull();
+  });
+
+  describe("quién pasa (docs/40 R2)", () => {
+    it("un empate sin pasa responde 400 falta_quien_pasa y no guarda nada", async () => {
+      for (const extra of [{}, { pasa: null }, { pasa: "empate" }, { pasa: 1 }]) {
+        const res = await put({ matchId: "p1", homeGoals: 1, awayGoals: 1, ...extra });
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({ error: "falta_quien_pasa" });
+      }
+      expect(await fila("user-1", "p1")).toBeNull();
+    });
+
+    it("un empate con pasa lo guarda y lo devuelve en PUT y GET", async () => {
+      const res = await put({ matchId: "p1", homeGoals: 2, awayGoals: 2, pasa: "away" });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ pronostico: { matchId: "p1", homeGoals: 2, awayGoals: 2, pasa: "away" } });
+      expect(await fila("user-1", "p1")).toMatchObject({ pasa: "away" });
+      expect((await get()).partidos.find((p: any) => p.id === "p1").pronostico).toEqual({ homeGoals: 2, awayGoals: 2, pasa: "away" });
+    });
+
+    it("con un ganador, pasa se ignora y se guarda null (aunque venga inválido)", async () => {
+      const res = await put({ matchId: "p1", homeGoals: 2, awayGoals: 1, pasa: "away" });
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as any).pronostico.pasa).toBeNull();
+      expect(await fila("user-1", "p1")).toMatchObject({ pasa: null });
+      expect((await put({ matchId: "p1", homeGoals: 0, awayGoals: 1, pasa: "cualquiera" })).status).toBe(200);
+    });
+
+    it("cambiar de 1-1 a 2-1 limpia pasa; cambiar de 2-1 a 1-1 lo exige", async () => {
+      await put({ matchId: "p1", homeGoals: 1, awayGoals: 1, pasa: "home" });
+      expect(await fila("user-1", "p1")).toMatchObject({ pasa: "home" });
+      await put({ matchId: "p1", homeGoals: 2, awayGoals: 1 });
+      expect(await fila("user-1", "p1")).toMatchObject({ home_goals: 2, pasa: null });
+      expect((await put({ matchId: "p1", homeGoals: 1, awayGoals: 1 })).status).toBe(400);
+      expect(await fila("user-1", "p1")).toMatchObject({ home_goals: 2, pasa: null });
+    });
+
+    it("el cierre atómico sigue rigiendo con pasa", async () => {
+      await put({ matchId: "p1", homeGoals: 1, awayGoals: 1, pasa: "home" });
+      vi.setSystemTime(INICIO);
+      const res = await put({ matchId: "p1", homeGoals: 3, awayGoals: 3, pasa: "away" });
+      expect(res.status).toBe(409);
+      expect(await fila("user-1", "p1")).toMatchObject({ home_goals: 1, pasa: "home" });
+    });
+
+    it("un pronóstico anterior a la 0022 (sin pasa) se lee con pasa null", async () => {
+      await t.DB.prepare("INSERT INTO prode_predictions (user_id, match_id, home_goals, away_goals, created_at, updated_at) VALUES ('user-1', 'p1', 1, 1, 1, 1)").run();
+      expect((await get()).partidos.find((p: any) => p.id === "p1").pronostico).toEqual({ homeGoals: 1, awayGoals: 1, pasa: null });
+    });
   });
 
   it("rechaza con 409 pronostico_cerrado desde el instante exacto del inicio", async () => {
     await put({ matchId: "p1", homeGoals: 2, awayGoals: 1 });
     vi.setSystemTime(INICIO);
-    const res = await put({ matchId: "p1", homeGoals: 3, awayGoals: 3 });
+    const res = await put({ matchId: "p1", homeGoals: 3, awayGoals: 3, pasa: "home" });
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "pronostico_cerrado" });
     expect(await fila("user-1", "p1")).toMatchObject({ home_goals: 2, away_goals: 1 });
@@ -151,7 +200,7 @@ describe("/api/prode/pronosticos", () => {
   it("un pedido demorado no modifica un pronóstico existente después del cierre", async () => {
     await put({ matchId: "p1", homeGoals: 2, awayGoals: 1 });
     const db = createDb(d1ConCambioAlEscribir(() => t.DB.prepare("UPDATE matches SET status = 'live' WHERE id = 'p1'").run()));
-    const res = await guardarPronostico(db, "user-1", { matchId: "p1", homeGoals: 3, awayGoals: 3 });
+    const res = await guardarPronostico(db, "user-1", { matchId: "p1", homeGoals: 3, awayGoals: 3, pasa: "home" });
     expect(res).toMatchObject({ ok: false, status: 409 });
     expect(await fila("user-1", "p1")).toMatchObject({ home_goals: 2, away_goals: 1 });
   });

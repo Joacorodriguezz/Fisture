@@ -6,6 +6,7 @@ import { matches, prodeMatches, prodePredictions } from "../../../drizzle/schema
 import type { Database } from "../db";
 import { cierraPronostico } from "./horario";
 import { listarCruces, type PartidoProde } from "./partidos";
+import type { Lado } from "./reglas";
 
 export const GOLES_MAX = 20;
 
@@ -14,17 +15,24 @@ export interface Marcador {
   awayGoals: number;
 }
 
+/** Pronóstico guardado: `pasa` solo con empate (con ganador se deriva del marcador); null si no hay (docs/40 R2). */
+export interface Pronostico extends Marcador {
+  pasa: Lado | null;
+}
+
 export type EstadoPronostico = "abierto" | "cerrado" | "jugado";
 
 export interface PartidoConPronostico extends PartidoProde {
   cierre: string; // ISO UTC: el instante del partido, desde el que no se acepta el pronóstico
   estado: EstadoPronostico;
-  pronostico: Marcador | null;
+  pronostico: Pronostico | null;
 }
 
 export type ResultadoGuardar =
-  | { ok: true; pronostico: Marcador & { matchId: string } }
+  | { ok: true; pronostico: Pronostico & { matchId: string } }
   | { ok: false; status: 400 | 404 | 409; error: string };
+
+const esLado = (v: unknown): v is Lado => v === "home" || v === "away";
 
 const esGol = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= GOLES_MAX;
 
@@ -50,6 +58,10 @@ export async function guardarPronostico(
   if (typeof matchId !== "string" || matchId.length === 0) return { ok: false, status: 400, error: "faltan_datos" };
   const marcador = validarMarcador(datos.homeGoals, datos.awayGoals);
   if (!marcador) return { ok: false, status: 400, error: "marcador_invalido" };
+  // Quién pasa solo se pide con empate; con ganador se deriva y se guarda null (docs/40 R2)
+  const empate = marcador.homeGoals === marcador.awayGoals;
+  if (empate && !esLado(datos.pasa)) return { ok: false, status: 400, error: "falta_quien_pasa" };
+  const pasa: Lado | null = empate ? (datos.pasa as Lado) : null;
   const [partido] = await db
     .select({ dateTime: matches.dateTime, status: matches.status, closedAt: prodeMatches.closedAt })
     .from(matches)
@@ -66,8 +78,8 @@ export async function guardarPronostico(
   // cierre definitivo (closed_at).
   const ms = (ahora ?? new Date()).getTime();
   const escrito = await db.run(sql`
-    INSERT INTO prode_predictions (user_id, match_id, home_goals, away_goals, created_at, updated_at)
-    SELECT ${userId}, m.id, ${marcador.homeGoals}, ${marcador.awayGoals}, ${ms}, ${ms}
+    INSERT INTO prode_predictions (user_id, match_id, home_goals, away_goals, pasa, created_at, updated_at)
+    SELECT ${userId}, m.id, ${marcador.homeGoals}, ${marcador.awayGoals}, ${pasa}, ${ms}, ${ms}
     FROM matches m
     JOIN prode_matches pm ON pm.match_id = m.id
     WHERE m.id = ${matchId}
@@ -77,9 +89,10 @@ export async function guardarPronostico(
     ON CONFLICT (user_id, match_id) DO UPDATE SET
       home_goals = excluded.home_goals,
       away_goals = excluded.away_goals,
+      pasa = excluded.pasa,
       updated_at = excluded.updated_at`);
   if (!escrito.meta.changes) return CERRADO;
-  return { ok: true, pronostico: { matchId, ...marcador } };
+  return { ok: true, pronostico: { matchId, ...marcador, pasa } };
 }
 
 // Partidos del prode con el pronóstico del usuario (o null) y su estado. Una consulta más que
@@ -88,7 +101,7 @@ export async function listarPronosticos(db: Database, userId: string, ahora: Dat
   const [partidos, propios] = await Promise.all([
     listarCruces(db),
     db
-      .select({ matchId: prodePredictions.matchId, homeGoals: prodePredictions.homeGoals, awayGoals: prodePredictions.awayGoals })
+      .select({ matchId: prodePredictions.matchId, homeGoals: prodePredictions.homeGoals, awayGoals: prodePredictions.awayGoals, pasa: prodePredictions.pasa })
       .from(prodePredictions)
       .where(eq(prodePredictions.userId, userId)),
   ]);
@@ -101,7 +114,7 @@ export async function listarPronosticos(db: Database, userId: string, ahora: Dat
       ...p,
       cierre: dateTime.toISOString(),
       estado: estadoDe({ dateTime, status: p.estado, closedAt: p.cerradoEn }, ahora),
-      pronostico: mio ? { homeGoals: mio.homeGoals, awayGoals: mio.awayGoals } : null,
+      pronostico: mio ? { homeGoals: mio.homeGoals, awayGoals: mio.awayGoals, pasa: esLado(mio.pasa) ? mio.pasa : null } : null,
     };
   });
 }
