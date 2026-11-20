@@ -35,6 +35,9 @@ export const users = sqliteTable(
     calendarAuthStatus: text("calendar_auth_status").notNull().default("ok"),
     // Cuándo terminó (o salteó) el onboarding de /bienvenida. NULL = todavía no lo vio (docs/31 D13).
     onboardedAt: integer("onboarded_at", { mode: "timestamp" }),
+    // Nombre visible del prode (posiciones y grupos). NULL = no lo eligió. Validado por
+    // lib/prode/nombre-visible.ts; nunca se loguea.
+    displayName: text("display_name"),
   },
   (table) => ({
     calendarReconciledIdx: index("idx_users_calendar_reconciled").on(table.calendarReconciledAt),
@@ -342,3 +345,40 @@ export const sessions = sqliteTable(
 );
 
 export type Session = typeof sessions.$inferSelect;
+
+// ============================================
+// PRODE: GRUPOS PRIVADOS
+// ============================================
+
+// Grupo privado del prode. Solo se entra con el código de invitación (aleatorio, no adivinable)
+export const prodeGroups = sqliteTable("prode_groups", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  inviteCode: text("invite_code").notNull().unique(),
+  // RESTRICT: al borrar la cuenta del dueño, deleteAccount transfiere el grupo (o lo borra si queda vacío)
+  ownerId: text("owner_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+  createdAt: integer("created_at").notNull(), // epoch ms
+});
+
+export const prodeGroupMembers = sqliteTable(
+  "prode_group_members",
+  {
+    groupId: text("group_id")
+      .notNull()
+      .references(() => prodeGroups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    joinedAt: integer("joined_at").notNull(), // epoch ms
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.groupId, table.userId] }),
+    userIdx: index("prode_group_members_user_idx").on(table.userId),
+  })
+);
+
+export type ProdeGroup = typeof prodeGroups.$inferSelect;

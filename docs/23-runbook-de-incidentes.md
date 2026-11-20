@@ -248,6 +248,10 @@ no se mergea hasta resolverlas**, a mano, de a un par:
    ```sql
    UPDATE OR IGNORE user_teams SET user_id = '<nuevo>' WHERE user_id = '<viejo>';
    UPDATE OR IGNORE calendar_syncs SET user_id = '<nuevo>' WHERE user_id = '<viejo>';
+   UPDATE OR IGNORE prode_group_members SET user_id = '<nuevo>' WHERE user_id = '<viejo>';
+   UPDATE users SET display_name = (SELECT display_name FROM users WHERE id = '<viejo>')
+     WHERE id = '<nuevo>' AND display_name IS NULL;  -- conserva el nombre visible del prode si el que queda no tiene
+   UPDATE prode_groups SET owner_id = '<nuevo>' WHERE owner_id = '<viejo>';  -- owner_id es RESTRICT (docs/14 §9)
    DELETE FROM users WHERE id = '<viejo>';  -- borra por cascada sus preferencias, sesiones y lo que quedó
    ```
 4. Volver a correr el chequeo hasta que no devuelva filas. Si los eventos de `calendar_syncs` pertenecían a otro
