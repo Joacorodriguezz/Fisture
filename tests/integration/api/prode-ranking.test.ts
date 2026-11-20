@@ -7,7 +7,7 @@ import { AHORA, DIA_MS, relojFijo } from "../../helpers/clock";
 import { seedApp } from "../../helpers/fixtures";
 import { callApi } from "../../helpers/api";
 import { silenciarConsola } from "../../helpers/ctx";
-import { matches, prodeGroupMembers, prodeGroups, prodePredictions, users, type User } from "../../../drizzle/schema";
+import { matches, prodeGroupMembers, prodeGroups, prodeMatches, prodePredictions, users, type User } from "../../../drizzle/schema";
 import { rankingProde } from "../../../src/lib/prode/ranking";
 import { GET as GET_GENERAL } from "../../../src/pages/api/prode/ranking";
 import { GET as GET_GRUPO } from "../../../src/pages/api/prode/grupos/[id]/ranking";
@@ -35,6 +35,8 @@ describe("rankings del prode", () => {
     await t.DB.prepare("UPDATE users SET display_name = CASE id WHEN 'user-1' THEN 'Ana' ELSE 'Luis' END").run();
     await t.db.insert(users).values([usuario("user-3", "Zoe"), usuario("user-4", "beto"), usuario("user-5", "Álvaro"), usuario("user-6", null)]);
     await t.db.insert(matches).values([cruce("o1", "octavos", 2, 1), cruce("o2", "octavos", 1, 1), cruce("c1", "cuartos", 0, 3)]);
+    // Solo puntúa lo vinculado en prode_matches (la fase sale de ahí)
+    await t.db.insert(prodeMatches).values([["o1", "octavos"], ["o2", "octavos"], ["c1", "cuartos"]].map(([matchId, fase]) => ({ matchId, fase, createdAt: AYER })));
     await t.db.insert(prodePredictions).values([
       // Ana: 3 + 1 + 3 = 7 (2 exactos, 3 aciertos)
       pronostico("user-1", "o1", 2, 1), pronostico("user-1", "o2", 0, 0), pronostico("user-1", "c1", 0, 3),
