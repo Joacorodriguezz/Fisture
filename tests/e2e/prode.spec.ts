@@ -155,6 +155,13 @@ test("tabla con empates, historial con lo del grupo y pronósticos que se bloque
   await ready(page, racingLocal);
   await racingLocal.fill("3");
   await expect(page.getByRole("textbox", { name: "Goles de Independiente" })).toHaveValue("0");
+  // En 0, «restar» queda inactivo pero conserva el foco (aria-disabled, no disabled)
+  const restar = page.getByRole("button", { name: "Restar un gol a Independiente" });
+  await restar.focus();
+  await page.keyboard.press("Enter");
+  await expect(restar).toBeFocused();
+  await expect(restar).toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByRole("textbox", { name: "Goles de Independiente" })).toHaveValue("0");
   if (isMobile) {
     // Con cambios, la barra de guardar queda a la vista, sobre la barra inferior
     const barra = (await page.locator(".pr-barra-guardar").boundingBox())!;

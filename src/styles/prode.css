@@ -44,9 +44,9 @@
 .pr-escudo span { font: 400 11px/1 var(--font-titular); letter-spacing: -.02em; white-space: nowrap; color: var(--on-amarillo); }
 .pr-goles { display: inline-flex; align-items: stretch; }
 .pr-goles button { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; background: var(--papel); color: var(--tinta); border: 2px solid var(--tinta); font: 400 24px/1 var(--font-titular); }
-.pr-goles button:hover:not(:disabled) { background: var(--papel-2); }
-.pr-goles button:active:not(:disabled) { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
-.pr-goles button:disabled { cursor: not-allowed; opacity: .4; }
+.pr-goles button:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--papel-2); }
+.pr-goles button:active:not(:disabled):not([aria-disabled="true"]) { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
+.pr-goles button:disabled, .pr-goles button[aria-disabled="true"] { cursor: not-allowed; opacity: .4; }
 .pr-goles input { width: 52px; height: 44px; box-sizing: border-box; margin: 0 -2px; padding: 0; text-align: center; background: var(--papel); color: var(--tinta); border: 2px solid var(--tinta); border-radius: 0; font: 400 26px/1 var(--font-titular); position: relative; z-index: 1; }
 .pr-goles input::placeholder { color: var(--linea); }
 .pr-goles input:disabled { background: var(--papel-2); color: var(--tinta-suave); }

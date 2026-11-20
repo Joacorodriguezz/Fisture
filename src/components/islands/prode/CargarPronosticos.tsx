@@ -134,7 +134,7 @@ export default function CargarPronosticos({ partidos }: Props) {
 
   async function guardar(e?: React.FormEvent) {
     e?.preventDefault();
-    if (enviando) return;
+    if (enviando || pendientes.length === 0) return;
     const nuevosErrores: Record<string, string> = {};
     const lote: { partidoId: string; local: number | null; visitante: number | null }[] = [];
     for (const p of pendientes) {
@@ -205,7 +205,9 @@ export default function CargarPronosticos({ partidos }: Props) {
           <ul className="pr-lista">
             {delDia.map((p) => {
               const v = valores[p.id];
-              const bloqueado = cerrado(p) || enviando;
+              // Cerrado: disabled. Mientras se envía o en el tope del marcador, aria-disabled: el control
+              // conserva el foco del teclado y del lector de pantalla
+              const bloqueado = cerrado(p);
               const error = errores[p.id];
               const esCambio = cambiado(p.id) && !cerrado(p);
               const tieneGuardado = guardados[p.id].local !== "";
@@ -228,7 +230,7 @@ export default function CargarPronosticos({ partidos }: Props) {
                             <span id={`eq-${p.id}-${lado}`}>{equipo.nombre}</span>
                           </span>
                           <span className="pr-goles">
-                            <button type="button" aria-label={`Restar un gol a ${equipo.nombre}`} disabled={bloqueado || valor === "0"} onClick={() => paso(p.id, lado, -1)}>
+                            <button type="button" aria-label={`Restar un gol a ${equipo.nombre}`} disabled={bloqueado} aria-disabled={enviando || valor === "0" ? true : undefined} onClick={() => !enviando && valor !== "0" && paso(p.id, lado, -1)}>
                               <Signo mas={false} />
                             </button>
                             <input
@@ -241,11 +243,12 @@ export default function CargarPronosticos({ partidos }: Props) {
                               aria-label={`Goles de ${equipo.nombre}`}
                               value={valor}
                               disabled={bloqueado}
+                              readOnly={enviando}
                               aria-invalid={error ? true : undefined}
                               onChange={(e) => cambiar(p.id, lado, e.target.value)}
                               onFocus={(e) => e.target.select()}
                             />
-                            <button type="button" aria-label={`Sumar un gol a ${equipo.nombre}`} disabled={bloqueado || valor === String(MAX_GOLES)} onClick={() => paso(p.id, lado, 1)}>
+                            <button type="button" aria-label={`Sumar un gol a ${equipo.nombre}`} disabled={bloqueado} aria-disabled={enviando || valor === String(MAX_GOLES) ? true : undefined} onClick={() => !enviando && valor !== String(MAX_GOLES) && paso(p.id, lado, 1)}>
                               <Signo mas />
                             </button>
                           </span>
@@ -290,7 +293,7 @@ export default function CargarPronosticos({ partidos }: Props) {
                 ? "1 cambio sin guardar"
                 : `${pendientes.length} cambios sin guardar`}
         </p>
-        <button type="submit" className="tb-boton tb-boton--primario" disabled={enviando || pendientes.length === 0}>
+        <button type="submit" className="tb-boton tb-boton--primario" aria-disabled={enviando || pendientes.length === 0 ? true : undefined}>
           {enviando ? "Guardando…" : "Guardar pronósticos"}
         </button>
         {mensaje?.tipo === "error" && (
