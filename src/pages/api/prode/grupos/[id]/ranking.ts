@@ -22,4 +22,4 @@ export const GET: APIRoute = withApi(async ({ params, url, locals }) => {
   if (!filas.some((f) => f.esVos)) return noEncontrado();
   locals.logger?.info("prode_ranking", { alcance: "grupo", fase: fase ?? null, total: filas.length });
   return Response.json(recortarRanking(filas, fase), { headers });
-}, { rateLimit: [] });
+}, { rateLimit: ["prode_lectura"] });
