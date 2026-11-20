@@ -75,9 +75,9 @@ test("barra inferior: destinos táctiles de 44 px y alcanzables con teclado", as
   await page.goto("/ligas");
   const barra = page.getByRole("navigation", { name: "Secciones", exact: true });
   await page.screenshot({ path: info.outputPath("barra-inferior.png") });
-  // Cinco destinos de al menos 44 × 44 px, alcanzables con teclado y con foco visible
+  // Seis destinos (con "Prode") de al menos 44 × 44 px, alcanzables con teclado y con foco visible
   const enlaces = barra.getByRole("link");
-  await expect(enlaces).toHaveCount(5);
+  await expect(enlaces).toHaveCount(6);
   for (const enlace of await enlaces.all()) {
     const caja = (await enlace.boundingBox())!;
     expect(caja.width).toBeGreaterThanOrEqual(44);
