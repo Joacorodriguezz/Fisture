@@ -1,0 +1,325 @@
+[
+  {
+    "liga": "arg.1/2023",
+    "id": "656227",
+    "nombre": "ARGJ @ ROS",
+    "header": {
+      "status": {
+        "type": {
+          "id": "28",
+          "name": "STATUS_FULL_TIME",
+          "state": "post",
+          "completed": true,
+          "description": "Full Time",
+          "detail": "FT",
+          "shortDetail": "FT"
+        }
+      },
+      "competitors": [
+        {
+          "homeAway": "home",
+          "team": "Rosario Central",
+          "score": "1",
+          "winner": true,
+          "linescores": [
+            {
+              "displayValue": "1"
+            },
+            {
+              "displayValue": "0"
+            }
+          ]
+        },
+        {
+          "homeAway": "away",
+          "team": "Argentinos Juniors",
+          "score": "0",
+          "winner": false,
+          "linescores": [
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            }
+          ]
+        }
+      ]
+    },
+    "keyEvents": [
+      {
+        "type": {
+          "id": "137",
+          "text": "Goal - Header",
+          "type": "goal---header"
+        },
+        "text": "Jhonatan Candia Goal - Header",
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 1134,
+          "displayValue": "19'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Rosario Central"
+      },
+      {
+        "type": {
+          "id": "81",
+          "text": "Halftime",
+          "type": "halftime"
+        },
+        "text": "First Half ends, Rosario Central 1, Argentinos Juniors 0.",
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'+8'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "82",
+          "text": "Start 2nd Half",
+          "type": "start-2nd-half"
+        },
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "83",
+          "text": "End Regular Time",
+          "type": "end-regular-time"
+        },
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 5400,
+          "displayValue": "90'+8'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      }
+    ]
+  },
+  {
+    "liga": "arg.1/2023",
+    "id": "656223",
+    "nombre": "HUR @ DYJ",
+    "header": {
+      "status": {
+        "type": {
+          "id": "28",
+          "name": "STATUS_FULL_TIME",
+          "state": "post",
+          "completed": true,
+          "description": "Full Time",
+          "detail": "FT",
+          "shortDetail": "FT"
+        }
+      },
+      "competitors": [
+        {
+          "homeAway": "home",
+          "team": "Defensa y Justicia",
+          "score": "2",
+          "winner": false,
+          "linescores": [
+            {
+              "displayValue": "1"
+            },
+            {
+              "displayValue": "1"
+            }
+          ]
+        },
+        {
+          "homeAway": "away",
+          "team": "Huracán",
+          "score": "4",
+          "winner": true,
+          "linescores": [
+            {
+              "displayValue": "2"
+            },
+            {
+              "displayValue": "2"
+            }
+          ]
+        }
+      ]
+    },
+    "keyEvents": [
+      {
+        "type": {
+          "id": "173",
+          "text": "Goal - Volley",
+          "type": "goal---volley"
+        },
+        "text": "Santiago Hezze Goal - Volley",
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 414,
+          "displayValue": "7'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Huracán"
+      },
+      {
+        "type": {
+          "id": "70",
+          "text": "Goal",
+          "type": "goal"
+        },
+        "text": "Gabriel Gudiño Goal",
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 2524,
+          "displayValue": "43'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Huracán"
+      },
+      {
+        "type": {
+          "id": "70",
+          "text": "Goal",
+          "type": "goal"
+        },
+        "text": "Nicolás Fernández Goal",
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'+3'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Defensa y Justicia"
+      },
+      {
+        "type": {
+          "id": "81",
+          "text": "Halftime",
+          "type": "halftime"
+        },
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'+4'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "82",
+          "text": "Start 2nd Half",
+          "type": "start-2nd-half"
+        },
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "70",
+          "text": "Goal",
+          "type": "goal"
+        },
+        "text": "David Barbona Goal",
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 2901,
+          "displayValue": "49'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Defensa y Justicia"
+      },
+      {
+        "type": {
+          "id": "70",
+          "text": "Goal",
+          "type": "goal"
+        },
+        "text": "Nicolás Cordero Goal",
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 4882,
+          "displayValue": "82'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Huracán"
+      },
+      {
+        "type": {
+          "id": "70",
+          "text": "Goal",
+          "type": "goal"
+        },
+        "text": "Juan Manuel García Goal",
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 5110,
+          "displayValue": "86'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Huracán"
+      },
+      {
+        "type": {
+          "id": "83",
+          "text": "End Regular Time",
+          "type": "end-regular-time"
+        },
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 5400,
+          "displayValue": "90'+8'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      }
+    ]
+  }
+]

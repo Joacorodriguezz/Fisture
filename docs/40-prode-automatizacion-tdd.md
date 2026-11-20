@@ -414,3 +414,25 @@ Muestras de ESPN reales (20/11/2026) con `scripts/espn-muestras.mjs` (solo lectu
 **(e) Suspendidos y postergados.** Solo aparecieron dos no jugados: `STATUS_ABANDONED` (detail `Abandoned`, Libertadores 2025, FOR vs COL) y `STATUS_CANCELED` (detail `Canceled`, Sudamericana 2025, UDC vs IND), ambos con `completed: false`. No apareció ningún `STATUS_POSTPONED` ni `STATUS_SUSPENDED`.
 
 **Sin poder verificar.** (1) `linescores` y el resultado a los 90' (probar `summary`); (2) cómo viene un postergado o suspendido real; (3) partidos en vivo (solo se miraron los terminados); (4) `AET`/`AGT` en Copa Argentina de partido único: muestra mínima; (5) ESPN puede reescribir temporadas viejas.
+
+#### Endpoint summary
+
+Prueba con `{BASE}/{slug}/summary?event={id}` (mismo host que el adaptador) sobre 18 partidos terminados: 6 `AET/AGT`, 10 `PEN` y 2 `FULL_TIME` de contraste. Fixtures recortados: `tests/fixtures/espn-prode-summary-{alargue,penales,fin-90}.json`.
+
+**Campos.**
+- `header.competitions[0].competitors[].linescores`: SÍ viene, un `{displayValue}` por período (el `scoreboard` no lo trae). `FULL_TIME`: 2 entradas. `AET`: 4. `PEN`: 5, donde la quinta es la tanda. `AGT`: 3.
+- `header.competitions[0].status.type.name` (mismo estado que el scoreboard), más `score`, `winner` y `shootoutScore` por competitor.
+- `keyEvents[]`: goles con `scoringPlay: true`, `type.type` (`goal`, `goal---header`, `goal---volley`, `penalty---scored`), `period.number`, `clock.displayValue` (`36'`, `90'+5'`, `99'`), `team` y `participants`. En los partidos de Copa Argentina probados `keyEvents` no vino, así que no es una fuente general.
+
+**Marcador a 90': sí se puede, con `linescores`.** Marcador a 90' = suma de las entradas 1 y 2 de cada competitor. En los 18 partidos, la suma de las entradas de juego (sin la tanda) igualó `score`. Contraste con la final de la Libertadores 2023 (Boca `[0,1,0,0]`, Fluminense `[1,0,1,0]`): a los 90' fue 1-1 (Cano 36', gol de Boca a los 72') y Kennedy marcó a los 99' (período 3) para el 2-1 final. Boca 2-3 Huracán 2026: 1-1 a los 90' (Huracán 5', Boca 87'); el alargue trae dos penales de Huracán (94' y 103') y un gol de Boca a los 116'.
+- El alargue se distingue por período: `period.number` 3 y 4 en `keyEvents` y las entradas 3 y 4 de `linescores`. El reloj del alargue sigue contando (91' a 120'), y el adicionado de los 90' se muestra `90'+5'` dentro del período 2. Conviene usar el período, no el minuto.
+- Los goles de `keyEvents` de períodos 1 y 2 coinciden con `linescores` donde existen: sirven de verificación cruzada.
+
+**Salvedades.**
+- En `PEN`, la quinta entrada de `linescores` NO siempre es `shootoutScore`: en 3 partidos de Copa Argentina difiere en 1 (CESP-TIG: entradas 5 y 6 contra `shootoutScore` 4 y 5), y en `arg.1` coincide. Para la tanda usar `shootoutScore` (coincide con el scoreboard); de `linescores` solo los períodos 1 a 4.
+- `AGT` (Chacarita-Tigre): `linescores` `[0,1,0]` y `[0,1,0]`, sin gol de oro. Apoya la sospecha de dato incompleto en ESPN; el 90' es 1-1 pero el ganador sigue sin explicarse.
+- El orden de `competitors` puede diferir entre `summary` y `scoreboard`: cruzar por `team`/`homeAway`, no por posición.
+
+**Costo.** Una subrequest extra por partido y solo para `AET`, `AGT` y `PEN` (en `FULL_TIME` el marcador final es el de 90'). Basta un barrido incremental de los partidos recién terminados con esos estados.
+
+**Sin verificar.** Que `linescores` ya esté completo en un partido recién terminado o en vivo (solo se probaron terminados con días o años); la tanda en Libertadores y Sudamericana (sin `PEN` en la muestra de summary); alargue en ida y vuelta (global); `summary` de un postergado o suspendido.
