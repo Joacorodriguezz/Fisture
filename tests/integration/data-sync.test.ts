@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import scoreboard from "../fixtures/espn-scoreboard.json";
 import { useTestDb } from "../helpers/use-test-db";
 import { AHORA, DIA_MS, relojFijo } from "../helpers/clock";
+import { d1ConCambioAntesDelBatch } from "../helpers/d1-intercalado";
 import { MAX_REEMPLAZOS_PRODE, syncLote, syncSingleLeague } from "../../src/lib/data-providers/sync";
 import { LEAGUES_CONFIG, lotesDeSync } from "../../src/lib/data-providers";
 import { guardarPronostico, listarPronosticos } from "../../src/lib/prode/pronosticos";
@@ -452,6 +453,38 @@ describe("ingesta ESPN a D1", () => {
       await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 1, away_score = 1 WHERE id = 'manual-1'").run();
       await sync();
       expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ homeGoals90: 1, awayGoals90: 1 })]);
+    });
+
+    // El admin carga el resultado entre la lectura del sync y el batch del reemplazo
+    it("el resultado cargado entre la lectura y el batch del reemplazo pasa al vínculo", async () => {
+      await prepararManual(H);
+      const d1 = d1ConCambioAntesDelBatch(t.DB, /delete from\s+"?matches/i, () =>
+        t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 2, away_score = 1 WHERE id = 'manual-1'").run()
+      );
+      expect(await syncSingleLeague({ DB: d1 }, "arg.1")).toMatchObject({ matchesCreated: 1, errors: [] });
+      expect(await t.db.select().from(matches)).toHaveLength(1);
+      expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ homeGoals90: 2, awayGoals90: 1 })]);
+    });
+
+    // El reemplazo es el único cambio de la corrida: el manual ya empezó (hora pasada, closed_at NULL,
+    // como los que entraron por el backfill de 0020) y ESPN lo trae con hora futura a menos de 6 h
+    it("un manual empezado se reemplaza cerrado: el de ESPN con hora futura rechaza pronósticos", async () => {
+      data.events[0].date = new Date(AHORA.getTime() + 2 * H).toISOString();
+      await prepararManual(-3 * H);
+      expect(await sync()).toMatchObject({ matchesCreated: 1, matchesUpdated: 0, errors: [] });
+      const [nuevo] = await t.db.select().from(matches);
+      expect(nuevo.source).toBe(espn.source);
+      expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ matchId: nuevo.id, closedAt: AHORA.getTime() })]);
+      expect(await guardarPronostico(t.db, "u1", { matchId: nuevo.id, homeGoals: 1, awayGoals: 0 })).toMatchObject({ ok: false, status: 409, error: "pronostico_cerrado" });
+    });
+
+    it("un manual futuro se reemplaza abierto", async () => {
+      data.events[0].date = new Date(AHORA.getTime() + 2 * H).toISOString();
+      await prepararManual(H);
+      await sync();
+      const [nuevo] = await t.db.select().from(matches);
+      expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ matchId: nuevo.id, closedAt: null })]);
+      expect(await guardarPronostico(t.db, "u1", { matchId: nuevo.id, homeGoals: 1, awayGoals: 0 })).toMatchObject({ ok: true });
     });
 
     it(`reemplaza como máximo ${MAX_REEMPLAZOS_PRODE} por corrida; el resto, en la siguiente`, async () => {
