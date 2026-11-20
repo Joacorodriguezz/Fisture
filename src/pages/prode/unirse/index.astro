@@ -1,0 +1,8 @@
+---
+// /prode/unirse?codigo=ABCD EFGH: el formulario sin JS de /prode. Normaliza y lleva al link del grupo
+// (docs/37 D12); un código mal escrito vuelve a /prode con el error.
+import { normalizarCodigo } from "../../../lib/prode/reglas";
+
+const codigo = normalizarCodigo(Astro.url.searchParams.get("codigo"));
+return Astro.redirect(codigo ? `/prode/unirse/${codigo}` : "/prode?error=codigo", 302);
+---

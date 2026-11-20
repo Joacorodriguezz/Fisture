@@ -1,0 +1,225 @@
+---
+// Grupo del prode (docs/37 D11): pestañas como enlaces (funcionan sin JS). Requiere sesión y ser
+// miembro; si no, 404 sin revelar que el grupo existe.
+import Layout from "../../layouts/Layout.astro";
+import Volanta from "../../components/tribuna/Volanta.astro";
+import Titular from "../../components/tribuna/Titular.astro";
+import Escudo from "../../components/tribuna/Escudo.astro";
+import Reglamento from "../../components/prode/Reglamento.astro";
+import CargarPronosticos, { type PartidoVista } from "../../components/islands/prode/CargarPronosticos";
+import InvitarGrupo from "../../components/islands/prode/InvitarGrupo";
+import GestionGrupo, { type MiembroVista } from "../../components/islands/prode/GestionGrupo";
+import { loginHref } from "../../lib/auth/guards";
+import { fechaCorta, fechaLarga, hora } from "../../lib/format";
+import { logoDeCompetencia } from "../../lib/logos-competencias";
+import { grupoParaMiembro, historialDeGrupo, miembrosDeGrupo, partidosParaPronosticar, tablaDeGrupo, MAX_HISTORIAL } from "../../lib/prode/repo";
+import { PUNTOS_EXACTO, ordenarTabla } from "../../lib/prode/reglas";
+import "../../styles/prode.css";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect(loginHref(Astro.url.pathname + Astro.url.search));
+
+const DB = Astro.locals.runtime.env.DB;
+const ahora = new Date();
+const grupo = await grupoParaMiembro(DB, Astro.params.id ?? "", user.id);
+if (!grupo) return Astro.rewrite("/404");
+
+const PESTANAS = [
+  { id: "pronosticos", label: "Pronósticos" },
+  { id: "tabla", label: "Tabla" },
+  { id: "historial", label: "Historial" },
+  { id: "grupo", label: "Grupo" },
+] as const;
+type Pestana = (typeof PESTANAS)[number]["id"];
+const pedida = Astro.url.searchParams.get("tab");
+const tab: Pestana = PESTANAS.find((p) => p.id === pedida)?.id ?? "pronosticos";
+const hrefPestana = (id: Pestana) => (id === "pronosticos" ? `/prode/${grupo.id}` : `/prode/${grupo.id}?tab=${id}`);
+
+// Solo se lee lo de la pestaña visible (cada lectura es un viaje a D1); la tabla siempre, por el resumen
+const [tablaCruda, partidos, historial, miembros] = await Promise.all([
+  tablaDeGrupo(DB, grupo),
+  tab === "pronosticos" ? partidosParaPronosticar(DB, user.id, grupo.leagueId, ahora) : Promise.resolve([]),
+  tab === "historial" ? historialDeGrupo(DB, grupo, user.id, ahora) : Promise.resolve([]),
+  tab === "grupo" ? miembrosDeGrupo(DB, grupo.id) : Promise.resolve([]),
+]);
+const tabla = ordenarTabla(tablaCruda, user.id);
+const yo = tabla.find((f) => f.esVos);
+const hayPuntos = tabla.some((f) => f.jugados > 0);
+const logo = logoDeCompetencia(grupo.ligaExternalId, grupo.ligaLogo);
+
+const partidosVista: PartidoVista[] = partidos.map((p) => ({
+  id: p.id,
+  inicio: p.dateTime.toISOString(),
+  dia: fechaLarga(p.dateTime),
+  hora: hora(p.dateTime),
+  ronda: p.round?.trim() || null,
+  local: { nombre: p.local.name, sigla: p.local.shortName, logo: p.local.logo },
+  visitante: { nombre: p.visitante.name, sigla: p.visitante.shortName, logo: p.visitante.logo },
+  pronostico: p.pronostico,
+}));
+
+const miembrosVista: MiembroVista[] = miembros.map((m, i) => ({
+  // Los ids de usuario solo van al HTML de quien administra (los necesita para sacar a alguien)
+  id: grupo.esAdmin ? m.userId : `m${i}`,
+  nombre: m.nombre,
+  organiza: grupo.ownerId ? m.userId === grupo.ownerId : i === 0,
+  esVos: m.userId === user.id,
+}));
+
+const etiquetaPuntos = (puntos: number | null) =>
+  puntos === null ? null : puntos === PUNTOS_EXACTO ? `+${puntos} exacto` : puntos > 0 ? `+${puntos} ganador o empate` : "0 puntos";
+
+const avisos: Record<string, string> = {
+  creado: "Grupo creado. Mandale el link a tu gente para que se sumen.",
+  bienvenida: "Ya estás en el grupo. Cargá tus pronósticos: cada partido cierra cuando empieza.",
+};
+const aviso = avisos[Astro.url.searchParams.get("aviso") ?? ""] ?? null;
+const base = Astro.locals.runtime.env.PUBLIC_APP_URL || Astro.url.origin;
+---
+
+<Layout title={`${grupo.name}: prode de ${grupo.ligaNombre} - FISTURE`} pagina={9} noindex descripcion={`Prode de ${grupo.ligaNombre} en Fisture.`}>
+  <div class="pr-pagina">
+    <div class="pr-cabeza">
+      <a href="/prode" class="tb-volver"><span aria-hidden="true">←</span> Prode</a>
+      <span class="pr-liga">
+        {logo && <Escudo src={logo} nombre={grupo.ligaNombre} size={28} pad={2} prioridad />}
+        <Volanta tono="rojo">{grupo.ligaNombre}</Volanta>
+      </span>
+      <Titular nivel="1">{grupo.name}</Titular>
+      <p class="pr-meta">
+        {grupo.miembros === 1 ? "1 jugador" : `${grupo.miembros} jugadores`}
+        {yo && hayPuntos ? <> · <b>vas {yo.posicion}.º con {yo.puntos} {yo.puntos === 1 ? "punto" : "puntos"}</b></> : " · la tabla arranca con el primer resultado"}
+      </p>
+    </div>
+
+    {aviso && <p class="pr-aviso" role="status">{aviso}</p>}
+
+    <nav class="pr-pestanas" aria-label="Secciones del grupo">
+      {PESTANAS.map((p) => (
+        <a href={hrefPestana(p.id)} aria-current={p.id === tab ? "page" : undefined}>{p.label}</a>
+      ))}
+    </nav>
+
+    {tab === "pronosticos" && (
+      <section aria-labelledby="titulo-pronosticos" style="display:flex;flex-direction:column;gap:16px">
+        <h2 id="titulo-pronosticos" class="pr-oculto">Pronósticos</h2>
+        <Reglamento />
+        <p class="pr-nota">Cada partido cierra cuando empieza. Tu pronóstico vale para todos tus grupos de {grupo.ligaNombre}.</p>
+        {partidosVista.length > 0 ? (
+          <CargarPronosticos client:load partidos={partidosVista} />
+        ) : (
+          <div class="tb-vacio">
+            <p style="margin:0;max-width:52ch"><b>No hay partidos para pronosticar en los próximos 30 días.</b> Cuando se publique el fixture de {grupo.ligaNombre} van a aparecer acá.</p>
+            <a class="tb-boton" href={hrefPestana("tabla")} style="text-decoration:none">Ver la tabla</a>
+          </div>
+        )}
+      </section>
+    )}
+
+    {tab === "tabla" && (
+      <section aria-labelledby="titulo-tabla" style="display:flex;flex-direction:column;gap:12px">
+        <h2 id="titulo-tabla" class="pr-oculto">Tabla de posiciones</h2>
+        <div class="pr-tabla">
+          <table class="tb-posiciones">
+            <caption>Tabla de posiciones</caption>
+            <thead>
+              <tr>
+                <th scope="col"><abbr title="Posición">#</abbr></th>
+                <th scope="col" class="pr-jugador">Jugador</th>
+                <th scope="col"><abbr title="Puntos">Pts</abbr></th>
+                <th scope="col"><abbr title="Resultados exactos">PE</abbr></th>
+                <th scope="col"><abbr title="Aciertos: ganador o empate">PA</abbr></th>
+                <th scope="col"><abbr title="Pronósticos puntuados">PJ</abbr></th>
+              </tr>
+            </thead>
+            <tbody>
+              {tabla.map((f) => (
+                <tr class={f.esVos ? "tb-destacado" : undefined}>
+                  <td>{f.posicion}</td>
+                  <th scope="row" class="pr-jugador">{f.nombre}{f.esVos && <span class="pr-vos">Vos</span>}</th>
+                  <td class="tb-pts">{f.puntos}</td>
+                  <td>{f.exactos}</td>
+                  <td>{f.aciertos}</td>
+                  <td>{f.jugados}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!hayPuntos && <p class="pr-aviso">La tabla se mueve cuando termina el primer partido que pronosticaron.</p>}
+        <p class="pr-nota">
+          Exacto: {PUNTOS_EXACTO} puntos. Ganador o empate: 1. Desempata quien tenga más exactos y después más aciertos.
+          Los puntos se suman cuando cargamos el resultado, a la mañana siguiente del partido. Cuentan los partidos de
+          {" "}{grupo.ligaNombre} desde el {fechaLarga(grupo.startsAt).toLowerCase()}.
+        </p>
+      </section>
+    )}
+
+    {tab === "historial" && (
+      <section aria-labelledby="titulo-historial" style="display:flex;flex-direction:column;gap:12px">
+        <h2 id="titulo-historial" class="pr-oculto">Historial</h2>
+        {historial.length === 0 ? (
+          <div class="tb-vacio">
+            <p style="margin:0;max-width:52ch"><b>Todavía no empezó ningún partido desde que se creó el grupo.</b> Cuando arranque el primero, acá vas a ver tu pronóstico, el resultado y lo que puso cada uno.</p>
+            <a class="tb-boton" href={hrefPestana("pronosticos")} style="text-decoration:none">Cargar pronósticos</a>
+          </div>
+        ) : (
+          <>
+            <ul class="pr-hist">
+              {historial.map((p) => {
+                const etiqueta = etiquetaPuntos(p.mio?.puntos ?? null);
+                return (
+                  <li>
+                    <span class="tb-meta">{fechaCorta(p.dateTime)} · {hora(p.dateTime)} hs{p.round?.trim() ? ` · ${p.round.trim()}` : ""}</span>
+                    <p class="pr-hist-cruce" style="margin:0">
+                      <span>{p.local.name}</span>
+                      {p.resultado ? <span class="pr-hist-resultado" aria-label={`${p.resultado.local} a ${p.resultado.visitante}`}>{p.resultado.local} – {p.resultado.visitante}</span> : <span class="tb-meta">vs</span>}
+                      <span>{p.visitante.name}</span>
+                    </p>
+                    <p class="pr-hist-mio" style="margin:0">
+                      {p.mio ? <span>Tu pronóstico: <b>{p.mio.local} – {p.mio.visitante}</b></span> : <span>No pronosticaste</span>}
+                      {p.estado === "cancelado" ? (
+                        <span class="pr-puntos pr-puntos--nada">Cancelado: no suma</span>
+                      ) : p.estado === "postergado" ? (
+                        <span class="pr-puntos pr-puntos--nada">Postergado</span>
+                      ) : !p.resultado ? (
+                        <span class="pr-puntos pr-puntos--nada">Sin resultado todavía</span>
+                      ) : etiqueta ? (
+                        <span class={`pr-puntos pr-puntos--${p.mio!.puntos}`}>{etiqueta}</span>
+                      ) : p.mio ? (
+                        <span class="pr-puntos pr-puntos--nada">Puntos en camino</span>
+                      ) : null}
+                    </p>
+                    {p.grupo.length > 0 && (
+                      <details>
+                        <summary>Lo que puso el grupo ({p.grupo.length})</summary>
+                        <ul>
+                          {p.grupo.map((g) => (
+                            <li>
+                              <span>{g.nombre}{g.userId === user.id && <span class="pr-vos">Vos</span>}</span>
+                              <span>{g.local} – {g.visitante}{g.puntos !== null && <> · {g.puntos} {g.puntos === 1 ? "pt" : "pts"}</>}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {historial.length === MAX_HISTORIAL && <p class="pr-nota">Mostramos los últimos {MAX_HISTORIAL} partidos.</p>}
+          </>
+        )}
+      </section>
+    )}
+
+    {tab === "grupo" && (
+      <section aria-labelledby="titulo-grupo" style="display:flex;flex-direction:column;gap:20px">
+        <h2 id="titulo-grupo" class="pr-oculto">Grupo</h2>
+        <InvitarGrupo client:visible grupoId={grupo.id} nombre={grupo.name} liga={grupo.ligaNombre} codigo={grupo.inviteCode} base={base} esAdmin={grupo.esAdmin} />
+        <GestionGrupo client:visible grupoId={grupo.id} nombre={grupo.name} miembros={miembrosVista} esAdmin={grupo.esAdmin} />
+        <p class="pr-nota">Cuentan los partidos de {grupo.ligaNombre} desde el {fechaLarga(grupo.startsAt).toLowerCase()}. Hasta 50 jugadores por grupo.</p>
+      </section>
+    )}
+  </div>
+</Layout>

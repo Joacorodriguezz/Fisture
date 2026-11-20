@@ -1,0 +1,78 @@
+---
+// Link de invitación (docs/37 D9 y D12): muestra el grupo y un botón «Unirme» (POST). Sin sesión, el
+// botón lleva al login y vuelve acá. Nunca une a nadie por GET. Código inexistente: 404 que ayuda.
+import Layout from "../../../layouts/Layout.astro";
+import Volanta from "../../../components/tribuna/Volanta.astro";
+import Titular from "../../../components/tribuna/Titular.astro";
+import Escudo from "../../../components/tribuna/Escudo.astro";
+import Reglamento from "../../../components/prode/Reglamento.astro";
+import UnirseGrupo from "../../../components/islands/prode/UnirseGrupo";
+import { loginHref } from "../../../lib/auth/guards";
+import { logoDeCompetencia } from "../../../lib/logos-competencias";
+import { esMiembro, grupoPorCodigo } from "../../../lib/prode/repo";
+import { normalizarCodigo } from "../../../lib/prode/reglas";
+import "../../../styles/prode.css";
+
+const user = Astro.locals.user;
+const DB = Astro.locals.runtime.env.DB;
+const codigo = normalizarCodigo(Astro.params.codigo);
+// Un código escrito con minúsculas o espacios va a su forma canónica
+if (codigo && codigo !== Astro.params.codigo) return Astro.redirect(`/prode/unirse/${codigo}`, 301);
+
+const grupo = codigo ? await grupoPorCodigo(DB, codigo) : null;
+const yaEsMiembro = grupo && user ? await esMiembro(DB, grupo.id, user.id) : false;
+if (!grupo) Astro.response.status = 404;
+const logo = grupo ? logoDeCompetencia(grupo.ligaExternalId, grupo.ligaLogo) : null;
+---
+
+<Layout title={grupo ? `Sumate al prode ${grupo.name} - FISTURE` : "Código de prode no encontrado - FISTURE"} pagina={9} noindex descripcion="Invitación a un grupo de prode en Fisture.">
+  <div class="pr-pagina">
+    <a href="/prode" class="tb-volver"><span aria-hidden="true">←</span> Prode</a>
+    {grupo ? (
+      <>
+        <div class="pr-cabeza">
+          <Volanta tono="rojo">Te invitaron a jugar el prode</Volanta>
+          <Titular nivel="1">{grupo.name}</Titular>
+          <p class="pr-meta pr-liga">
+            {logo && <Escudo src={logo} nombre={grupo.ligaNombre} size={28} pad={2} prioridad />}
+            <span><b>{grupo.ligaNombre}</b> · {grupo.miembros === 1 ? "1 jugador" : `${grupo.miembros} jugadores`}{grupo.organizador && <> · organiza {grupo.organizador}</>}</span>
+          </p>
+        </div>
+        <div class="pr-caja">
+          <h2>Cómo se suman puntos</h2>
+          <Reglamento />
+          <p class="pr-nota">Pronosticás cada partido hasta que empieza. Lo que puso cada uno se ve cuando arranca el partido.</p>
+          {yaEsMiembro ? (
+            <>
+              <p class="pr-texto"><b>Ya sos parte de este grupo.</b></p>
+              <a class="tb-boton tb-boton--primario" href={`/prode/${grupo.id}`} style="text-align:center;text-decoration:none">Ir al grupo</a>
+            </>
+          ) : user ? (
+            <UnirseGrupo client:load codigo={codigo!} grupoId={grupo.id} />
+          ) : (
+            <>
+              <p class="pr-texto">Para sumarte, ingresá con tu cuenta de Google o Microsoft. Volvés a esta pantalla.</p>
+              <a class="tb-boton tb-boton--primario" href={loginHref(`/prode/unirse/${codigo}`)} style="text-align:center;text-decoration:none">Ingresá para unirte</a>
+            </>
+          )}
+        </div>
+      </>
+    ) : (
+      <>
+        <div class="pr-cabeza">
+          <Volanta tono="tinta">Prode</Volanta>
+          <Titular nivel="1">Ese código no existe</Titular>
+          <p class="pr-texto">Puede que esté mal escrito o que quien organiza lo haya cambiado. Pedile el link de nuevo o escribí el código acá.</p>
+        </div>
+        <form class="pr-caja" action="/prode/unirse" method="get">
+          <div class="pr-campo pr-codigo-campo">
+            <label for="codigo">Código del grupo</label>
+            <input id="codigo" name="codigo" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" placeholder="ABCD EFGH" required aria-describedby="codigo-ayuda" />
+            <small id="codigo-ayuda">Son 8 letras y números.</small>
+          </div>
+          <button type="submit" class="tb-boton tb-boton--primario">Ver el grupo</button>
+        </form>
+      </>
+    )}
+  </div>
+</Layout>

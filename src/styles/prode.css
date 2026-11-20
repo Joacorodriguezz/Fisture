@@ -1,0 +1,155 @@
+/* Prode (docs/37): estilos de /prode, /prode/[id] y /prode/unirse. Prefijo pr-. Usa los tokens y los
+   componentes tb-* de Tribuna 90; solo agrega lo propio del juego. Móvil primero. */
+
+.pr-pagina { display: flex; flex-direction: column; gap: 28px; max-width: 760px; }
+.pr-pagina--ancha { max-width: 1000px; }
+.pr-cabeza { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.pr-cabeza .tb-titular { font-size: clamp(40px, 11vw, 64px); }
+.pr-meta { margin: 0; font: 600 16px/1.4 var(--font-rotulo); letter-spacing: .02em; color: var(--tinta-suave); }
+.pr-meta b { color: var(--tinta); }
+.pr-texto { margin: 0; max-width: 62ch; font: 400 17px/1.6 var(--font-texto); color: var(--tinta); }
+.pr-texto a { color: var(--link); text-decoration: underline; text-underline-offset: 3px; }
+.pr-nota { margin: 0; font: 400 15px/1.5 var(--font-texto); color: var(--tinta-suave); }
+.pr-liga { display: inline-flex; align-items: center; gap: 8px; }
+.pr-oculto { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Pestañas: enlaces (funcionan sin JS), la activa con aria-current */
+.pr-pestanas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 3px solid var(--tinta); }
+.pr-pestanas a { display: flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 6px; font: 700 15px/1.1 var(--font-rotulo); letter-spacing: .05em; text-transform: uppercase; text-align: center; color: var(--tinta); text-decoration: none; border-bottom: 4px solid transparent; margin-bottom: -3px; }
+.pr-pestanas a:hover { background: var(--papel-2); }
+.pr-pestanas a[aria-current="page"] { border-bottom-color: var(--rojo-fondo); color: var(--rojo); }
+.pr-pestanas a:focus-visible { outline: 2px solid var(--tinta); outline-offset: -2px; }
+
+/* Reglamento en una línea */
+.pr-reglas { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0; padding: 0; list-style: none; font: 700 14px/1.2 var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; }
+.pr-reglas li { display: inline-flex; align-items: center; gap: 8px; }
+.pr-reglas b { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 4px; box-sizing: border-box; font: 400 18px/1 var(--font-titular); }
+.pr-reglas .pr-pts-3 { background: var(--rojo-fondo); color: var(--on-rojo); }
+.pr-reglas .pr-pts-1 { background: var(--celeste); color: var(--on-celeste); }
+.pr-reglas .pr-pts-0 { background: var(--papel-2); color: var(--tinta); border: 1px solid var(--linea); }
+
+/* Carga de pronósticos */
+.pr-form { display: flex; flex-direction: column; gap: 20px; }
+.pr-dia { margin: 0; }
+.pr-lista { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.pr-partido { margin: 0; padding: 14px 0; border: 0; border-bottom: 1px solid var(--linea); min-width: 0; }
+.pr-partido legend { padding: 0; float: left; width: 100%; margin-bottom: 8px; font: 700 13px/16px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-suave); }
+.pr-partido legend + * { clear: both; }
+.pr-cruce { display: flex; flex-direction: column; }
+.pr-fila { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 4px 0; }
+.pr-equipo { display: flex; align-items: center; gap: 10px; min-width: 0; font: 700 18px/1.2 var(--font-rotulo); }
+.pr-equipo span:last-child { overflow-wrap: anywhere; }
+.pr-escudo { flex: none; width: 32px; height: 32px; padding: 2px; box-sizing: border-box; background: var(--crema-sobre-oscuro); border: 2px solid var(--tinta); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.pr-escudo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.pr-escudo span { font: 400 11px/1 var(--font-titular); letter-spacing: -.02em; white-space: nowrap; color: var(--on-amarillo); }
+.pr-goles { display: inline-flex; align-items: stretch; }
+.pr-goles button { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; background: var(--papel); color: var(--tinta); border: 2px solid var(--tinta); font: 400 24px/1 var(--font-titular); }
+.pr-goles button:hover:not(:disabled) { background: var(--papel-2); }
+.pr-goles button:active:not(:disabled) { background: var(--barra-tinta); color: var(--crema-sobre-oscuro); }
+.pr-goles button:disabled { cursor: not-allowed; opacity: .4; }
+.pr-goles input { width: 52px; height: 44px; box-sizing: border-box; margin: 0 -2px; padding: 0; text-align: center; background: var(--papel); color: var(--tinta); border: 2px solid var(--tinta); border-radius: 0; font: 400 26px/1 var(--font-titular); position: relative; z-index: 1; }
+.pr-goles input::placeholder { color: var(--linea); }
+.pr-goles input:disabled { background: var(--papel-2); color: var(--tinta-suave); }
+.pr-goles button:focus-visible, .pr-goles input:focus-visible { outline: none; box-shadow: var(--focus-ring); position: relative; z-index: 2; }
+.pr-partido--cambiado .pr-goles input { border-color: var(--rojo); }
+.pr-pie-partido { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 6px; font: 700 13px/16px var(--font-rotulo); letter-spacing: .05em; text-transform: uppercase; color: var(--tinta-suave); }
+.pr-estado--guardado { color: var(--celeste); }
+.pr-estado--cambiado { color: var(--tinta); }
+.pr-estado--error, .pr-estado--cerrado-error { color: var(--rojo); }
+.pr-pronto { background: var(--amarillo); color: var(--on-amarillo); padding: 2px 6px; }
+.pr-barra-guardar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 0 -16px; padding: 12px 16px; background: var(--papel); border-top: 3px solid var(--tinta); }
+/* Fija abajo solo con cambios sin guardar (sobre la barra inferior en móvil); sin cambios no tapa nada */
+.pr-barra-guardar--fija { position: sticky; bottom: var(--alto-barra-inferior, 0px); z-index: 15; box-shadow: 0 -6px 12px -8px rgba(0, 0, 0, .35); }
+.pr-barra-guardar p { margin: 0; font: 700 15px/1.3 var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; }
+.pr-barra-guardar .tb-boton { min-height: 48px; }
+.pr-aviso { margin: 0; padding: 12px 16px; border-left: 4px solid var(--celeste); background: var(--papel-2); font: 400 15px/1.5 var(--font-texto); }
+.pr-aviso--error { border-left-color: var(--rojo); }
+
+/* Tabla */
+.pr-tabla { overflow-x: auto; }
+.pr-tabla .tb-posiciones td:first-child, .pr-tabla .tb-posiciones th:first-child { width: 3ch; text-align: center; }
+.pr-tabla .tb-posiciones td.pr-jugador, .pr-tabla .tb-posiciones th.pr-jugador { text-align: left; text-transform: none; font-weight: 700; }
+.pr-tabla .tb-posiciones td { padding-top: 10px; padding-bottom: 10px; }
+.pr-tabla abbr { text-decoration: none; cursor: help; }
+.pr-tabla tbody th { padding: 10px var(--space-2); border-bottom: 1px solid var(--linea); font: 700 16px/20px var(--font-rotulo); letter-spacing: .01em; text-transform: none; color: var(--tinta); text-align: left; }
+.pr-tabla tbody tr.tb-destacado th { background: var(--celeste-claro); }
+.pr-vos { display: inline-block; margin-left: 6px; padding: 1px 6px; background: var(--barra-tinta); color: var(--crema-sobre-oscuro); font: 700 11px/16px var(--font-rotulo); letter-spacing: .08em; text-transform: uppercase; vertical-align: middle; }
+
+/* Historial */
+.pr-hist { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.pr-hist > li { display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--linea); }
+.pr-hist-cruce { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font: 700 18px/1.3 var(--font-rotulo); }
+.pr-hist-resultado { font: 400 24px/1 var(--font-titular); }
+.pr-hist-mio { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font: 600 15px/1.4 var(--font-rotulo); }
+.pr-puntos { display: inline-flex; align-items: center; padding: 3px 8px; font: 700 13px/16px var(--font-rotulo); letter-spacing: .05em; text-transform: uppercase; }
+.pr-puntos--3 { background: var(--rojo-fondo); color: var(--on-rojo); }
+.pr-puntos--1 { background: var(--celeste); color: var(--on-celeste); }
+.pr-puntos--0, .pr-puntos--nada { background: var(--papel-2); color: var(--tinta); border: 1px solid var(--linea); }
+.pr-hist details { font: 500 15px/1.4 var(--font-rotulo); }
+.pr-hist summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--rojo); text-decoration: underline; text-underline-offset: 3px; }
+.pr-hist summary:focus-visible { outline: 2px solid var(--tinta); outline-offset: 2px; }
+.pr-hist details ul { margin: 4px 0 0; padding: 0; list-style: none; }
+.pr-hist details li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dotted var(--linea); }
+
+/* Hub */
+.pr-grupos { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+.pr-tarjeta { display: flex; flex-direction: column; gap: 10px; height: 100%; box-sizing: border-box; padding: 16px; background: var(--papel); color: var(--tinta); border: 2px solid var(--tinta); border-top: 6px solid var(--rojo-fondo); text-decoration: none; transition: box-shadow .08s, transform .08s; }
+.pr-tarjeta:hover { color: var(--tinta); box-shadow: var(--sombra-registro); transform: translate(-2px, -2px); }
+.pr-tarjeta:focus-visible { outline: 2px solid transparent; box-shadow: var(--focus-ring); }
+.pr-tarjeta h3 { margin: 0; font: 400 28px/1.05 var(--font-titular); text-transform: uppercase; overflow-wrap: anywhere; }
+.pr-tarjeta-datos { display: flex; align-items: baseline; gap: 16px; margin-top: auto; }
+.pr-cifra { font: 400 40px/1 var(--font-titular); }
+.pr-cifra small { font: 700 14px/1 var(--font-rotulo); letter-spacing: .04em; text-transform: uppercase; color: var(--tinta-suave); margin-left: 4px; }
+.pr-falta { align-self: flex-start; background: var(--amarillo); color: var(--on-amarillo); padding: 3px 8px; font: 700 13px/16px var(--font-rotulo); letter-spacing: .05em; text-transform: uppercase; }
+.pr-acciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.pr-caja { display: flex; flex-direction: column; gap: 14px; padding: 20px; background: var(--papel-2); border: 2px solid var(--tinta); }
+.pr-caja h2, .pr-caja h3 { margin: 0; font: 400 26px/1.05 var(--font-titular); text-transform: uppercase; }
+.pr-campo { display: flex; flex-direction: column; gap: 6px; }
+.pr-campo label { font: 700 14px/18px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; }
+.pr-campo input, .pr-campo select { width: 100%; box-sizing: border-box; min-height: 48px; padding: 10px 12px; background: var(--papel); color: var(--tinta); border: 2px solid var(--tinta); border-radius: 0; font: 600 18px/1.2 var(--font-rotulo); }
+.pr-campo input:focus-visible, .pr-campo select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.pr-campo input[aria-invalid="true"] { border-color: var(--rojo); }
+.pr-campo small { font: 400 14px/1.4 var(--font-texto); color: var(--tinta-suave); }
+.pr-codigo-campo input { text-transform: uppercase; letter-spacing: .2em; font-family: var(--font-titular); font-weight: 400; }
+.pr-seccion { display: flex; flex-direction: column; gap: 20px; }
+.pr-pasos { counter-reset: paso; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+.pr-pasos li { counter-increment: paso; display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 3px solid var(--rojo); font: 400 16px/1.5 var(--font-texto); }
+.pr-pasos li::before { content: counter(paso); font: 400 40px/1 var(--font-titular); color: var(--rojo); }
+.pr-pasos b { font: 400 22px/1.05 var(--font-titular); text-transform: uppercase; }
+
+/* Grupo: invitación y miembros */
+.pr-codigo { margin: 0; font: 400 clamp(34px, 10vw, 48px)/1 var(--font-titular); letter-spacing: .08em; }
+.pr-link { margin: 0; font: 600 15px/1.4 var(--font-rotulo); overflow-wrap: anywhere; color: var(--tinta-suave); }
+.pr-botones { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.pr-botones .tb-boton { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; min-height: 48px; }
+.pr-miembros { margin: 0; padding: 0; list-style: none; }
+.pr-miembros li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; min-height: 52px; padding: 6px 0; border-bottom: 1px solid var(--linea); font: 700 17px/1.3 var(--font-rotulo); }
+.pr-rol { padding: 2px 8px; background: var(--rojo-fondo); color: var(--on-rojo); font: 700 12px/16px var(--font-rotulo); letter-spacing: .06em; text-transform: uppercase; }
+.pr-confirmar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px; border: 2px solid var(--rojo); background: var(--papel); }
+.pr-confirmar p { margin: 0; flex: 1 1 220px; font: 700 15px/1.4 var(--font-rotulo); }
+
+/* Escritorio: el cruce en una línea, «Local [goles] – [goles] Visitante» */
+@media (min-width: 720px) {
+  .pr-cruce { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; column-gap: 16px; }
+  .pr-cruce::before { content: "–"; content: "–" / ""; grid-column: 2; grid-row: 1; font: 400 26px/1 var(--font-titular); color: var(--tinta-suave); }
+  .pr-fila { grid-row: 1; }
+  .pr-fila--local { grid-column: 1; }
+  .pr-fila--local .pr-equipo { justify-content: flex-end; text-align: right; }
+  .pr-fila--local .pr-escudo { order: 1; }
+  .pr-fila--visitante { grid-column: 3; grid-template-columns: auto minmax(0, 1fr); }
+  .pr-fila--visitante .pr-goles { order: -1; }
+}
+@media (max-width: 640px) {
+  .pr-pestanas a { font-size: 14px; letter-spacing: .03em; }
+  .pr-equipo { font-size: 17px; gap: 8px; }
+  .pr-goles button { width: 44px; }
+  .pr-goles input { width: 48px; }
+  .pr-barra-guardar .tb-boton { flex: 1 1 auto; }
+  .pr-hist-cruce { font-size: 17px; }
+}
+@media (max-width: 359px) {
+  .pr-escudo { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-tarjeta, .pr-tarjeta:hover { transition: none; transform: none; }
+}

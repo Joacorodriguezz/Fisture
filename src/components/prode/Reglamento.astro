@@ -1,0 +1,10 @@
+---
+// Reglamento del prode en una línea (docs/37 D3): se muestra donde se pronostica y en la invitación
+import { PUNTOS_EXACTO, PUNTOS_TENDENCIA } from "../../lib/prode/reglas";
+---
+
+<ul class="pr-reglas" aria-label="Cómo se suman puntos">
+  <li><b class="pr-pts-3">{PUNTOS_EXACTO}</b> Resultado exacto</li>
+  <li><b class="pr-pts-1">{PUNTOS_TENDENCIA}</b> Ganador o empate</li>
+  <li><b class="pr-pts-0">0</b> El resto</li>
+</ul>
