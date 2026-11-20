@@ -134,3 +134,8 @@ subrequests y un job `calendarios` en `sync-cron.yml`.
 - Sin revisión previa del TDD, por pedido explícito del usuario.
 - `fifa.cwc` 2026 y algunas copas (FA Cup, Coupe de France, Trofeo de Campeones) no tienen todavía
   partidos de equipos conocidos en la temporada en curso: quedan vacías hasta que ESPN publique los cruces.
+- Prode (docs/37): reemplazar un cruce manual por el partido de ESPN es un `db.batch` propio (una
+  subrequest). `MAX_REEMPLAZOS_PRODE` (`sync.ts`, 5) limita los reemplazos por competencia y por
+  invocación; los restantes quedan para la próxima corrida (el manual sigue visible y el de ESPN no se
+  inserta, para no duplicarlo). El cierre definitivo de los partidos del prode empezados
+  (`closed_at`) va como una sentencia más dentro del batch de cambios: no suma subrequests.

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import scoreboard from "../fixtures/espn-scoreboard.json";
 import { useTestDb } from "../helpers/use-test-db";
 import { AHORA, DIA_MS, relojFijo } from "../helpers/clock";
-import { syncLote, syncSingleLeague } from "../../src/lib/data-providers/sync";
+import { MAX_REEMPLAZOS_PRODE, syncLote, syncSingleLeague } from "../../src/lib/data-providers/sync";
 import { LEAGUES_CONFIG, lotesDeSync } from "../../src/lib/data-providers";
 import { guardarPronostico, listarPronosticos } from "../../src/lib/prode/pronosticos";
 import { leagues, teams, matches, leagueTeams, prodeMatches, prodePredictions, users } from "../../drizzle/schema";
@@ -452,6 +452,31 @@ describe("ingesta ESPN a D1", () => {
       await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 1, away_score = 1 WHERE id = 'manual-1'").run();
       await sync();
       expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ homeGoals90: 1, awayGoals90: 1 })]);
+    });
+
+    it(`reemplaza como máximo ${MAX_REEMPLAZOS_PRODE} por corrida; el resto, en la siguiente`, async () => {
+      const total = MAX_REEMPLAZOS_PRODE + 2;
+      await prepararManual(H);
+      await t.DB.prepare("DELETE FROM prode_predictions").run();
+      await t.DB.prepare("DELETE FROM matches").run();
+      const base = data.events[0];
+      data.events = Array.from({ length: total }, (_, k) => ({ ...structuredClone(base), id: `${base.id}${k}`, date: new Date(AHORA.getTime() + (k + 1) * DIA_MS).toISOString() }));
+      for (let k = 0; k < total; k++) {
+        await t.db.insert(matches).values({
+          id: `manual-${k}`, externalId: `prode:manual-${k}`, homeTeamId: espn.homeTeamId, awayTeamId: espn.awayTeamId, leagueId: espn.leagueId,
+          dateTime: new Date(AHORA.getTime() + (k + 1) * DIA_MS + H), status: "scheduled", round: "cuartos", source: "manual",
+        });
+        await t.db.insert(prodeMatches).values({ matchId: `manual-${k}`, fase: "cuartos", createdAt: AHORA });
+      }
+      const manualesQuedan = async () => (await t.db.select().from(matches)).filter((m) => m.source === "manual").length;
+
+      expect(await sync()).toMatchObject({ matchesCreated: MAX_REEMPLAZOS_PRODE, errors: [] });
+      expect(await manualesQuedan()).toBe(2);
+      expect(await t.db.select().from(matches)).toHaveLength(total);
+      await sync();
+      expect(await manualesQuedan()).toBe(0);
+      expect(await t.db.select().from(matches)).toHaveLength(total);
+      expect(await t.db.select().from(prodeMatches)).toHaveLength(total);
     });
 
     it("a 6 h o más es otro partido: no lo reemplaza", async () => {

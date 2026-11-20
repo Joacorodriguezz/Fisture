@@ -427,6 +427,10 @@ async function syncEquipos(
   return ids;
 }
 
+// Cada reemplazo de un cruce manual del prode por el de ESPN es un db.batch propio (una subrequest).
+// Tope por competencia y por invocación para no pasarse del presupuesto de Workers Free (docs/22).
+export const MAX_REEMPLAZOS_PRODE = 5;
+
 function cerrarEmpezadosDelProde(db: Database, ligaId: string): Sentencia {
   const ahora = new Date();
   const empezados = db
@@ -478,6 +482,7 @@ async function syncPartidos(
   // Cada reemplazo va en su propio batch (atómico): insertar el de ESPN, pasarle el vínculo y los
   // pronósticos del manual y borrar el manual. Solo ocurre con partidos nuevos de ligas con cruces manuales.
   const reemplazos: [Sentencia, ...Sentencia[]][] = [];
+  let reemplazosPendientes = 0;
 
   for (const m of proveedor) {
     const homeTeamId = equipoIds.get(m.homeTeamExternalId);
@@ -511,6 +516,12 @@ async function syncPartidos(
       const i = manuales.findIndex((x) => esMismoCruce(x, datos));
       if (i === -1) {
         nuevos.push(fila);
+        continue;
+      }
+      // Tope por invocación (subrequests, docs/22): el resto queda para la próxima corrida; el manual
+      // sigue visible y no se inserta el de ESPN (sería un duplicado)
+      if (reemplazos.length >= MAX_REEMPLAZOS_PRODE) {
+        reemplazosPendientes++;
         continue;
       }
       const [manual] = manuales.splice(i, 1);
@@ -551,7 +562,7 @@ async function syncPartidos(
     ...cambios,
   ]);
   for (const lote of reemplazos) await db.batch(lote);
-  if (reemplazos.length) rootLogger.info("prode_cruce_reemplazado_por_sync", { leagueId: ligaId, cantidad: reemplazos.length });
+  if (reemplazos.length) rootLogger.info("prode_cruce_reemplazado_por_sync", { leagueId: ligaId, cantidad: reemplazos.length, pendientes: reemplazosPendientes });
 
   result.matchesCreated += nuevos.length + reemplazos.length;
   result.matchesUpdated += cambios.length;
