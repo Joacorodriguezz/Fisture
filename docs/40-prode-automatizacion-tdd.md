@@ -7,9 +7,11 @@
 **Decisiones del usuario que enmarcan el diseño**
 
 1. El resultado se carga solo desde el inicio, para lo que queda de **este** Clausura (unos 15 partidos de playoffs), sin período de medición previo y sin carga manual diaria. La corrección manual queda solo como excepción.
-2. **Regla nueva de puntos**: el marcador a los 90' puntúa igual que hoy (3 exacto, 1 ganador o empate, 0 si no) y se suma **+1 por acertar qué equipo pasa de ronda** (en 90', alargue o penales). Los playoffs del Clausura son a partido único. El piloto todavía no empezó: el cambio de regla es reversible.
+2. **Regla nueva de puntos**: el marcador a los 90' puntúa igual que hoy (3 exacto, 1 ganador o empate, 0 si no) y se suma **+1 por acertar qué equipo pasa de ronda** (en 90', alargue o penales). El +1 **no desempata** (confirmado). Los playoffs del Clausura son a partido único. El piloto todavía no empezó: el cambio de regla es reversible.
+3. **Sync tras el final**: dos pasadas por partido, a las +2 h y +3 h del inicio. El sync diario queda como respaldo (D4).
+4. **Sin reapertura de postergados**: en playoffs hay fecha fija y partido único. Un suspendido en juego sigue la regla de `docs/37` §5: cerrado y sin puntos hasta que se complete (D7).
 
-Convención: lo que dice **"a verificar en el paso 1"** es una hipótesis sobre ESPN que no se puede comprobar leyendo el código del repo. El paso 1 (§8) es un script de solo lectura que junta esa evidencia con partidos ya jugados. No es un período de medición: se hace en el día.
+Convención: lo que dice **"a verificar en el paso 5"** es una hipótesis sobre ESPN que no se puede comprobar leyendo el código del repo. El paso 5 (§8) es un script de solo lectura que junta esa evidencia con partidos históricos de ESPN. No es un período de medición: se hace en el día. Lo que confirma se reconfirma con los primeros partidos reales de los playoffs, por si ESPN cambió el formato.
 
 ## 1. Contexto y problema
 
@@ -38,8 +40,8 @@ Problemas a resolver:
 1. Sumar la regla "quién pasa" sin romper los pronósticos ya cargados ni el desempate.
 2. Cargar el marcador a 90' y quién pasó sin intervención, y sin inventar nunca un resultado.
 3. Conservar la corrección manual por excepción y el recálculo de puntos.
-4. Suspensiones y reprogramaciones: `closed_at` se fija también por hora pasada y no distingue un postergado de un suspendido (`docs/37`, notas).
-5. La latencia del sync diario: un resultado llega recién a la mañana siguiente.
+4. Suspensiones y reprogramaciones: que la automatización no puntúe un partido suspendido ni reabra uno cerrado.
+5. La latencia del sync diario: hoy un resultado llega recién a la mañana siguiente.
 
 ## 2. Objetivos y no objetivos
 
@@ -47,10 +49,11 @@ Problemas a resolver:
 
 - Regla "quién pasa" en el modelo, la API, los puntos, la interfaz y las reglas visibles, desplegada **antes de que abra el piloto**.
 - Marcador a 90' y equipo que pasa cargados automáticamente desde el primer partido posterior al deploy, con salvaguardas que prefieren dejar un partido **en espera** (sin puntos para nadie) antes que puntuar con un dato dudoso.
+- Resultado disponible entre las 2 h 15 min y las 3 h 15 min del inicio (dos pasadas por partido y una corrida de confirmación), no a la mañana siguiente.
 - Alerta cuando un partido queda en espera, para que el administrador lo resuelva por excepción.
 - Carga manual que gana siempre sobre lo automático; exclusión explícita para resultados administrativos; recálculo automático al leer (como hoy).
 - Interruptor de apagado de emergencia.
-- Alcance mínimo para llegar a los playoffs en curso; el resto, priorizado para después (§8).
+- Alcance mínimo para llegar a los playoffs en curso (§8).
 
 **No objetivos**
 
@@ -59,8 +62,9 @@ Problemas a resolver:
 - Una segunda fuente automática de resultados.
 - Automatizar el alta de cruces o la adopción (sigue siendo `POST {adoptar, fase}`), o los cruces manuales: si ESPN trae el mismo partido, el reemplazo de `docs/39` D5 lo convierte en adoptado.
 - Notificaciones a participantes y puntos persistidos.
-- Actualizar el calendario de los usuarios en la ventana del partido (la reconciliación sigue siendo diaria, `docs/17`).
-- Reabrir pronósticos de forma automática. Nunca.
+- Actualizar el calendario de los usuarios después del final (la reconciliación sigue siendo diaria, `docs/17`).
+- Seguir el horario de ESPN durante el día del partido: en playoffs la fecha es fija; el sync diario alcanza (D8).
+- Distinguir postergado de suspendido (`started_at`) y reabrir pronósticos, manual o automáticamente (D7).
 
 ## 3. Regla "quién pasa" (R1 a R6)
 
@@ -126,7 +130,7 @@ Sin período de medición, la confianza sale de reglas que fallan hacia el lado 
 
 1. **Lista blanca de estados** (D1): solo un nombre de estado de ESPN conocido produce un resultado. Un nombre desconocido deja el partido en espera.
 2. **Alargue y penales**: el marcador a 90' sale solo de parciales que cierran; el equipo que pasó, del ganador de ESPN coherente con los penales. Si algo no cierra, el partido queda en espera.
-3. **Confirmación** (D2): un dato automático puntúa solo cuando se vio igual en dos lecturas separadas por 10 minutos o más, o cuando la primera lectura llega 4 horas o más después del inicio. Así no se puntúa con un dato provisorio del instante del final (**a verificar en el paso 1** si ESPN corrige después; la salvaguarda no depende de eso).
+3. **Confirmación** (D2): un dato automático puntúa solo cuando se vio igual en dos lecturas separadas por 10 minutos o más, o cuando la primera lectura llega 4 horas o más después del inicio (el sync diario). Así no se puntúa con un dato provisorio del instante del final (**a verificar en el paso 5** si ESPN corrige después; la salvaguarda no depende de eso). Con las pasadas de D4, un partido que termina en 90' se ve en la pasada de +2 h y se confirma en la corrida siguiente (+2 h 15 min); uno con alargue y penales se ve en la de +3 h y se confirma a las +3 h 15 min.
 4. **Rango y forma**: goles enteros de 0 a 20, los dos presentes; un solo ganador.
 5. **Manual gana siempre y exclusión explícita** (D2).
 6. **Alerta de espera** (D5) y **registro de evidencia** (`auto_regla`, log con el nombre de estado) para revisar después cualquier resultado.
@@ -138,14 +142,14 @@ Sin período de medición, la confianza sale de reglas que fallan hacia el lado 
 
 El adaptador suma a `ProviderMatch` tres campos opcionales: `estadoProveedor` (el `status.type.name` crudo), `goles90` (`{local, visitante, regla: "A" | "B"} | null`) y `pasa` (`"home" | "away" | null`). `mapStatus` no cambia. Los calcula una función pura, `resultadoProde(evento)`:
 
-- **Regla A (fin en los 90').** Si `estadoProveedor` está en `ESTADOS_FIN_REGLAMENTARIO` y `state = "post"`, `goles90` es `competitor.score`. Si hay ganador, `pasa` es ese lado. La lista sale del paso 1 (por ejemplo `STATUS_FULL_TIME` o `STATUS_FINAL`: **a verificar**, ninguno está comprobado en el código). Un empate con un estado de fin reglamentario no debería existir en partido único: da `pasa = null` y espera.
+- **Regla A (fin en los 90').** Si `estadoProveedor` está en `ESTADOS_FIN_REGLAMENTARIO` y `state = "post"`, `goles90` es `competitor.score`. Si hay ganador, `pasa` es ese lado. La lista sale del paso 5 (por ejemplo `STATUS_FULL_TIME` o `STATUS_FINAL`: **a verificar**, ninguno está comprobado en el código). Un empate con un estado de fin reglamentario no debería existir en partido único: da `pasa = null` y espera.
 - **Regla B (alargue o penales).** Si el nombre indica alargue o penales (por ejemplo `STATUS_FINAL_AET` o `STATUS_FINAL_PEN`: **a verificar**):
   - `goles90` es la suma de los períodos 1 y 2, **solo** si ESPN publica los parciales por período y los períodos 1 a 4 suman exactamente el marcador final de cada equipo, sin la tanda. Campos candidatos: `competitors[].linescores[].value` y `status.period` (**a verificar**). Si no cierran, `goles90 = null`.
   - `pasa` sale del **ganador que marca ESPN** (`competitors[].winner`, **a verificar**), el dato más confiable del evento: exactamente un competidor con `winner = true`. Si hubo penales, tiene que coincidir con la tanda (`competitors[].shootoutScore`, **a verificar**); si no coincide o falta, `pasa = null`.
 - **Coherencia**: si `goles90` tiene ganador y `pasa` dice otro lado, ambos pasan a `null`.
 - **Todo lo demás da `null`**: nombres fuera de la lista (resultados administrativos, abandonos), marcadores no numéricos o fuera de rango, eventos sin `state = "post"`, partidos con `leg`.
 
-**Si el paso 1 muestra que algo no se puede asegurar**: sin un nombre de fin reglamentario confiable, no se implementa la regla A y todos los partidos quedan en espera hasta la corrección manual (el flujo de hoy, ahora con alerta). Sin parciales que cierren, el marcador a 90' de los partidos con alargue queda en espera. Es la única excepción manual prevista. Sin un `winner` confiable, el equipo que pasó en un empate también queda en espera. Nunca se completa un dato faltante con una suposición.
+**Si el paso 5 muestra que algo no se puede asegurar**: sin un nombre de fin reglamentario confiable, no se implementa la regla A y todos los partidos quedan en espera hasta la corrección manual (el flujo de hoy, ahora con alerta). Sin parciales que cierren, el marcador a 90' de los partidos con alargue queda en espera. Es la única excepción manual prevista. Sin un `winner` confiable, el equipo que pasó en un empate también queda en espera. Nunca se completa un dato faltante con una suposición.
 
 - **Por qué una lista blanca**: un nombre nuevo cae en espera en lugar de puntuar mal. Un error de puntaje lo ven todos; una espera, solo el administrador.
 - **Descartado**: usar `competitor.score` siempre que `state = "post"` (ya descartado en `docs/39` D3); deducir quién pasó comparando goles con penales sin el `winner` de ESPN (dos campos a interpretar en vez de uno); el endpoint de detalle por evento (una subrequest más por partido y un formato que el repo nunca leyó); reconstruir los 90' con los minutos de cada gol (más frágil que los parciales).
@@ -162,7 +166,7 @@ Columnas nuevas en `prode_matches`, todas nullable:
 | `auto_visto_at` | Primera lectura de los valores actuales (ms). Si cambian, se reinicia | Solo el sync |
 | `auto_confirmado_at` | Momento en que se cumplió la confirmación de §4.3 (ms). Si los valores cambian, vuelve a `null` | Solo el sync |
 | `excluded_at` | El administrador excluyó el partido: no puntúa (ms) | Solo el PATCH admin |
-| `started_at` | Evidencia de inicio (ms), D7 | Sync y PATCH admin |
+| `pasada_at` | Última pasada del sync tras el final (ms), D4 | Solo el sync de pasadas |
 
 Si una lectura posterior trae `null`, las columnas automáticas se vacían: el partido vuelve a espera y no conserva un dato que la fuente ya no respalda.
 
@@ -187,72 +191,95 @@ Si una lectura posterior trae `null`, las columnas automáticas se vacían: el p
 - **Variable `PRODE_RESULTADO_AUTO`** (`on` por defecto; `off` tras un deploy): con `off`, la lectura ignora todo lo automático, incluido lo ya confirmado. Se lee en el handler y se pasa como booleano a `puntosPorUsuario`, `rankingProde` y `getMetricasProde`.
 - **Por qué dos niveles**: el KV corta en segundos lo que viene, sin agregar una lectura de KV a cada ranking. Lo ya confirmado y mal se corrige por partido (manual o `excluir`), que gana siempre. La variable es el apagado total, con deploy, como `HTML_CACHE`.
 
-### D4. El sync diario carga los resultados (P0) y un sync de ventana los acelera (P1)
+### D4. Dos pasadas por partido tras el final (P1) y el sync diario como respaldo (P0)
 
-**P0, sync diario, sin subrequests de más.** La consulta que `syncPartidos` ya hace por liga suma un `leftJoin` con `prode_matches`. Para cada partido del prode que trae ESPN, el sync agrega al mismo `ejecutarEnLotes` un `UPDATE prode_matches` cuando cambian los datos automáticos o la confirmación. Son unos 15 partidos: entran en el batch que ya existe. A las 06:00 todo partido de la noche anterior tiene más de 4 horas, así que se confirma con una sola lectura. El administrador puede adelantarlo disparando a mano el workflow **Sync diario** (no es cargar datos).
+**P0, sync diario, sin subrequests de más.** La consulta que `syncPartidos` ya hace por liga suma un `leftJoin` con `prode_matches`. Para cada partido del prode que trae ESPN, el sync agrega al mismo `ejecutarEnLotes` un `UPDATE prode_matches` cuando cambian los datos automáticos o la confirmación. Son unos 15 partidos: entran en el batch que ya existe. A las 06:00 todo partido de la noche anterior tiene más de 4 horas, así que se confirma con una sola lectura. Es el respaldo si una pasada falla o GitHub la saltea.
 
-**P1, sync de ventana: `POST /api/admin/prode/sync`** (Bearer `ADMIN_SECRET`, `withApi` con política de límite de tasa) y workflow `prode-sync.yml` cada 15 minutos en la franja de partidos del torneo. El repo es público: los minutos de Actions no tienen costo.
+**P1 (firme), pasadas tras el final: `POST /api/admin/prode/sync`** (Bearer `ADMIN_SECRET`; `withApi` con `rateLimit: []`, como los demás endpoints admin, así que no escribe contadores en D1) y workflow `prode-sync.yml` con `schedule` cada 15 minutos. El repo es público: los minutos de Actions no tienen costo.
 
-1. **Ventana** (1 lectura): adoptados del prode con `date_time` entre `ahora - 4 h` y `ahora + 1 h`, en `live`, o terminados sin confirmar con menos de 24 h. Si no hay ninguno, responde `{trabajo: false}` sin llamar a ESPN y sin registrar un run.
-2. **ESPN**: scoreboard de cada competencia de la ventana, solo del año de cada partido, con el `pedirJson` existente (3 intentos). Tope: 3 competencias por invocación.
-3. **Escritura** en un solo `db.batch`, solo para los partidos de la ventana y sin el paso de equipos: cierre (`cerrarEmpezadosDelProde`, sin cambios), `UPDATE` de `matches` con la misma comparación que el sync diario y las columnas automáticas.
-4. **Run** con `kind = 'prode'` (D6).
+**Cuándo hay trabajo.** Cada partido adoptado tiene dos pasadas, a las **+2 h** (un partido que terminó en 90', con el entretiempo y el adicionado) y a las **+3 h** del inicio (alargue y penales). Columna `prode_matches.pasada_at` (0023): la última pasada hecha. Un partido tiene pasada pendiente si, sin estar excluido:
 
-- **Por qué no `POST /api/admin/sync {leagueId}`**: `syncEquipos` lee todos los equipos de la fuente y `runSync` corre los chequeos de consistencia sobre `matches` entera (`docs/30`) en cada invocación con `leagueId`. Cada 15 minutos agotaría la cuota de lecturas compartida con staging (memoria del proyecto).
-- **Por qué Actions**: Cloudflare Pages no ejecuta Cron Triggers (comentario de `sync-cron.yml`). GitHub no garantiza la puntualidad de un `schedule`: el objetivo de latencia es una hora, no 15 minutos.
-- **Solo producción**: staging lo corre solo con `workflow_dispatch` (comparte la cuota de D1).
-- **Descartado**: endpoint de detalle por evento; intervalo de 5 minutos; un Worker aparte con Cron Trigger.
+- `ahora ≥ inicio + 2 h` y `pasada_at < inicio + 2 h` (o `null`); o
+- `ahora ≥ inicio + 3 h` y `pasada_at < inicio + 3 h`; o
+- la pasada anterior vio un dato automático sin confirmar, o el partido seguía `live` (inicio demorado), y `ahora < inicio + 6 h`. Es la corrida de confirmación de §4.3 (15 minutos después) o la espera de un final atrasado.
 
-**Presupuesto del sync de ventana** (tope de Workers Free: 50; margen de 45 de `calendar/presupuesto.ts`):
+Pasadas las 6 h sin confirmar, el partido queda para el sync diario y, si sigue sin resultado, entra en la alerta de espera (D5).
 
-| Concepto | Normal | Peor caso |
-|---|---|---|
-| Consulta de la ventana | 1 | 1 |
-| KV del interruptor | 1 | 1 |
-| ESPN: 1 año por competencia, hasta 3 competencias, 3 intentos | 1 | 9 |
-| Leer los partidos de la ventana por `external_id` | 1 | 3 |
-| `db.batch` de cambios | 1 | 3 |
-| Registro del run | 3 | 3 |
-| **Total** | **8** | **20** |
+**Cada corrida del workflow:**
 
-En el sync diario, P0 suma 1 lectura de KV por lote con partidos del prode y ninguna consulta nueva. La regla "quién pasa" no agrega subrequests: `pasa` viaja en la misma fila de `prode_predictions` y de `prode_matches` que ya se leen.
+1. **Consulta de pendientes** (1 lectura): la condición de arriba sobre `prode_matches` unida a `matches` por clave primaria. Si ningún partido tiene una pasada pendiente, responde `{trabajo: false}` sin llamar a ESPN, sin leer KV y sin registrar un run.
+2. **KV del interruptor** (D3) y **ESPN**: scoreboard de cada competencia con pasadas pendientes, solo del año de cada partido, con el `pedirJson` existente (3 intentos). Tope: 3 competencias por invocación.
+3. **Escritura** en un solo `db.batch`, solo para los partidos pendientes y sin el paso de equipos: cierre (`cerrarEmpezadosDelProde`, sin cambios), `UPDATE` de `matches` con la misma comparación que el sync diario, columnas automáticas y `pasada_at`.
+4. **Run** con `kind = 'prode'` (D6), registrado ya terminado: un INSERT y la purga, como `registrarRunCalendarios` (`sync-runs.ts`), en lugar de `startSyncRun` y `finishSyncRun` (4 consultas).
 
-**Lecturas de D1.** El `leftJoin` lee las mismas filas de `matches`. Fuera de la ventana, el sync de ventana hace una consulta sobre `prode_matches` (decenas de filas) unida a `matches` por clave primaria. Las cifras reales se revisan la primera semana (§10).
+**Corridas reales.** Por partido: 2 pasadas (+2 h y +3 h) y 1 corrida de confirmación 15 minutos después de la pasada que vio el primer dato, más las de un final atrasado si lo hay. Con unos 15 partidos: **unas 45 corridas con trabajo en todo el torneo**. Las otras corridas del workflow (96 por día) solo hacen la consulta de pendientes. Si dos partidos se juegan en paralelo, sus pasadas coinciden en la misma corrida.
+
+- **Por qué pasadas fijas y no una ventana genérica**: el resultado se busca cuando ya puede existir, no durante todo el partido; las corridas con trabajo bajan a 2 o 3 por partido, y el horario no necesita seguimiento durante el día porque en playoffs la fecha es fija (D8).
+- **Por qué no `POST /api/admin/sync {leagueId}`**: `syncEquipos` lee todos los equipos de la fuente y `runSync` corre los chequeos de consistencia sobre `matches` entera (`docs/30`) en cada invocación con `leagueId`.
+- **Por qué no disparar el Sync diario completo a mano**: un barrido lee de 1 M a 1,5 M de filas, sobre un límite de 5 M por día compartido con staging (memoria del proyecto, `docs/30`). Las pasadas leen decenas de filas.
+- **Por qué Actions**: Cloudflare Pages no ejecuta Cron Triggers (comentario de `sync-cron.yml`). GitHub no garantiza la puntualidad de un `schedule`: una pasada atrasada sigue pendiente en la corrida siguiente, porque la condición compara con `pasada_at` y no con la hora exacta.
+- **Solo producción**: staging lo corre solo con `workflow_dispatch`.
+- **Descartado**: el endpoint de detalle por evento (una subrequest por partido y formato no verificado); un Worker aparte con Cron Trigger (otro despliegue y otros secretos para una función); una ventana de seguimiento continuo (gasta corridas durante el partido sin cambiar cuándo se conoce el resultado).
+
+**Presupuesto de subrequests por corrida** (tope de Workers Free: 50; se usa el margen de 45 de `calendar/presupuesto.ts`). Medido contra el código:
+
+| Concepto | Sin trabajo | Con trabajo, normal | Peor caso |
+|---|---|---|---|
+| Consulta de pendientes | 1 | 1 | 1 |
+| KV del interruptor | 0 | 1 | 1 |
+| ESPN: 1 año por competencia, hasta 3 competencias, 3 intentos | 0 | 1 | 9 |
+| Leer los partidos pendientes por `external_id` | 0 | 1 | 3 |
+| `db.batch` de cambios | 0 | 1 | 3 |
+| Registro del run (INSERT y purga) | 0 | 2 | 2 |
+| **Total** | **1** | **7** | **19** |
+
+`verificarAdmin` no consulta D1 (`admin-auth.ts` solo recibe KV opcional). **No medido**: si el middleware de Astro hace alguna consulta en una request sin cookie de sesión; se confirma con la D1 instrumentada en el test de presupuesto (§7).
+
+**Cuota de lecturas de D1** (límite de 5 M filas por día, por cuenta, compartido con staging):
+
+- Consulta de pendientes: lee los vínculos de `prode_matches` (decenas de filas) y sus partidos por clave primaria. Estimación: menos de 100 filas por corrida × 96 corridas = **menos de 10 k filas por día**, 0,2 % del límite. **No medido**: depende del plan de consulta de D1. Se confirma con `wrangler d1 insights` (no consume cuota) la primera semana.
+- Corridas con trabajo: lectura por `external_id` (índice único) y escrituras de unas pocas filas. Despreciable.
+- Sync diario: el `leftJoin` lee las mismas filas de `matches` que hoy, más las de `prode_matches`.
+- Staging no corre el workflow por `schedule`, así que no suma lecturas a la cuenta.
+
+La regla "quién pasa" no agrega subrequests ni lecturas: `pasa` viaja en la misma fila de `prode_predictions` y de `prode_matches`.
 
 ### D5. Espera, alerta y seguimiento
 
-- **En espera**: adoptado en `finished`, sin exclusión, con `date_time` de hace más de 4 horas, al que le falta el marcador a 90' efectivo o el equipo que pasó efectivo (R4).
-- **Alerta**: después del sync, `sync-cron.yml` (y `prode-sync.yml` en P1) consulta `/api/admin/status`. Si `metricas.prode.automatizacion.enEspera > 0`, abre un issue `incidente` "Prode: resultados en espera" con `incidente.sh` y lo cierra cuando vuelve a 0. Log `prode_resultado_en_espera` con `{matchId, estadoProveedor, motivo}` (`estado_desconocido`, `parciales_incompletos`, `parciales_no_cierran`, `ganador_incierto`, `inconsistente`, `sin_confirmar`).
+- **En espera**: adoptado en `finished`, sin exclusión, con `date_time` de hace más de 6 horas (después de la última pasada posible de D4), al que le falta el marcador a 90' efectivo o el equipo que pasó efectivo (R4).
+- **Alerta**: `prode-sync.yml`, en las corridas con trabajo, y `sync-cron.yml`, después del sync diario, consultan `/api/admin/status`. Si `metricas.prode.automatizacion.enEspera > 0`, abren un issue `incidente` "Prode: resultados en espera" con `incidente.sh` y lo cierran cuando vuelve a 0. Log `prode_resultado_en_espera` con `{matchId, estadoProveedor, motivo}` (`estado_desconocido`, `parciales_incompletos`, `parciales_no_cierran`, `ganador_incierto`, `inconsistente`, `sin_confirmar`).
 - **Qué hace el administrador**: verifica con una fuente oficial y corrige (`PATCH` de D2) o excluye el partido. Es el único caso en que carga datos.
-- **Métricas** (`metricas.prode.automatizacion`, agregados sin ids sobre adoptados `finished`): `automaticos` (por regla), `manuales`, `corregidos` (manual distinto del automático, en marcador o en quién pasa), `enEspera`, `excluidos`. El GET admin de partidos suma a cada partido `automatico: {local, visitante, pasa, regla, confirmadoEn} | null`, `pasa` (efectivo), `excluido` y `enEspera`.
+- **Métricas** (`metricas.prode.automatizacion`, agregados sin ids sobre adoptados `finished`): `automaticos` (por regla), `manuales`, `corregidos` (manual distinto del automático, en marcador o en quién pasa), `enEspera`, `excluidos`. El GET admin de partidos suma a cada partido `automatico: {local, visitante, pasa, regla, confirmadoEn} | null`, `pasa` (efectivo), `excluido`, `enEspera` y `pasadaEn`.
 
-### D6. Observabilidad del sync de ventana (P1)
+### D6. Observabilidad de las pasadas (P1)
 
-- `sync_runs.kind = 'prode'`: la columna es texto (`0011`); solo cambia el tipo `SyncKind`. `checks.sync` de `/api/health` sigue mirando solo `leagues`: si el sync de ventana se registrara como `leagues`, sus éxitos taparían un sync diario caído. `/api/admin/status` agrega `runsProde`.
-- `prode-sync.yml` abre un issue `incidente` "Falla el sync del prode" si una invocación con trabajo falla, y lo cierra al recuperarse.
+- `sync_runs.kind = 'prode'`: la columna es texto (`0011`); solo cambia el tipo `SyncKind`. `checks.sync` de `/api/health` sigue mirando solo `leagues`: si las pasadas se registraran como `leagues`, sus éxitos taparían un sync diario caído. `/api/admin/status` agrega `runsProde`.
+- `prode-sync.yml` abre un issue `incidente` "Falla el sync del prode" si una corrida con trabajo falla, y lo cierra al recuperarse.
 - Log `prode_sync` con `{partidos, competencias, cambios, confirmados}`. Sin datos personales.
 
-### D7. `started_at` y reapertura manual de postergados (P2, propuesta aceptada pendiente de confirmación)
+### D7. Postergados y suspendidos: sin cambios de regla (fuera de alcance)
 
-**Qué es.** Hoy, si un partido se posterga **antes de empezar** pero ESPN lo informa después de la hora original, el prode lo ve cerrado (`closed_at` se fija por hora pasada) y no lo puede reabrir: no sabe si se postergó o si se suspendió a mitad de juego. La salida actual es cargar un cruce nuevo, que pierde los pronósticos, y contradice `docs/37` §5 ("tu pronóstico se mantiene"). La propuesta, recomendada al usuario y pendiente de su confirmación, agrega la evidencia de inicio y una reapertura que solo hace el administrador.
+En los playoffs del Clausura hay fecha fija y partido único, así que no se agrega `started_at` ni una reapertura de pronósticos. Rige `docs/37` §5 tal como está:
 
-- `prode_matches.started_at` (columna en la 0023, lógica en P2). Se fija una sola vez (`COALESCE`) cuando el sync ve el partido en `live` o `finished`; cuando el nombre crudo indica suspensión en juego (por ejemplo un `SUSPENDED` con `state = "in"`: **a verificar en el paso 1**); o cuando el administrador carga `live` o `finished` en un cruce manual. Nunca por hora. Backfill: `started_at = closed_at` donde el partido hoy está en `live` o `finished`.
-- `PATCH {id, reabrir: true}` borra `closed_at` solo si, en la fila vigente y en una sentencia condicional, `started_at IS NULL`, el estado es `postponed` o `scheduled` y `date_time` es futuro. Si no, responde 409 `no_reabrible`. En un cruce manual, el PATCH de horario sobre un postergado con la hora vencida pasa a aceptarse con la misma condición. Log `prode_cruce_reabierto` (solo el id).
-- **Por qué nunca automática**: si el sync no vio el partido en vivo y ESPN lo pasó directo a postergado, `started_at` queda vacío aunque se haya jugado una parte. Decide una persona con la fuente oficial; la condición en SQL evita reabrir algo que el sync acaba de ver empezar.
-- **Si el usuario no la confirma**: queda la regla actual. El resto del diseño no depende de esto.
-- **Descartado**: historial de estados o estado crudo del proveedor en `matches` (tabla caliente, escrituras en cada sync, y solo sirve al prode).
+- **Reprogramado antes de empezar**: sigue abierto hasta la nueva hora si ESPN informa el cambio antes de la hora original (como hoy).
+- **Suspendido después de empezar**: queda cerrado (`closed_at`, `docs/39` D4) y no suma puntos hasta completarse. Si se completa otro día y ESPN lo trae en `finished`, se carga solo como cualquier partido (D1).
+- **Postergado cuya hora pasó entre dos syncs**: queda cerrado, como hoy (`docs/37`, notas). Es el límite conocido; si ocurriera, el administrador decide con la regla vigente.
+
+La automatización no cambia nada de esto: solo escribe resultados de partidos en `finished` y nunca borra `closed_at`.
+
+- **Descartado**: `started_at` con reapertura manual (resolvía el postergado con la hora vencida, un caso improbable en partido único con fecha fija, a cambio de una excepción al cierre irreversible).
 
 ### D8. Horarios y reprogramaciones
 
-El horario de un adoptado lo sigue gobernando ESPN: en P0, con el sync diario; en P1, además, cada 15 minutos hasta una hora antes del inicio. El cierre sigue en `date_time` (`cierraPronostico`), sin lógica nueva; "quién pasa" cierra junto con el marcador (es la misma fila). Si ESPN mueve un partido ya cerrado a una fecha futura, D4 de `docs/39` lo mantiene cerrado, como hoy.
+El horario de un adoptado lo sigue gobernando ESPN con el sync diario de las 06:00. En playoffs la fecha es fija, así que no se agrega seguimiento durante el día. Las pasadas de D4 también actualizan `matches` (estado y horario) de los partidos que atienden. El cierre sigue en `date_time` (`cierraPronostico`), sin lógica nueva; "quién pasa" cierra junto con el marcador (es la misma fila). Si ESPN mueve un partido ya cerrado a una fecha futura, D4 de `docs/39` lo mantiene cerrado, como hoy. **Consecuencia**: si se reprograma el mismo día, las pasadas se calculan sobre la hora vieja hasta el sync de las 06:00. Se cubre con la regla "seguía `live`" de D4 y con la alerta de espera.
 
 ## 6. Suspensiones y reprogramaciones: comportamiento esperado
 
 | Caso | Qué ve el sync (hipótesis de ESPN **a verificar**) | Resultado |
 |---|---|---|
 | Reprogramado antes de empezar, la hora nueva llega antes de la original | `scheduled` o `postponed` con fecha nueva | Sigue abierto hasta la nueva hora (como hoy); se puede cambiar marcador y quién pasa |
-| Postergado antes de empezar, la hora original pasó entre dos syncs | `postponed`, nunca `live` | Cerrado por hora. Con D7: `started_at` null y el administrador puede `reabrir` |
-| Suspendido en juego | `live` → `postponed`, o un nombre de suspensión | Cerrado para siempre; no puntúa; no está en espera (no es `finished`) |
+| Postergado antes de empezar, la hora original pasó entre dos syncs | `postponed`, nunca `live` | Cerrado por hora, como hoy (D7) |
+| Suspendido en juego | `live` → `postponed`, o un nombre de suspensión | Cerrado; no puntúa hasta completarse (`docs/37` §5); no está en espera (no es `finished`) |
 | Suspendido y completado otro día | `finished` en la fecha de reanudación | Datos automáticos si cumplen D1; puntúa |
 | Cancelado o abandonado | `cancelled` | No puntúa: ni marcador ni extra |
 | Resultado administrativo | nombre fuera de la lista, o un final con marcador dado por la organización | Fuera de la lista: en espera y alerta, el administrador excluye. Si ESPN lo muestra como un final normal, no se detecta solo (§10) |
@@ -263,7 +290,7 @@ El horario de un adoptado lo sigue gobernando ESPN: en P0, con el sync diario; e
 
 ## 7. Estrategia de tests (rojo, verde, refactor)
 
-Cada paso empieza con los tests en rojo. Las muestras del paso 1 se guardan como fixtures (`tests/fixtures/espn-prode-*.json`); un caso no observado en datos reales se marca **sintético** en el nombre del test.
+Cada paso empieza con los tests en rojo. Las muestras del paso 5 se guardan como fixtures (`tests/fixtures/espn-prode-*.json`); un caso no observado en datos reales se marca **sintético** en el nombre del test.
 
 | Archivo | Cubre | Prioridad |
 |---|---|---|
@@ -278,10 +305,9 @@ Cada paso empieza con los tests en rojo. Las muestras del paso 1 se guardan como
 | `tests/integration/data-sync.test.ts` | El sync diario escribe y confirma lo automático sin consultas de más; un valor nuevo reinicia la confirmación; `null` vacía lo automático; nunca escribe las columnas manuales; KV `off`, `solo-a`, `solo-b` | P0b |
 | `tests/integration/api/prode-partidos.test.ts` | `excluir` y deshacer; `cambios_mezclados` | P0b |
 | `tests/observability/metricas.test.ts` | `automatizacion`: `enEspera` (incluye empates sin quién pasa), `corregidos`, conteos por regla, sin ids | P0b |
-| `tests/integration/api/prode-sync.test.ts` (nuevo) | Sin ventana: no llama a ESPN ni registra un run; con ventana: estado, horario, cierre y automático; tope de competencias; ESPN caído → run `failed` y nada escrito; las filas de la tabla de §6 | P1 |
-| `tests/integration/api/prode-sync-presupuesto.test.ts` (nuevo) | Subrequests con la D1 instrumentada y `fetch` simulado: ≤ 20 en el peor caso, 1 fuera de la ventana | P1 |
+| `tests/integration/api/prode-sync.test.ts` (nuevo) | Pendientes: a +1 h 59 min no hay trabajo; a +2 h sí; tras la pasada de +2 h no se repite hasta +3 h; dato sin confirmar → corrida siguiente; `live` sigue pendiente hasta +6 h; excluido nunca. Sin pendientes: no llama a ESPN, no lee KV ni registra un run. Con pendientes: estado, horario, cierre, automático y `pasada_at`; tope de competencias; ESPN caído → run `failed`, nada escrito y la pasada sigue pendiente; las filas de la tabla de §6 | P1 |
+| `tests/integration/api/prode-sync-presupuesto.test.ts` (nuevo) | Subrequests con la D1 instrumentada y `fetch` simulado, incluido el middleware: ≤ 19 en el peor caso, 1 sin pendientes | P1 |
 | `tests/observability/health.test.ts` | `kind = 'prode'` no cuenta para `checks.sync`; `runsProde` | P1 |
-| `tests/integration/api/prode-partidos.test.ts` | `reabrir` solo con `started_at` null, postergado y fecha futura; carrera: el sync marca `started_at` entre la lectura y la escritura → no reabre | P2 |
 
 Refactor previsto: en P0a, `puntosDelPartido` concentra el cálculo (puntos, exacto, acierto, extra) y `puntos.ts` deja de derivar `acierto` de `puntos > 0`. En P1, extraer de `syncPartidos` el armado de `datos`, la comparación de cambios y las sentencias del prode, para que los dos syncs compartan la misma lógica.
 
@@ -296,16 +322,26 @@ Refactor previsto: en P0a, `puntosDelPartido` concentra el cálculo (puntos, exa
 
 **P0b: automatización imprescindible para los playoffs (segundo PR, lo antes posible).**
 
-5. **Muestras de ESPN (solo lectura, bloqueante para P0b; puede correr en paralelo con P0a).** Script `scripts/espn-muestras.mjs` que baja el scoreboard de partidos ya jugados este año que terminaron en 90', con alargue o por penales (Copa Argentina, Libertadores, Sudamericana y lo jugado de los playoffs del Clausura). También confirma el slug de ESPN de los playoffs (hoy se asume `arg.1`). Guarda por evento `status.type`, `status.period`, `competitors[].score`, `winner`, `linescores` y `shootoutScore`, y los contrasta con resultados conocidos. Salida, anotada en las notas de este documento: la lista blanca de la regla A, la viabilidad de los parciales, la confiabilidad de `winner` y la hipótesis de suspensión de D7.
+5. **Muestras históricas de ESPN (solo lectura, bloqueante para P0b; puede correr en paralelo con P0a).** Script `scripts/espn-muestras.mjs`, sin escribir en D1, que baja el scoreboard (`dates={año}`, el mismo pedido que el adaptador) de:
+   - los playoffs o la última edición con eliminación directa de la liga del torneo (`arg.1`, temporadas anteriores); el script confirma además el slug en que ESPN publica los playoffs de este Clausura (hoy se asume `arg.1`);
+   - Copa Argentina (`arg.copa`), Libertadores (`conmebol.libertadores`) y Sudamericana (`conmebol.sudamericana`), de la temporada en curso y la anterior.
+
+   Filtra los eventos terminados y separa los que fueron a alargue y a penales. De cada uno guarda `status.type` (`name`, `state`, `detail` si viene), `status.period`, `competitors[].score`, `competitors[].winner`, `competitors[].linescores` y `competitors[].shootoutScore`, y los contrasta con el resultado conocido de unos 10 partidos de cada tipo (90', alargue y penales).
+
+   **Qué verifica**: (a) qué nombres de estado usa ESPN para el fin en 90', con alargue y con penales (lista blanca de la regla A y disparadores de la regla B); (b) si `score` incluye los goles del alargue y excluye la tanda; (c) si `linescores` trae un parcial por período y si los períodos 1 a 4 suman `score`; (d) si `winner` marca exactamente un ganador y coincide con la tanda; (e) cómo viene un partido suspendido o postergado, si aparece alguno. Lo que no aparezca en las muestras queda sin verificar y su regla no se implementa (D1).
+
+   **Reconfirmación con los primeros partidos reales**: ESPN no tiene contrato de formato. Los primeros partidos de los playoffs se revisan contra el resultado oficial, aunque se hayan cargado solos, y el script se vuelve a correr sobre ellos. Si algo cambió, se apaga la regla por KV (D3) y se corrige con un test rojo.
+
+   Salida, anotada en las notas de este documento: la lista blanca, la viabilidad de los parciales y la confiabilidad de `winner`. Los payloads quedan como fixtures (§7).
 6. **Migración 0023** (columnas de D2) y la precedencia de lectura con la variable de D3.
 7. **Adaptador**: `estadoProveedor`, `goles90` y `pasa` en `ProviderMatch`; `resultadoProde` con la lista del paso 5.
 8. **Sync diario**: `leftJoin`, escritura y confirmación de lo automático, interruptor KV.
 9. **`PATCH {excluir}`**, métricas `automatizacion`, campos del GET admin y alerta de espera en `sync-cron.yml`.
 10. **Actualizar `docs/38`** según §9.
 
-**P1: muy recomendable, entra si hay tiempo antes de las semifinales.** Sync de ventana (D4, D6): endpoint, refactor compartido, `kind = 'prode'`, presupuesto y `prode-sync.yml` con alertas. Sin P1, los resultados llegan solos a la mañana siguiente, o antes si el administrador dispara el workflow Sync diario.
+**P1 (firme): pasadas tras el final, en el mismo ciclo que P0b.** Endpoint `POST /api/admin/prode/sync`, columna `pasada_at` (va en la 0023), refactor compartido con el sync diario, `kind = 'prode'`, test de presupuesto y `prode-sync.yml` con alertas (D4, D6). Mientras no esté, el sync diario de las 06:00 carga los resultados a la mañana siguiente.
 
-**P2: después del torneo, o antes si aparece un postergado.** Lógica de `started_at` y reapertura (D7, sujeta a la confirmación del usuario).
+Queda fuera de alcance: `started_at` y la reapertura de postergados (D7).
 
 ## 9. Cambios a `docs/37` y `docs/38` (en el PR de cada paso, no antes)
 
@@ -322,7 +358,7 @@ Refactor previsto: en P0a, `puntosDelPartido` concentra el cálculo (puntos, exa
 
 **Despliegue**
 
-- **Migraciones 0022 (P0a) y 0023 (P0b), solo aditivas** (columnas nullable; el backfill de la 0023 solo escribe `started_at`). Van antes del código, como las anteriores (`deploy.yml` y `staging.yml` las aplican primero). Se declaran en "Despliegue y riesgos" de cada PR. Hay que confirmar que los números siguen libres al integrar con `development`.
+- **Migraciones 0022 (P0a) y 0023 (P0b), solo aditivas** (columnas nullable, sin backfill). Van antes del código, como las anteriores (`deploy.yml` y `staging.yml` las aplican primero). Se declaran en "Despliegue y riesgos" de cada PR. Hay que confirmar que los números siguen libres al integrar con `development`.
 - **P0a antes de abrir el piloto**: si el piloto abre con la regla vieja y la nueva llega después, los empates ya pronosticados quedan sin `pasa` y sin extra (R2, compatibilidad). Si eso ocurre, el formulario pide completarlo mientras el partido siga abierto.
 - **Variable `PRODE_RESULTADO_AUTO`** y **clave KV `prode:resultado_auto`**: sin definir equivalen a `on`.
 - **Antes del release de P0b**: correr el sync en staging con un partido del prode ya terminado y comprobar el resultado automático, el equipo que pasó y el ranking.
@@ -341,17 +377,15 @@ Refactor previsto: en P0a, `puntosDelPartido` concentra el cálculo (puntos, exa
 - **Formato de ESPN sin contrato.** Si cambian los nombres, los partidos quedan en espera (falla segura, con alerta). Si cambia el significado de un nombre conocido, no se detecta solo.
 - **Muestras del paso 5 incompletas.** Si no hay partidos recientes con penales en las muestras, la regla B no se implementa y esos partidos se resuelven por excepción.
 - **Comprensión de la regla.** Un participante puede creer que el marcador del prode incluye el alargue porque "quién pasa" sí lo incluye. Mitigación: el texto de R6 separa las dos cosas y el desglose "3 + 1" lo muestra en cada partido.
-- **Latencia en P0b**: el resultado llega a la mañana siguiente si P1 no entra a tiempo.
-- **Lecturas de D1**: el `leftJoin` del sync diario y, en P1, unas 48 invocaciones diarias. Se revisan las cifras reales la primera semana.
-- **Puntualidad de Actions**: un `schedule` puede atrasarse o saltearse; queda el disparo manual.
-- **Calendario**: el sync de ventana cambia `date_time` pero la reconciliación de calendarios es diaria (igual que hoy).
+- **Pasadas salteadas o atrasadas**: GitHub puede atrasar o saltear un `schedule`. La pasada sigue pendiente en la corrida siguiente y, si no hay ninguna, el sync diario la cubre a las 06:00.
+- **Reprogramación el mismo día**: las pasadas usan la hora vieja hasta el sync diario (D8). En playoffs con fecha fija es improbable; la alerta de espera lo hace visible.
+- **Lecturas de D1**: estimadas en menos de 10 k filas por día para las pasadas (D4), sin medir. Se confirman con `wrangler d1 insights` la primera semana.
+- **Calendario**: las pasadas pueden cambiar `date_time`, pero la reconciliación de calendarios es diaria (igual que hoy).
 - **Cambio de semántica de `null, null`**: mitigado con `excluir` y la actualización de `docs/38` en el mismo PR.
 
 ## 11. Preguntas abiertas para el usuario
 
-1. **Reapertura manual de postergados (D7)**: se te recomendó aceptarla; falta tu confirmación. Si no la querés, queda la regla actual.
-2. **Latencia aceptable si P1 no llega a tiempo**: ¿alcanza con que los resultados aparezcan a la mañana siguiente (o al disparar el Sync diario) en las primeras fases?
-3. **Desempate**: la propuesta es que el +1 de quién pasa sume puntos pero no cuente como exacto ni como acierto, y que no desempate (R5). ¿Estás de acuerdo?
+Ninguna pendiente. Decisiones ya tomadas por el usuario: carga automática desde estos playoffs, regla "quién pasa" con el +1 fuera del desempate, dos pasadas por partido tras el final con el sync diario como respaldo, y sin reapertura de postergados. Lo que falta saber de ESPN no es una decisión: lo resuelve el paso 5.
 
 ## 12. Notas de implementación
 
