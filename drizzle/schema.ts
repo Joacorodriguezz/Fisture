@@ -342,3 +342,70 @@ export const sessions = sqliteTable(
 );
 
 export type Session = typeof sessions.$inferSelect;
+
+// ============================================
+// PRODE (docs/37): grupos, miembros y pronósticos. Se consultan con SQL directo (lib/prode/repo.ts);
+// la migración es 0017_prode.sql. Fechas en segundos Unix.
+// ============================================
+
+export const prodeGroups = sqliteTable(
+  "prode_groups",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    // Competencia del grupo: cuentan sus partidos que empiezan desde starts_at
+    leagueId: text("league_id")
+      .notNull()
+      .references(() => leagues.id),
+    inviteCode: text("invite_code").notNull(),
+    // NULL si el dueño borró su cuenta: administra el miembro más antiguo (docs/37 D8)
+    ownerId: text("owner_id").references(() => users.id, { onDelete: "set null" }),
+    startsAt: integer("starts_at").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => ({ inviteCodeIdx: uniqueIndex("prode_groups_invite_code_idx").on(table.inviteCode) })
+);
+
+export const prodeMembers = sqliteTable(
+  "prode_members",
+  {
+    groupId: text("group_id")
+      .notNull()
+      .references(() => prodeGroups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    joinedAt: integer("joined_at").notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.groupId, table.userId] }),
+    userIdx: index("prode_members_user_idx").on(table.userId),
+  })
+);
+
+// Un pronóstico por usuario y partido, compartido por todos sus grupos (docs/37 D1)
+export const prodePredictions = sqliteTable(
+  "prode_predictions",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    matchId: text("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+    homeGoals: integer("home_goals").notNull(),
+    awayGoals: integer("away_goals").notNull(),
+    // NULL hasta que el sync lo puntúa (lib/prode/puntuar.ts)
+    points: integer("points"),
+    scoredAt: integer("scored_at"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.userId, table.matchId] }),
+    matchIdx: index("prode_predictions_match_idx").on(table.matchId),
+  })
+);
+
+export type ProdeGroup = typeof prodeGroups.$inferSelect;
+export type ProdePrediction = typeof prodePredictions.$inferSelect;

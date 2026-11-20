@@ -85,6 +85,44 @@ CREATE TABLE `oauth_identities` (
 CREATE UNIQUE INDEX `oauth_identities_provider_id_idx` ON `oauth_identities` (`provider`,`provider_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `oauth_identities_user_provider_idx` ON `oauth_identities` (`user_id`,`provider`);--> statement-breakpoint
 CREATE INDEX `oauth_identities_user_id_idx` ON `oauth_identities` (`user_id`);--> statement-breakpoint
+CREATE TABLE `prode_groups` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`league_id` text NOT NULL,
+	`invite_code` text NOT NULL,
+	`owner_id` text,
+	`starts_at` integer NOT NULL,
+	`created_at` integer NOT NULL,
+	FOREIGN KEY (`league_id`) REFERENCES `leagues`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`owner_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `prode_groups_invite_code_idx` ON `prode_groups` (`invite_code`);--> statement-breakpoint
+CREATE TABLE `prode_members` (
+	`group_id` text NOT NULL,
+	`user_id` text NOT NULL,
+	`joined_at` integer NOT NULL,
+	PRIMARY KEY(`group_id`, `user_id`),
+	FOREIGN KEY (`group_id`) REFERENCES `prode_groups`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `prode_members_user_idx` ON `prode_members` (`user_id`);--> statement-breakpoint
+CREATE TABLE `prode_predictions` (
+	`user_id` text NOT NULL,
+	`match_id` text NOT NULL,
+	`home_goals` integer NOT NULL,
+	`away_goals` integer NOT NULL,
+	`points` integer,
+	`scored_at` integer,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	PRIMARY KEY(`user_id`, `match_id`),
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`match_id`) REFERENCES `matches`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `prode_predictions_match_idx` ON `prode_predictions` (`match_id`);--> statement-breakpoint
 CREATE TABLE `sessions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
