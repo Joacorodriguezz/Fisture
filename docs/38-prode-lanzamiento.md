@@ -119,8 +119,37 @@ Rollback: revertir el código basta, la base migrada sigue siendo compatible con
 - `sessions`: sesiones vigentes y vencidas; sirve para ver que el piloto está entrando gente y que no se acumulan sesiones vencidas.
 - `rateLimit`: bloqueos de límite de tasa; un pico durante el cierre de un partido indica presión sobre `PUT /api/prode/pronosticos`.
 - `metricas.usuarios`: crecimiento de cuentas.
+- `metricas.prode`: métricas agregadas del piloto, sin ids ni datos personales (`lib/observability/metricas.ts`):
+  - `gruposCreados`, `participantes` (usuarios distintos con al menos un pronóstico) y `pronosticos`.
+  - `participantesPorFase` y `regresanPorFase` (`octavos`, `cuartos`, `semifinal`, `final`). Regresan quienes pronosticaron en esa fase y en alguna anterior, así que en octavos siempre es 0.
+  - `integrantesPorGrupo`: `promedio` y `maximo`.
+  - `partidos`: `abiertos` y `cerrados` (por `closed_at`) y `conResultado`. Si `conResultado` va por detrás de `cerrados`, falta cargar resultados.
 
-El endpoint **no trae métricas propias del prode** (cantidad de grupos, de pronósticos o de partidos sin resultado): agregarlas es trabajo futuro. Mientras tanto, la señal de que falta cargar un resultado es que un partido terminado no figura en "Tus puntos" de `/prode`; revisar `GET /api/admin/prode/partidos` (el campo `resultado` es `null` hasta que se carga el resultado a 90 minutos). Los logs del PATCH quedan como `prode_cruce_corregido` y `prode_cruce_rechazado` (`npx wrangler pages deployment tail`).
+La señal puntual de que falta cargar un resultado a 90 minutos sigue siendo `GET /api/admin/prode/partidos` (el campo `resultado` es `null` hasta cargarlo). Los logs del PATCH quedan como `prode_cruce_corregido` y `prode_cruce_rechazado` (`npx wrangler pages deployment tail`).
+
+## 6. Evaluar el piloto (tarjeta 9)
+
+Los valores de `metricas.prode` son acumulados al momento de la consulta: conviene anotar una foto después de cada fase.
+
+**Cuantitativo.**
+- Los participantes por fase muestran cuánta gente juega.
+- `regresanPorFase` dividido por `participantesPorFase` de la fase anterior es la retención.
+- `integrantesPorGrupo` mide si el prode se juega en grupo o suelto.
+
+**Cualitativo (no es código).** Conversar con 5 a 10 participantes entre fases, incluyendo a quienes dejaron de jugar y a quienes siguieron. Preguntas:
+1. ¿Cómo llegaste al prode y qué esperabas?
+2. ¿Qué fue lo más fácil y lo más confuso (grupo, pronosticar, ranking, puntos)?
+3. ¿Dejaste de pronosticar alguna fase? ¿Por qué?
+4. ¿Con quién jugaste? ¿Invitaste a alguien?
+5. ¿Lo volverías a usar en otro torneo? ¿Qué cambiarías?
+6. ¿El cierre automático o los puntos te parecieron justos?
+
+**Criterios de decisión** (los umbrales son una propuesta a validar):
+- **Continuar:** la mayoría de los participantes de octavos vuelve en la fase siguiente, se juega en grupos y los comentarios no marcan bloqueos graves.
+- **Modificar:** hay interés pero se cae por una fricción concreta (entrar al grupo, no entender el puntaje, resultados cargados con demora). Se corrige esa fricción y se vuelve a medir.
+- **Detener:** pocos participantes, casi nadie regresa y los comentarios no muestran interés ni con arreglos.
+
+Registrar la decisión y su fundamento con las cifras de la última foto.
 
 ## Notas de implementación
 
