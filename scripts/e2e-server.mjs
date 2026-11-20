@@ -88,15 +88,41 @@ try {
     `INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, venue, status) VALUES ('amistoso-uruguay', 'e2e:amistoso-uruguay', 'sel-uruguay', 'sel-costa-rica', 'e2e-amistosos', ${kickoff + 3600}, 'Estadio Centenario', 'scheduled');`,
     `INSERT INTO sync_runs (id, trigger, started_at, finished_at, status, duration_ms, results, issues) VALUES ('e2e-sync', 'admin', ${now}, ${now}, 'success', 1, '[]', '[]');`,
   ];
+  // Prode (docs/38): liga inactiva y no destacada (no sale en ninguna lista pública) con tres cruces manuales:
+  // uno abierto (en 30 días), uno cerrado (empezó hace 1 h, sin resultado) y uno terminado 2-1.
+  sql.push(
+    "INSERT INTO leagues (id, external_id, name, country, season, source, is_active, is_featured) VALUES ('prode-liga', 'e2e:prode-liga', 'Liga Prode E2E', 'Argentina', 2026, 'espn', 0, 0);",
+    "INSERT INTO teams (id, external_id, name, short_name, league_id, source) VALUES ('prode-a', 'e2e:prode-a', 'Prode Alfa', 'PRA', 'prode-liga', 'espn'), ('prode-b', 'e2e:prode-b', 'Prode Beta', 'PRB', 'prode-liga', 'espn');"
+  );
+  const prodeCruces = [
+    ["prode-abierto", "scheduled", kickoff + 30 * 86_400, "NULL", "NULL"],
+    ["prode-cerrado", "scheduled", Math.floor(now / 1000) - 3600, "NULL", "NULL"],
+    ["prode-jugado", "finished", Math.floor(now / 1000) - 3 * 86_400, "2", "1"],
+  ];
+  for (const [mid, status, fecha, gl, gv] of prodeCruces) {
+    sql.push(`INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, status, home_score, away_score, round, source) VALUES ('${mid}', 'prode:${mid}', 'prode-a', 'prode-b', 'prode-liga', ${fecha}, '${status}', ${gl}, ${gv}, 'cuartos', 'manual');`);
+    sql.push(`INSERT INTO prode_matches (match_id, fase, created_at) VALUES ('${mid}', 'cuartos', ${now});`);
+  }
   const sessions = [];
   for (const project of ["desktop", "mobile", "webkit-mobile"]) {
-    for (const scenario of ["delete-account", "delete-cancel", "follow", "preferences", "calendar", "logout", "navigation", "errors", "list-add", "calendar-states", "responsive-menu", "responsive-today", "responsive-today-chip", "responsive-today-mine", "quit", "unlink"]) {
+    for (const scenario of ["delete-account", "delete-cancel", "follow", "preferences", "calendar", "logout", "navigation", "errors", "list-add", "calendar-states", "responsive-menu", "responsive-today", "responsive-today-chip", "responsive-today-mine", "quit", "unlink", "prode", "prode-invitado"]) {
       for (let retry = 0; retry <= 1; retry++) {
         const id = `${project}-${scenario}-${retry}`;
         sql.push(`INSERT INTO users (id, email, name, provider, provider_id) VALUES ('${id}', '${id}@example.test', 'Persona E2E', 'google', '${id}');`);
         sessions.push(id);
         if (["calendar", "navigation", "errors", "list-add", "calendar-states", "responsive-today", "responsive-today-chip", "responsive-today-mine"].includes(scenario)) {
           sql.push(`INSERT INTO user_teams (id, user_id, team_id, auto_sync) VALUES ('follow-${id}', '${id}', 'river', 0);`);
+        }
+        if (scenario === "prode" || scenario === "prode-invitado") {
+          // Nombre visible único por usuario. El dueño ya pronosticó el partido terminado con el resultado
+          // exacto (3 puntos) y es dueño de un grupo sembrado donde es el único integrante.
+          const nombre = scenario === "prode" ? `Dueño ${id}` : `Invitado ${id}`;
+          sql.push(`UPDATE users SET display_name = '${nombre}' WHERE id = '${id}';`);
+          if (scenario === "prode") {
+            sql.push(`INSERT INTO prode_predictions (user_id, match_id, home_goals, away_goals, created_at, updated_at) VALUES ('${id}', 'prode-jugado', 2, 1, ${now}, ${now});`);
+            sql.push(`INSERT INTO prode_groups (id, name, invite_code, owner_id, created_at) VALUES ('grupo-${id}', 'Grupo sembrado ${id}', 'seed${id.replace(/[^A-Za-z0-9]/g, "")}', '${id}', ${now});`);
+            sql.push(`INSERT INTO prode_group_members (group_id, user_id, joined_at) VALUES ('grupo-${id}', '${id}', ${now});`);
+          }
         }
         if (scenario === "unlink") {
           // Dos proveedores vinculados: Google es el calendario activo y Microsoft se puede desvincular
