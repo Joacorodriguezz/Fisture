@@ -389,4 +389,28 @@ Ninguna pendiente. Decisiones ya tomadas por el usuario: carga automática desde
 
 ## 12. Notas de implementación
 
-_(Vacía: se completa al implementar, con los desvíos respecto de este diseño y los resultados del paso 5.)_
+_(Se completa al implementar, con los desvíos respecto de este diseño. Falta lo que no sea el paso 5.)_
+
+### Resultado del paso 5
+
+Muestras de ESPN reales (20/11/2026) con `scripts/espn-muestras.mjs` (solo lectura; mismo pedido que el adaptador: `scoreboard?dates={año}&limit=1000`). Slugs `arg.1`, `arg.copa`, `conmebol.libertadores` y `conmebol.sudamericana`, años 2023 a 2026. Fixtures recortados en `tests/fixtures/espn-prode-{fin-90,alargue,penales,ida-vuelta}.json`.
+
+**Playoffs del Clausura.** Se publican en el mismo slug `arg.1`, no en uno aparte. Cambia `season.slug`: `torneo-clausura`, luego `clausura---round-of-16`, `---quarterfinals`, `---semifinals` y `---final` (igual para el Apertura). En 2023 y 2024 `arg.1` trae un solo torneo anual sin playoffs; los de eliminación aparecen desde 2025.
+
+**(a) Estados** (`status.type.name`; todos con `state: post` y `completed: true`):
+- Fin en 90': `STATUS_FULL_TIME` (detail `FT`, `period` 2).
+- Alargue: `STATUS_FINAL_AET` (detail `AET`, `period` 4, reloj `120'+n'`). En Copa Argentina 2024 apareció además `STATUS_FINAL_AGT` (gol de oro, `period` 3), un solo caso.
+- Penales: `STATUS_FINAL_PEN` (detail `FT-Pens`, `period` 5; el reloj no es confiable). 144 partidos en los 4 slugs y 4 años.
+
+**(b) `score`.** Incluye los goles del alargue y excluye la tanda. Contraste: final de la Libertadores 2023, Fluminense 2-1 Boca `AET` (el gol del título fue de John Kennedy en el alargue). En `PEN` el marcador queda en el empate previo (Boca 0-0 Lanús, tanda 4-2). No se pueden separar los goles de 90' de los del alargue con `score`.
+
+**(c) `linescores`.** NO viene: ningún evento terminado de los 16 pedidos lo trae (ni vacío). Las claves de un competitor son `id, uid, type, order, homeAway, winner, form, score, records, team, statistics, advance, shootoutScore, leaders, aggregateScore`. Sin parciales por período no se puede verificar que los períodos 1 a 4 sumen `score` ni obtener el resultado a los 90'. Con el `scoreboard` solo se sabe que hubo alargue (`period` 4 / `AET`) y el marcador final. Queda por probar el endpoint `summary` (sin verificar).
+
+**(d) `winner`.** En partidos de un solo cruce marca exactamente un ganador cuando los goles difieren, y en los 144 `PEN` coincide con el mayor `shootoutScore` (que viene como número en cada competitor; en `arg.*` también `advance`). Ningún partido tuvo dos `winner: true`. Trampas:
+1. En la vuelta de una llave (Libertadores y Sudamericana) `winner` indica quién avanza por global, no el ganador del partido: 33 vueltas `FULL_TIME` con marcador empatado y un `winner: true` (p. ej. Pereira 1-1 Independiente del Valle, 2023, nota "advance 2-1 on aggregate"; Palmeiras 0-0 Atlético Mineiro 2023). Hay `aggregateScore` por competitor y `competition.notes[].text`. Para el prode `winner` NO sirve en ida y vuelta; usar `score`.
+2. Un empate sin llave trae `winner` falso en los dos.
+- Anomalía: Copa Argentina 2024, Chacarita vs Tigre (`AGT`), `score` 1-1 con Chacarita `winner: true` y sin tanda; probablemente el marcador no incorpora el gol de oro. No se pudo confirmar: tratarlo como dato sucio.
+
+**(e) Suspendidos y postergados.** Solo aparecieron dos no jugados: `STATUS_ABANDONED` (detail `Abandoned`, Libertadores 2025, FOR vs COL) y `STATUS_CANCELED` (detail `Canceled`, Sudamericana 2025, UDC vs IND), ambos con `completed: false`. No apareció ningún `STATUS_POSTPONED` ni `STATUS_SUSPENDED`.
+
+**Sin poder verificar.** (1) `linescores` y el resultado a los 90' (probar `summary`); (2) cómo viene un postergado o suspendido real; (3) partidos en vivo (solo se miraron los terminados); (4) `AET`/`AGT` en Copa Argentina de partido único: muestra mínima; (5) ESPN puede reescribir temporadas viejas.
