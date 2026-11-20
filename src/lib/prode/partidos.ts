@@ -6,10 +6,10 @@
 // - date_time es el único horario: el que se muestra y el que cierra el pronóstico (horario.ts).
 // Corregir el horario alcanza para el calendario: la reconciliación compara date_time con el horario
 // sincronizado de cada evento y lo marca needs_update (docs/11).
-import { and, eq, gt, inArray, lt, ne } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, ne } from "drizzle-orm";
 import { leagues, matches, prodeMatches, teams } from "../../../drizzle/schema";
 import type { Database } from "../db";
-import { cierraPronostico, esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
+import { cierraPronostico, empezo, esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
 
 export const SOURCE_MANUAL = "manual";
 
@@ -23,6 +23,8 @@ export interface PartidoProde {
   estado: string | null;
   // Goles a los 90 minutos más adicionado; null hasta que el partido termina
   resultado: { local: number; visitante: number } | null;
+  // Cierre definitivo del pronóstico (prode_matches.closed_at, ms): se vio empezar; no se reabre
+  cerradoEn: number | null;
 }
 
 export type Resultado =
@@ -61,6 +63,7 @@ async function armar(db: Database, filas: FilaProde[]): Promise<PartidoProde[]> 
       visitante: { id: m.awayTeamId, nombre: nombre(m.awayTeamId) },
       estado: m.status,
       resultado: resultado90(m, v),
+      cerradoEn: v.closedAt,
     };
   });
 }
@@ -208,8 +211,9 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
   if ("codigo" in estado) return error(400, estado.codigo);
 
   const [m] = await db
-    .select({ source: matches.source, dateTime: matches.dateTime, status: matches.status, leagueId: matches.leagueId, homeTeamId: matches.homeTeamId, awayTeamId: matches.awayTeamId })
+    .select({ source: matches.source, dateTime: matches.dateTime, status: matches.status, leagueId: matches.leagueId, homeTeamId: matches.homeTeamId, awayTeamId: matches.awayTeamId, closedAt: prodeMatches.closedAt })
     .from(matches)
+    .leftJoin(prodeMatches, eq(prodeMatches.matchId, matches.id))
     .where(eq(matches.id, id))
     .limit(1);
   if (!m) return error(404, "partido_inexistente");
@@ -233,9 +237,19 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
     .set({ ...(dateTime ? { dateTime } : {}), ...(fase !== undefined ? { round: fase } : {}), ...estado.cambios, updatedAt: new Date() })
     .where(eq(matches.id, id));
   // La fase que vale es la del vínculo; round la repite en los manuales
-  if (fase !== undefined) await db.batch([cambio, db.update(prodeMatches).set({ fase }).where(eq(prodeMatches.matchId, id))]);
-  else await cambio;
+  const vinculo = fase !== undefined ? [db.update(prodeMatches).set({ fase }).where(eq(prodeMatches.matchId, id))] : [];
+  // Cierre definitivo si se ve que empezó (antes o con este cambio): no se reabre (docs/37 §5)
+  const cierre = empezo(m, ahora) || empezo({ dateTime: m.dateTime, status: estado.cambios.status }, ahora) ? [cerrar(db, id, ahora)] : [];
+  await db.batch([cambio, ...vinculo, ...cierre]);
   return { ok: true, partido: await leerPartido(db, id) };
+}
+
+// Fija prode_matches.closed_at si todavía no estaba (idempotente)
+function cerrar(db: Database, id: string, ahora: Date) {
+  return db
+    .update(prodeMatches)
+    .set({ closedAt: ahora.getTime() })
+    .where(and(eq(prodeMatches.matchId, id), isNull(prodeMatches.closedAt)));
 }
 
 // Resultado a los 90 minutos de un partido adoptado de ESPN ({id, homeGoals90, awayGoals90}). Se guarda
@@ -257,9 +271,11 @@ async function fijarResultado90(db: Database, datos: Record<string, unknown>): P
     .limit(1);
   if (!m) return error(404, "partido_inexistente");
   if (m.source === SOURCE_MANUAL) return error(409, "partido_manual");
-  if (m.dateTime.getTime() > Date.now()) return error(409, "partido_no_empezado");
+  const ahora = new Date();
+  if (m.dateTime.getTime() > ahora.getTime()) return error(409, "partido_no_empezado");
 
-  await db.update(prodeMatches).set({ homeGoals90, awayGoals90 }).where(eq(prodeMatches.matchId, id));
+  // Ya empezó (su hora pasó): de paso queda el cierre definitivo
+  await db.batch([db.update(prodeMatches).set({ homeGoals90, awayGoals90 }).where(eq(prodeMatches.matchId, id)), cerrar(db, id, ahora)]);
   return { ok: true, partido: await leerPartido(db, id) };
 }
 

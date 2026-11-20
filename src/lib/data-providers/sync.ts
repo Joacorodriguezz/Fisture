@@ -5,7 +5,7 @@
 // - una sentencia admite como máximo 100 parámetros: los inserts multi-fila se parten en consecuencia
 // - solo se escribe lo que cambió, para no gastar escrituras en un sync diario
 
-import { and, eq, inArray, notInArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, notInArray, or } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { createDb, type Database } from "../db";
 import { mensajeDeError, rootLogger } from "../observability/logger";
@@ -13,6 +13,7 @@ import { guardarSlugs, resolverSlugsNuevos } from "../db/slugs";
 import type { FilaSinSlug } from "../slug";
 import { teams, matches, leagues, leagueTeams, prodeMatches, prodePredictions } from "../../../drizzle/schema";
 import { esMismoCruce, SOURCE_MANUAL } from "../prode/partidos";
+import { ESTADOS_EMPEZADO } from "../prode/horario";
 import { logoDeCompetencia } from "../logos-competencias";
 import {
   createEspnClient,
@@ -426,6 +427,18 @@ async function syncEquipos(
   return ids;
 }
 
+function cerrarEmpezadosDelProde(db: Database, ligaId: string): Sentencia {
+  const ahora = new Date();
+  const empezados = db
+    .select({ id: matches.id })
+    .from(matches)
+    .where(and(eq(matches.leagueId, ligaId), or(lte(matches.dateTime, ahora), inArray(matches.status, [...ESTADOS_EMPEZADO]))));
+  return db
+    .update(prodeMatches)
+    .set({ closedAt: ahora.getTime() })
+    .where(and(isNull(prodeMatches.closedAt), inArray(prodeMatches.matchId, empezados)));
+}
+
 function resultado90DelManual(m: { status: string | null; homeScore: number | null; awayScore: number | null }) {
   return m.status === "finished" && m.homeScore !== null && m.awayScore !== null ? { homeGoals90: m.homeScore, awayGoals90: m.awayScore } : {};
 }
@@ -530,6 +543,10 @@ async function syncPartidos(
   }
 
   await ejecutarEnLotes(db, [
+    // Antes de pisar horario y estado: cierre definitivo de los partidos del prode de la liga que ya
+    // empezaron (en vivo, terminados u hora pasada), así una fecha nueva de ESPN no reabre sus
+    // pronósticos (docs/37 §5). Una sola sentencia, en el mismo batch: sin subrequests de más.
+    ...(cambios.length ? [cerrarEmpezadosDelProde(db, ligaId)] : []),
     ...partir(nuevos, FILAS_PARTIDOS).map((filas) => db.insert(matches).values(filas).onConflictDoNothing()),
     ...cambios,
   ]);

@@ -263,6 +263,15 @@ describe("/api/admin/prode/partidos", () => {
       expect(await vinculo(body.partido.id)).toMatchObject({ fase: "semifinal" });
     });
 
+    it("PATCH de un partido empezado fija el cierre definitivo; antes de empezar no", async () => {
+      const { body } = await llamar("POST", cruce);
+      await llamar("PATCH", { id: body.partido.id, fase: "semifinal" });
+      expect(await vinculo(body.partido.id)).toMatchObject({ closed_at: null });
+      vi.setSystemTime(DESPUES);
+      await llamar("PATCH", { id: body.partido.id, status: "postponed" });
+      expect(await vinculo(body.partido.id)).toMatchObject({ closed_at: DESPUES.getTime() });
+    });
+
     it("POST {adoptar, fase} suma un partido de ESPN al prode sin tocarlo", async () => {
       await espn();
       const antes = await fila("espn-1");

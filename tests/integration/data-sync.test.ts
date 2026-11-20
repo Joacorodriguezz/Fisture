@@ -5,6 +5,7 @@ import { useTestDb } from "../helpers/use-test-db";
 import { AHORA, DIA_MS, relojFijo } from "../helpers/clock";
 import { syncLote, syncSingleLeague } from "../../src/lib/data-providers/sync";
 import { LEAGUES_CONFIG, lotesDeSync } from "../../src/lib/data-providers";
+import { guardarPronostico, listarPronosticos } from "../../src/lib/prode/pronosticos";
 import { leagues, teams, matches, leagueTeams, prodeMatches, prodePredictions, users } from "../../drizzle/schema";
 
 describe("ingesta ESPN a D1", () => {
@@ -379,6 +380,37 @@ describe("ingesta ESPN a D1", () => {
 
     it.each([-1, 1.5, 999])("un lote inexistente (%s) es un error", async (lote) => {
       await expect(syncLote({ DB: t.DB }, lote)).rejects.toThrow(RangeError);
+    });
+  });
+
+  // docs/37 §5: un partido del prode que empezó y se suspende no reabre los pronósticos aunque ESPN
+  // publique la fecha de reanudación (postponed con fecha futura)
+  describe("cierre irreversible de un partido del prode", () => {
+    it("empezado y después postergado a una fecha futura: sigue cerrado y rechaza pronósticos", async () => {
+      data.events[0].date = new Date(AHORA.getTime() - 3_600_000).toISOString();
+      await sync();
+      const [m] = await t.db.select().from(matches);
+      await t.db.insert(prodeMatches).values({ matchId: m.id, fase: "cuartos", createdAt: AHORA });
+      await t.db.insert(users).values({ id: "u1", provider: "google", providerId: "p1", email: "u1@example.test", name: "U1" });
+
+      data.events[0].date = new Date(AHORA.getTime() + 2 * DIA_MS).toISOString();
+      data.events[0].status.type.name = "STATUS_POSTPONED";
+      data.events[0].status.type.state = "post";
+      await sync();
+      expect(await t.db.select().from(matches)).toEqual([expect.objectContaining({ status: "postponed" })]);
+      expect((await t.db.select().from(prodeMatches))[0].closedAt).toBe(AHORA.getTime());
+      expect(await guardarPronostico(t.db, "u1", { matchId: m.id, homeGoals: 1, awayGoals: 0 })).toMatchObject({ ok: false, status: 409, error: "pronostico_cerrado" });
+      const [listado] = await listarPronosticos(t.db, "u1", AHORA);
+      expect(listado.estado).toBe("cerrado");
+    });
+
+    it("un partido del prode que no empezó no se cierra", async () => {
+      await sync();
+      const [m] = await t.db.select().from(matches);
+      await t.db.insert(prodeMatches).values({ matchId: m.id, fase: "cuartos", createdAt: AHORA });
+      data.events[0].date = new Date(AHORA.getTime() + 2 * DIA_MS).toISOString();
+      await sync();
+      expect((await t.db.select().from(prodeMatches))[0].closedAt).toBeNull();
     });
   });
 
