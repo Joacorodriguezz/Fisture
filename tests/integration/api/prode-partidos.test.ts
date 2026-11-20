@@ -333,6 +333,86 @@ describe("/api/admin/prode/partidos", () => {
       }
     });
 
+    // docs/40 R6: "quién pasa" se define por partido único; un partido de ida o vuelta no se adopta
+    it("POST {adoptar} rechaza con 409 partido_con_vuelta un partido de ida o de vuelta", async () => {
+      await espn();
+      for (const ronda of ["Quarterfinals · Ida", "Quarterfinals · Vuelta", "Vuelta"]) {
+        await t.DB.prepare("UPDATE matches SET round = ? WHERE id = 'espn-1'").bind(ronda).run();
+        expect(await llamar("POST", { adoptar: "espn-1", fase: "cuartos" })).toMatchObject({ status: 409, body: { error: "partido_con_vuelta" } });
+      }
+      expect(await vinculo("espn-1")).toBeNull();
+      await t.DB.prepare("UPDATE matches SET round = 'Quarterfinals' WHERE id = 'espn-1'").run();
+      expect((await llamar("POST", { adoptar: "espn-1", fase: "cuartos" })).status).toBe(201);
+    });
+
+    // docs/40 R3 y D2: quién pasó, solo cuando el marcador a 90' es empate (con ganador se deriva)
+    describe("PATCH {id, pasa}: equipo que pasó", () => {
+      const adoptado = async () => {
+        await espn();
+        await llamar("POST", { adoptar: "espn-1", fase: "cuartos" });
+        await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 3, away_score = 2 WHERE id = 'espn-1'").run();
+        vi.setSystemTime(DESPUES);
+      };
+      const manualEmpatado = async () => {
+        const { body } = await llamar("POST", cruce);
+        vi.setSystemTime(DESPUES);
+        await llamar("PATCH", { id: body.partido.id, status: "finished", homeScore: 1, awayScore: 1 });
+        return body.partido.id as string;
+      };
+
+      it("un adoptado: fija marcador a 90' y pasa juntos, y los muestra", async () => {
+        await adoptado();
+        const res = await llamar("PATCH", { id: "espn-1", homeGoals90: 2, awayGoals90: 2, pasa: "away" });
+        expect(res.status).toBe(200);
+        expect(res.body.partido).toMatchObject({ resultado: { local: 2, visitante: 2 }, pasa: "away" });
+        expect(await vinculo("espn-1")).toMatchObject({ home_goals_90: 2, away_goals_90: 2, pasa: "away" });
+      });
+
+      it("un adoptado: pasa solo, sobre un marcador empatado ya confirmado", async () => {
+        await adoptado();
+        await llamar("PATCH", { id: "espn-1", homeGoals90: 0, awayGoals90: 0 });
+        expect((await llamar("PATCH", { id: "espn-1", pasa: "home" })).body.partido).toMatchObject({ pasa: "home" });
+        expect((await llamar("PATCH", { id: "espn-1", pasa: null })).body.partido).toMatchObject({ pasa: null });
+        expect(await vinculo("espn-1")).toMatchObject({ pasa: null });
+      });
+
+      it("un cruce manual empatado: pasa solo", async () => {
+        const id = await manualEmpatado();
+        const res = await llamar("PATCH", { id, pasa: "away" });
+        expect(res.status).toBe(200);
+        expect(res.body.partido).toMatchObject({ resultado: { local: 1, visitante: 1 }, pasa: "away" });
+        expect(await vinculo(id)).toMatchObject({ pasa: "away" });
+      });
+
+      it("con un ganador a 90', pasa que lo contradice responde 409 pasa_inconsistente y no escribe", async () => {
+        await adoptado();
+        expect(await llamar("PATCH", { id: "espn-1", homeGoals90: 2, awayGoals90: 1, pasa: "away" })).toMatchObject({ status: 409, body: { error: "pasa_inconsistente" } });
+        expect(await vinculo("espn-1")).toMatchObject({ home_goals_90: null, pasa: null });
+        await llamar("PATCH", { id: "espn-1", homeGoals90: 2, awayGoals90: 1 });
+        expect(await llamar("PATCH", { id: "espn-1", pasa: "away" })).toMatchObject({ status: 409, body: { error: "pasa_inconsistente" } });
+        // En un manual, igual
+        const { body } = await llamar("POST", { ...cruce, horario: "2026-11-22T10:00" });
+        await llamar("PATCH", { id: body.partido.id, status: "finished", homeScore: 0, awayScore: 3 });
+        expect(await llamar("PATCH", { id: body.partido.id, pasa: "home" })).toMatchObject({ status: 409, body: { error: "pasa_inconsistente" } });
+      });
+
+      it("valida el valor, no se mezcla con otros cambios y exige que el partido haya empezado", async () => {
+        await adoptado();
+        for (const pasa of ["empate", "", 1, true]) {
+          expect(await llamar("PATCH", { id: "espn-1", pasa })).toMatchObject({ status: 400, body: { error: "pasa_invalido" } });
+        }
+        expect(await llamar("PATCH", { id: "espn-1", pasa: "home", fase: "final" })).toMatchObject({ status: 400, body: { error: "cambios_mezclados" } });
+        expect(await llamar("PATCH", { id: "espn-1", pasa: "home", status: "finished", homeScore: 1, awayScore: 1 })).toMatchObject({ status: 400, body: { error: "cambios_mezclados" } });
+        vi.setSystemTime(new Date("2026-11-20T15:00:00Z"));
+        expect(await llamar("PATCH", { id: "espn-1", pasa: "home" })).toMatchObject({ status: 409, body: { error: "partido_no_empezado" } });
+        expect(await vinculo("espn-1")).toMatchObject({ pasa: null });
+      });
+
+      it("404 fuera del prode", async () => {
+        expect(await llamar("PATCH", { id: "no-existe", pasa: "home" })).toMatchObject({ status: 404, body: { error: "partido_inexistente" } });
+      });
+    });
+
     // docs/37 §2: ESPN puede traer alargue, penales o un resultado administrativo; el admin confirma el de 90'
     describe("PATCH {id, homeGoals90, awayGoals90}: resultado a los 90 minutos de un adoptado", () => {
       const adoptado = async () => {
