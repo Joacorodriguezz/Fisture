@@ -1,6 +1,6 @@
 # TDD: Prode (pronósticos de partidos con amigos)
 
-Fecha: 20 de noviembre de 2026. Estado: aprobado para implementar en la misma corrida (ver §0).
+Fecha: 20 de noviembre de 2026. Estado: implementado (ver §0 y §13).
 
 ## 0. Aprobación
 
@@ -364,4 +364,60 @@ revisan en el PR.
 
 ## 13. Notas de implementación (desvíos respecto del diseño original)
 
-_(Se completa al terminar.)_
+Implementado en la rama `feat/prode` el 20/11/2026, en la misma corrida que el diseño (§0).
+
+**Datos y consultas**
+
+- La primera versión de la tabla unía `prode_predictions` con `matches` entre paréntesis. El plan de SQLite
+  materializaba los pronósticos de **todos los usuarios** de la competencia antes de cruzarlos con los
+  miembros: crecía con la app, no con el grupo. Se reescribió para que cada miembro busque sus pronósticos
+  por clave primaria (`p.match_id IN (SELECT … FROM matches WHERE league_id = ? AND date_time >= ?)`). El
+  test de planes (`planes-de-consulta.test.ts`) ahora exige `SEARCH p USING INDEX … (user_id=?`; con la
+  consulta anterior falla.
+- `UPDATE … FROM matches` funciona en la D1 de Miniflare y el plan va por `idx_matches_date` y
+  `prode_predictions_match_idx` (también fijado por test).
+- `TERMINADO` usa `COALESCE(m.status, '')`: con `status` nulo, `NOT (…)` daba NULL y el partido no se anulaba.
+- `prode_predictions` y las otras dos tablas también se declararon en `drizzle/schema.ts` (se actualizó el
+  snapshot), aunque el acceso es con SQL directo.
+
+**API**
+
+- Un cuerpo con más de 40 pronósticos responde `400 demasiados_pronosticos` con `maximo`, no
+  `cuerpo_invalido`: la UI parte el envío en lotes y el código distinto ayuda a diagnosticar.
+- `runSync` recibe `puntuarPronosticos` como dependencia inyectable (como `syncLote`), para probar el fallo.
+- El límite `prode_crear` (10 por hora) quedó cubierto por un test que recibe el 429.
+
+**Interfaz** (decisiones tomadas al ver las capturas)
+
+- Al cargar un lado del marcador, el otro arranca en 0: un pronóstico necesita los dos goles y así 2-0
+  son dos toques. Borrar los dos lados borra el pronóstico.
+- La barra «Guardar» queda fija abajo **solo con cambios sin guardar**; sin cambios es una fila más y no
+  tapa el último partido.
+- En escritorio (≥ 720 px) el cruce va en una línea («Local [goles] – [goles] Visitante»); en móvil, un
+  equipo por fila con el marcador a la derecha.
+- Los signos − y + son íconos de trazo: Anton no trae el signo menos y caía en otra fuente.
+- El ícono de Prode en la cabecera móvil es un tanteador (1 | 0): la copa ya es el ícono de Ligas. Bajo
+  381 px queda solo el ícono, con «Prode» como nombre accesible.
+- Con cinco secciones la cabecera desbordaba entre 641 y 1000 px (lo detectó el reflow a 768 px de la
+  auditoría UX): el saludo se oculta bajo 1000 px y en tablet el buscador queda como lupa, con el texto
+  para lectores de pantalla. Es el único cambio visual fuera del prode, además de la sección nueva.
+- Astro colapsaba el espacio entre dos expresiones seguidas («3pts»): esos textos se arman con template
+  literals.
+- A quien no administra, la lista de miembros le llega con claves por posición, no con ids de usuario.
+
+**Tests y evidencia**
+
+- Los datos E2E del prode viven en una competencia propia, activa y no destacada, con partidos a ±20 días:
+  fuera de las ventanas de Hoy (−2 a +9) y Partidos (14 días), para no mover los tests existentes.
+- `tests/e2e/prode-capturas.spec.ts` genera `docs/ux-evidence/prode/` (escritorio 1280 y móvil 375, escala
+  1 como el resto de la evidencia); se saltea salvo con `PRODE_CAPTURAS=1`.
+- En el entorno de esta corrida el Chromium preinstalado no coincide con `@playwright/test` 1.64.1 y no hay
+  WebKit: los E2E y la auditoría UX se corrieron con una configuración local (no versionada) que apunta a ese
+  Chromium, en los proyectos desktop y mobile. El proyecto `webkit-mobile` lo corre el CI.
+- Resultado: typecheck sin errores; discovery OK; 1404 tests de Vitest con los umbrales de cobertura
+  (`lib/prode` 98,5 % de líneas, `pages/api/prode` 100 %); build OK; 132 E2E y 144 casos de la auditoría UX
+  aprobados (desktop y mobile), sin fallidos.
+
+**Pendiente**
+
+- Validación con personas (§2.5) y medición de lecturas D1 de la tabla en staging (§9).
