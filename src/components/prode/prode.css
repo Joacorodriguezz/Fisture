@@ -1,0 +1,398 @@
+.prode {
+  --prode-espacio: clamp(12px, 2vw, 24px);
+  display: grid;
+  gap: clamp(20px, 3vw, 32px);
+  max-width: 1120px;
+  margin-inline: auto;
+}
+
+.prode-cabecera {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: clamp(16px, 4vw, 36px);
+  border: 2px solid var(--tinta);
+  border-bottom: 6px solid var(--rojo-fondo);
+  background: var(--papel-2);
+}
+
+.prode-cabecera::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background: repeating-linear-gradient(135deg, transparent 0 9px, var(--linea) 9px 10px);
+  opacity: .18;
+  mask-image: linear-gradient(to left, black, transparent 64%);
+}
+
+.prode-cabecera__texto {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+.prode-cabecera .tb-titular {
+  font-size: clamp(30px, 6vw, 68px);
+  text-align: left;
+}
+
+.prode .tb-boton {
+  max-width: 100%;
+  min-height: 44px;
+  overflow-wrap: anywhere;
+}
+
+.prode-columnas {
+  display: grid;
+  gap: var(--prode-espacio);
+  align-items: start;
+}
+
+@media (min-width: 850px) {
+  .prode-columnas {
+    grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  }
+}
+
+.prode-panel {
+  min-width: 0;
+  border: 1px solid var(--linea);
+  background: var(--papel-2);
+}
+
+.prode-panel--acotado {
+  max-width: 680px;
+}
+
+.prode-intro,
+.prode-estado-vacio {
+  margin: 0;
+  padding: var(--prode-espacio);
+  color: var(--tinta-suave);
+  font: var(--type-epigrafe);
+}
+
+.prode-estado-vacio[role="alert"] {
+  color: var(--rojo);
+}
+
+.prode-puntos {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 var(--prode-espacio) var(--prode-espacio);
+  padding: 8px 14px;
+  background: var(--amarillo);
+  color: var(--on-amarillo);
+  font: var(--type-volanta);
+  text-transform: uppercase;
+}
+
+.prode-puntos strong {
+  font: 400 32px/1 var(--font-titular);
+}
+
+.prode-partidos {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0 var(--prode-espacio) var(--prode-espacio);
+  list-style: none;
+}
+
+.prode-partido {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  padding: clamp(10px, 2vw, 18px);
+  border: 1px solid var(--linea);
+  border-left: 4px solid var(--linea);
+  background: var(--papel);
+}
+
+.prode-partido[data-estado="abierto"] {
+  border-left-color: var(--rojo-fondo);
+}
+
+.prode-partido[data-estado="jugado"] {
+  border-left-color: var(--celeste);
+}
+
+.prode-partido__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px 12px;
+  color: var(--tinta-suave);
+  font: var(--type-dato);
+}
+
+.prode-partido__estado {
+  padding: 3px 8px;
+  border: 1px solid var(--linea);
+  background: var(--papel-2);
+  color: var(--tinta);
+  font: var(--type-dato);
+  text-transform: uppercase;
+}
+
+[data-estado="abierto"] .prode-partido__estado {
+  border-color: var(--rojo);
+  color: var(--rojo);
+  background: var(--papel);
+}
+
+.prode-partido__tablero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  background: var(--barra-tinta);
+  color: var(--crema-sobre-oscuro);
+}
+
+.prode-partido__equipo {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  justify-items: center;
+  padding: 12px 6px;
+  text-align: center;
+  overflow-wrap: anywhere;
+  font: 700 clamp(17px, 2vw, 23px)/1.05 var(--font-rotulo);
+  text-transform: uppercase;
+}
+
+.prode-partido__equipo + .prode-partido__equipo {
+  border-left: 1px solid var(--linea);
+}
+
+.prode-partido__gol {
+  width: clamp(44px, 7vw, 66px);
+  min-height: 48px;
+  border: 2px solid transparent;
+  border-radius: 0;
+  background: var(--papel);
+  color: var(--tinta);
+  font: 400 28px/1 var(--font-titular);
+  text-align: center;
+}
+
+.prode-partido__gol:focus-visible {
+  outline: 2px solid var(--amarillo);
+  outline-offset: 2px;
+}
+
+.prode-partido__gol:disabled {
+  background: var(--papel-2);
+  color: var(--tinta-suave);
+  opacity: 1;
+}
+
+.prode-partido__pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.prode-partido__pie .tb-boton {
+  margin-left: auto;
+}
+
+.prode-partido__pie:has(> [role="status"]:empty:only-child) {
+  position: absolute;
+}
+
+.prode-ranking__filtro,
+.prode-formulario,
+.prode-grupos__lista,
+.prode-grupos__detalle {
+  padding: var(--prode-espacio);
+}
+
+.prode-ranking__filtro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prode-ranking__filtro select {
+  max-width: 100%;
+}
+
+.prode-ranking__tabla {
+  table-layout: fixed;
+}
+
+.prode-ranking__tabla th,
+.prode-ranking__tabla td {
+  padding: 8px 10px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.prode-ranking__tabla thead {
+  background: var(--barra-tinta);
+  color: var(--crema-sobre-oscuro);
+}
+
+.prode-ranking__tabla tr > :last-child { text-align: right; }
+.prode-ranking__tabla tr[aria-current="true"] td {
+  background: var(--amarillo);
+  color: var(--on-amarillo);
+  font-weight: 700;
+}
+
+.prode-formulario {
+  display: grid;
+  gap: 10px;
+  background: var(--papel);
+}
+
+.prode-formulario__campos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.prode-formulario__campos input {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.prode-grupos__titulo {
+  margin: 0 0 8px;
+  font: var(--type-titular-3);
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.prode-grupos__enlace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 12px;
+  min-height: 44px;
+  padding: 12px;
+  background: var(--papel);
+  color: var(--tinta);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.prode-grupos__enlace:hover {
+  color: var(--rojo);
+  text-decoration: underline;
+}
+
+.prode-grupos__enlace::after {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  content: "→" / "";
+  color: var(--rojo);
+}
+.prode-partido__gol::placeholder {
+  color: var(--tinta-suave);
+  opacity: 1;
+}
+
+.prode-partido__resultado {
+  display: grid;
+  gap: 4px;
+  padding-block-start: 8px;
+  border-top: 1px solid var(--linea);
+}
+
+.prode-partido__pie [role="status"] {
+  color: var(--tinta-suave);
+  font: var(--type-epigrafe);
+}
+
+.prode-partido__pie [data-tipo="error"],
+.prode-formulario__error {
+  color: var(--rojo);
+}
+
+.prode-grupos__integrantes {
+  margin: 16px 0 4px;
+}
+
+.prode-grupos__nombre {
+  overflow-wrap: anywhere;
+}
+
+.prode-grupos__enlace > span:last-child {
+  grid-column: 1;
+}
+
+.prode-atajos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.prode #posiciones,
+.prode #ranking-fase {
+  scroll-margin-block-start: 100px;
+}
+
+.prode-jornada {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 var(--prode-espacio) 12px;
+  padding-top: 10px;
+  border-top: 2px solid var(--tinta);
+  font: var(--type-titular-3);
+  text-transform: uppercase;
+}
+
+.prode-jornada span {
+  color: var(--tinta-suave);
+  font: var(--type-dato);
+}
+
+.prode-ranking__tabla thead th:first-child { width: 12%; }
+.prode-ranking__tabla thead th:nth-child(3),
+.prode-ranking__tabla thead th:nth-child(4) { width: 12%; }
+.prode-ranking__tabla thead th:last-child { width: 17%; }
+.prode-ranking__tabla tr > :nth-child(n+3) { text-align: right; }
+.prode-ranking__clave {
+  margin: 0;
+  padding: 10px var(--prode-espacio);
+  color: var(--tinta-suave);
+  font: var(--type-epigrafe);
+}
+
+.prode-reglas {
+  margin: 0 var(--prode-espacio) var(--prode-espacio);
+  padding-inline: 12px;
+  border-inline-start: 3px solid var(--rojo-fondo);
+  background: var(--papel);
+  font: var(--type-epigrafe);
+}
+
+.prode-reglas summary {
+  padding-block: 12px;
+  min-height: 44px;
+  cursor: pointer;
+  font: var(--type-volanta);
+}
+
+.prode-reglas summary:focus-visible {
+  outline: 2px solid var(--tinta);
+  outline-offset: 2px;
+}
+
+.prode-reglas ul { margin: 0; padding-inline-start: 1.25em; }
+.prode-reglas p { margin: 0; padding-block: 8px 12px; }

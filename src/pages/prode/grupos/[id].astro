@@ -1,0 +1,29 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import MarcoProde from "../../../components/prode/MarcoProde.astro";
+import BarraSeccion from "../../../components/tribuna/BarraSeccion.astro";
+import ProdeGrupos from "../../../components/islands/ProdeGrupos";
+import ProdeRanking from "../../../components/islands/ProdeRanking";
+import { loginHref } from "../../../lib/auth/guards";
+
+const { id } = Astro.params;
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect(loginHref(`/prode/grupos/${id}`));
+}
+---
+
+<Layout title="Grupo del prode - FISTURE" pagina={9} noindex>
+  <MarcoProde titulo="GRUPO" href="/prode/grupos" accion="Mis grupos">
+    <div class="prode-columnas">
+      <section class="prode-panel" aria-label="Detalle del grupo">
+        <ProdeGrupos client:load grupoId={id} />
+      </section>
+
+      <section class="prode-panel">
+        <BarraSeccion tono="tinta">Posiciones</BarraSeccion>
+        <ProdeRanking client:visible url={`/api/prode/grupos/${id}/ranking`} />
+      </section>
+    </div>
+  </MarcoProde>
+</Layout>

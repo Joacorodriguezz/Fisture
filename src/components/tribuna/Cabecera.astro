@@ -32,9 +32,9 @@ const { volanta, secciones = [], usuario, loginHref } = Astro.props;
       </nav>
     )}
     {secciones.length > 0 && (
-      <a class="tb-cabecera__buscar" href="/equipos/buscar">
+      <a class="tb-cabecera__buscar" href="/equipos/buscar" aria-label="Buscar equipo">
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5L21 21"></path></svg>
-        Buscar equipo
+        <span>Buscar equipo</span>
       </a>
     )}
     {usuario ? (

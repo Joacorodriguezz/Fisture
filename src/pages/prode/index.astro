@@ -1,0 +1,55 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import MarcoProde from "../../components/prode/MarcoProde.astro";
+import BarraSeccion from "../../components/tribuna/BarraSeccion.astro";
+import NombreVisible from "../../components/islands/NombreVisible";
+import ProdePronosticos from "../../components/islands/ProdePronosticos";
+import ProdeRanking from "../../components/islands/ProdeRanking";
+import { loginHref } from "../../lib/auth/guards";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect(loginHref("/prode"));
+}
+const sinNombre = !user.displayName;
+---
+
+<Layout title="Prode - FISTURE" pagina={9} noindex>
+  <MarcoProde titulo="TUS PRONÓSTICOS">
+    <nav slot="acciones" class="prode-atajos" aria-label="Secciones del prode">
+      <a class="tb-boton tb-boton--tinta" href="#posiciones" data-ranking-general>Ranking general</a>
+      <a class="tb-boton" href="#ranking-fase">Por fase</a>
+      <a class="tb-boton" href="/prode/grupos">Mis grupos</a>
+    </nav>
+    {sinNombre && (
+      <section class="prode-panel">
+        <BarraSeccion tono="rojo">Primero, tu nombre</BarraSeccion>
+        <NombreVisible client:load inicial={null} />
+      </section>
+    )}
+
+    <div class="prode-columnas">
+      <section class="prode-panel">
+        <BarraSeccion tono="tinta">Partidos</BarraSeccion>
+        <p class="prode-intro">
+          Horarios de Argentina. Podés cambiar tu marcador hasta el inicio del partido.
+        </p>
+        <details class="prode-reglas">
+          <summary>Cómo se suman los puntos</summary>
+          <ul>
+            <li><strong>3 puntos</strong> si acertás el marcador exacto.</li>
+            <li><strong>1 punto</strong> si acertás solo quién gana o que empatan.</li>
+            <li><strong>0 puntos</strong> si fallás o dejás el pronóstico vacío.</li>
+          </ul>
+          <p>Cuenta el marcador al final de los 90 minutos más el tiempo adicionado. El alargue y los penales quedan fuera. Si a los 90 terminaron 1–1 y se definió por penales, para el prode fue empate.</p>
+        </details>
+        <ProdePronosticos client:load />
+      </section>
+
+      <section class="prode-panel" id="posiciones" tabindex="-1">
+        <BarraSeccion tono="tinta">Posiciones</BarraSeccion>
+        <ProdeRanking client:load url="/api/prode/ranking" />
+      </section>
+    </div>
+  </MarcoProde>
+</Layout>

@@ -1,0 +1,20 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import MarcoProde from "../../../components/prode/MarcoProde.astro";
+import ProdeUnirse from "../../../components/islands/ProdeUnirse";
+import { loginHref } from "../../../lib/auth/guards";
+
+const { codigo } = Astro.params;
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect(loginHref(`/prode/unirse/${codigo}`));
+}
+---
+
+<Layout title="Unirse a un grupo - FISTURE" pagina={9} noindex>
+  <MarcoProde titulo="INVITACIÓN">
+    <div class="prode-panel prode-panel--acotado">
+      <ProdeUnirse client:load codigo={codigo ?? ""} />
+    </div>
+  </MarcoProde>
+</Layout>

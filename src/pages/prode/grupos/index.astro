@@ -1,0 +1,19 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import MarcoProde from "../../../components/prode/MarcoProde.astro";
+import ProdeGrupos from "../../../components/islands/ProdeGrupos";
+import { loginHref } from "../../../lib/auth/guards";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect(loginHref("/prode/grupos"));
+}
+---
+
+<Layout title="Grupos del prode - FISTURE" pagina={9} noindex>
+  <MarcoProde titulo="GRUPOS" href="/prode" accion="Volver a mis pronósticos">
+    <section class="prode-panel prode-panel--acotado" aria-label="Grupos del prode">
+      <ProdeGrupos client:load />
+    </section>
+  </MarcoProde>
+</Layout>
