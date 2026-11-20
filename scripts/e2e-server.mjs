@@ -55,6 +55,7 @@ try {
   run(["d1", "migrations", "apply", "fisture-e2e", "--local", "--persist-to", storage]);
   const kickoff = Math.floor(Date.now() / 1000) + 86_400;
   const now = Date.now();
+  const creadaSeg = Math.floor(now / 1000);
   const sql = [
     "UPDATE leagues SET is_active = 0;",
     // URLs con nombre (docs/33 D9): en River, Boca y la liga E2E el slug es igual al id, así /equipos/river
@@ -87,16 +88,47 @@ try {
     "INSERT INTO league_teams (league_id, team_id) VALUES ('e2e-eliminatorias', 'sel-uruguay'), ('e2e-eliminatorias', 'sel-argentina'), ('e2e-amistosos', 'sel-uruguay'), ('e2e-amistosos', 'sel-argentina'), ('e2e-amistosos', 'sel-costa-rica');",
     `INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, venue, status) VALUES ('amistoso-uruguay', 'e2e:amistoso-uruguay', 'sel-uruguay', 'sel-costa-rica', 'e2e-amistosos', ${kickoff + 3600}, 'Estadio Centenario', 'scheduled');`,
     `INSERT INTO sync_runs (id, trigger, started_at, finished_at, status, duration_ms, results, issues) VALUES ('e2e-sync', 'admin', ${now}, ${now}, 'success', 1, '[]', '[]');`,
+    // Prode (docs/37): competencia propia, activa y no destacada (no se lista en /ligas ni en la búsqueda),
+    // con partidos lejos de las ventanas de Hoy (−2 a +9 días) y Partidos (14 días) para no mover esos tests.
+    // Los equipos no están en league_teams: no aparecen en el buscador.
+    "INSERT INTO leagues (id, external_id, name, country, season, source, is_active, is_featured) VALUES ('e2e-prode', 'e2e:prode', 'Liga Profesional', 'Argentina', 2026, 'espn', 1, 0);",
+    "INSERT INTO teams (id, external_id, name, short_name, league_id, source) VALUES ('pr-estudiantes', 'e2e:pr-est', 'Estudiantes', 'EST', 'e2e-prode', 'espn'), ('pr-gimnasia', 'e2e:pr-gel', 'Gimnasia', 'GEL', 'e2e-prode', 'espn'), ('pr-racing', 'e2e:pr-rac', 'Racing Club', 'RAC', 'e2e-prode', 'espn'), ('pr-independiente', 'e2e:pr-ind', 'Independiente', 'IND', 'e2e-prode', 'espn'), ('pr-sanlorenzo', 'e2e:pr-slo', 'San Lorenzo', 'SLO', 'e2e-prode', 'espn'), ('pr-huracan', 'e2e:pr-hur', 'Huracán', 'HUR', 'e2e-prode', 'espn');",
+    `INSERT INTO matches (id, external_id, home_team_id, away_team_id, league_id, date_time, status, round, home_score, away_score) VALUES ('pr-abierto-1', 'e2e:pr-a1', 'pr-estudiantes', 'pr-gimnasia', 'e2e-prode', ${kickoff + 19 * 86_400}, 'scheduled', 'Fecha 14', NULL, NULL), ('pr-abierto-2', 'e2e:pr-a2', 'pr-racing', 'pr-independiente', 'e2e-prode', ${kickoff + 19 * 86_400 + 7200}, 'scheduled', 'Fecha 14', NULL, NULL), ('pr-abierto-3', 'e2e:pr-a3', 'pr-sanlorenzo', 'pr-huracan', 'e2e-prode', ${kickoff + 20 * 86_400}, 'scheduled', 'Fecha 14', NULL, NULL), ('pr-jugado-1', 'e2e:pr-j1', 'pr-racing', 'pr-independiente', 'e2e-prode', ${kickoff - 21 * 86_400}, 'finished', 'Fecha 13', 2, 1), ('pr-jugado-2', 'e2e:pr-j2', 'pr-estudiantes', 'pr-gimnasia', 'e2e-prode', ${kickoff - 22 * 86_400}, 'finished', 'Fecha 13', 0, 0), ('pr-jugado-3', 'e2e:pr-j3', 'pr-huracan', 'pr-sanlorenzo', 'e2e-prode', ${kickoff - 20 * 86_400}, 'finished', 'Fecha 13', NULL, NULL);`,
+    "INSERT INTO users (id, email, name, provider, provider_id) VALUES ('pr-ana', 'pr-ana@example.test', 'Ana Gómez', 'google', 'pr-ana'), ('pr-beto', 'pr-beto@example.test', 'Roberto Díaz', 'google', 'pr-beto'), ('pr-caro', 'pr-caro@example.test', 'Carolina Pérez', 'google', 'pr-caro');",
+    `INSERT INTO prode_groups (id, name, league_id, invite_code, owner_id, starts_at, created_at) VALUES ('grupo-e2e', 'Los del Cinco', 'e2e-prode', 'PRDE2345', 'pr-ana', ${creadaSeg - 30 * 86_400}, ${creadaSeg - 30 * 86_400}), ('grupo-unirse', 'Sumate al prode', 'e2e-prode', 'SUMATE23', 'pr-ana', ${creadaSeg - 30 * 86_400}, ${creadaSeg - 30 * 86_400});`,
+    `INSERT INTO prode_members (group_id, user_id, joined_at) VALUES ('grupo-e2e', 'pr-ana', ${creadaSeg - 30 * 86_400}), ('grupo-e2e', 'pr-beto', ${creadaSeg - 29 * 86_400}), ('grupo-e2e', 'pr-caro', ${creadaSeg - 29 * 86_400}), ('grupo-unirse', 'pr-ana', ${creadaSeg - 30 * 86_400});`,
+    // Ana y Beto empatan en puntos, exactos y aciertos (comparten el 1.º); el 3-0 de Beto en un partido abierto nunca se muestra
+    "INSERT INTO prode_predictions (user_id, match_id, home_goals, away_goals, points, scored_at, created_at, updated_at) VALUES ('pr-ana', 'pr-jugado-1', 2, 1, 3, 1, 1, 1), ('pr-ana', 'pr-jugado-2', 1, 1, 1, 1, 1, 1), ('pr-beto', 'pr-jugado-1', 1, 0, 1, 1, 1, 1), ('pr-beto', 'pr-jugado-2', 0, 0, 3, 1, 1, 1), ('pr-caro', 'pr-jugado-1', 0, 2, 0, 1, 1, 1), ('pr-caro', 'pr-jugado-2', 2, 1, 0, 1, 1, 1), ('pr-beto', 'pr-abierto-1', 3, 0, NULL, NULL, 1, 1);",
   ];
+  // Códigos de prode válidos y únicos por usuario de prueba (alfabeto de lib/prode/reglas.ts)
+  const ALFABETO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let codigos = 0;
+  const codigoProde = () => {
+    let n = codigos++;
+    let sufijo = "";
+    for (let i = 0; i < 4; i++) { sufijo += ALFABETO[n % ALFABETO.length]; n = Math.floor(n / ALFABETO.length); }
+    return `ADMN${sufijo}`;
+  };
   const sessions = [];
   for (const project of ["desktop", "mobile", "webkit-mobile"]) {
-    for (const scenario of ["delete-account", "delete-cancel", "follow", "preferences", "calendar", "logout", "navigation", "errors", "list-add", "calendar-states", "responsive-menu", "responsive-today", "responsive-today-chip", "responsive-today-mine", "quit", "unlink"]) {
+    for (const scenario of ["delete-account", "delete-cancel", "follow", "preferences", "calendar", "logout", "navigation", "errors", "list-add", "calendar-states", "responsive-menu", "responsive-today", "responsive-today-chip", "responsive-today-mine", "quit", "unlink", "prode-crear", "prode-jugar", "prode-unirse", "prode-admin"]) {
       for (let retry = 0; retry <= 1; retry++) {
         const id = `${project}-${scenario}-${retry}`;
         sql.push(`INSERT INTO users (id, email, name, provider, provider_id) VALUES ('${id}', '${id}@example.test', 'Persona E2E', 'google', '${id}');`);
         sessions.push(id);
         if (["calendar", "navigation", "errors", "list-add", "calendar-states", "responsive-today", "responsive-today-chip", "responsive-today-mine"].includes(scenario)) {
           sql.push(`INSERT INTO user_teams (id, user_id, team_id, auto_sync) VALUES ('follow-${id}', '${id}', 'river', 0);`);
+        }
+        // Prode (docs/37): la persona de navegación y la de jugar están en el grupo de prueba; quien
+        // administra tiene un grupo propio con un miembro más, para sacarlo y borrar el grupo
+        if (scenario === "navigation" || scenario === "prode-jugar") {
+          sql.push(`INSERT INTO prode_members (group_id, user_id, joined_at) VALUES ('grupo-e2e', '${id}', ${creadaSeg - 28 * 86_400});`);
+          sql.push(`INSERT INTO prode_predictions (user_id, match_id, home_goals, away_goals, points, scored_at, created_at, updated_at) VALUES ('${id}', 'pr-jugado-1', 1, 1, 0, 1, 1, 1);`);
+        }
+        if (scenario === "prode-admin") {
+          sql.push(`INSERT INTO users (id, email, name, provider, provider_id) VALUES ('fake-${id}', 'fake-${id}@example.test', 'Martín Suárez', 'google', 'fake-${id}');`);
+          sql.push(`INSERT INTO prode_groups (id, name, league_id, invite_code, owner_id, starts_at, created_at) VALUES ('admin-${id}', 'Oficina', 'e2e-prode', '${codigoProde()}', '${id}', ${creadaSeg - 86_400}, ${creadaSeg - 86_400});`);
+          sql.push(`INSERT INTO prode_members (group_id, user_id, joined_at) VALUES ('admin-${id}', '${id}', ${creadaSeg - 86_400}), ('admin-${id}', 'fake-${id}', ${creadaSeg - 3600});`);
         }
         if (scenario === "unlink") {
           // Dos proveedores vinculados: Google es el calendario activo y Microsoft se puede desvincular

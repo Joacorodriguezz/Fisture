@@ -34,6 +34,14 @@ const screens = [
   { name: "calendario-publico", path: "/calendario", session: false },
   { name: "calendario-personal", path: "/calendario", session: true },
   { name: "cuenta", path: "/cuenta", session: true },
+  // Prode (docs/37): la persona de navegación es miembro del grupo de prueba
+  { name: "prode-presentacion", path: "/prode", session: false },
+  { name: "prode-mis-grupos", path: "/prode", session: true },
+  { name: "prode-pronosticos", path: "/prode/grupo-e2e", session: true },
+  { name: "prode-tabla", path: "/prode/grupo-e2e?tab=tabla", session: true },
+  { name: "prode-historial", path: "/prode/grupo-e2e?tab=historial", session: true },
+  { name: "prode-grupo", path: "/prode/grupo-e2e?tab=grupo", session: true },
+  { name: "prode-invitacion", path: "/prode/unirse/SUMATE23", session: false },
 ];
 
 for (const theme of ["papel", "nocturna"]) {
@@ -449,7 +457,7 @@ for (const width of [320, 375, 768, 1280]) {
   test(`reflow: pantallas principales a ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });
     await login(page, info, "navigation");
-    for (const path of ["/equipos/buscar", "/equipos/river", "/partidos", "/partidos/superclasico", "/calendario", "/cuenta"]) {
+    for (const path of ["/equipos/buscar", "/equipos/river", "/partidos", "/partidos/superclasico", "/calendario", "/cuenta", "/prode", "/prode/grupo-e2e", "/prode/grupo-e2e?tab=tabla", "/prode/grupo-e2e?tab=historial", "/prode/grupo-e2e?tab=grupo"]) {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       const size = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
