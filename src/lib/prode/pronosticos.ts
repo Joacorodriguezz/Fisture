@@ -1,10 +1,10 @@
 // Pronósticos del prode: un marcador por usuario y partido, editable hasta el inicio.
 // El cierre se decide siempre con la hora del servidor (cierraPronostico, horario.ts): el cuerpo del
 // pedido nunca trae la hora, así un formulario enviado tarde se rechaza aunque se haya abierto a tiempo.
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { matches, prodeMatches, prodePredictions } from "../../../drizzle/schema";
 import type { Database } from "../db";
-import { cierraPronostico } from "./horario";
+import { cierraPronostico, ESTADOS_SIN_EMPEZAR } from "./horario";
 import { listarCruces, type PartidoProde } from "./partidos";
 
 export const GOLES_MAX = 20;
@@ -39,6 +39,13 @@ export function estadoDe(partido: { dateTime: Date; status: string | null; close
 
 const CERRADO = { ok: false, status: 409, error: "pronostico_cerrado" } as const;
 
+// Equivalente SQL de !cierraPronostico: el horario de matches se guarda en segundos.
+export function pronosticoAbiertoSql(ahoraMs: number) {
+  return sql`${prodeMatches.closedAt} IS NULL
+    AND (${matches.status} IS NULL OR ${inArray(matches.status, ESTADOS_SIN_EMPEZAR)})
+    AND ${matches.dateTime} * 1000 > ${ahoraMs}`;
+}
+
 export async function guardarPronostico(
   db: Database,
   userId: string,
@@ -67,13 +74,10 @@ export async function guardarPronostico(
   const ms = (ahora ?? new Date()).getTime();
   const escrito = await db.run(sql`
     INSERT INTO prode_predictions (user_id, match_id, home_goals, away_goals, created_at, updated_at)
-    SELECT ${userId}, m.id, ${marcador.homeGoals}, ${marcador.awayGoals}, ${ms}, ${ms}
-    FROM matches m
-    JOIN prode_matches pm ON pm.match_id = m.id
-    WHERE m.id = ${matchId}
-      AND pm.closed_at IS NULL
-      AND (m.status IS NULL OR m.status IN ('scheduled', 'postponed'))
-      AND m.date_time * 1000 > ${ms}
+    SELECT ${userId}, ${matches.id}, ${marcador.homeGoals}, ${marcador.awayGoals}, ${ms}, ${ms}
+    FROM matches
+    JOIN prode_matches ON ${prodeMatches.matchId} = ${matches.id}
+    WHERE ${matches.id} = ${matchId} AND ${pronosticoAbiertoSql(ms)}
     ON CONFLICT (user_id, match_id) DO UPDATE SET
       home_goals = excluded.home_goals,
       away_goals = excluded.away_goals,

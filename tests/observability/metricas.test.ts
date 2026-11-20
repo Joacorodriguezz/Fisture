@@ -70,7 +70,7 @@ describe("getMetricas", () => {
       { ...base, id: "pm-cua", externalId: "t:cua", status: "scheduled" },
       { ...base, id: "pm-sem", externalId: "t:sem", status: "finished" },
     ]);
-    const ahora = Date.now();
+    const ahora = AHORA.getTime();
     await t.db.insert(prodeMatches).values([
       { matchId: "pm-oct", fase: "octavos", createdAt: new Date(ahora), closedAt: ahora },
       { matchId: "pm-cua", fase: "cuartos", createdAt: new Date(ahora) },
@@ -104,5 +104,28 @@ describe("getMetricas", () => {
     });
     const json = JSON.stringify(prode);
     for (const dato of [user.id, other.id, "user-3", "g1", "Los pibes", "AAAA", "Ana", "eva@example.test"]) expect(json).not.toContain(dato);
+  });
+
+  it("cuenta como abiertos solo los partidos que todavía admiten pronósticos", async () => {
+    await seedApp(t.db);
+    const ahora = AHORA.getTime();
+    const base = { homeTeamId: "river", awayTeamId: "boca", leagueId: "test-league", dateTime: new Date(ahora + 1000) };
+    await t.db.insert(matches).values([
+      { ...base, id: "abierto", externalId: "t:abierto", status: "scheduled" },
+      { ...base, id: "sin-estado", externalId: "t:sin-estado", status: null },
+      { ...base, id: "postergado", externalId: "t:postergado", status: "postponed" },
+      { ...base, id: "inicio-exacto", externalId: "t:inicio-exacto", status: "scheduled", dateTime: AHORA },
+      { ...base, id: "cancelado", externalId: "t:cancelado", status: "cancelled" },
+      { ...base, id: "en-juego", externalId: "t:en-juego", status: "live" },
+      { ...base, id: "reanudado", externalId: "t:reanudado", status: "postponed" },
+    ]);
+    await t.db.insert(prodeMatches).values(
+      ["abierto", "sin-estado", "postergado", "inicio-exacto", "cancelado", "en-juego", "reanudado"].map((matchId) => ({
+        matchId, fase: "octavos", createdAt: AHORA, closedAt: matchId === "reanudado" ? ahora - 1000 : null,
+      })),
+    );
+
+    const { prode } = await getMetricas(t.db, ahora);
+    expect(prode.partidos).toEqual({ abiertos: 3, cerrados: 4, conResultado: 0 });
   });
 });

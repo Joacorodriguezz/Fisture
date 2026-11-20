@@ -6,6 +6,7 @@ import { sql } from "drizzle-orm";
 import type { Database } from "../db";
 import { FASES, esFase, type Fase } from "../prode/horario";
 import { SOURCE_MANUAL } from "../prode/partidos";
+import { pronosticoAbiertoSql } from "../prode/pronosticos";
 
 const DIA_S = 24 * 60 * 60;
 
@@ -36,7 +37,7 @@ export interface MetricasProde {
   // Pronosticaron en esa fase y en alguna anterior (orden de FASES): señal de retención
   regresanPorFase: PorFase;
   integrantesPorGrupo: { promedio: number; maximo: number };
-  // abiertos: el pronóstico sigue abierto; cerrados: ya empezó; conResultado: finished con goles a 90' cargados
+  // abiertos/cerrados: según se pueda pronosticar; conResultado: finished con goles a 90' cargados
   partidos: { abiertos: number; cerrados: number; conResultado: number };
   pronosticos: number;
 }
@@ -46,7 +47,7 @@ const porFaseVacio = (): PorFase => ({ octavos: 0, cuartos: 0, semifinal: 0, fin
 // Posición de la fase en FASES (1..n), para comparar "anterior" en SQL
 const ORDEN_FASE = sql.raw(`CASE fase ${FASES.map((f, i) => `WHEN '${f}' THEN ${i + 1}`).join(" ")} ELSE 0 END`);
 
-async function getMetricasProde(db: Database): Promise<MetricasProde> {
+async function getMetricasProde(db: Database, ahora: number): Promise<MetricasProde> {
   // Dos consultas: los escalares y un GROUP BY por fase (sin N+1 ni filas por usuario hacia afuera)
   const [fila] = await db.all<Record<string, number | null>>(sql`
     SELECT
@@ -55,8 +56,9 @@ async function getMetricasProde(db: Database): Promise<MetricasProde> {
       (SELECT COUNT(*) FROM prode_predictions) AS pronosticos,
       (SELECT AVG(n) FROM (SELECT COUNT(*) AS n FROM prode_group_members GROUP BY group_id)) AS promedio,
       (SELECT MAX(n) FROM (SELECT COUNT(*) AS n FROM prode_group_members GROUP BY group_id)) AS maximo,
-      (SELECT COUNT(*) FROM prode_matches WHERE closed_at IS NULL) AS abiertos,
-      (SELECT COUNT(*) FROM prode_matches WHERE closed_at IS NOT NULL) AS cerrados,
+      (SELECT COUNT(*) FROM prode_matches JOIN matches ON matches.id = prode_matches.match_id
+        WHERE ${pronosticoAbiertoSql(ahora)}) AS abiertos,
+      (SELECT COUNT(*) FROM prode_matches) AS totalPartidos,
       (SELECT COUNT(*) FROM prode_matches pm JOIN matches m ON m.id = pm.match_id
         WHERE m.status = 'finished'
           AND (CASE WHEN m.source = ${SOURCE_MANUAL} THEN m.home_score ELSE pm.home_goals_90 END) IS NOT NULL
@@ -84,7 +86,7 @@ async function getMetricasProde(db: Database): Promise<MetricasProde> {
     participantesPorFase,
     regresanPorFase,
     integrantesPorGrupo: { promedio: Math.round(Number(fila.promedio ?? 0) * 100) / 100, maximo: Number(fila.maximo ?? 0) },
-    partidos: { abiertos: Number(fila.abiertos), cerrados: Number(fila.cerrados), conResultado: Number(fila.conResultado) },
+    partidos: { abiertos: Number(fila.abiertos), cerrados: Number(fila.totalPartidos) - Number(fila.abiertos), conResultado: Number(fila.conResultado) },
     pronosticos: Number(fila.pronosticos),
   };
 }
@@ -92,7 +94,7 @@ async function getMetricasProde(db: Database): Promise<MetricasProde> {
 export async function getMetricas(db: Database, ahora = Date.now()): Promise<Metricas> {
   // users.created_at está en segundos
   const hoy = Math.floor(ahora / 1000);
-  const prode = await getMetricasProde(db);
+  const prode = await getMetricasProde(db, ahora);
   const [fila] = await db.all<Record<Exclude<keyof Metricas, "prode">, number>>(sql`
     SELECT
       (SELECT COUNT(*) FROM users) AS usuarios,
