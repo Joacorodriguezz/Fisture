@@ -195,6 +195,7 @@ por el middleware (`/api/prode` no está en `APIS_PUBLICAS`) y además chequean 
 |---|---|---|---|
 | `POST /api/prode/grupos` | `{ nombre, ligaId }` | 201 `{ id, codigo }`; 400 `nombre_invalido` / `liga_invalida`; 409 `limite_grupos` | `mutation_ip`, `prode_crear` (10/h por usuario) |
 | `POST /api/prode/unirse` | `{ codigo }` | 200 `{ grupoId, yaEraMiembro }`; 400 `codigo_invalido`; 404 `codigo_inexistente`; 409 `grupo_lleno` / `limite_grupos` | `prode_unirse_ip` (30/10 min por IP), `prode_unirse` (10/10 min por usuario) |
+| `GET /prode/unirse/[código]` (página) | — | 200; 404 código inexistente; 429 con `Retry-After` | `prode_invitacion_ip` (30/10 min por IP, en memoria) |
 | `PUT /api/prode/pronosticos` | `{ pronosticos: [{ partidoId, local, visitante }] }` (≤ 40; `null`/`null` borra) | 200 `{ guardados, borrados, rechazados: [{ partidoId, motivo }] }`; 400 `cuerpo_invalido` | `mutation_ip`, `prode_pronosticar` (30/min por usuario) |
 | `DELETE /api/prode/grupos/[id]` | — | 204; 403 `no_admin`; 404 | `mutation_ip`, `mutation` |
 | `POST /api/prode/grupos/[id]/salir` | — | 200 `{ grupoBorrado }`; 404 | `mutation_ip`, `mutation` |
@@ -326,7 +327,7 @@ se lleva membresías y pronósticos por cascada; los grupos del usuario quedan s
 - **Migración 0017**: se aplica sola en el release (`deploy.yml`). Aditiva. Rollback del código sin
   revertir la migración (las tablas quedan sin uso). Para borrarlas a mano: `DROP TABLE` de las tres.
 - **Sin variables de entorno nuevas.** Políticas nuevas en `policies.ts`: `prode_crear`,
-  `prode_unirse`, `prode_unirse_ip`, `prode_pronosticar`.
+  `prode_unirse`, `prode_unirse_ip`, `prode_pronosticar` y `prode_invitacion_ip`.
 - **Staging**: probar en `development.fisture.pages.dev` con dos cuentas (crear, invitar, cargar) y
   disparar el sync para ver el puntaje del día siguiente.
 
@@ -417,6 +418,23 @@ Implementado en la rama `feat/prode` el 20/11/2026, en la misma corrida que el d
 - Resultado: typecheck sin errores; discovery OK; 1404 tests de Vitest con los umbrales de cobertura
   (`lib/prode` 98,5 % de líneas, `pages/api/prode` 100 %); build OK; 132 E2E y 144 casos de la auditoría UX
   aprobados (desktop y mobile), sin fallidos.
+
+**Revisión previa al PR** (agente `revisor`, sin hallazgos de fuga de datos ni de autorización)
+
+- El GET de `/prode/unirse/[código]` confirmaba si un código existe sin pasar por `withApi`: se le aplica
+  la política nueva `prode_invitacion_ip` (30 visitas cada 10 minutos por IP, en memoria del isolate, con el
+  interruptor del limitador). Pasado el tope responde 429 con `Retry-After` (verificado a mano contra el
+  servidor local: 30 × 200 y después 429).
+- Un fallo del puntaje solo quedaba en el log: ahora también es el hallazgo `prode_scoring_failed` del run
+  (se ve en `/api/admin/status`), sin hacer fallar el sync.
+- Si el último miembro borraba su cuenta, el grupo y su código seguían vivos y el primero en entrar lo
+  administraba. El batch del puntaje suma `DELETE FROM prode_groups WHERE NOT EXISTS (miembros)`: misma
+  subrequest. Es la única consulta del prode que recorre una tabla (`prode_groups`, una fila por grupo, una
+  vez por barrido); el test de planes la admite de forma explícita y sigue prohibiendo el resto.
+- En los topes del marcador (0 y 20) y durante el envío, los botones y «Guardar» usan `aria-disabled` y los
+  campos `readOnly`: con `disabled` el foco caía en `<body>`. Un E2E lo fija.
+- Queda como riesgo aceptado (§9): un pronóstico de un partido terminado hace más de 30 días que nunca se
+  puntuó (sync caído un mes) no se puntúa solo; se corrige con un sync manual ampliando la ventana.
 
 **Pendiente**
 
