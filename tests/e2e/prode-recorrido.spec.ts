@@ -69,9 +69,24 @@ test("prode: el partido cerrado no se edita y el servidor lo rechaza", async ({ 
 
 test("prode: crea un grupo, muestra la invitación y otro usuario se une con el enlace", async ({ page, browser }, info) => {
   await conSesion(page, idDueno(info));
-  await page.goto("/prode/grupos");
-  await page.getByLabel("Nuevo grupo").fill(`Amigos ${info.project.name}`);
-  await page.getByRole("button", { name: "Crear grupo" }).click();
+  const hidratacion = Promise.withResolvers<void>();
+  await page.route("**/_astro/ProdeGrupos.*.js", async (route) => {
+    await hidratacion.promise;
+    await route.continue();
+  });
+  const nombreGrupo = page.getByLabel("Nuevo grupo");
+  const crearGrupo = page.getByRole("button", { name: "Crear grupo" });
+  try {
+    const modulo = page.waitForRequest("**/_astro/ProdeGrupos.*.js");
+    await page.goto("/prode/grupos", { waitUntil: "domcontentloaded" });
+    await modulo;
+    await expect(nombreGrupo).toBeDisabled();
+    await expect(crearGrupo).toBeDisabled();
+  } finally {
+    hidratacion.resolve();
+  }
+  await nombreGrupo.fill(`Amigos ${info.project.name}`);
+  await crearGrupo.click();
   await expect(page).toHaveURL(/\/prode\/grupos\/[^/]+$/);
 
   const enlace = await page.locator("#grupo-enlace").inputValue();
