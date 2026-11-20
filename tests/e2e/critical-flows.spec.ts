@@ -290,6 +290,32 @@ test("la navegación lleva al Prode con y sin sesión", async ({ page, isMobile 
   await expect(enlaceProde).toHaveAttribute("aria-current", "page");
 });
 
+// La cabecera de escritorio debe entrar con holgura aunque la tipografía de reserva sea más ancha
+// (CI en Linux, fuentes externas bloqueadas): se emula con Verdana y un 6% más de interletrado.
+test("la cabecera entra con holgura con tipografía de reserva más ancha", async ({ page, isMobile }, info) => {
+  test.skip(isMobile, "solo en el proyecto de escritorio");
+  for (const conSesion of [false, true]) {
+    if (conSesion) await login(page, info, "responsive-menu");
+    for (const width of [641, 700, 760, 800, 900]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/");
+      await page.addStyleTag({
+        content: ".tb-cabecera *{font-family:Verdana,sans-serif!important;letter-spacing:.06em!important}",
+      });
+      const cabecera = page.getByRole("banner");
+      const ultimo = conSesion ? cabecera.getByRole("link", { name: /Tu cuenta$/ }) : cabecera.getByRole("link", { name: "Iniciar sesión" });
+      const prode = navegacionPrincipal(page).getByRole("link", { name: "Prode", exact: true });
+      for (const enlace of [prode, ultimo]) {
+        const caja = await enlace.boundingBox();
+        expect(caja, `${width}px`).not.toBeNull();
+        expect(caja!.x + caja!.width, `${width}px, con sesión: ${conSesion}`).toBeLessThanOrEqual(width - 16);
+      }
+      const desborde = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(desborde, `${width}px sin scroll horizontal`).toBeLessThanOrEqual(0);
+    }
+  }
+});
+
 // docs/31 D1 y D2: cabecera compacta y fija; en mobile, barra inferior con Buscar al centro
 test.describe("navegación responsive: móvil", () => {
   soloMovil();
