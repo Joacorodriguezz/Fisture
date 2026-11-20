@@ -7,7 +7,7 @@ import { and, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import { matches, prodeGroupMembers, prodeMatches, prodePredictions } from "../../../drizzle/schema";
 import type { Database } from "../db";
 import { SOURCE_MANUAL } from "./partidos";
-import { calcularPuntos, PUNTOS_EXACTO } from "./reglas";
+import { puntosDelPartido, PUNTOS_EXACTO, type Lado } from "./reglas";
 
 export interface FiltroPuntos {
   /** Fase (`matches.round`): octavos, cuartos, semifinal o final. */
@@ -18,22 +18,31 @@ export interface FiltroPuntos {
   userId?: string;
 }
 
-/** Un pronóstico sobre un partido con resultado confirmado. `acierto` incluye los exactos. */
+/**
+ * Un pronóstico sobre un partido con resultado confirmado. `puntos` = `marcador` + `extra` (quién pasa).
+ * `acierto` (incluye los exactos) es solo del marcador: acertó ganador o empate a los 90' (docs/40 R5).
+ */
 export interface PuntosPartido {
   userId: string;
   matchId: string;
   fase: string | null;
   puntos: number;
+  marcador: number;
+  extra: number;
   exacto: boolean;
   acierto: boolean;
 }
 
-/** Totales de un usuario (mismos criterios que `Participante` en reglas.ts, sin el nombre). */
+/**
+ * Totales de un usuario (mismos criterios que `Participante` en reglas.ts, sin el nombre). `pasa` cuenta
+ * los partidos donde acertó quién pasa: solo informativo, no entra en el desempate (docs/40 R5).
+ */
 export interface PuntosUsuario {
   userId: string;
   puntos: number;
   exactos: number;
   aciertos: number;
+  pasa: number;
 }
 
 export interface PuntosProde {
@@ -48,9 +57,19 @@ export interface PuntosProde {
 export const goles90Local = sql<number | null>`CASE WHEN ${matches.source} = ${SOURCE_MANUAL} THEN ${matches.homeScore} ELSE ${prodeMatches.homeGoals90} END`;
 export const goles90Visitante = sql<number | null>`CASE WHEN ${matches.source} = ${SOURCE_MANUAL} THEN ${matches.awayScore} ELSE ${prodeMatches.awayGoals90} END`;
 
+// Equipo que pasó (docs/40 R3): con ganador a los 90' se deriva del marcador; con empate vale el que cargó
+// el admin (prode_matches.pasa); sin marcador o sin ese dato, NULL. Una sola expresión para toda lectura.
+export const pasaEfectivo = sql<Lado | null>`CASE
+  WHEN ${goles90Local} IS NULL OR ${goles90Visitante} IS NULL THEN NULL
+  WHEN ${goles90Local} > ${goles90Visitante} THEN 'home'
+  WHEN ${goles90Local} < ${goles90Visitante} THEN 'away'
+  WHEN ${prodeMatches.pasa} IN ('home', 'away') THEN ${prodeMatches.pasa}
+  ELSE NULL END`;
+
 /**
- * Solo puntúa un partido del prode `finished` con ambos goles a 90' cargados. Cancelado, postergado,
- * suspendido, sin jugar o con resultado incompleto no puntúa (aunque tenga un resultado
+ * Solo puntúa un partido del prode `finished` con ambos goles a 90' cargados y con equipo que pasó
+ * (docs/40 R4: un partido puntúa completo o no puntúa; un empate sin `pasa` queda en espera). Cancelado,
+ * postergado, suspendido, sin jugar o con resultado incompleto no puntúa (aunque tenga un resultado
  * administrativo cargado, docs/37 §5). Sin pronóstico no hay fila: suma 0.
  */
 export async function puntosPorUsuario(db: Database, filtro: FiltroPuntos = {}): Promise<PuntosProde> {
@@ -59,6 +78,7 @@ export async function puntosPorUsuario(db: Database, filtro: FiltroPuntos = {}):
     eq(matches.status, "finished"),
     isNotNull(goles90Local),
     isNotNull(goles90Visitante),
+    isNotNull(pasaEfectivo),
   ];
   if (filtro.fase !== undefined) condiciones.push(eq(prodeMatches.fase, filtro.fase));
   if (filtro.userId !== undefined) condiciones.push(eq(prodePredictions.userId, filtro.userId));
@@ -75,9 +95,11 @@ export async function puntosPorUsuario(db: Database, filtro: FiltroPuntos = {}):
         matchId: prodePredictions.matchId,
         homeGoals: prodePredictions.homeGoals,
         awayGoals: prodePredictions.awayGoals,
+        pasaPronostico: prodePredictions.pasa,
         fase: prodeMatches.fase,
         homeScore: goles90Local,
         awayScore: goles90Visitante,
+        pasaReal: pasaEfectivo,
       })
       .from(prodePredictions)
       .innerJoin(matches, eq(matches.id, prodePredictions.matchId))
@@ -87,8 +109,13 @@ export async function puntosPorUsuario(db: Database, filtro: FiltroPuntos = {}):
   ]);
 
   const partidos: PuntosPartido[] = filas.map((f) => {
-    const puntos = calcularPuntos({ local: f.homeGoals, visitante: f.awayGoals }, { local: f.homeScore!, visitante: f.awayScore! });
-    return { userId: f.userId, matchId: f.matchId, fase: f.fase, puntos, exacto: puntos === PUNTOS_EXACTO, acierto: puntos > 0 };
+    const pasaPronostico = f.pasaPronostico === "home" || f.pasaPronostico === "away" ? f.pasaPronostico : null;
+    const { marcador, extra, total } = puntosDelPartido(
+      { local: f.homeGoals, visitante: f.awayGoals, pasa: pasaPronostico },
+      { local: f.homeScore!, visitante: f.awayScore! },
+      f.pasaReal
+    );
+    return { userId: f.userId, matchId: f.matchId, fase: f.fase, puntos: total, marcador, extra, exacto: marcador === PUNTOS_EXACTO, acierto: marcador > 0 };
   });
 
   // Participantes que deben figurar aunque no hayan puntuado (se sumaron tarde o no pronosticaron)
@@ -101,7 +128,7 @@ export function totalizar(partidos: PuntosPartido[], base: string[] = []): Punto
   const totales = new Map<string, PuntosUsuario>();
   const de = (userId: string) => {
     let t = totales.get(userId);
-    if (!t) totales.set(userId, (t = { userId, puntos: 0, exactos: 0, aciertos: 0 }));
+    if (!t) totales.set(userId, (t = { userId, puntos: 0, exactos: 0, aciertos: 0, pasa: 0 }));
     return t;
   };
   for (const userId of base) de(userId);
@@ -110,6 +137,7 @@ export function totalizar(partidos: PuntosPartido[], base: string[] = []): Punto
     t.puntos += p.puntos;
     if (p.exacto) t.exactos++;
     if (p.acierto) t.aciertos++;
+    if (p.extra > 0) t.pasa++;
   }
   return [...totales.values()].sort((a, b) => (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0));
 }

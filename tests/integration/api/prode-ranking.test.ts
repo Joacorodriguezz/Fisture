@@ -36,13 +36,13 @@ describe("rankings del prode", () => {
     await t.db.insert(users).values([usuario("user-3", "Zoe"), usuario("user-4", "beto"), usuario("user-5", "Álvaro"), usuario("user-6", null)]);
     await t.db.insert(matches).values([cruce("o1", "octavos", 2, 1), cruce("o2", "octavos", 1, 1), cruce("c1", "cuartos", 0, 3)]);
     // Solo puntúa lo vinculado en prode_matches (la fase sale de ahí)
-    await t.db.insert(prodeMatches).values([["o1", "octavos"], ["o2", "octavos"], ["c1", "cuartos"]].map(([matchId, fase]) => ({ matchId, fase, createdAt: AYER })));
+    await t.db.insert(prodeMatches).values([["o1", "octavos"], ["o2", "octavos"], ["c1", "cuartos"]].map(([matchId, fase]) => ({ matchId, fase, createdAt: AYER, ...(matchId === "o2" ? { pasa: "home" } : {}) })));
     await t.db.insert(prodePredictions).values([
-      // Ana: 3 + 1 + 3 = 7 (2 exactos, 3 aciertos)
+      // Ana: (3+1) + 1 + (3+1) = 9 (2 exactos, 3 aciertos); o2 terminó 1-1 y pasó el local
       pronostico("user-1", "o1", 2, 1), pronostico("user-1", "o2", 0, 0), pronostico("user-1", "c1", 0, 3),
-      // Zoe: 3 + 0 + 0 = 3 (1 exacto, 1 acierto)
+      // Zoe: (3+1) + (0+1, pasa el local) + 0 = 5 (1 exacto, 1 acierto: el extra no cuenta)
       pronostico("user-3", "o1", 2, 1), pronostico("user-3", "o2", 1, 0), pronostico("user-3", "c1", 1, 0),
-      // beto y Álvaro: 1 + 1 + 1 = 3 (0 exactos, 3 aciertos): empatan en todo menos el nombre
+      // beto y Álvaro: (1+1) + 1 + (1+1) = 5 (0 exactos, 3 aciertos): empatan en todo menos el nombre
       pronostico("user-4", "o1", 1, 0), pronostico("user-4", "o2", 2, 2), pronostico("user-4", "c1", 0, 1),
       pronostico("user-5", "o1", 1, 0), pronostico("user-5", "o2", 2, 2), pronostico("user-5", "c1", 0, 1),
       // Luis: 0
@@ -61,14 +61,17 @@ describe("rankings del prode", () => {
     it("ordena por puntos, desempata por exactos y por nombre, y comparte la posición si empatan los números", async () => {
       const filas = await rankingProde(t.db, {});
       expect(resumen(filas)).toEqual([
-        [1, "Ana", 7],
-        [2, "Zoe", 3], // 1 exacto le gana a beto y Álvaro (mismos puntos, 0 exactos)
-        [3, "Álvaro", 3], // mismo puntaje, exactos y aciertos: orden alfabético sin tildes, posición compartida
-        [3, "beto", 3],
+        [1, "Ana", 9],
+        [2, "Zoe", 5], // 1 exacto le gana a beto y Álvaro (mismos puntos, 0 exactos)
+        [3, "Álvaro", 5], // mismo puntaje, exactos y aciertos: orden alfabético sin tildes, posición compartida
+        [3, "beto", 5],
         [5, "Luis", 0], // competición estándar: 1, 2, 3, 3, 5
       ]);
-      expect(filas[0]).toEqual({ posicion: 1, nombre: "Ana", puntos: 7, exactos: 2, aciertos: 3, esVos: false });
+      expect(filas[0]).toEqual({ posicion: 1, nombre: "Ana", puntos: 9, exactos: 2, aciertos: 3, esVos: false });
       expect(filas[2]).toMatchObject({ exactos: 0, aciertos: 3 });
+      // El extra de quién pasa suma puntos pero no cuenta como acierto (Zoe sumó el extra en o2 con un marcador fallado)
+      expect(filas[1]).toMatchObject({ nombre: "Zoe", puntos: 5, exactos: 1, aciertos: 1 });
+      expect(filas[1]).not.toHaveProperty("pasa");
     });
 
     it("marca la fila propia con esVos", async () => {
@@ -78,9 +81,9 @@ describe("rankings del prode", () => {
 
     it("filtra por fase", async () => {
       expect(resumen(await rankingProde(t.db, { fase: "cuartos" }))).toEqual([
-        [1, "Ana", 3],
-        [2, "Álvaro", 1],
-        [2, "beto", 1],
+        [1, "Ana", 4],
+        [2, "Álvaro", 2],
+        [2, "beto", 2],
         [4, "Zoe", 0],
       ]);
     });
@@ -106,19 +109,19 @@ describe("rankings del prode", () => {
     it("una corrección de resultado reordena la tabla", async () => {
       await t.DB.prepare("UPDATE matches SET home_score = 1, away_score = 0 WHERE id = 'c1'").run();
       const filas = await rankingProde(t.db, {});
-      expect(filas[0]).toMatchObject({ posicion: 1, nombre: "Zoe", puntos: 6, exactos: 2 });
-      expect(filas[1]).toMatchObject({ posicion: 2, nombre: "Ana", puntos: 4 });
+      expect(filas[0]).toMatchObject({ posicion: 1, nombre: "Zoe", puntos: 9, exactos: 2 });
+      expect(filas[1]).toMatchObject({ posicion: 2, nombre: "Ana", puntos: 5 });
     });
 
     it("grupo: solo integrantes, y quien no pronosticó figura en 0 con el nombre genérico", async () => {
       await crearGrupo();
       expect(resumen(await rankingProde(t.db, { grupoId: "g1" }))).toEqual([
-        [1, "Ana", 7],
+        [1, "Ana", 9],
         [2, "Luis", 0],
         [2, "Participante", 0],
       ]);
       expect(resumen(await rankingProde(t.db, { grupoId: "g1", fase: "cuartos" }))).toEqual([
-        [1, "Ana", 3],
+        [1, "Ana", 4],
         [2, "Luis", 0],
         [2, "Participante", 0],
       ]);
@@ -136,7 +139,7 @@ describe("rankings del prode", () => {
       const body = (await res.json()) as any;
       expect(body.fase).toBeNull();
       expect(body.total).toBe(5);
-      expect(resumen(body.filas)).toEqual([[1, "Ana", 7], [2, "Zoe", 3], [3, "Álvaro", 3], [3, "beto", 3], [5, "Luis", 0]]);
+      expect(resumen(body.filas)).toEqual([[1, "Ana", 9], [2, "Zoe", 5], [3, "Álvaro", 5], [3, "beto", 5], [5, "Luis", 0]]);
       expect(body.yo).toEqual({ posicion: 5, nombre: "Luis", puntos: 0, exactos: 0, aciertos: 0, esVos: true });
       const texto = JSON.stringify(body);
       for (const dato of ["user-", "@example.test", "Nombre "]) expect(texto).not.toContain(dato);
@@ -145,7 +148,7 @@ describe("rankings del prode", () => {
     it("filtra por fase y rechaza una fase inválida", async () => {
       const ok = (await (await callApi(GET_GENERAL, t.DB, { user: fixtures.user, path: "/api/prode/ranking?fase=cuartos" })).json()) as any;
       expect(ok.fase).toBe("cuartos");
-      expect(resumen(ok.filas)).toEqual([[1, "Ana", 3], [2, "Álvaro", 1], [2, "beto", 1], [4, "Zoe", 0]]);
+      expect(resumen(ok.filas)).toEqual([[1, "Ana", 4], [2, "Álvaro", 2], [2, "beto", 2], [4, "Zoe", 0]]);
       const mal = await callApi(GET_GENERAL, t.DB, { user: fixtures.user, path: "/api/prode/ranking?fase=grupos" });
       expect(mal.status).toBe(400);
       expect(await mal.json()).toEqual({ error: "fase_invalida" });
@@ -183,12 +186,12 @@ describe("rankings del prode", () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
       expect(body.fase).toBeNull();
-      expect(resumen(body.filas)).toEqual([[1, "Ana", 7], [2, "Luis", 0], [2, "Participante", 0]]);
+      expect(resumen(body.filas)).toEqual([[1, "Ana", 9], [2, "Luis", 0], [2, "Participante", 0]]);
       expect(body.yo).toMatchObject({ posicion: 2, nombre: "Luis", esVos: true });
       expect(JSON.stringify(body)).not.toMatch(/user-|@example\.test/);
 
       const fase = (await (await callApi(GET_GRUPO, t.DB, { user: fixtures.other, params: { id: "g1" }, path: "/api/prode/grupos/g1/ranking?fase=octavos" })).json()) as any;
-      expect(resumen(fase.filas)).toEqual([[1, "Ana", 4], [2, "Luis", 0], [2, "Participante", 0]]);
+      expect(resumen(fase.filas)).toEqual([[1, "Ana", 5], [2, "Luis", 0], [2, "Participante", 0]]);
     });
 
     it("un no integrante o un grupo inexistente reciben el mismo 404", async () => {
