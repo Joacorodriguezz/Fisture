@@ -63,9 +63,6 @@ export function estadoSinEmpezar(status: string | null | undefined): boolean {
 // Se observa que el partido empezó (y se fija prode_matches.closed_at): en vivo, terminado o con su
 // horario ya pasado. Cancelado o postergado antes de la hora no cuentan: pueden reprogramarse.
 export const ESTADOS_EMPEZADO: readonly string[] = ["live", "finished"];
-export function empezo(partido: { dateTime: Date; status?: string | null }, ahora: Date): boolean {
-  return ESTADOS_EMPEZADO.includes(partido.status ?? "") || partido.dateTime.getTime() <= ahora.getTime();
-}
 
 // El pronóstico cierra en el instante exacto del partido (el mismo que se muestra), o antes si el
 // partido ya está en vivo, terminado o cancelado (docs/37 §5). Con closedAt (prode_matches.closed_at,
