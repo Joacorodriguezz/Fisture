@@ -100,21 +100,23 @@ export async function runSync(env: RunSyncEnv, trigger: SyncTrigger, options: Ru
         issues.push({ code: "consistency_check_failed", severity: "error", count: 1, sample: [] });
       }
     }
-    for (const issue of issues) {
-      const nivel = issue.severity === "error" ? "error" : "warn";
-      logger[nivel]("consistency_issue", { ...issue });
-    }
-
     // Puntaje del prode (docs/37 §3.5): con los resultados ya al día y en la misma condición que los
     // chequeos, así en un barrido por lotes suma una sola subrequest, en el último lote (el más liviano).
-    // Un fallo no afecta al sync: el siguiente lo recupera. Solo conteos en el log.
+    // Un fallo no tumba el sync (el siguiente lo recupera), pero queda como hallazgo del run para que
+    // se vea en /api/admin/status y no solo en el log. Solo conteos en el log.
     if (!lote || lote.siguienteLote === null) {
       try {
         const prode = await (deps.puntuarPronosticos ?? puntuarPronosticos)(env.DB, new Date());
-        logger.info("prode_scored", { puntuados: prode.puntuados, anulados: prode.anulados });
+        logger.info("prode_scored", { puntuados: prode.puntuados, anulados: prode.anulados, gruposVacios: prode.gruposVacios });
       } catch (err) {
         logger.warn("prode_scoring_failed", { err });
+        issues.push({ code: "prode_scoring_failed", severity: "warn", count: 1, sample: [] });
       }
+    }
+
+    for (const issue of issues) {
+      const nivel = issue.severity === "error" ? "error" : "warn";
+      logger[nivel]("consistency_issue", { ...issue });
     }
 
     // Higiene: las sesiones vencidas ya no autentican (docs/21 D6). Solo conteos en el log, nunca ids.

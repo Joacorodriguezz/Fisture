@@ -38,7 +38,8 @@ describe("runSync: puntaje del prode", () => {
     const r = await runSync({ DB: t.DB }, "admin", { deps: deps(), logger });
     expect(r.status).not.toBe("failed");
     expect([await puntos("ana"), await puntos("beto")]).toEqual([3, 0]);
-    expect(eventos("prode_scored").map((l) => l.data)).toEqual([expect.objectContaining({ puntuados: 2, anulados: 0 })]);
+    expect(eventos("prode_scored").map((l) => l.data)).toEqual([expect.objectContaining({ puntuados: 2, anulados: 0, gruposVacios: 0 })]);
+    expect(r.issues.map((i) => i.code)).not.toContain("prode_scoring_failed");
     expect(JSON.stringify(eventos("prode_scored"))).not.toMatch(/ana|beto|terminado/);
   });
 
@@ -68,5 +69,7 @@ describe("runSync: puntaje del prode", () => {
     expect(llamadas[0][1]).toEqual(AHORA);
     expect(r.status).not.toBe("failed");
     expect(eventos("prode_scoring_failed").map((l) => l.level)).toEqual(["warn"]);
+    // Queda en el run (y en /api/admin/status), no solo en el log
+    expect(r.issues).toContainEqual({ code: "prode_scoring_failed", severity: "warn", count: 1, sample: [] });
   });
 });
