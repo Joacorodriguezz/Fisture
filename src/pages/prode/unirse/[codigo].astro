@@ -11,6 +11,7 @@ import { loginHref } from "../../../lib/auth/guards";
 import { logoDeCompetencia } from "../../../lib/logos-competencias";
 import { esMiembro, grupoPorCodigo } from "../../../lib/prode/repo";
 import { normalizarCodigo } from "../../../lib/prode/reglas";
+import { limiteInvitacion } from "../../../lib/prode/limite-invitacion";
 import "../../../styles/prode.css";
 
 const user = Astro.locals.user;
@@ -19,16 +20,28 @@ const codigo = normalizarCodigo(Astro.params.codigo);
 // Un código escrito con minúsculas o espacios va a su forma canónica
 if (codigo && codigo !== Astro.params.codigo) return Astro.redirect(`/prode/unirse/${codigo}`, 301);
 
-const grupo = codigo ? await grupoPorCodigo(DB, codigo) : null;
+// El GET confirma si un código existe: se limita por IP como el POST de unirse (docs/37 D6)
+const espera = await limiteInvitacion(Astro.request, Astro.locals.runtime.env);
+if (espera !== null) {
+  Astro.response.status = 429;
+  Astro.response.headers.set("Retry-After", String(espera));
+}
+const grupo = codigo && espera === null ? await grupoPorCodigo(DB, codigo) : null;
 const yaEsMiembro = grupo && user ? await esMiembro(DB, grupo.id, user.id) : false;
-if (!grupo) Astro.response.status = 404;
+if (!grupo && espera === null) Astro.response.status = 404;
 const logo = grupo ? logoDeCompetencia(grupo.ligaExternalId, grupo.ligaLogo) : null;
 ---
 
-<Layout title={grupo ? `Sumate al prode ${grupo.name} - FISTURE` : "Código de prode no encontrado - FISTURE"} pagina={9} noindex descripcion="Invitación a un grupo de prode en Fisture.">
+<Layout title={espera !== null ? "Demasiados intentos - FISTURE" : grupo ? `Sumate al prode ${grupo.name} - FISTURE` : "Código de prode no encontrado - FISTURE"} pagina={9} noindex descripcion="Invitación a un grupo de prode en Fisture.">
   <div class="pr-pagina">
     <a href="/prode" class="tb-volver"><span aria-hidden="true">←</span> Prode</a>
-    {grupo ? (
+    {espera !== null ? (
+      <div class="pr-cabeza">
+        <Volanta tono="tinta">Prode</Volanta>
+        <Titular nivel="1">Demasiados intentos</Titular>
+        <p class="pr-texto">Abriste muchos links de invitación seguidos. Esperá unos minutos y volvé a probar.</p>
+      </div>
+    ) : grupo ? (
       <>
         <div class="pr-cabeza">
           <Volanta tono="rojo">Te invitaron a jugar el prode</Volanta>

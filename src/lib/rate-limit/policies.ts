@@ -25,6 +25,8 @@ export const POLICIES = {
   prode_unirse: { limit: 10, windowSec: 600, scope: "user" },
   prode_unirse_ip: { limit: 30, windowSec: 600, scope: "ip" },
   prode_pronosticar: { limit: 30, windowSec: 60, scope: "user" },
+  // GET del link de invitación: confirma si un código existe. Lectura pública, en memoria (docs/37 D6)
+  prode_invitacion_ip: { limit: 30, windowSec: 600, scope: "ip", store: "memory" },
 } as const satisfies Record<string, Policy>;
 
 export type PolicyName = keyof typeof POLICIES;
