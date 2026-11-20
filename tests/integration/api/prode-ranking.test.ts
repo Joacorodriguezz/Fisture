@@ -85,6 +85,24 @@ describe("rankings del prode", () => {
       ]);
     });
 
+    it("el general incluye en 0 a quien pronosticó un partido sin resultado, y no a quien no pronosticó", async () => {
+      await t.db.insert(users).values(usuario("user-7", "Nuevo"));
+      await t.db.insert(matches).values({ ...cruce("s1", "semifinal", 0, 0), status: "scheduled", homeScore: null, awayScore: null });
+      await t.db.insert(prodeMatches).values({ matchId: "s1", fase: "semifinal", createdAt: AYER });
+      await t.db.insert(prodePredictions).values(pronostico("user-7", "s1", 1, 0));
+      const general = await rankingProde(t.db, { vos: "user-7" });
+      expect(resumen(general).slice(-2)).toEqual([[5, "Luis", 0], [5, "Nuevo", 0]]);
+      expect(general.map((f) => f.nombre)).not.toContain("Participante"); // user-6 no pronosticó
+      expect(general.filter((f) => f.esVos).map((f) => f.nombre)).toEqual(["Nuevo"]);
+    });
+
+    it("una fase sin partidos finalizados lista a quienes pronosticaron en esa fase", async () => {
+      await t.db.insert(matches).values({ ...cruce("s1", "semifinal", 0, 0), status: "scheduled", homeScore: null, awayScore: null });
+      await t.db.insert(prodeMatches).values({ matchId: "s1", fase: "semifinal", createdAt: AYER });
+      await t.db.insert(prodePredictions).values([pronostico("user-1", "s1", 1, 0), pronostico("user-3", "s1", 0, 0)]);
+      expect(resumen(await rankingProde(t.db, { fase: "semifinal" }))).toEqual([[1, "Ana", 0], [1, "Zoe", 0]]);
+    });
+
     it("una corrección de resultado reordena la tabla", async () => {
       await t.DB.prepare("UPDATE matches SET home_score = 1, away_score = 0 WHERE id = 'c1'").run();
       const filas = await rankingProde(t.db, {});

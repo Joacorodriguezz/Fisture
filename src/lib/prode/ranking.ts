@@ -3,7 +3,7 @@
 // nombres se leen en paralelo, en la misma ronda de consultas a D1 (subconsulta, no una lista de
 // ids: D1 acota los parámetros por sentencia). La salida nunca lleva email ni id de usuario.
 import { inArray, eq } from "drizzle-orm";
-import { prodeGroupMembers, prodePredictions, users } from "../../../drizzle/schema";
+import { prodeGroupMembers, prodeMatches, prodePredictions, users } from "../../../drizzle/schema";
 import type { Database } from "../db";
 import { NOMBRE_GENERICO } from "./grupos";
 import { puntosPorUsuario } from "./puntos";
@@ -30,14 +30,19 @@ export interface FilaRanking {
 /**
  * Ranking ordenado con `compararParticipantes`. La posición es de competición estándar (1, 2, 2, 4):
  * se comparte cuando coinciden puntos, exactos y aciertos; el nombre solo ordena la tabla (docs/37 §6).
- * El general incluye a quien tiene al menos un pronóstico sobre un partido con resultado confirmado.
+ * El general incluye a quien tiene al menos un pronóstico sobre un partido del prode (de la fase, si se filtra),
+ * tenga o no resultado confirmado: quien aún no puntuó figura en 0. El de grupo, a todos los integrantes.
  */
 export async function rankingProde(db: Database, filtro: FiltroRanking = {}): Promise<FilaRanking[]> {
   const { fase, grupoId, vos } = filtro;
   const ids =
     grupoId !== undefined
       ? db.select({ userId: prodeGroupMembers.userId }).from(prodeGroupMembers).where(eq(prodeGroupMembers.groupId, grupoId))
-      : db.selectDistinct({ userId: prodePredictions.userId }).from(prodePredictions);
+      : db
+          .selectDistinct({ userId: prodePredictions.userId })
+          .from(prodePredictions)
+          .innerJoin(prodeMatches, eq(prodeMatches.matchId, prodePredictions.matchId))
+          .where(fase !== undefined ? eq(prodeMatches.fase, fase) : undefined);
 
   const [{ usuarios }, nombres] = await Promise.all([
     puntosPorUsuario(db, { fase, grupoId }),
@@ -45,7 +50,10 @@ export async function rankingProde(db: Database, filtro: FiltroRanking = {}): Pr
   ]);
 
   const nombrePor = new Map(nombres.map((n) => [n.id, n.nombre?.trim() || NOMBRE_GENERICO]));
-  const ordenados = usuarios
+  // Quien pronosticó pero no tiene partidos con resultado no está en `usuarios`: entra en 0
+  const conPuntos = new Set(usuarios.map((u) => u.userId));
+  const en0 = nombres.filter((n) => !conPuntos.has(n.id)).map((n) => ({ userId: n.id, puntos: 0, exactos: 0, aciertos: 0 }));
+  const ordenados = [...usuarios, ...en0]
     .map((u) => ({ ...u, nombre: nombrePor.get(u.userId) ?? NOMBRE_GENERICO }))
     .sort(compararParticipantes);
 
