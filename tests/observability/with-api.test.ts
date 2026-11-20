@@ -135,6 +135,16 @@ describe("withApi", () => {
     expect(dentro?.data.requestId).toBeTruthy();
   });
 
+  it("las rutas del prode no registran el userId, y las demás sí", async () => {
+    const { logger, lineas } = capturar();
+    const conUsuario = (url: string, routePattern: string) =>
+      apiCtx({ url, user: { id: "user-1" }, over: { routePattern } });
+    await withApi(async () => new Response("x"), { logger })(conUsuario("https://fisture.test/api/prode/ranking", "/api/prode/ranking"));
+    await withApi(async () => new Response("x"), { logger })(conUsuario("https://fisture.test/api/partidos", "/api/partidos"));
+    expect(lineas[0].data).not.toHaveProperty("userId");
+    expect(lineas[1].data.userId).toBe("user-1");
+  });
+
   it("omitirUserIdEnLog evita el userId en el log de request y en el de excepción", async () => {
     const { logger, lineas } = capturar();
     const c = ctx();

@@ -164,7 +164,8 @@ export function withApi(handler: APIRoute, options: WithApiOptions = {}): APIRou
 
     const status = response.status;
     const { user, omitirUserIdEnLog } = locals as { user?: { id: string }; omitirUserIdEnLog?: boolean };
-    const userId = omitirUserIdEnLog ? undefined : user?.id;
+    // El prode no registra quién juega: ni el id de usuario ni el de grupo van a los logs.
+    const userId = omitirUserIdEnLog || route.startsWith("/api/prode/") ? undefined : user?.id;
     const fields = { status, durationMs: Date.now() - inicio, ...(userId ? { userId } : {}), ...(error ? { err: error } : {}) };
 
     if (status >= 500) logger.error("request", fields);
