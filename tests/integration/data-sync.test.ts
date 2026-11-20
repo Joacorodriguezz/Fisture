@@ -6,8 +6,9 @@ import { AHORA, DIA_MS, relojFijo } from "../helpers/clock";
 import { d1ConCambioAntesDelBatch } from "../helpers/d1-intercalado";
 import { MAX_REEMPLAZOS_PRODE, syncLote, syncSingleLeague } from "../../src/lib/data-providers/sync";
 import { LEAGUES_CONFIG, lotesDeSync } from "../../src/lib/data-providers";
+import { markOutdatedEvents } from "../../src/lib/calendar/sync-service";
 import { guardarPronostico, listarPronosticos } from "../../src/lib/prode/pronosticos";
-import { leagues, teams, matches, leagueTeams, prodeMatches, prodePredictions, users } from "../../drizzle/schema";
+import { calendarSyncs, leagues, teams, matches, leagueTeams, prodeMatches, prodePredictions, users } from "../../drizzle/schema";
 
 describe("ingesta ESPN a D1", () => {
   const t = useTestDb();
@@ -453,6 +454,56 @@ describe("ingesta ESPN a D1", () => {
       await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 1, away_score = 1 WHERE id = 'manual-1'").run();
       await sync();
       expect(await t.db.select().from(prodeMatches)).toEqual([expect.objectContaining({ homeGoals90: 1, awayGoals90: 1 })]);
+    });
+
+    it("conserva el evento y su estado para reconciliar el cambio de horario", async () => {
+      await prepararManual(H);
+      await t.db.insert(users).values({ id: "u2", provider: "google", providerId: "p2", email: "u2@example.test", name: "U2" });
+      await t.db.insert(calendarSyncs).values([
+        {
+          id: "sync-manual", userId: "u1", matchId: "manual-1", provider: "google",
+          status: "synced", externalEventId: "evento-manual", syncedState: "scheduled",
+          syncedDateTime: new Date(espn.dateTime.getTime() + H),
+          previousDateTime: espn.dateTime, dateTimeChangedAt: AHORA,
+        },
+        { id: "sync-detached", userId: "u2", matchId: "manual-1", provider: "google", status: "detached" },
+      ]);
+      const anteriores = await t.db.select().from(calendarSyncs);
+
+      expect(await sync()).toMatchObject({ matchesCreated: 1, errors: [] });
+      const [nuevo] = await t.db.select().from(matches);
+      expect(await t.db.select().from(calendarSyncs)).toEqual(anteriores.map((fila) => ({ ...fila, matchId: nuevo.id })));
+      expect(await markOutdatedEvents(t.db, undefined, AHORA)).toBe(1);
+      expect(await t.db.select().from(calendarSyncs).where(eq(calendarSyncs.id, "sync-manual"))).toEqual([
+        expect.objectContaining({ matchId: nuevo.id, status: "needs_update", externalEventId: "evento-manual" }),
+      ]);
+      expect(await t.db.select().from(calendarSyncs).where(eq(calendarSyncs.id, "sync-detached"))).toEqual([
+        expect.objectContaining({ matchId: nuevo.id, status: "detached" }),
+      ]);
+    });
+
+    it("conserva el seguimiento de ESPN si ya existe para el mismo usuario", async () => {
+      await prepararManual(H);
+      await t.db.insert(calendarSyncs).values({
+        id: "sync-manual", userId: "u1", matchId: "manual-1", provider: "google",
+        status: "synced", externalEventId: "evento-manual",
+      });
+      await t.DB.prepare(`
+        CREATE TRIGGER sync_existente AFTER INSERT ON matches WHEN NEW.source = 'espn'
+        BEGIN
+          INSERT INTO calendar_syncs (id, user_id, match_id, provider, status, external_event_id)
+          VALUES ('sync-espn', 'u1', NEW.id, 'google', 'synced', 'evento-espn');
+        END
+      `).run();
+      try {
+        expect(await sync()).toMatchObject({ matchesCreated: 1, errors: [] });
+        const [nuevo] = await t.db.select().from(matches);
+        expect(await t.db.select().from(calendarSyncs)).toEqual([
+          expect.objectContaining({ id: "sync-espn", matchId: nuevo.id, externalEventId: "evento-espn" }),
+        ]);
+      } finally {
+        await t.DB.prepare("DROP TRIGGER sync_existente").run();
+      }
     });
 
     // El admin carga el resultado entre la lectura del sync y el batch del reemplazo
