@@ -21,4 +21,4 @@ export const GET: APIRoute = withApi(async ({ url, locals }) => {
     { puntos, exactos, aciertos, partidos: partidos.map(({ matchId, fase, puntos, exacto, acierto }) => ({ matchId, fase, puntos, exacto, acierto })) },
     { headers }
   );
-}, { rateLimit: [] });
+}, { rateLimit: ["prode_lectura"] });

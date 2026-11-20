@@ -18,4 +18,4 @@ export const GET: APIRoute = withApi(async ({ url, locals }) => {
   const filas = await rankingProde(createDb(locals.runtime.env.DB), { fase, vos: user.id });
   locals.logger?.info("prode_ranking", { alcance: "general", fase: fase ?? null, total: filas.length });
   return Response.json(recortarRanking(filas, fase), { headers });
-}, { rateLimit: [] });
+}, { rateLimit: ["prode_lectura"] });

@@ -180,6 +180,7 @@ src/lib/observability/with-api.ts   # orquesta origen -> límite IP -> límite u
 | `mutation` | resto de `POST/PUT/PATCH/DELETE` (`equipos/*`, `preferencias`, `auth/logout`) | usuario | 60 | 1 min | Seguir/dejar de seguir equipos con clics rápidos cabe holgado |
 | `mutation_ip` | ídem | IP | 120 | 1 min | Tope generoso por IP para cubrir NAT |
 | `admin_fail` | `/api/admin/*` | IP | 5 fallos | 15 min | Fuerza bruta de `ADMIN_SECRET`; un humano que se equivoca no pasa de 2-3 |
+| `prode_lectura` | `GET /api/prode/ranking`, `/api/prode/grupos/[id]/ranking`, `/api/prode/mis-puntos` | usuario | 60 | 1 min | Lecturas más caras de D1; la UI hace 1-3 por pantalla, 60/min no afecta a un humano |
 | `search_public` | `GET /api/equipos/buscar` | IP (memoria) | 60 | 1 min | Autocompletado con debounce: unas 10-20 requests por búsqueda |
 
 Más un tope de tamaño: `matchIds` con máximo **50** elementos (400 si se supera). Se justifica con el mayor lote real de la UI de "agregar todos" (a verificar contra la UI al implementar, S4).
