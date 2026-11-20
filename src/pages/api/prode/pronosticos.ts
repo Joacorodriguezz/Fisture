@@ -20,6 +20,6 @@ export const PUT: APIRoute = withApi(async ({ request, locals }) => {
 
   const r = await guardarPronosticos(locals.runtime.env.DB, user.id, entrada.entradas, new Date());
   const rechazados = [...entrada.invalidos.map((partidoId) => ({ partidoId, motivo: "invalido" as const })), ...r.rechazados];
-  locals.logger.info("prode_pronosticos", { guardados: r.guardados.length, borrados: r.borrados.length, rechazados: rechazados.length });
+  locals.logger?.info("prode_pronosticos", { guardados: r.guardados.length, borrados: r.borrados.length, rechazados: rechazados.length });
   return json({ guardados: r.guardados, borrados: r.borrados, rechazados });
 }, { rateLimit: ["mutation_ip", "prode_pronosticar"] });

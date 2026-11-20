@@ -16,6 +16,6 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
 
   const r = await unirseAGrupo(locals.runtime.env.DB, { userId: user.id, codigo, ahora: new Date() });
   if (!r.ok) return error(r.error, r.error === "codigo_inexistente" ? 404 : 409);
-  if (!r.yaEraMiembro) locals.logger.info("prode_union", { grupoId: r.grupoId });
+  if (!r.yaEraMiembro) locals.logger?.info("prode_union", { grupoId: r.grupoId });
   return json({ grupoId: r.grupoId, yaEraMiembro: r.yaEraMiembro });
 }, { rateLimit: ["prode_unirse_ip", "prode_unirse"] });

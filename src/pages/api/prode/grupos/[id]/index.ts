@@ -10,6 +10,6 @@ export const DELETE: APIRoute = withApi(async ({ params, locals }) => {
 
   const r = await borrarGrupo(locals.runtime.env.DB, params.id ?? "", user.id);
   if (!r.ok) return errorDeGrupo(r.error);
-  locals.logger.info("prode_grupo_borrado", { grupoId: params.id });
+  locals.logger?.info("prode_grupo_borrado", { grupoId: params.id });
   return new Response(null, { status: 204 });
 }, { rateLimit: ["mutation_ip", "mutation"] });

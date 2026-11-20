@@ -18,6 +18,6 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
 
   const r = await crearGrupo(locals.runtime.env.DB, { userId: user.id, nombre: nombreLimpio, ligaId, ahora: new Date() });
   if (!r.ok) return error(r.error, r.error === "limite_grupos" ? 409 : 400);
-  locals.logger.info("prode_grupo_creado", { grupoId: r.id });
+  locals.logger?.info("prode_grupo_creado", { grupoId: r.id });
   return json({ id: r.id, codigo: r.codigo }, 201);
 }, { rateLimit: ["mutation_ip", "prode_crear"] });
