@@ -1,0 +1,28 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import Volanta from "../../../components/tribuna/Volanta.astro";
+import Titular from "../../../components/tribuna/Titular.astro";
+import BarraSeccion from "../../../components/tribuna/BarraSeccion.astro";
+import Boton from "../../../components/tribuna/Boton.astro";
+import ProdeGrupos from "../../../components/islands/ProdeGrupos";
+import { loginHref } from "../../../lib/auth/guards";
+
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect(loginHref("/prode/grupos"));
+}
+---
+
+<Layout title="Grupos del prode - FISTURE" pagina={9} noindex>
+  <div style="max-width:760px;display:flex;flex-direction:column;gap:32px">
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px">
+      <Volanta tono="tinta">Prode</Volanta>
+      <Titular nivel="1">GRUPOS</Titular>
+      <Boton href="/prode">Volver a mis pronósticos</Boton>
+    </div>
+    <div style="display:flex;flex-direction:column">
+      <BarraSeccion tono="tinta">Grupos</BarraSeccion>
+      <ProdeGrupos client:load />
+    </div>
+  </div>
+</Layout>
