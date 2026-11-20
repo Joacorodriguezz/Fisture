@@ -43,12 +43,13 @@ export function parsearHorarioArgentino(valor: unknown): Date | null {
 export interface HorarioMostrado {
   fecha: string; // "Dom 22/11"
   hora: string; // "21:00"
-  iso: string; // "2026-11-22T21:00-03:00"
+  iso: string; // "2026-11-22T21:00-03:00": truncado al minuto, solo para mostrar
+  cierraEn: number; // instante exacto (ms epoch, con segundos): el que cierra el pronóstico
 }
 
 export function horarioArgentino(instante: Date): HorarioMostrado {
   const local = new Date(instante.getTime() - OFFSET_MS).toISOString().slice(0, 16);
-  return { fecha: fechaCorta(instante), hora: hora(instante), iso: `${local}${OFFSET}` };
+  return { fecha: fechaCorta(instante), hora: hora(instante), iso: `${local}${OFFSET}`, cierraEn: instante.getTime() };
 }
 
 // Estados de matches.status en los que el partido sigue sin empezar. Un suspendido después de empezar
@@ -59,9 +60,21 @@ export function estadoSinEmpezar(status: string | null | undefined): boolean {
   return status == null || ESTADOS_SIN_EMPEZAR.includes(status);
 }
 
+// Se observa que el partido empezó (y se fija prode_matches.closed_at): en vivo, terminado o con su
+// horario ya pasado. Cancelado o postergado antes de la hora no cuentan: pueden reprogramarse.
+export const ESTADOS_EMPEZADO: readonly string[] = ["live", "finished"];
+export function empezo(partido: { dateTime: Date; status?: string | null }, ahora: Date): boolean {
+  return ESTADOS_EMPEZADO.includes(partido.status ?? "") || partido.dateTime.getTime() <= ahora.getTime();
+}
+
 // El pronóstico cierra en el instante exacto del partido (el mismo que se muestra), o antes si el
-// partido ya está en vivo, terminado o cancelado (docs/37 §5)
-export function cierraPronostico(partido: { dateTime: Date | number; status?: string | null }, ahora: Date): boolean {
+// partido ya está en vivo, terminado o cancelado (docs/37 §5). Con closedAt (prode_matches.closed_at,
+// fijado al observar que empezó) queda cerrado para siempre, aunque el sync traiga una fecha futura.
+export function cierraPronostico(
+  partido: { dateTime: Date | number; status?: string | null; closedAt?: number | null },
+  ahora: Date
+): boolean {
+  if (partido.closedAt != null) return true;
   if (!estadoSinEmpezar(partido.status)) return true;
   const inicio = partido.dateTime instanceof Date ? partido.dateTime.getTime() : partido.dateTime;
   return ahora.getTime() >= inicio;

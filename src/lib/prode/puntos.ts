@@ -3,9 +3,10 @@
 // resultado (PATCH /api/admin/prode/partidos) recalcula todo sin duplicar nada, y no hay datos
 // derivados que puedan quedar desfasados. Una consulta fija (dos con filtro de grupo), nunca una por
 // usuario ni por partido: cuida las lecturas de D1 y las subrequests de Workers Free.
-import { and, eq, inArray, isNotNull, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import { matches, prodeGroupMembers, prodeMatches, prodePredictions } from "../../../drizzle/schema";
 import type { Database } from "../db";
+import { SOURCE_MANUAL } from "./partidos";
 import { calcularPuntos, PUNTOS_EXACTO } from "./reglas";
 
 export interface FiltroPuntos {
@@ -41,8 +42,14 @@ export interface PuntosProde {
   usuarios: PuntosUsuario[];
 }
 
+// Resultado a los 90 minutos más adicionado (docs/37 §2). En un cruce manual es el de matches (lo carga
+// el admin); en un adoptado de ESPN, el confirmado a mano en el vínculo: el marcador de ESPN puede traer
+// alargue, penales o un resultado administrativo, así que sin confirmación el adoptado no puntúa.
+export const goles90Local = sql<number | null>`CASE WHEN ${matches.source} = ${SOURCE_MANUAL} THEN ${matches.homeScore} ELSE ${prodeMatches.homeGoals90} END`;
+export const goles90Visitante = sql<number | null>`CASE WHEN ${matches.source} = ${SOURCE_MANUAL} THEN ${matches.awayScore} ELSE ${prodeMatches.awayGoals90} END`;
+
 /**
- * Solo puntúa un partido del prode `finished` con ambos goles cargados. Cancelado, postergado,
+ * Solo puntúa un partido del prode `finished` con ambos goles a 90' cargados. Cancelado, postergado,
  * suspendido, sin jugar o con resultado incompleto no puntúa (aunque tenga un resultado
  * administrativo cargado, docs/37 §5). Sin pronóstico no hay fila: suma 0.
  */
@@ -50,8 +57,8 @@ export async function puntosPorUsuario(db: Database, filtro: FiltroPuntos = {}):
   // Del prode es lo vinculado en prode_matches (innerJoin abajo): manual o adoptado de ESPN
   const condiciones: SQL[] = [
     eq(matches.status, "finished"),
-    isNotNull(matches.homeScore),
-    isNotNull(matches.awayScore),
+    isNotNull(goles90Local),
+    isNotNull(goles90Visitante),
   ];
   if (filtro.fase !== undefined) condiciones.push(eq(prodeMatches.fase, filtro.fase));
   if (filtro.userId !== undefined) condiciones.push(eq(prodePredictions.userId, filtro.userId));
@@ -69,8 +76,8 @@ export async function puntosPorUsuario(db: Database, filtro: FiltroPuntos = {}):
         homeGoals: prodePredictions.homeGoals,
         awayGoals: prodePredictions.awayGoals,
         fase: prodeMatches.fase,
-        homeScore: matches.homeScore,
-        awayScore: matches.awayScore,
+        homeScore: goles90Local,
+        awayScore: goles90Visitante,
       })
       .from(prodePredictions)
       .innerJoin(matches, eq(matches.id, prodePredictions.matchId))

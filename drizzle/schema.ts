@@ -250,6 +250,11 @@ export const prodeMatches = sqliteTable("prode_matches", {
     .references(() => matches.id, { onDelete: "cascade" }),
   fase: text("fase").notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  // Resultado a los 90' más adicionado confirmado por el admin (solo adoptados de ESPN; migración 0021)
+  homeGoals90: integer("home_goals_90"),
+  awayGoals90: integer("away_goals_90"),
+  // Cierre irreversible del pronóstico: se fija al observar que el partido empezó (ms epoch)
+  closedAt: integer("closed_at"),
 });
 
 // ============================================

@@ -122,15 +122,34 @@ describe("puntosPorUsuario", () => {
     expect((await puntosPorUsuario(t.db, { userId: "user-3" })).usuarios).toEqual([{ userId: "user-3", puntos: 0, exactos: 0, aciertos: 0 }]);
   });
 
+  // docs/37 §2: el marcador de ESPN puede incluir alargue o penales; un adoptado puntúa solo con el
+  // resultado a 90' confirmado por el admin (prode_matches.home_goals_90/away_goals_90)
+  it("un adoptado de ESPN puntúa solo con el resultado a 90 confirmado, no con el marcador de ESPN", async () => {
+    await t.db.insert(matches).values({ ...cruce("espn-1", "Quarterfinals", "finished", 3, 2), externalId: "espn:1", source: "espn" });
+    await t.db.insert(prodeMatches).values({ matchId: "espn-1", fase: "cuartos", createdAt: AYER });
+    await t.db.insert(prodePredictions).values(pronostico("user-3", "espn-1", 3, 2));
+    // Sin resultado a 90: queda a la espera aunque ESPN lo dé por terminado
+    expect(de(await puntosPorUsuario(t.db), "user-3")).toBeUndefined();
+
+    await t.DB.prepare("UPDATE prode_matches SET home_goals_90 = 2, away_goals_90 = 2 WHERE match_id = 'espn-1'").run();
+    expect(de(await puntosPorUsuario(t.db), "user-3")).toEqual({ userId: "user-3", puntos: 0, exactos: 0, aciertos: 0 });
+    await t.DB.prepare("UPDATE prode_predictions SET home_goals = 2, away_goals = 2 WHERE user_id = 'user-3'").run();
+    expect(de(await puntosPorUsuario(t.db), "user-3")).toEqual({ userId: "user-3", puntos: 3, exactos: 1, aciertos: 1 });
+
+    // Con el resultado a 90 cargado pero el partido sin terminar, no puntúa
+    await t.DB.prepare("UPDATE matches SET status = 'live' WHERE id = 'espn-1'").run();
+    expect(de(await puntosPorUsuario(t.db), "user-3")).toBeUndefined();
+  });
+
   it("ignora los partidos que no son del prode", async () => {
     await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 1, away_score = 0 WHERE id = 'superclasico'").run();
     await t.db.insert(prodePredictions).values(pronostico("user-3", "superclasico", 1, 0));
     expect(de(await puntosPorUsuario(t.db), "user-3")).toBeUndefined();
   });
 
-  it("puntúa un partido de ESPN adoptado con su resultado y la fase del vínculo", async () => {
+  it("puntúa un partido de ESPN adoptado con su resultado a 90 y la fase del vínculo", async () => {
     await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 1, away_score = 0, date_time = ? WHERE id = 'superclasico'").bind(Math.floor(AYER.getTime() / 1000)).run();
-    await t.db.insert(prodeMatches).values({ matchId: "superclasico", fase: "final", createdAt: AYER });
+    await t.db.insert(prodeMatches).values({ matchId: "superclasico", fase: "final", createdAt: AYER, homeGoals90: 1, awayGoals90: 0 });
     await t.db.insert(prodePredictions).values(pronostico("user-3", "superclasico", 1, 0));
     const r = await puntosPorUsuario(t.db, { fase: "final" });
     expect(r.partidos).toEqual([{ userId: "user-3", matchId: "superclasico", fase: "final", puntos: 3, exacto: true, acierto: true }]);

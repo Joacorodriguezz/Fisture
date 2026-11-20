@@ -32,7 +32,7 @@ export function validarMarcador(home: unknown, away: unknown): Marcador | null {
   return esGol(home) && esGol(away) ? { homeGoals: home, awayGoals: away } : null;
 }
 
-export function estadoDe(partido: { dateTime: Date; status: string | null }, ahora: Date): EstadoPronostico {
+export function estadoDe(partido: { dateTime: Date; status: string | null; closedAt?: number | null }, ahora: Date): EstadoPronostico {
   if (partido.status === "finished") return "jugado";
   return cierraPronostico(partido, ahora) ? "cerrado" : "abierto";
 }
@@ -51,7 +51,7 @@ export async function guardarPronostico(
   const marcador = validarMarcador(datos.homeGoals, datos.awayGoals);
   if (!marcador) return { ok: false, status: 400, error: "marcador_invalido" };
   const [partido] = await db
-    .select({ dateTime: matches.dateTime, status: matches.status })
+    .select({ dateTime: matches.dateTime, status: matches.status, closedAt: prodeMatches.closedAt })
     .from(matches)
     .innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id))
     .where(eq(matches.id, matchId))
@@ -62,7 +62,8 @@ export async function guardarPronostico(
   // Cierre atómico: la hora y el estado se vuelven a comprobar en la misma sentencia que escribe, con la
   // hora del servidor al escribir. Un pedido demorado que llega después del inicio, o después de que el
   // admin pasó el partido a live, no afecta ninguna fila (INSERT ... SELECT ... WHERE). Mismo criterio
-  // que cierraPronostico: sin empezar es status NULL, scheduled o postponed, y date_time > ahora.
+  // que cierraPronostico: sin empezar es status NULL, scheduled o postponed, date_time > ahora y sin
+  // cierre definitivo (closed_at).
   const ms = (ahora ?? new Date()).getTime();
   const escrito = await db.run(sql`
     INSERT INTO prode_predictions (user_id, match_id, home_goals, away_goals, created_at, updated_at)
@@ -70,6 +71,7 @@ export async function guardarPronostico(
     FROM matches m
     JOIN prode_matches pm ON pm.match_id = m.id
     WHERE m.id = ${matchId}
+      AND pm.closed_at IS NULL
       AND (m.status IS NULL OR m.status IN ('scheduled', 'postponed'))
       AND m.date_time * 1000 > ${ms}
     ON CONFLICT (user_id, match_id) DO UPDATE SET
@@ -91,13 +93,14 @@ export async function listarPronosticos(db: Database, userId: string, ahora: Dat
       .where(eq(prodePredictions.userId, userId)),
   ]);
   return partidos.map((p) => {
-    // horario.iso es el mismo instante de matches.date_time (los cruces se cargan al minuto)
-    const dateTime = new Date(p.horario.iso);
+    // El instante exacto de matches.date_time (horario.iso está truncado al minuto: un adoptado de ESPN
+    // puede empezar a las 21:00:45 y cerraría 45 s antes)
+    const dateTime = new Date(p.horario.cierraEn);
     const mio = propios.find((x) => x.matchId === p.id);
     return {
       ...p,
       cierre: dateTime.toISOString(),
-      estado: estadoDe({ dateTime, status: p.estado }, ahora),
+      estado: estadoDe({ dateTime, status: p.estado, closedAt: p.cerradoEn }, ahora),
       pronostico: mio ? { homeGoals: mio.homeGoals, awayGoals: mio.awayGoals } : null,
     };
   });
