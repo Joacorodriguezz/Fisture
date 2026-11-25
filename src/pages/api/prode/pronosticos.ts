@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { createDb } from "../../../lib/db";
 import { withApi } from "../../../lib/observability/with-api";
 import { guardarPronostico, listarPronosticos } from "../../../lib/prode/pronosticos";
+import { resultadoAutoHabilitado } from "../../../lib/prode/puntos";
 
 // Pronósticos del prode del usuario con sesión.
 // GET: partidos del prode con fase, horario, cierre, estado (abierto/cerrado/jugado) y el pronóstico propio.
@@ -13,7 +14,8 @@ const headers = { "Cache-Control": "no-store" };
 export const GET: APIRoute = withApi(async ({ locals }) => {
   const user = locals.user;
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401, headers });
-  const partidos = await listarPronosticos(createDb(locals.runtime.env.DB), user.id);
+  const env = locals.runtime.env;
+  const partidos = await listarPronosticos(createDb(env.DB), user.id, new Date(), resultadoAutoHabilitado(env));
   return Response.json({ partidos }, { headers });
 }, { rateLimit: [] });
 

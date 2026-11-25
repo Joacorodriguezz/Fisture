@@ -87,6 +87,62 @@ describe("/api/prode/pronosticos", () => {
     expect((await get(fixtures.other)).partidos.find((p: any) => p.id === "p1").pronostico).toBeNull();
   });
 
+  // docs/40 D2 y R4: el participante ve el resultado efectivo (el mismo que puntúa) y solo cuando el partido puntúa
+  describe("resultado que ve el participante", () => {
+    const adoptado = async (vinculo: Partial<typeof prodeMatches.$inferInsert>, status = "finished") => {
+      // El marcador de ESPN (3-2) puede incluir alargue o penales: nunca es el que se muestra en un adoptado
+      await t.DB.prepare("UPDATE matches SET status = ?, home_score = 3, away_score = 2, date_time = ? WHERE id = 'superclasico'")
+        .bind(status, Math.floor((AHORA.getTime() - DIA_MS) / 1000))
+        .run();
+      await t.db.insert(prodeMatches).values({ matchId: "superclasico", fase: "semifinal", createdAt: AHORA, ...vinculo });
+    };
+    const ver = async (env: Record<string, unknown> = {}) => {
+      const { partidos } = (await (await callApi(GET, t.DB, { user: fixtures.user, env })).json()) as any;
+      return partidos.find((p: any) => p.id === "superclasico");
+    };
+    const AUTO = { autoHomeGoals90: 1, autoAwayGoals90: 1, autoPasa: "away", autoRegla: "B", autoVistoAt: 1, autoConfirmadoAt: 2 };
+    const OCULTO = { resultado: null, pasa: null };
+
+    it("un automático confirmado muestra el resultado y quién pasó", async () => {
+      await adoptado(AUTO);
+      expect(await ver()).toMatchObject({ resultado: { local: 1, visitante: 1 }, pasa: "away" });
+    });
+
+    it("un dato sin confirmar no se muestra", async () => {
+      await adoptado({ ...AUTO, autoConfirmadoAt: null });
+      expect(await ver()).toMatchObject(OCULTO);
+    });
+
+    it("la corrección manual gana sobre el automático", async () => {
+      await adoptado({ ...AUTO, homeGoals90: 2, awayGoals90: 0 });
+      expect(await ver()).toMatchObject({ resultado: { local: 2, visitante: 0 }, pasa: "home" });
+    });
+
+    it("excluido no muestra resultado, aunque tenga corrección manual", async () => {
+      await adoptado({ ...AUTO, homeGoals90: 2, awayGoals90: 0, excludedAt: 3 });
+      expect(await ver()).toMatchObject(OCULTO);
+    });
+
+    it("con PRODE_RESULTADO_AUTO=off no muestra lo automático", async () => {
+      await adoptado(AUTO);
+      expect(await ver({ PRODE_RESULTADO_AUTO: "off" })).toMatchObject(OCULTO);
+    });
+
+    it("si el partido no puntúa (empate sin quién pasó, o sin terminar) no muestra un resultado parcial", async () => {
+      await adoptado({ ...AUTO, autoPasa: null });
+      expect(await ver()).toMatchObject(OCULTO);
+      await t.DB.prepare("UPDATE prode_matches SET auto_pasa = 'away'").run();
+      await t.DB.prepare("UPDATE matches SET status = 'live' WHERE id = 'superclasico'").run();
+      expect(await ver()).toMatchObject(OCULTO);
+    });
+
+    it("no expone los datos de administración del resultado automático", async () => {
+      await adoptado({ ...AUTO, autoConfirmadoAt: null });
+      const partido = await ver();
+      for (const campo of ["automatico", "excluido", "enEspera", "pasadaEn"]) expect(partido).not.toHaveProperty(campo);
+    });
+  });
+
   describe("quién pasa (docs/40 R2)", () => {
     it("un empate sin pasa responde 400 falta_quien_pasa y no guarda nada", async () => {
       for (const extra of [{}, { pasa: null }, { pasa: "empate" }, { pasa: 1 }]) {

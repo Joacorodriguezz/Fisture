@@ -1,5 +1,8 @@
 // Reglas del prode (docs/37-prode-reglas.md). Lógica pura: sin D1, sin red.
 
+/** `matches.source` de un cruce del prode cargado a mano (el resto de los partidos los trae un proveedor). */
+export const SOURCE_MANUAL = "manual";
+
 /** Goles a los 90 minutos más el adicionado (sin alargue ni penales). */
 export interface Marcador {
   local: number;

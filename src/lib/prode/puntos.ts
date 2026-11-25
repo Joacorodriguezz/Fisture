@@ -6,8 +6,7 @@
 import { and, eq, inArray, isNotNull, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import { matches, prodeGroupMembers, prodeMatches, prodePredictions } from "../../../drizzle/schema";
 import type { Database } from "../db";
-import { SOURCE_MANUAL } from "./partidos";
-import { puntosDelPartido, PUNTOS_EXACTO, type Lado } from "./reglas";
+import { puntosDelPartido, PUNTOS_EXACTO, SOURCE_MANUAL, type Lado } from "./reglas";
 
 export interface FiltroPuntos {
   /** Fase (`matches.round`): octavos, cuartos, semifinal o final. */
@@ -61,29 +60,34 @@ export function resultadoAutoHabilitado(env: { PRODE_RESULTADO_AUTO?: string } |
 const autoConfirmado = sql`${prodeMatches.autoConfirmadoAt} IS NOT NULL`;
 
 // Marcador a 90' más adicionado efectivo (docs/37 §2, docs/40 D2): una sola expresión SQL para toda lectura
-// (puntos, ranking y métricas). Precedencia, siempre por par (nunca un gol manual con uno automático):
+// (puntos, ranking, listados de partidos y métricas). Precedencia, siempre por par (nunca un gol manual con uno automático):
 // excluido > cruce manual (matches) > corrección manual completa > automático confirmado > ninguno.
 // El marcador de ESPN (matches.home_score) no se usa en un adoptado: puede incluir alargue o penales.
 function golEfectivo(
   auto: boolean,
   delManual: AnyColumn,
   manualCompleta: AnyColumn,
-  delAutomatico: AnyColumn
+  delAutomatico: AnyColumn,
+  conExclusion: boolean
 ) {
   const manualDelVinculo = sql`WHEN ${prodeMatches.homeGoals90} IS NOT NULL AND ${prodeMatches.awayGoals90} IS NOT NULL THEN ${manualCompleta}`;
   const automatico = auto
     ? sql`WHEN ${prodeMatches.autoHomeGoals90} IS NOT NULL AND ${prodeMatches.autoAwayGoals90} IS NOT NULL AND ${autoConfirmado} THEN ${delAutomatico}`
     : sql``;
+  const excluido = conExclusion ? sql`WHEN ${prodeMatches.excludedAt} IS NOT NULL THEN NULL` : sql``;
   return sql<number | null>`CASE
-  WHEN ${prodeMatches.excludedAt} IS NOT NULL THEN NULL
+  ${excluido}
   WHEN ${matches.source} = ${SOURCE_MANUAL} THEN ${delManual}
   ${manualDelVinculo}
   ${automatico}
   ELSE NULL END`;
 }
 
-export const goles90Local = (auto = true) => golEfectivo(auto, matches.homeScore, prodeMatches.homeGoals90, prodeMatches.autoHomeGoals90);
-export const goles90Visitante = (auto = true) => golEfectivo(auto, matches.awayScore, prodeMatches.awayGoals90, prodeMatches.autoAwayGoals90);
+// `conExclusion` en false da el marcador que tendría el partido sin excluir (para validar una corrección).
+export const goles90Local = (auto = true, conExclusion = true) =>
+  golEfectivo(auto, matches.homeScore, prodeMatches.homeGoals90, prodeMatches.autoHomeGoals90, conExclusion);
+export const goles90Visitante = (auto = true, conExclusion = true) =>
+  golEfectivo(auto, matches.awayScore, prodeMatches.awayGoals90, prodeMatches.autoAwayGoals90, conExclusion);
 
 // Equipo que pasó efectivo (docs/40 R3), con el mismo orden: excluido; derivado del marcador efectivo si hay
 // ganador; `pasa` manual; `auto_pasa` confirmado; si no, NULL. Sin marcador efectivo no hay equipo que pasó.

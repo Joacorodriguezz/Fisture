@@ -450,6 +450,15 @@ describe("/api/admin/prode/partidos", () => {
         expect(await vinculo("espn-1")).toMatchObject({ pasa: null });
       });
 
+      it("sobre un ganador automático confirmado, un pasa que lo contradice responde 409", async () => {
+        await adoptado();
+        await t.DB.prepare("UPDATE prode_matches SET auto_home_goals_90 = 2, auto_away_goals_90 = 0, auto_pasa = 'home', auto_confirmado_at = 1").run();
+        expect(await llamar("PATCH", { id: "espn-1", pasa: "away" })).toMatchObject({ status: 409, body: { error: "pasa_inconsistente" } });
+        const coherente = await llamar("PATCH", { id: "espn-1", pasa: "home" });
+        expect(coherente.body.partido).toMatchObject({ resultado: { local: 2, visitante: 0 }, pasa: "home" });
+        expect(await vinculo("espn-1")).toMatchObject({ pasa: null });
+      });
+
       it("404 fuera del prode", async () => {
         expect(await llamar("PATCH", { id: "no-existe", pasa: "home" })).toMatchObject({ status: 404, body: { error: "partido_inexistente" } });
       });

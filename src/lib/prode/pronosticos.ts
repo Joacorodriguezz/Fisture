@@ -98,9 +98,11 @@ export async function guardarPronostico(
 
 // Partidos del prode con el pronóstico del usuario (o null) y su estado. Una consulta más que
 // listarCruces, nunca una por partido.
-export async function listarPronosticos(db: Database, userId: string, ahora: Date = new Date()): Promise<PartidoConPronostico[]> {
+// Resultado y quién pasó se muestran solo cuando el partido puntúa (finished, marcador efectivo y equipo que
+// pasó: docs/40 R4, las mismas condiciones que puntosPorUsuario). `auto` en false: PRODE_RESULTADO_AUTO=off.
+export async function listarPronosticos(db: Database, userId: string, ahora: Date = new Date(), auto = true): Promise<PartidoConPronostico[]> {
   const [partidos, propios] = await Promise.all([
-    listarCruces(db),
+    listarCruces(db, auto),
     db
       .select({ matchId: prodePredictions.matchId, homeGoals: prodePredictions.homeGoals, awayGoals: prodePredictions.awayGoals, pasa: prodePredictions.pasa })
       .from(prodePredictions)
@@ -111,8 +113,11 @@ export async function listarPronosticos(db: Database, userId: string, ahora: Dat
     // puede empezar a las 21:00:45 y cerraría 45 s antes)
     const dateTime = new Date(p.horario.cierraEn);
     const mio = propios.find((x) => x.matchId === p.id);
+    const puntua = p.estado === "finished" && p.resultado !== null && p.pasa !== null;
     return {
       ...p,
+      resultado: puntua ? p.resultado : null,
+      pasa: puntua ? p.pasa : null,
       cierre: dateTime.toISOString(),
       estado: estadoDe({ dateTime, status: p.estado, closedAt: p.cerradoEn }, ahora),
       pronostico: mio ? { homeGoals: mio.homeGoals, awayGoals: mio.awayGoals, pasa: esLado(mio.pasa) ? mio.pasa : null } : null,

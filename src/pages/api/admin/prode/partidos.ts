@@ -3,6 +3,7 @@ import { createDb } from "../../../../lib/db";
 import { verificarAdmin } from "../../../../lib/observability/admin-auth";
 import { withApi, type WithApiOptions } from "../../../../lib/observability/with-api";
 import { agregarCruce, corregirPartido, listarCruces, type Resultado } from "../../../../lib/prode/partidos";
+import { resultadoAutoHabilitado } from "../../../../lib/prode/puntos";
 
 // Cruces del prode de playoffs, carga manual (Bearer ADMIN_SECRET).
 // GET lista los cruces; POST agrega uno ({leagueId, homeTeamId, awayTeamId, fase, horario: "AAAA-MM-DDTHH:mm"
@@ -46,7 +47,7 @@ export const GET: APIRoute = withApi(async ({ request, locals }) => {
   const env = locals.runtime.env;
   const rechazo = await verificarAdmin(request, env, { logger: locals.logger, requestId: locals.requestId });
   if (rechazo) return rechazo;
-  return Response.json({ partidos: await listarCruces(createDb(env.DB)) }, { headers });
+  return Response.json({ partidos: await listarCruces(createDb(env.DB), resultadoAutoHabilitado(env)) }, { headers });
 }, { rateLimit: [] });
 
 export const POST: APIRoute = withApi(async ({ request, locals }) => {
@@ -56,7 +57,7 @@ export const POST: APIRoute = withApi(async ({ request, locals }) => {
   const datos = await leerJson(request);
   if (!datos) return Response.json({ error: "json_invalido" }, { status: 400, headers });
 
-  const resultado = await agregarCruce(createDb(env.DB), datos);
+  const resultado = await agregarCruce(createDb(env.DB), datos, resultadoAutoHabilitado(env));
   if (resultado.ok) locals.logger?.info("prode_cruce_agregado", { matchId: resultado.partido.id, fase: resultado.partido.fase });
   else locals.logger?.warn("prode_cruce_rechazado", { error: resultado.error, existenteId: resultado.existente?.id, existenteSource: resultado.existente?.source, ...(resultado.existente?.source === "espn" ? { nota: "usar el partido de ESPN existente" } : {}) });
   return responder(resultado, 201);
@@ -69,7 +70,7 @@ export const PATCH: APIRoute = withApi(async ({ request, locals }) => {
   const datos = await leerJson(request);
   if (!datos) return Response.json({ error: "json_invalido" }, { status: 400, headers });
 
-  const resultado = await corregirPartido(createDb(env.DB), datos);
+  const resultado = await corregirPartido(createDb(env.DB), datos, resultadoAutoHabilitado(env));
   if (resultado.ok) locals.logger?.info("prode_cruce_corregido", { matchId: resultado.partido.id, fase: resultado.partido.fase, horario: resultado.partido.horario.iso, estado: resultado.partido.estado });
   else locals.logger?.warn("prode_cruce_rechazado", { error: resultado.error, existenteId: resultado.existente?.id, existenteSource: resultado.existente?.source, ...(resultado.existente?.source === "espn" ? { nota: "usar el partido de ESPN existente" } : {}) });
   return responder(resultado, 200);
