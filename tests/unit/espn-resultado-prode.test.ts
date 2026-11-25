@@ -227,6 +227,23 @@ describe("regla B sintética", () => {
     expect(r).toEqual(NULOS);
   });
 
+  // Partido único: si hubo alargue o penales, a los 90' estaban empatados
+  it("sintético: regla B con ganador a los 90' es un dato dudoso y da null/null", () => {
+    const e = sint(AET, { score: "2", winner: true }, { score: "1", winner: false });
+    expect(resultadoProde(e, sintRes(AET, [1, 1, 0, 0], [0, 0, 1, 0], ["2", "1"]))).toEqual(NULOS);
+    const p = sint(PEN, { score: "1", winner: true, shootoutScore: 5 }, { score: "1", winner: false, shootoutScore: 3 });
+    expect(resultadoProde(p, sintRes(PEN, [1, 0, 0, 0, 5], [0, 0, 1, 0, 3], ["1", "1"]))).toEqual(NULOS);
+  });
+
+  it("todos los alargue y penales reales con summary: empate a los 90'", () => {
+    for (const [lista, resumenes] of [[alargue, sumAlargue], [penales, sumPenales]] as const) {
+      for (const s of resumenes) {
+        const r = resultadoProde(ev(lista, s.id), aResumen(s));
+        if (r.goles90) expect(r.goles90.local).toBe(r.goles90.visitante);
+      }
+    }
+  });
+
   it("sintético: parciales que no suman el score dan goles90 null y conservan pasa", () => {
     const e = sint(AET, { score: "2", winner: true }, { score: "1", winner: false });
     const r = resultadoProde(e, sintRes(AET, [1, 0, 0, 0], [1, 0, 0, 0], ["2", "1"]));
