@@ -21,7 +21,7 @@ async function sinScrollHorizontal(page: Page) {
   expect(medidas.ancho).toBeLessThanOrEqual(medidas.ventana);
 }
 
-test("prode: guarda, edita y persiste el pronóstico de un partido abierto", async ({ page }, info) => {
+test("prode: guarda, edita y persiste el pronóstico de un partido abierto, y pide quién pasa con un empate", async ({ page }, info) => {
   await conSesion(page, idDueno(info));
   await page.goto("/prode");
   const local = page.locator("#prode-prode-abierto-l");
@@ -47,16 +47,10 @@ test("prode: guarda, edita y persiste el pronóstico de un partido abierto", asy
   // Con un ganador no se pide quién pasa: se lee quién pasa
   await expect(page.getByRole("group", { name: "¿Quién pasa?" })).toHaveCount(0);
   await expect(page.getByText("Pasa: Prode Alfa", { exact: true })).toBeVisible();
-});
 
-test("prode: con un empate pide quién pasa y no deja guardar hasta elegirlo", async ({ page }, info) => {
-  await conSesion(page, idDueno(info));
-  await page.goto("/prode");
-  const local = page.locator("#prode-prode-abierto-l");
-  const visitante = page.locator("#prode-prode-abierto-v");
+  // Con un empate pide quién pasa y no deja guardar hasta elegirlo (mismo usuario y partido: los tests
+  // del archivo corren en paralelo y comparten el pronóstico del dueño)
   const pasa = page.getByRole("group", { name: "¿Quién pasa?" });
-  await expect(local).toBeEnabled();
-
   await local.fill("1");
   await visitante.fill("1");
   await expect(pasa).toBeVisible();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { desglosePuntos, enlaceInvitacion, formatearCierre, filaPropiaAparte, ladoPorMarcador, mensajeDeError, normalizarRanking, normalizarRespuestaRanking, parsearGol, nuevoGol, sumarGol, minutosHasta } from "../../../src/components/prode/logica";
+import { desglosePuntos, enlaceInvitacion, formatearCierre, filaPropiaAparte, ladoPorMarcador, mensajeDeError, normalizarRanking, normalizarRespuestaRanking, parsearGol, nuevoGol, sumarGol, minutosHasta, textoPie } from "../../../src/components/prode/logica";
 
 describe("mensajeDeError", () => {
   it("muestra 'Cerró el pronóstico' ante pronostico_cerrado", () => {
@@ -135,5 +135,21 @@ describe("botones de goles y cierre", () => {
     expect(minutosHasta(new Date(t + 61_000).toISOString(), t)).toBe(2);
     expect(minutosHasta(new Date(t - 5_000).toISOString(), t)).toBe(0);
     expect(minutosHasta("no-es-fecha", t)).toBe(0);
+  });
+});
+
+describe("textoPie", () => {
+  const base = { editable: true, guardado: true, sinCambios: true, sinElegir: false };
+  it("pide elegir quién pasa con un empate sin elegir, guardado o nuevo", () => {
+    expect(textoPie({ ...base, sinElegir: true })).toBe("Elegí qué equipo pasa.");
+    expect(textoPie({ ...base, guardado: false, sinCambios: false, sinElegir: true })).toBe("Elegí qué equipo pasa.");
+  });
+  it("sin empate pendiente, informa lo guardado", () => {
+    expect(textoPie(base)).toBe("Podés cambiarlo hasta que empiece");
+    expect(textoPie({ ...base, sinCambios: false })).toBe("Cambios sin guardar");
+    expect(textoPie({ ...base, guardado: false, sinCambios: false })).toBe("Todavía no pronosticaste");
+  });
+  it("una tarjeta que no se edita no muestra pie", () => {
+    expect(textoPie({ ...base, editable: false, sinElegir: true })).toBe("");
   });
 });

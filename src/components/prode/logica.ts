@@ -125,3 +125,12 @@ export function sumarGol(delta: 1 | -1, actual: string, otro: string, poner: (v:
   poner(nuevoGol(delta, actual));
   if (otro.trim() === "") ponerOtro("0");
 }
+
+// Pie de una tarjeta sin mensaje del servidor. Un empate sin elegir quién pasa gana sobre lo demás (incluido
+// un empate guardado antes de la 0022, con pasa null): el botón queda deshabilitado y el pie dice por qué.
+export function textoPie({ editable, guardado, sinCambios, sinElegir }: { editable: boolean; guardado: boolean; sinCambios: boolean; sinElegir: boolean }): string {
+  if (!editable) return "";
+  if (sinElegir) return "Elegí qué equipo pasa.";
+  if (!guardado) return "Todavía no pronosticaste";
+  return sinCambios ? "Podés cambiarlo hasta que empiece" : "Cambios sin guardar";
+}

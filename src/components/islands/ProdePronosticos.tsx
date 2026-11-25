@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { aviso, boton, etiquetaTarjeta, filaEquipo, golBoton, golCampo, grupoPasa, insignia, leyendaPasa, opcionPasa, radioPasa, resultadoCerrado, siglaEquipo, soloLectores, suave, tarjeta, texto, tituloEquipo } from "../prode/estilos";
-import { desglosePuntos, ETIQUETA_ESTADO, formatearCierre, ladoPorMarcador, mensajeDeError, minutosHasta, parsearGol, sumarGol, type EstadoPartido, type Lado } from "../prode/logica";
+import { desglosePuntos, ETIQUETA_ESTADO, formatearCierre, ladoPorMarcador, mensajeDeError, minutosHasta, parsearGol, sumarGol, textoPie, type EstadoPartido, type Lado } from "../prode/logica";
 
 interface Pronostico {
   homeGoals: number;
@@ -240,7 +240,7 @@ function TarjetaPartido({ partido, ahora, puntos }: { partido: Partido; ahora: n
       {editable && (lado === "home" || lado === "away") && <span style={suave}>Pasa: {nombreDe(lado)}</span>}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, borderTop: "1px solid var(--linea)", paddingTop: 12 }}>
         <span style={suave}>
-          {editable ? (sinCambios ? "Podés cambiarlo hasta que empiece" : guardado ? "Cambios sin guardar" : "Todavía no pronosticaste") : ""}
+          {textoPie({ editable, guardado: guardado !== null, sinCambios, sinElegir })}
         </span>
         {editable && (
           <button type="submit" className="tb-boton tb-boton--primario" disabled={ocupado || sinCambios || sinElegir} style={boton}>
