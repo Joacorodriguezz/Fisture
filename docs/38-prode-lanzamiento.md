@@ -106,11 +106,13 @@ Adoptar (`{adoptar, fase}`) un partido de ida o vuelta (`leg`) da 409 `partido_c
 
 La operación es automática: las pasadas tras el final cargan el marcador a 90' y quién pasó el mismo día, y el sync de producción (06:00 de Argentina) queda como respaldo; el ranking se actualiza solo. **No hay controles rutinarios ni verificación de resultados a mano**, ni hace falta designar un responsable titular y un suplente para abrir el piloto. El administrador interviene únicamente ante un aviso.
 
-**Cadencia (`docs/40` D4).** `prode-sync.yml` corre cada 15 minutos y llama a `POST /api/admin/prode/sync`. Cada partido adoptado tiene una pasada a las +2 h y otra a las +3 h del inicio; si el dato visto quedó sin confirmar o el partido sigue en vivo, se repite en la corrida siguiente hasta las +6 h. Un partido en 90' puntúa cerca de las +2 h 15 min y uno con alargue y penales cerca de las +3 h 15 min. GitHub puede atrasar o saltear un `schedule`: la pasada sigue pendiente. Para adelantarla: Actions → **Sync del prode** → *Run workflow* (sin pendientes responde `{"trabajo": false}` y no hace nada).
+**Cadencia (`docs/40` D4).** `prode-sync.yml` corre cada 15 minutos y llama a `POST /api/admin/prode/sync`. Cada partido adoptado tiene una pasada a las +2 h y otra a las +3 h del inicio; si el partido sigue en vivo o terminó y todavía no tiene resultado confirmado (le faltan los goles o la segunda lectura), se repite en cada corrida hasta las +6 h. Un partido en 90' puntúa cerca de las +2 h 15 min y uno con alargue y penales cerca de las +3 h 15 min. GitHub puede atrasar o saltear un `schedule`: la pasada sigue pendiente. Para adelantarla: Actions → **Sync del prode** → *Run workflow* (sin pendientes responde `{"trabajo": false}` y no hace nada).
 
 **Cuándo hay aviso.** Después de cada pasada con trabajo (`prode-sync.yml`) y del sync diario (`sync-cron.yml`) se consulta `/api/admin/status`. Si un partido adoptado y terminado lleva más de 6 horas desde su inicio sin marcador o sin equipo que pasó, abre el issue `incidente` **"Prode: resultados en espera"** (GitHub avisa por email). Se cierra solo en la corrida en que ya no queda ninguno. Mientras tanto ese partido no puntúa para nadie.
 
 **Qué hacer con el aviso.**
+
+El motivo `equipos_no_coinciden` indica que ESPN trae el partido con otros equipos o con local y visitante invertidos: no se carga nada y el marcador queda vacío. Verificar el cruce real: corregir en la orientación que muestra el prode (3.4) o excluir.
 
 1. `GET /api/admin/prode/partidos` y buscar `"enEspera": true`. `automatico` muestra lo que se leyó de ESPN (`confirmadoEn: null` si todavía no se confirmó). El motivo queda en el log `prode_resultado_en_espera`.
 2. Si falta la confirmación o el summary, puede bastar con el sync siguiente (pasadas las +6 h ya no hay pasadas: disparar el workflow **Sync diario**).

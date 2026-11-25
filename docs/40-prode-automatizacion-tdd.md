@@ -401,7 +401,7 @@ Desvíos y precisiones respecto del diseño:
 - **`STATUS_FINAL_AGT`**: el adaptador no lo tiene en la lista blanca (un solo caso observado, con datos dudosos). Queda en espera (`estado_desconocido`) y no se pide su summary.
 - **Tope y prioridad**: el tope se gasta en los partidos más recientes primero (P0b-B), así unos viejos que nunca cierran no dejan sin summary a los nuevos. El orden es por competencia; el prode usa una sola.
 - **KV**: un valor desconocido o un error de lectura equivalen a `off`. Con `off`, o con la otra regla en `solo-a`/`solo-b`, las columnas automáticas no se tocan (tampoco se vacían).
-- **`auto_pasa`** puede quedar guardado sin los 90' (alargue sin parciales). No puntúa solo (R4), pero si el administrador carga a mano un empate sin `pasa`, vale el automático confirmado (R3).
+- **`auto_pasa`** puede quedar guardado sin los 90' (alargue sin parciales). No se confirma (ver "Correcciones de la revisión"), así que no puntúa ni completa un empate cargado a mano: ese PATCH lleva `pasa`.
 - **Lectura**: la precedencia está en `puntos.ts` y la usan puntos, ranking, listados de partidos y métricas (resuelto en P0b-B).
 - `pasada_at` queda creada sin quién la escriba (P1); `excluded_at` la escribe el PATCH desde P0b-B.
 
@@ -452,12 +452,34 @@ Desvíos y precisiones:
   scoreboard con datos queda con la pasada hecha y un log `prode_partido_no_publicado`.
 - **Run `partial`**: si falla una competencia, se escriben las demás; el workflow lo trata como falla. El endpoint
   responde 500 solo con `failed`.
-- **`seguía live` / sin confirmar**: la condición exige además que ya haya pasado al menos una pasada y que el
-  inicio tenga 2 h o más. Un partido que a las +2 h sigue sin empezar en ESPN espera a la pasada de +3 h.
+- **Seguimiento hasta las +6 h**: exige que ya haya pasado al menos una pasada y que el inicio tenga 2 h o más.
+  Se repite mientras el partido siga `live`, esté `finished` sin resultado confirmado o tenga un dato visto sin
+  confirmar. Un partido que a las +2 h sigue sin empezar en ESPN espera a la pasada de +3 h.
 - **Workflow**: el `schedule` corre desde `development` (rama por defecto). Un 404 de la ruta no falla, para no
-  abrir incidentes antes del release. El incidente se abre también si no se pudo saber si había trabajo (red,
-  401, 5xx) y se cierra con cualquier corrida que termine bien. Staging: `workflow_dispatch` con
-  `entorno: staging`, sin incidentes.
+  abrir incidentes antes del release, pero tampoco cuenta como éxito: no abre ni cierra el issue. El incidente
+  se abre también si no se pudo saber si había trabajo (red, 401, 5xx), se avisa una sola vez
+  (`incidente.sh abrir-una-vez`) y se cierra con una corrida que termine bien. Staging: `workflow_dispatch` con
+  `entorno: staging`, en un paso aparte con sus propios secretos y sin incidentes.
+
+### Correcciones de la revisión
+
+Todas dejan el partido en espera ante la duda, porque nadie verifica el resultado antes de que puntúe.
+
+- **Equipos distintos**: si ESPN trae un adoptado con otros equipos o con local y visitante invertidos (sync
+  diario y pasadas), no se cambian los equipos guardados, el marcador de `matches` queda vacío y lo automático
+  se vacía, aun con el KV apagado. Log `prode_resultado_en_espera` con motivo `equipos_no_coinciden`. La fecha,
+  la sede y el estado sí se actualizan. Lo manual no se toca. Si el cambio es real, el partido queda así hasta
+  que el administrador lo corrija o lo excluya.
+- **Regla B con ganador a los 90'**: en partido único el alargue y los penales implican empate. Si los parciales
+  dicen otra cosa, no hay marcador ni equipo que pasó. Los alargues y penales reales de las muestras empatan;
+  ida y vuelta ya se descarta por `leg`.
+- **Sin los dos goles no se confirma**, y el seguimiento continúa. Si el `summary` falla, no entra en el tope o
+  no cierra, y el scoreboard no cambió, los goles ya vistos se conservan sin confirmar.
+- **Confirmación con una lectura** (reemplaza a §4.3 en este punto): solo en la primera (sin datos vistos), con
+  4 h o más desde el inicio y si la fila no estaba en `live`. Un valor cambiado exige una segunda lectura, que
+  hace el seguimiento o el sync diario siguiente. Mientras tanto el partido puede abrir el aviso de espera.
+  Límite: "en vivo hace poco" es el estado guardado por la última lectura (no hay columna con su hora). Un
+  partido demorado que ninguna lectura vio `live` todavía se confirma con una sola.
 
 ### Resultado del paso 5
 

@@ -318,8 +318,9 @@ externo gratuito (por ejemplo UptimeRobot) sobre `https://fisture.com/api/health
 
 ### Prode: falla el sync del prode (docs/40 D4)
 
-Issue **"Falla el sync del prode"**: una pasada falló (o no se pudo saber si tenía trabajo). Se cierra solo en la
-siguiente corrida que termina bien.
+Issue **"Falla el sync del prode"**: una pasada falló (o no se pudo saber si tenía trabajo). Se avisa una sola vez,
+al abrirlo (las fallas siguientes no comentan: ver las corridas en Actions), y se cierra solo en la siguiente corrida
+que termina bien.
 
 1. Ver el error en el log del run de Actions o en `runsProde` de `/api/admin/status` (`failed`: no se escribió
    nada; `partial`: falló alguna competencia). En vivo: log `prode_sync`.
@@ -331,13 +332,13 @@ siguiente corrida que termina bien.
 5. Si las pasadas hacen daño (carga datos malos o gasta cuota), apagar el resultado automático (abajo) o
    deshabilitar el workflow en GitHub (`keepalive.yml` no reactiva uno desactivado a mano).
 
-Un `404` de la ruta no falla ni abre issue (producción todavía sin el release que la trae); queda como warning en
-el run.
+Un `404` de la ruta no falla ni abre o cierra el issue (producción todavía sin el release que la trae); queda como
+warning en el run. Después del release, ese warning significa que la ruta está rota.
 
 ### Prode: resultados en espera (docs/40 D5)
 
 Issue **"Prode: resultados en espera"**: hay partidos terminados hace más de 6 h sin resultado que puntúe. Lo abren
-y lo cierran `prode-sync.yml` (corridas con trabajo) y `sync-cron.yml`, así que después de corregir puede seguir
+(sin comentar mientras siga abierto) y lo cierran `prode-sync.yml` (corridas con trabajo) y `sync-cron.yml`, así que después de corregir puede seguir
 abierto hasta el sync diario. Pasos: `docs/38` §3.5 (buscar `enEspera` en `GET /api/admin/prode/partidos`, tomar
 el resultado de una fuente oficial y corregir o excluir).
 
