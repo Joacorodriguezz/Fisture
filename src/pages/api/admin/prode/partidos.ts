@@ -17,7 +17,10 @@ import { resultadoAutoHabilitado } from "../../../../lib/prode/puntos";
 // gobierna el sync. Equipos invertidos o con más de 6 h de diferencia (ida y vuelta) no cuentan como duplicado.
 // Resultado a los 90' de un adoptado: PATCH {id, homeGoals90, awayGoals90} (enteros 0-20, solos) lo guarda en el
 // vínculo sin tocar matches; 409 partido_no_empezado antes del horario, 409 partido_manual en un manual (ahí va
-// {status: "finished", homeScore, awayScore}), 404 partido_inexistente fuera del prode. Sin él, un adoptado no puntúa.
+// {status: "finished", homeScore, awayScore}), 404 partido_inexistente fuera del prode. Es una corrección por excepción:
+// sin ella vale el resultado automático confirmado (docs/40), y la corrección gana siempre. {id, homeGoals90: null,
+// awayGoals90: null} la retira junto con su pasa. {id, excluir: true | false} (solo; 400 cambios_mezclados con otros
+// campos) hace que un partido no puntúe, o lo deshace.
 // Quién pasó (docs/40 R3): {id, pasa: "home" | "away" | null}, solo o junto con homeGoals90/awayGoals90, en manuales y
 // adoptados. Vale con empate a 90' (con ganador se deriva): un pasa que lo contradice da 409 pasa_inconsistente; sin
 // pasa un empate terminado no puntúa para nadie. Adoptar ({adoptar}) un partido de ida o vuelta da 409 partido_con_vuelta.

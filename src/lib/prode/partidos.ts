@@ -223,6 +223,7 @@ function validarEstado(datos: Record<string, unknown>): { cambios: Partial<Fila>
 
 // Corrige horario/fase y/o carga estado y resultado de un cruce manual.
 export async function corregirPartido(db: Database, datos: Record<string, unknown>, auto = true): Promise<Resultado> {
+  if (datos.excluir !== undefined) return fijarExclusion(db, datos, auto);
   if (datos.homeGoals90 !== undefined || datos.awayGoals90 !== undefined) return fijarResultado90(db, datos, auto);
   if (datos.pasa !== undefined) return fijarPasa(db, datos, auto);
   const { id, fase, horario } = datos;
@@ -305,6 +306,23 @@ function contradiceGanador(resultado: { local: number; visitante: number } | nul
   return pasa !== null && resultado !== null && resultado.local !== resultado.visitante && ladoQuePasa(resultado, null) !== pasa;
 }
 
+// {id, excluir}: un partido excluido no puntúa, tenga el resultado que tenga (resultado administrativo,
+// docs/40 D2); excluir: false lo deshace. Vale para manuales y adoptados, y va solo.
+async function fijarExclusion(db: Database, datos: Record<string, unknown>, auto: boolean): Promise<Resultado> {
+  const { id, excluir } = datos;
+  if (!textoNoVacio(id)) return error(400, "faltan_datos");
+  if (Object.keys(datos).some((k) => k !== "id" && k !== "excluir")) return error(400, "cambios_mezclados");
+  if (typeof excluir !== "boolean") return error(400, "excluir_invalido");
+  const escrito = await db
+    .update(prodeMatches)
+    // Idempotente: excluir de nuevo conserva la fecha de la primera exclusión
+    .set({ excludedAt: excluir ? sql`COALESCE(${prodeMatches.excludedAt}, ${Date.now()})` : null })
+    .where(eq(prodeMatches.matchId, id))
+    .returning({ id: prodeMatches.matchId });
+  if (escrito.length === 0) return error(404, "partido_inexistente");
+  return { ok: true, partido: await leerPartido(db, id, auto) };
+}
+
 // Resultado a los 90 minutos de un partido adoptado de ESPN ({id, homeGoals90, awayGoals90, pasa?}). Se guarda
 // en el vínculo, sin tocar la fila de matches (la gobierna el sync). Puntúa cuando además el partido
 // está finished y se sabe quién pasó (puntos.ts). En un manual el resultado a 90' es el de matches: 409
@@ -315,8 +333,11 @@ async function fijarResultado90(db: Database, datos: Record<string, unknown>, au
   const otros = Object.keys(datos).filter((k) => !["id", "homeGoals90", "awayGoals90", "pasa"].includes(k));
   if (otros.length > 0) return error(400, "cambios_mezclados");
   if (homeGoals90 === undefined || awayGoals90 === undefined) return error(400, "faltan_goles");
-  if (!esGoles(homeGoals90) || !esGoles(awayGoals90)) return error(400, "marcador_invalido");
+  // null, null retira la corrección manual (y su pasa): vuelve a valer el automático (docs/40 D2)
+  const retira = homeGoals90 === null && awayGoals90 === null;
+  if (!retira && (!esGoles(homeGoals90) || !esGoles(awayGoals90))) return error(400, "marcador_invalido");
   if (pasa !== undefined && pasa !== null && !esLado(pasa)) return error(400, "pasa_invalido");
+  if (retira && esLado(pasa)) return error(400, "cambios_mezclados");
 
   const [m] = await db
     .select({ source: matches.source, dateTime: matches.dateTime })
@@ -326,6 +347,10 @@ async function fijarResultado90(db: Database, datos: Record<string, unknown>, au
     .limit(1);
   if (!m) return error(404, "partido_inexistente");
   if (m.source === SOURCE_MANUAL) return error(409, "partido_manual");
+  if (retira) {
+    await db.update(prodeMatches).set({ homeGoals90: null, awayGoals90: null, pasa: null }).where(eq(prodeMatches.matchId, id));
+    return { ok: true, partido: await leerPartido(db, id, auto) };
+  }
   if (contradiceGanador({ local: homeGoals90 as number, visitante: awayGoals90 as number }, (pasa as Lado | null | undefined) ?? null)) return error(409, "pasa_inconsistente");
   const ahora = new Date();
   if (m.dateTime.getTime() > ahora.getTime()) return error(409, "partido_no_empezado");
