@@ -1,6 +1,6 @@
 // Pasada del prode tras el final (docs/40 D4): llama a POST /api/admin/prode/sync. El endpoint decide si hay
-// partidos pendientes. Deja `trabajo` (true, false o desconocido) como salida del paso y sale con 1 si la
-// corrida falló. Lo usa .github/workflows/prode-sync.yml.
+// partidos pendientes. Deja `trabajo` (true, false, no_desplegado o desconocido) como salida del paso y sale
+// con 1 si la corrida falló. Lo usa .github/workflows/prode-sync.yml.
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
@@ -31,10 +31,11 @@ export async function correrPasada({
         body: "{}",
         signal: AbortSignal.timeout(timeoutMs),
       });
-      // El schedule corre desde la rama por defecto: hasta el release, producción no tiene la ruta
+      // El schedule corre desde la rama por defecto: hasta el release, producción no tiene la ruta. No es una
+      // falla, pero tampoco un éxito: el workflow no abre ni cierra el incidente
       if (respuesta.status === 404) {
         log("::warning::POST /api/admin/prode/sync respondió 404: la ruta todavía no está desplegada");
-        return { trabajo: false };
+        return { trabajo: "no_desplegado" };
       }
       const texto = await respuesta.text();
       if (respuesta.status === 401 || respuesta.status === 429) {

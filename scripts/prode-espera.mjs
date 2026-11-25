@@ -51,8 +51,9 @@ export async function avisarEspera({
 
   const run = runUrl ? ` Run: ${runUrl}.` : "";
   if (enEspera > 0) {
+    // Lo consultan las pasadas del prode cada 15 minutos: se avisa al abrir, sin comentar cada vez
     await incidente(
-      "abrir",
+      "abrir-una-vez",
       TITULO,
       `Partidos terminados sin resultado que puntúe: ${enEspera}. Verlos en GET /api/admin/prode/partidos (enEspera) y corregir o excluir según docs/38 §3.5.${run}`
     );

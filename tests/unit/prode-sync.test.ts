@@ -67,9 +67,9 @@ describe("correrPasada", () => {
   });
 
   // El schedule corre desde development: hasta el release, producción todavía no tiene la ruta
-  it("un 404 (ruta todavía no desplegada) avisa y no falla", async () => {
+  it("un 404 (ruta todavía no desplegada) avisa sin fallar y no cuenta como éxito", async () => {
     const o = opciones(con(new Response("Not found", { status: 404 })));
-    expect(await correrPasada(o)).toEqual({ trabajo: false });
+    expect(await correrPasada(o)).toEqual({ trabajo: "no_desplegado" });
     expect(o.log).toHaveBeenCalledWith(expect.stringContaining("::warning::"));
   });
 
@@ -89,17 +89,49 @@ describe("prode-sync.yml", () => {
     expect(workflow).toContain("if: github.repository == 'Joacorodriguezz/Fisture'");
   });
 
-  it("el schedule va a producción; staging solo a mano y sin incidentes", () => {
-    expect(workflow).toContain("inputs.entorno == 'staging' && secrets.STAGING_ADMIN_SECRET || secrets.ADMIN_SECRET");
-    expect(workflow).toContain("inputs.entorno == 'staging' && 'https://development.fisture.pages.dev' || secrets.PUBLIC_APP_URL");
-    expect(workflow.match(/inputs\.entorno != 'staging'/g)).toHaveLength(3);
+  const paso = (nombre: string) => {
+    const desde = workflow.indexOf(`- name: ${nombre}`);
+    expect(desde).toBeGreaterThan(-1);
+    const hasta = workflow.indexOf("- name:", desde + 7);
+    return workflow.slice(desde, hasta === -1 ? undefined : hasta);
+  };
+
+  // Con `a && b || c`, un secret de staging vacío caería en el de producción
+  it("cada entorno usa solo sus secretos, sin valores de respaldo", () => {
+    expect(workflow).not.toMatch(/(ADMIN_SECRET|APP_URL):.*(&&|[|][|])/);
+    const produccion = paso("Correr la pasada pendiente");
+    expect(produccion).toContain("if: inputs.entorno != 'staging'");
+    expect(produccion).toContain("ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}");
+    expect(produccion).not.toContain("STAGING");
+    const staging = paso("Correr la pasada en staging");
+    expect(staging).toContain("if: inputs.entorno == 'staging'");
+    expect(staging).toContain("ADMIN_SECRET: ${{ secrets.STAGING_ADMIN_SECRET }}");
+    expect(staging).toContain("APP_URL: https://development.fisture.pages.dev");
+    expect(staging).not.toContain("secrets.ADMIN_SECRET");
+    expect(staging).not.toContain("PUBLIC_APP_URL");
   });
 
-  it("abre y cierra su incidente, y consulta la espera solo con trabajo", () => {
+  it("abre su incidente sin repetir comentarios y no lo toca con un 404", () => {
     expect(workflow).toContain("node scripts/prode-sync.mjs");
-    expect(workflow).toMatch(/steps\.pasada\.outcome == 'failure' && steps\.pasada\.outputs\.trabajo != 'false'[\s\S]*incidente\.sh abrir "Falla el sync del prode"/);
-    expect(workflow).toMatch(/steps\.pasada\.outcome == 'success'[\s\S]*incidente\.sh cerrar "Falla el sync del prode"/);
-    expect(workflow).toMatch(/steps\.pasada\.outputs\.trabajo == 'true'[\s\S]*node scripts\/prode-espera\.mjs/);
+    const abrir = paso("Avisar por issue si falló");
+    expect(abrir).toContain("steps.pasada.outcome == 'failure' && steps.pasada.outputs.trabajo != 'false'");
+    expect(abrir).toContain('incidente.sh abrir-una-vez "Falla el sync del prode"');
+    const cerrar = paso("Cerrar el aviso si volvió a andar");
+    expect(cerrar).toContain("steps.pasada.outcome == 'success' && steps.pasada.outputs.trabajo != 'no_desplegado'");
+    expect(cerrar).toContain('incidente.sh cerrar "Falla el sync del prode"');
+    const espera = paso("Abrir o cerrar el aviso de resultados en espera");
+    expect(espera).toContain("steps.pasada.outputs.trabajo == 'true'");
+    expect(espera).toContain("node scripts/prode-espera.mjs");
+    for (const p of [abrir, cerrar, espera]) expect(p).toContain("inputs.entorno != 'staging'");
+  });
+
+  it("incidente.sh: abrir-una-vez no comenta un issue ya abierto; abrir sigue comentando", () => {
+    const script = readFileSync(".github/scripts/incidente.sh", "utf8").replace(/\r\n/g, "\n");
+    const caso = (accion: string) => script.slice(script.indexOf(`\n  ${accion})`), script.indexOf(";;", script.indexOf(`\n  ${accion})`)));
+    expect(caso("abrir-una-vez")).toContain('if [ -z "$numero" ]');
+    expect(caso("abrir-una-vez")).toContain("gh issue create");
+    expect(caso("abrir-una-vez")).not.toContain("gh issue comment");
+    expect(caso("abrir")).toContain("gh issue comment");
   });
 
   it("el keepalive lo reactiva si GitHub lo desactiva", () => {

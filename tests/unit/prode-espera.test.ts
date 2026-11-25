@@ -16,6 +16,7 @@ const opciones = (fetchImpl: unknown) => ({
 });
 
 describe("avisarEspera", () => {
+  // Una sola vez: las pasadas del prode lo consultan seguido y no deben comentar cada vez
   it("con partidos en espera abre el incidente, consultando el status con el secret", async () => {
     const fetchImpl = vi.fn(async () => status(2));
     const o = opciones(fetchImpl);
@@ -24,7 +25,7 @@ describe("avisarEspera", () => {
     expect(url).toBe("https://app.test/api/admin/status");
     expect(init.headers.Authorization).toBe("Bearer s3");
     expect(o.incidente).toHaveBeenCalledTimes(1);
-    expect(o.incidente).toHaveBeenCalledWith("abrir", TITULO, expect.stringContaining("2"));
+    expect(o.incidente).toHaveBeenCalledWith("abrir-una-vez", TITULO, expect.stringContaining("2"));
     expect(TITULO).toBe("Prode: resultados en espera");
   });
 

@@ -36,24 +36,34 @@ jobs:
         with:
           node-version: 22
 
+      # Un paso por entorno, cada uno con sus secretos: nunca el de producción como respaldo de otro
       - name: Correr la pasada pendiente
         id: pasada
+        if: inputs.entorno != 'staging'
         env:
-          APP_URL: ${{ inputs.entorno == 'staging' && 'https://development.fisture.pages.dev' || secrets.PUBLIC_APP_URL }}
-          ADMIN_SECRET: ${{ inputs.entorno == 'staging' && secrets.STAGING_ADMIN_SECRET || secrets.ADMIN_SECRET }}
+          APP_URL: ${{ secrets.PUBLIC_APP_URL }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
         run: node scripts/prode-sync.mjs
 
-      # `trabajo` distinto de false: falló una corrida con trabajo, o no se pudo saber si lo había
+      - name: Correr la pasada en staging
+        if: inputs.entorno == 'staging'
+        env:
+          APP_URL: https://development.fisture.pages.dev
+          ADMIN_SECRET: ${{ secrets.STAGING_ADMIN_SECRET }}
+        run: node scripts/prode-sync.mjs
+
+      # `trabajo` distinto de false: falló una corrida con trabajo, o no se pudo saber si lo había. Una falla
+      # que persiste no suma un comentario cada 15 minutos
       - name: Avisar por issue si falló
         if: ${{ !cancelled() && inputs.entorno != 'staging' && steps.pasada.outcome == 'failure' && steps.pasada.outputs.trabajo != 'false' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash .github/scripts/incidente.sh abrir "Falla el sync del prode" \
+          bash .github/scripts/incidente.sh abrir-una-vez "Falla el sync del prode" \
             "La pasada del prode falló (${PRODE_SYNC_ERROR:-sin dato}). Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Revisar GET /api/admin/status (runsProde) y docs/23-runbook-de-incidentes.md."
 
       - name: Cerrar el aviso si volvió a andar
-        if: ${{ !cancelled() && inputs.entorno != 'staging' && steps.pasada.outcome == 'success' }}
+        if: ${{ !cancelled() && inputs.entorno != 'staging' && steps.pasada.outcome == 'success' && steps.pasada.outputs.trabajo != 'no_desplegado' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
