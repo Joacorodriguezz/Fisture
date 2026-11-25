@@ -761,6 +761,15 @@ describe("ingesta ESPN a D1", () => {
       expect(pedidosResumen).toHaveLength(1);
     });
 
+    // Con el tope agotado por partidos viejos que nunca cierran, los recién terminados no pueden quedar sin summary
+    it("gasta el tope de summaries en los partidos más recientes, venga como venga la lista (sintético)", async () => {
+      await cuatroConAlargue();
+      resumen = resumenDe(SUM_AET);
+      data.events.reverse(); // del más viejo (4) al más nuevo (1)
+      await sync();
+      expect(pedidosResumen.map((url) => new URL(url).searchParams.get("event"))).toEqual(["1", "2", "3"]);
+    });
+
     it("si un summary falla no pide los siguientes en esa invocación (sintético)", async () => {
       await cuatroConAlargue();
       resumen = null;

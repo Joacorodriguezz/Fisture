@@ -605,8 +605,8 @@ async function syncPartidos(
 
   const nuevos: (typeof matches.$inferInsert)[] = [];
   const cambios: Sentencia[] = [];
-  // Resultado automático de los partidos adoptados del prode: va en el mismo batch, sin subrequests de más
-  const cambiosProde: Sentencia[] = [];
+  // Partidos adoptados del prode que trae el proveedor: su resultado automático se resuelve después del recorrido
+  const adoptados: { m: ProviderMatch; datos: Parameters<typeof resultadoAutomatico>[5]; actual: (typeof existentes)[number] }[] = [];
   // Cada reemplazo va en su propio batch atómico. El seguimiento del calendario pasa al partido de
   // ESPN antes de que el borrado del manual se lleve sus filas por cascada.
   const reemplazos: [Sentencia, ...Sentencia[]][] = [];
@@ -689,10 +689,17 @@ async function syncPartidos(
       );
     }
 
-    if (actual.prodeId !== null) {
-      const sentencia = await resultadoAutomatico(db, provider, config, prode, m, datos, actual);
-      if (sentencia) cambiosProde.push(...sentencia);
-    }
+    if (actual.prodeId !== null) adoptados.push({ m, datos, actual });
+  }
+
+  // El tope de summaries (MAX_RESUMENES_PRODE) se gasta primero en los partidos más recientes: unos pocos viejos
+  // que nunca cierren no dejan sin resultado a los recién terminados. Los cambios van en el mismo batch, sin
+  // subrequests de más.
+  adoptados.sort((a, b) => b.datos.dateTime.getTime() - a.datos.dateTime.getTime());
+  const cambiosProde: Sentencia[] = [];
+  for (const { m, datos, actual } of adoptados) {
+    const sentencia = await resultadoAutomatico(db, provider, config, prode, m, datos, actual);
+    if (sentencia) cambiosProde.push(...sentencia);
   }
 
   await ejecutarEnLotes(db, [
