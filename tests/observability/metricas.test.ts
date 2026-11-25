@@ -105,4 +105,20 @@ describe("getMetricas", () => {
     const json = JSON.stringify(prode);
     for (const dato of [user.id, other.id, "user-3", "g1", "Los pibes", "AAAA", "Ana", "eva@example.test"]) expect(json).not.toContain(dato);
   });
+
+  it("conResultado cuenta un automático confirmado salvo que esté excluido o apagado (docs/40 D2 y D3)", async () => {
+    await seedApp(t.db);
+    const base = { homeTeamId: "river", awayTeamId: "boca", leagueId: "test-league", dateTime: new Date(AHORA.getTime() - DIA_MS), status: "finished", source: "espn" };
+    await t.db.insert(matches).values([
+      { ...base, id: "au-ok", externalId: "t:ok" }, { ...base, id: "au-sin", externalId: "t:sin" }, { ...base, id: "au-exc", externalId: "t:exc" },
+    ]);
+    const auto = { autoHomeGoals90: 1, autoAwayGoals90: 0, autoVistoAt: 1, createdAt: AHORA };
+    await t.db.insert(prodeMatches).values([
+      { matchId: "au-ok", fase: "octavos", ...auto, autoConfirmadoAt: 2 },
+      { matchId: "au-sin", fase: "octavos", ...auto },
+      { matchId: "au-exc", fase: "octavos", ...auto, autoConfirmadoAt: 2, excludedAt: 3 },
+    ]);
+    expect((await getMetricas(t.db, AHORA.getTime())).prode.partidos.conResultado).toBe(1);
+    expect((await getMetricas(t.db, AHORA.getTime(), false)).prode.partidos.conResultado).toBe(0);
+  });
 });

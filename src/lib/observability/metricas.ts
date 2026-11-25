@@ -5,7 +5,7 @@
 import { sql } from "drizzle-orm";
 import type { Database } from "../db";
 import { FASES, esFase, type Fase } from "../prode/horario";
-import { SOURCE_MANUAL } from "../prode/partidos";
+import { goles90Local, goles90Visitante } from "../prode/puntos";
 
 const DIA_S = 24 * 60 * 60;
 
@@ -46,7 +46,7 @@ const porFaseVacio = (): PorFase => ({ octavos: 0, cuartos: 0, semifinal: 0, fin
 // Posición de la fase en FASES (1..n), para comparar "anterior" en SQL
 const ORDEN_FASE = sql.raw(`CASE fase ${FASES.map((f, i) => `WHEN '${f}' THEN ${i + 1}`).join(" ")} ELSE 0 END`);
 
-async function getMetricasProde(db: Database): Promise<MetricasProde> {
+async function getMetricasProde(db: Database, auto: boolean): Promise<MetricasProde> {
   // Dos consultas: los escalares y un GROUP BY por fase (sin N+1 ni filas por usuario hacia afuera)
   const [fila] = await db.all<Record<string, number | null>>(sql`
     SELECT
@@ -57,10 +57,10 @@ async function getMetricasProde(db: Database): Promise<MetricasProde> {
       (SELECT MAX(n) FROM (SELECT COUNT(*) AS n FROM prode_group_members GROUP BY group_id)) AS maximo,
       (SELECT COUNT(*) FROM prode_matches WHERE closed_at IS NULL) AS abiertos,
       (SELECT COUNT(*) FROM prode_matches WHERE closed_at IS NOT NULL) AS cerrados,
-      (SELECT COUNT(*) FROM prode_matches pm JOIN matches m ON m.id = pm.match_id
-        WHERE m.status = 'finished'
-          AND (CASE WHEN m.source = ${SOURCE_MANUAL} THEN m.home_score ELSE pm.home_goals_90 END) IS NOT NULL
-          AND (CASE WHEN m.source = ${SOURCE_MANUAL} THEN m.away_score ELSE pm.away_goals_90 END) IS NOT NULL) AS conResultado
+      (SELECT COUNT(*) FROM prode_matches JOIN matches ON matches.id = prode_matches.match_id
+        WHERE matches.status = 'finished'
+          AND ${goles90Local(auto)} IS NOT NULL
+          AND ${goles90Visitante(auto)} IS NOT NULL) AS conResultado
   `);
   const fases = await db.all<{ fase: string; participantes: number; regresan: number }>(sql`
     WITH up AS (
@@ -89,10 +89,10 @@ async function getMetricasProde(db: Database): Promise<MetricasProde> {
   };
 }
 
-export async function getMetricas(db: Database, ahora = Date.now()): Promise<Metricas> {
+export async function getMetricas(db: Database, ahora = Date.now(), resultadoAuto = true): Promise<Metricas> {
   // users.created_at está en segundos
   const hoy = Math.floor(ahora / 1000);
-  const prode = await getMetricasProde(db);
+  const prode = await getMetricasProde(db, resultadoAuto);
   const [fila] = await db.all<Record<Exclude<keyof Metricas, "prode">, number>>(sql`
     SELECT
       (SELECT COUNT(*) FROM users) AS usuarios,

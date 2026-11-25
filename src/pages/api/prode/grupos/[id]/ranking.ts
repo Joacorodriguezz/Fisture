@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { createDb } from "../../../../../lib/db";
 import { esFase } from "../../../../../lib/prode/horario";
 import { rankingProde, recortarRanking } from "../../../../../lib/prode/ranking";
+import { resultadoAutoHabilitado } from "../../../../../lib/prode/puntos";
 import { withApi } from "../../../../../lib/observability/with-api";
 
 // Ranking de un grupo privado (acumulado o ?fase=). Solo para integrantes: un grupo ajeno o
@@ -18,7 +19,7 @@ export const GET: APIRoute = withApi(async ({ params, url, locals }) => {
   if (fase !== undefined && !esFase(fase)) return Response.json({ error: "fase_invalida" }, { status: 400, headers });
   if (!params.id) return noEncontrado();
 
-  const filas = await rankingProde(createDb(locals.runtime.env.DB), { grupoId: params.id, fase, vos: user.id });
+  const filas = await rankingProde(createDb(locals.runtime.env.DB), { grupoId: params.id, fase, vos: user.id }, resultadoAutoHabilitado(locals.runtime.env));
   if (!filas.some((f) => f.esVos)) return noEncontrado();
   locals.logger?.info("prode_ranking", { alcance: "grupo", fase: fase ?? null, total: filas.length });
   return Response.json(recortarRanking(filas, fase), { headers });

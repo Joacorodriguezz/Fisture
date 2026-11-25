@@ -6,6 +6,7 @@ import { createDb } from "../../../lib/db";
 import { countSessions } from "../../../lib/auth/session";
 import { withApi } from "../../../lib/observability/with-api";
 import { getMetricas } from "../../../lib/observability/metricas";
+import { resultadoAutoHabilitado } from "../../../lib/prode/puntos";
 import { metricasRateLimit } from "../../../lib/rate-limit/metricas";
 import { contarTokensSinCifrar } from "../../../lib/auth/token-backfill";
 
@@ -22,7 +23,7 @@ export const GET: APIRoute = withApi(async ({ request, locals }) => {
     getLatestRuns(db, 20, "leagues"),
     getLatestRuns(db, 10, "calendars"),
     countSessions(db),
-    getMetricas(db),
+    getMetricas(db, Date.now(), resultadoAutoHabilitado(env)),
     metricasRateLimit(env.DB).catch(() => null),
     contarTokensSinCifrar(db),
   ]);

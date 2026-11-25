@@ -44,6 +44,8 @@ interface Env {
   ALLOWED_ORIGINS?: string;
   // "off" apaga la caché del HTML público anónimo (docs/35 D8). Ausente = prendida
   HTML_CACHE?: string;
+  // "off" hace que el prode ignore todo resultado automático de ESPN, incluso el confirmado (docs/40 D3). Ausente = prendido
+  PRODE_RESULTADO_AUTO?: string;
 }
 
 // Lo define astro.config.mjs (vite.define); puede faltar en Vitest o en astro dev
