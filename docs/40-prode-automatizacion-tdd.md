@@ -233,6 +233,8 @@ Pasadas las 6 h sin confirmar, el partido queda para el sync diario y, si sigue 
 | Registro del run (INSERT y purga) | 0 | 2 | 2 |
 | **Total** | **1** | **7** | **19** |
 
+Esta tabla no incluía el `summary` de ESPN: con él, el peor caso medido es **26** (§12, "P1").
+
 `verificarAdmin` no consulta D1 (`admin-auth.ts` solo recibe KV opcional). **No medido**: si el middleware de Astro hace alguna consulta en una request sin cookie de sesión; se confirma con la D1 instrumentada en el test de presupuesto (§7).
 
 **Cuota de lecturas de D1** (límite de 5 M filas por día, por cuenta, compartido con staging):
@@ -413,7 +415,49 @@ Desvíos y precisiones respecto del diseño:
 - **En espera**: solo adoptados (D5). Un cruce manual terminado y empatado sin `pasa` no dispara el aviso.
 - **Alerta**: `scripts/prode-espera.mjs` en el job `prode-espera` de `sync-cron.yml`, aparte del job de ligas y aunque este falle. Si no puede leer el dato, el job falla sin tocar el issue.
 - **Operación** (decisión del usuario): sin verificación manual de resultados ni titular y suplente obligatorios; se interviene solo ante el aviso o un reporte (`docs/38` §3.5). El criterio de apagado de §4.7 se aplica en esos casos.
-- Pendiente (P1): endpoint de pasadas, `prode-sync.yml` y `runsProde`.
+- Pendiente al cerrar P0b: endpoint de pasadas, `prode-sync.yml` y `runsProde` (ver "P1").
+
+### P1: pasadas tras el final
+
+Endpoint `POST /api/admin/prode/sync` (`data-providers/prode-pasadas.ts`), `kind = 'prode'`, `runsProde`,
+`prode-sync.yml` y `scripts/prode-sync.mjs`. `pasada_at` ya venía en la 0023: no hay migraciones nuevas.
+
+**Presupuesto medido** (`prode-sync-presupuesto.test.ts`, request completa con middleware; el `batch` cuenta
+como una subrequest). El middleware no consulta D1 sin cookie de sesión.
+
+| Concepto | Sin trabajo | Normal (90') | Peor caso |
+|---|---|---|---|
+| Consulta de pendientes | 1 | 1 | 1 |
+| KV del interruptor | 0 | 1 | 1 |
+| ESPN scoreboard (3 competencias, 3 intentos) | 0 | 1 | 9 |
+| ESPN `summary` (tope 3 por invocación, 3 intentos) | 0 | 0 | 9 |
+| Leer los partidos, uno por competencia | 0 | 1 | 3 |
+| `db.batch` único | 0 | 1 | 1 |
+| Registro del run (INSERT y purga) | 0 | 2 | 2 |
+| **Total** | **1** | **7** | **26** |
+
+Contando cada sentencia del batch (criterio de `calendar/presupuesto.ts`), ocho cruces por penales a la vez
+quedan por debajo de 45. Con muchos más pendientes en una misma corrida ese criterio conservador se pasaría; con
+el de Cloudflare (un batch, una subrequest) no.
+
+Desvíos y precisiones:
+
+- **Batch**: es uno solo (no se parte en lotes de 50), así que la columna de escritura es 1 y no 3.
+- **Fecha del fixture**: la pasada no actualiza `round` ni los equipos. La numeración de fechas sale del fixture
+  de la temporada completa y acá se pide un solo año.
+- **Competencias**: con más de 3 pendientes va primero la menos atendida (`pasada_at` más viejo o vacío) y, a
+  igualdad, la del partido más reciente.
+- **Cruces manuales**: no tienen pasadas (ESPN no los publica).
+- **Scoreboard vacío**: se trata como fuente caída (la pasada queda pendiente). Un partido que falta en un
+  scoreboard con datos queda con la pasada hecha y un log `prode_partido_no_publicado`.
+- **Run `partial`**: si falla una competencia, se escriben las demás; el workflow lo trata como falla. El endpoint
+  responde 500 solo con `failed`.
+- **`seguía live` / sin confirmar**: la condición exige además que ya haya pasado al menos una pasada y que el
+  inicio tenga 2 h o más. Un partido que a las +2 h sigue sin empezar en ESPN espera a la pasada de +3 h.
+- **Workflow**: el `schedule` corre desde `development` (rama por defecto). Un 404 de la ruta no falla, para no
+  abrir incidentes antes del release. El incidente se abre también si no se pudo saber si había trabajo (red,
+  401, 5xx) y se cierra con cualquier corrida que termine bien. Staging: `workflow_dispatch` con
+  `entorno: staging`, sin incidentes.
 
 ### Resultado del paso 5
 

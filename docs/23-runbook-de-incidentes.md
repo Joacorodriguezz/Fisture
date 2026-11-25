@@ -14,8 +14,8 @@ con una sesión de `npx wrangler login` (o `CLOUDFLARE_API_TOKEN` en el entorno)
    si el usuario lo tiene del header `x-request-id`).
 4. ¿Coincide con un deploy? Ver la última corrida de **Deploy a producción** en GitHub Actions.
 
-Avisos automáticos: `monitor.yml` (cada 30 min), `sync-cron.yml` (ligas y calendarios) y `keepalive.yml`
-(semanal) abren un issue con la etiqueta `incidente` y lo cierran al recuperarse. Comentar en ese issue lo que se va haciendo: queda como registro.
+Avisos automáticos: `monitor.yml` (cada 30 min), `sync-cron.yml` (ligas, calendarios y espera del prode),
+`prode-sync.yml` (pasadas del prode, cada 15 min) y `keepalive.yml` (semanal) abren un issue con la etiqueta `incidente` y lo cierran al recuperarse. Comentar en ese issue lo que se va haciendo: queda como registro.
 
 ## 1. Volver al deployment anterior (rollback de código)
 
@@ -315,6 +315,31 @@ lleva más de 72 h sin terminar bien. Si aun así dejaron de correr (por ejemplo
 Cualquier commit, PR o deploy reinicia el plazo de 60 días. El respaldo que no depende de GitHub es un monitor
 externo gratuito (por ejemplo UptimeRobot) sobre `https://fisture.com/api/health` con una palabra clave
 (`"status":"ok"`) o alerta ante 503: es una decisión del dueño (docs/17 §12).
+
+### Prode: falla el sync del prode (docs/40 D4)
+
+Issue **"Falla el sync del prode"**: una pasada falló (o no se pudo saber si tenía trabajo). Se cierra solo en la
+siguiente corrida que termina bien.
+
+1. Ver el error en el log del run de Actions o en `runsProde` de `/api/admin/status` (`failed`: no se escribió
+   nada; `partial`: falló alguna competencia). En vivo: log `prode_sync`.
+2. ESPN caído o con otro formato: no hay que hacer nada de urgencia. La pasada sigue pendiente y se reintenta cada
+   15 minutos; el sync diario es el respaldo. Si los partidos no llegan, cargarlos por excepción (`docs/38` §3.4).
+3. `401`: revisar `ADMIN_SECRET` en GitHub (§5). Sin respuesta o `5xx`: ver `/api/health` (§0).
+4. Volver a correrla: Actions → **Sync del prode** → *Run workflow* (entorno `produccion`; `staging` no abre
+   issues). Desde la terminal: `APP_URL=https://fisture.com ADMIN_SECRET=... node scripts/prode-sync.mjs`.
+5. Si las pasadas hacen daño (carga datos malos o gasta cuota), apagar el resultado automático (abajo) o
+   deshabilitar el workflow en GitHub (`keepalive.yml` no reactiva uno desactivado a mano).
+
+Un `404` de la ruta no falla ni abre issue (producción todavía sin el release que la trae); queda como warning en
+el run.
+
+### Prode: resultados en espera (docs/40 D5)
+
+Issue **"Prode: resultados en espera"**: hay partidos terminados hace más de 6 h sin resultado que puntúe. Lo abren
+y lo cierran `prode-sync.yml` (corridas con trabajo) y `sync-cron.yml`, así que después de corregir puede seguir
+abierto hasta el sync diario. Pasos: `docs/38` §3.5 (buscar `enEspera` en `GET /api/admin/prode/partidos`, tomar
+el resultado de una fuente oficial y corregir o excluir).
 
 ### Prode: apagar el resultado automático (docs/40 D3)
 

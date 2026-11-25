@@ -84,7 +84,7 @@ Se puede enviar `horario`, `fase` y `status` (`scheduled`, `live`, `finished`, `
 
 Cuenta el resultado a los 90 minutos más el adicionado, sin alargue ni penales (`docs/37` §3).
 
-**Partido adoptado de ESPN: es automático.** El sync carga el marcador a 90' y quién pasó, y puntúa cuando el dato queda confirmado (`docs/40` D1 y D2). No hay que cargar ni verificar nada. El PATCH queda para corregir por excepción y **gana siempre** sobre lo automático:
+**Partido adoptado de ESPN: es automático.** El sync (pasadas tras el final y sync diario) carga el marcador a 90' y quién pasó, y puntúa cuando el dato queda confirmado (`docs/40` D1, D2 y D4). No hay que cargar ni verificar nada. El PATCH queda para corregir por excepción y **gana siempre** sobre lo automático:
 
 ```bash
 curl -X PATCH "<URL>/api/admin/prode/partidos" -H "Authorization: Bearer $ADMIN_SECRET" -H "Content-Type: application/json" \
@@ -104,14 +104,18 @@ Adoptar (`{adoptar, fase}`) un partido de ida o vuelta (`leg`) da 409 `partido_c
 
 ### 3.5 Resultados durante el piloto: solo por excepción
 
-La operación es automática: el sync de producción (06:00 de Argentina) carga el marcador a 90' y quién pasó, y el ranking se actualiza solo. **No hay controles rutinarios ni verificación de resultados a mano**, ni hace falta designar un responsable titular y un suplente para abrir el piloto. El administrador interviene únicamente ante un aviso.
+La operación es automática: las pasadas tras el final cargan el marcador a 90' y quién pasó el mismo día, y el sync de producción (06:00 de Argentina) queda como respaldo; el ranking se actualiza solo. **No hay controles rutinarios ni verificación de resultados a mano**, ni hace falta designar un responsable titular y un suplente para abrir el piloto. El administrador interviene únicamente ante un aviso.
 
-**Cuándo hay aviso.** Después del sync diario, `sync-cron.yml` consulta `/api/admin/status`. Si un partido adoptado y terminado lleva más de 6 horas desde su inicio sin marcador o sin equipo que pasó, abre el issue `incidente` **"Prode: resultados en espera"** (GitHub avisa por email). Se cierra solo en la corrida en que ya no queda ninguno. Mientras tanto ese partido no puntúa para nadie.
+**Cadencia (`docs/40` D4).** `prode-sync.yml` corre cada 15 minutos y llama a `POST /api/admin/prode/sync`. Cada partido adoptado tiene una pasada a las +2 h y otra a las +3 h del inicio; si el dato visto quedó sin confirmar o el partido sigue en vivo, se repite en la corrida siguiente hasta las +6 h. Un partido en 90' puntúa cerca de las +2 h 15 min y uno con alargue y penales cerca de las +3 h 15 min. GitHub puede atrasar o saltear un `schedule`: la pasada sigue pendiente. Para adelantarla: Actions → **Sync del prode** → *Run workflow* (sin pendientes responde `{"trabajo": false}` y no hace nada).
+
+**Cuándo hay aviso.** Después de cada pasada con trabajo (`prode-sync.yml`) y del sync diario (`sync-cron.yml`) se consulta `/api/admin/status`. Si un partido adoptado y terminado lleva más de 6 horas desde su inicio sin marcador o sin equipo que pasó, abre el issue `incidente` **"Prode: resultados en espera"** (GitHub avisa por email). Se cierra solo en la corrida en que ya no queda ninguno. Mientras tanto ese partido no puntúa para nadie.
 
 **Qué hacer con el aviso.**
 
 1. `GET /api/admin/prode/partidos` y buscar `"enEspera": true`. `automatico` muestra lo que se leyó de ESPN (`confirmadoEn: null` si todavía no se confirmó). El motivo queda en el log `prode_resultado_en_espera`.
-2. Si falta la confirmación o el summary, puede bastar con el sync siguiente (se puede disparar con el workflow **Sync diario**).
+2. Si falta la confirmación o el summary, puede bastar con el sync siguiente (pasadas las +6 h ya no hay pasadas: disparar el workflow **Sync diario**).
+
+Si lo que falla son las pasadas (issue **"Falla el sync del prode"**), ver `docs/23` §6.
 3. Si el dato no llega, tomar el resultado de una fuente oficial y corregir o excluir (3.4). Dejar en el issue el partido, la fuente y lo que se hizo.
 
 **Si alguien reporta un resultado mal puntuado.** Corregirlo o excluirlo (3.4). `metricas.prode.automatizacion.corregidos` cuenta las correcciones que difieren de lo automático: con una en la regla A (fin en los 90') o dos en la regla B (alargue o penales), apagar esa regla con el interruptor KV hasta analizar la causa (`docs/40` §4.7; comandos en `docs/23` §6, "Prode: apagar el resultado automático").
@@ -144,6 +148,7 @@ Rollback: revertir el código basta, la base migrada sigue siendo compatible con
 - `health`: debe estar en `ok`; `checks.sync` degradado indica que el sync de ligas no corre y por lo tanto horarios y estados de los partidos adoptados pueden estar viejos.
 - `runs` (últimos 20 syncs de ligas): que el último haya terminado bien y reciente. Cada sync reemplaza horario y estado de los partidos de ESPN, también los adoptados del prode; si falla, un partido adoptado puede quedar sin el estado `finished` y no puntuar.
 - `sessions`: sesiones vigentes y vencidas; sirve para ver que el piloto está entrando gente y que no se acumulan sesiones vencidas.
+- `runsProde` (últimas 10 pasadas del prode con trabajo): `status` y el error por competencia. No cuentan para `health.checks.sync`. Que no haya runs nuevos entre partidos es normal.
 - `rateLimit`: bloqueos de límite de tasa; un pico durante el cierre de un partido indica presión sobre `PUT /api/prode/pronosticos`.
 - `metricas.usuarios`: crecimiento de cuentas.
 - `metricas.prode`: métricas agregadas del piloto, sin ids ni datos personales (`lib/observability/metricas.ts`):
@@ -153,7 +158,7 @@ Rollback: revertir el código basta, la base migrada sigue siendo compatible con
   - `partidos`: `abiertos` y `cerrados` se cuentan por `closed_at`. `conResultado` cuenta los partidos en `finished` con goles a 90 minutos. La brecha entre `cerrados` y `conResultado` puede incluir partidos en juego, suspendidos, cancelados, excluidos o en espera.
   - `automatizacion`, sobre los adoptados en `finished`: `automaticos` (puntúan sin intervención, por regla `A` y `B`), `manuales` (con alguna corrección), `corregidos` (de esos, los que difieren de lo leído de ESPN en el marcador o en quién pasó), `enEspera` (el que dispara el aviso) y `excluidos`.
 
-Los resultados pendientes llegan solos por el issue de la sección 3.5; no hace falta buscarlos. Los logs del PATCH quedan como `prode_cruce_corregido` y `prode_cruce_rechazado`, y los del sync como `prode_resultado_en_espera` (`npx wrangler pages deployment tail`). `runsProde` se sumará con las pasadas tras el final (`docs/40` D6), todavía no implementadas.
+Los resultados pendientes llegan solos por el issue de la sección 3.5; no hace falta buscarlos. Los logs del PATCH quedan como `prode_cruce_corregido` y `prode_cruce_rechazado`, y los del sync como `prode_resultado_en_espera` (`npx wrangler pages deployment tail`). Las pasadas loguean `prode_sync`.
 
 ## 6. Evaluar el piloto (tarjeta 9)
 
