@@ -362,7 +362,7 @@ export const syncRuns = sqliteTable(
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
     trigger: text("trigger").notNull(), // 'cron' | 'admin'
-    // Qué sincronizó: 'leagues' (ESPN) o 'calendars' (reconciliación de calendarios)
+    // Qué sincronizó: 'leagues' (ESPN), 'calendars' (reconciliación de calendarios) o 'prode' (pasadas, docs/40)
     kind: text("kind").notNull().default("leagues"),
     startedAt: integer("started_at").notNull(), // epoch ms
     finishedAt: integer("finished_at"),
