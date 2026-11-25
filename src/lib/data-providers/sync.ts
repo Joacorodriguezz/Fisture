@@ -22,6 +22,7 @@ import {
   permiteRegla,
   reglaDeEstado,
   resultadoAutoDe,
+  SIN_RESULTADO,
   type ModoAuto,
   type ResultadoAuto,
 } from "./prode-resultado";
@@ -501,6 +502,9 @@ function resultado90DelManual(manualId: string) {
   };
 }
 
+const equipoExternoDeAdoptado = (columna: typeof matches.homeTeamId | typeof matches.awayTeamId) =>
+  sql<string | null>`CASE WHEN ${prodeMatches.matchId} IS NOT NULL THEN (SELECT t.external_id FROM teams t WHERE t.id = ${columna}) END`;
+
 // Partidos guardados con su vínculo del prode (docs/40 D4): `prodeId` no es nulo si está adoptado
 export function leerPartidos(db: Database, condicion: SQL | undefined) {
   return db
@@ -523,6 +527,9 @@ export function leerPartidos(db: Database, condicion: SQL | undefined) {
       autoRegla: prodeMatches.autoRegla,
       autoVistoAt: prodeMatches.autoVistoAt,
       autoConfirmadoAt: prodeMatches.autoConfirmadoAt,
+      // Equipos guardados con el id del proveedor, solo de los adoptados (para no leer teams por cada partido)
+      homeExterno: equipoExternoDeAdoptado(matches.homeTeamId),
+      awayExterno: equipoExternoDeAdoptado(matches.awayTeamId),
     })
     .from(matches)
     .leftJoin(prodeMatches, eq(prodeMatches.matchId, matches.id))
@@ -546,6 +553,18 @@ export function datosDePartido(m: ProviderMatch) {
 }
 
 export type DatosPartido = ReturnType<typeof datosDePartido> & { homeTeamId: string; awayTeamId: string };
+
+// ESPN trae un adoptado con otros equipos, o con local y visitante invertidos
+function equiposDistintos(actual: PartidoGuardado, m: ProviderMatch): boolean {
+  return actual.prodeId !== null && (actual.homeExterno !== m.homeTeamExternalId || actual.awayExterno !== m.awayTeamExternalId);
+}
+
+// Los pronósticos de un adoptado se cargaron sobre los equipos guardados: si ESPN trae otros, o los invierte,
+// no se cambian los equipos ni se guarda un marcador que quedaría en otra orientación (docs/40 §12).
+export function datosParaGuardar(actual: PartidoGuardado, m: ProviderMatch, datos: DatosPartido): DatosPartido {
+  if (!equiposDistintos(actual, m)) return datos;
+  return { ...datos, homeTeamId: actual.homeTeamId, awayTeamId: actual.awayTeamId, homeScore: null, awayScore: null };
+}
 
 // El UPDATE del partido si cambió algo, o null: solo se escribe lo que cambió. En un arreglo porque un
 // builder de drizzle es thenable.
@@ -593,6 +612,12 @@ async function resultadoAutomatico(
 ): Promise<{ sentencia: [Sentencia]; confirmado: boolean } | null> {
   // Solo ESPN trae el estado crudo del que sale el resultado
   if (m.estadoProveedor === undefined) return null;
+  // Otros equipos u otro orden: se vacía lo automático (aun con el KV apagado) y el partido queda en espera
+  if (equiposDistintos(actual, m)) {
+    rootLogger.info("prode_resultado_en_espera", { matchId: actual.id, estadoProveedor: m.estadoProveedor, motivo: "equipos_no_coinciden" });
+    const vaciar = cambioAuto(actual, SIN_RESULTADO, Date.now(), datos.dateTime.getTime());
+    return vaciar ? { sentencia: [db.update(prodeMatches).set(vaciar).where(eq(prodeMatches.matchId, actual.id))], confirmado: false } : null;
+  }
   prode.modo ??= leerModoAuto(prode.kv, rootLogger);
   const modo = await prode.modo;
   if (modo === "off") return null;
@@ -686,13 +711,13 @@ async function syncPartidos(
       continue;
     }
 
-    const datos = { homeTeamId, awayTeamId, ...datosDePartido(m) };
+    const deEspn = { homeTeamId, awayTeamId, ...datosDePartido(m) };
 
     const actual = porExterno.get(m.externalId);
 
     if (!actual) {
-      const fila = { ...datos, id: crypto.randomUUID(), externalId: m.externalId, leagueId: ligaId, source: config.source };
-      const i = manuales.findIndex((x) => esMismoCruce(x, datos));
+      const fila = { ...deEspn, id: crypto.randomUUID(), externalId: m.externalId, leagueId: ligaId, source: config.source };
+      const i = manuales.findIndex((x) => esMismoCruce(x, deEspn));
       if (i === -1) {
         nuevos.push(fila);
         continue;
@@ -722,6 +747,7 @@ async function syncPartidos(
       continue;
     }
 
+    const datos = datosParaGuardar(actual, m, deEspn);
     const cambio = cambioDePartido(db, actual, datos);
     if (cambio) cambios.push(...cambio);
 

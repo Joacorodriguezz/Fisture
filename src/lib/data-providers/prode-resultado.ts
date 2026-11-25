@@ -79,6 +79,8 @@ export const AUTO_VACIO: ColumnasAuto = {
   autoConfirmadoAt: null,
 };
 
+export const SIN_RESULTADO: ResultadoAuto = { local: null, visitante: null, pasa: null, regla: null };
+
 export function resultadoAutoDe(m: Pick<ProviderMatch, "estadoProveedor" | "goles90" | "pasa">): ResultadoAuto {
   const pasa = m.pasa ?? null;
   return {
@@ -121,7 +123,7 @@ export function cambioAuto(actual: ColumnasAuto, nuevo: ResultadoAuto, ahora: nu
   return sinCambio ? null : siguiente;
 }
 
-export type MotivoEspera = "estado_desconocido" | "parciales_incompletos" | "parciales_no_cierran" | "ganador_incierto" | "inconsistente" | "sin_confirmar";
+export type MotivoEspera = "equipos_no_coinciden" | "estado_desconocido" | "parciales_incompletos" | "parciales_no_cierran" | "ganador_incierto" | "inconsistente" | "sin_confirmar";
 
 /**
  * Por qué un partido terminado del prode todavía no tiene resultado confirmado (docs/40 D5), o null si ya

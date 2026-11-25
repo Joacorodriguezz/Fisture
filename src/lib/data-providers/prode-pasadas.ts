@@ -14,6 +14,7 @@ import {
   cerrarEmpezadosDelProde,
   crearContextoProde,
   datosDePartido,
+  datosParaGuardar,
   leerPartidos,
   sentenciasDelProde,
   type Adoptado,
@@ -150,7 +151,7 @@ export async function pasadaDelProde(env: SyncEnv, options: { trigger?: SyncTrig
           continue;
         }
         // Los equipos y la fecha del fixture no se tocan: la numeración sale de la temporada completa
-        const datos = { ...datosDePartido(m), homeTeamId: actual.homeTeamId, awayTeamId: actual.awayTeamId, round: actual.round };
+        const datos = datosParaGuardar(actual, m, { ...datosDePartido(m), homeTeamId: actual.homeTeamId, awayTeamId: actual.awayTeamId, round: actual.round });
         const cambio = cambioDePartido(db, actual, datos);
         if (cambio) deLaLiga.push(...cambio);
         adoptados.push({ config, m, datos, actual });

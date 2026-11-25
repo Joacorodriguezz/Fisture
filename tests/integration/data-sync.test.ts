@@ -835,6 +835,42 @@ describe("ingesta ESPN a D1", () => {
       expect(con.viajes()).toBe(sin.viajes());
     });
 
+    // Los pronósticos se cargaron sobre los equipos guardados: otro orden u otro equipo no puede puntuar
+    describe("ESPN cambia los equipos de un adoptado", () => {
+      const SIN_AUTO = { autoHomeGoals90: null, autoAwayGoals90: null, autoPasa: null, autoRegla: null, autoVistoAt: null, autoConfirmadoAt: null };
+      const guardado = async () => (await t.db.select().from(matches))[0];
+      const invertir = () => {
+        for (const c of (data.events[0] as any).competitions[0].competitors) c.homeAway = c.homeAway === "home" ? "away" : "home";
+      };
+      const cambiarRival = () => {
+        (data.events[0] as any).competitions[0].competitors[1].team = { id: "999", displayName: "Otro Club", abbreviation: "OTR" };
+      };
+
+      it.each([["local y visitante invertidos", invertir], ["un equipo distinto", cambiarRival]])(
+        "%s: ni marcador ni equipos ni dato automático, y queda en espera (sintético)",
+        async (_caso, cambiar) => {
+          await preparar(FULL_TIME);
+          const antes = await guardado();
+          cambiar();
+          expect(await sync()).toMatchObject({ errors: [] });
+          expect(await guardado()).toMatchObject({ homeTeamId: antes.homeTeamId, awayTeamId: antes.awayTeamId, status: "finished", homeScore: null, awayScore: null });
+          expect(await vinculo()).toMatchObject(SIN_AUTO);
+          expect(enEspera()).toEqual([expect.objectContaining({ motivo: "equipos_no_coinciden" })]);
+        }
+      );
+
+      it("vacía lo ya confirmado, incluso con el KV en off, sin tocar lo manual (sintético)", async () => {
+        await preparar(FULL_TIME);
+        await syncConKv();
+        expect((await vinculo()).autoConfirmadoAt).not.toBeNull();
+        await t.DB.prepare("UPDATE prode_matches SET home_goals_90 = 4, away_goals_90 = 4, pasa = 'away'").run();
+        await kv.put("prode:resultado_auto", "off");
+        invertir();
+        await syncConKv();
+        expect(await vinculo()).toMatchObject({ ...SIN_AUTO, homeGoals90: 4, awayGoals90: 4, pasa: "away" });
+      });
+    });
+
     describe("interruptor KV prode:resultado_auto (docs/40 D3)", () => {
       it("sin clave equivale a on", async () => {
         await preparar(FULL_TIME);

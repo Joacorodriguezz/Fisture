@@ -213,6 +213,19 @@ describe("POST /api/admin/prode/sync", () => {
       expect((await vinculo(4)).pasadaAt).toBe(inicio + MIN);
     });
 
+    it("ESPN invierte local y visitante: no escribe marcador, equipos ni dato automático (sintético)", async () => {
+      await sembrar({ id: 1, inicio: inicio - 2 * H });
+      const invertido = evento(1, inicio - 2 * H);
+      for (const c of invertido.competitions[0].competitors) c.homeAway = c.homeAway === "home" ? "away" : "home";
+      eventos["arg.1"] = [invertido];
+      await t.DB.prepare("UPDATE prode_matches SET auto_home_goals_90 = 2, auto_away_goals_90 = 1, auto_regla = 'A', auto_visto_at = 1, auto_confirmado_at = 1").run();
+      expect((await llamar()).body.status).toBe("success");
+      expect(await partido()).toMatchObject({ homeTeamId: "t-16", awayTeamId: "t-5", status: "finished", homeScore: null, awayScore: null });
+      expect(await vinculo()).toMatchObject({ autoHomeGoals90: null, autoAwayGoals90: null, autoRegla: null, autoConfirmadoAt: null, pasadaAt: inicio });
+      const logs = (console.log as any).mock.calls.map((c: string[]) => JSON.parse(c[0]));
+      expect(logs.find((l: any) => l.msg === "prode_resultado_en_espera")).toMatchObject({ motivo: "equipos_no_coinciden" });
+    });
+
     it("ESPN caído: run failed, nada escrito y la pasada sigue pendiente", async () => {
       await sembrar({ id: 1, inicio: inicio - 2 * H });
       publicar(1);
