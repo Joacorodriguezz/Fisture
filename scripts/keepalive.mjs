@@ -13,7 +13,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-export const WORKFLOWS_PROGRAMADOS = ["sync-cron.yml", "monitor.yml", "keepalive.yml"];
+export const WORKFLOWS_PROGRAMADOS = ["sync-cron.yml", "monitor.yml", "prode-sync.yml", "keepalive.yml"];
 const MAX_EDAD_SYNC_MS = 72 * 3_600_000;
 
 const ghReal = async (args) => (await execFileAsync("gh", args, { encoding: "utf8" })).stdout;

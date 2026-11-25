@@ -1,0 +1,69 @@
+name: Sync del prode
+
+# Pasadas del prode tras el final de cada partido (docs/40 D4): llama a POST /api/admin/prode/sync cada 15
+# minutos. El endpoint decide si hay partidos pendientes; sin pendientes cuesta una lectura de D1. GitHub puede
+# atrasar o saltear un schedule: la pasada sigue pendiente en la corrida siguiente y, si no hay ninguna, el
+# sync diario la cubre. El schedule va solo a producción; staging, a mano y sin incidentes.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      entorno:
+        description: Entorno
+        type: choice
+        options: [produccion, staging]
+        default: produccion
+
+permissions:
+  contents: read
+  issues: write
+
+# Dos pasadas a la vez pedirían lo mismo a ESPN: la segunda espera
+concurrency:
+  group: prode-sync-${{ inputs.entorno || 'produccion' }}
+  cancel-in-progress: false
+
+jobs:
+  pasada:
+    # Un fork no tiene los secretos ni debe tocar producción
+    if: github.repository == 'Joacorodriguezz/Fisture'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Correr la pasada pendiente
+        id: pasada
+        env:
+          APP_URL: ${{ inputs.entorno == 'staging' && 'https://development.fisture.pages.dev' || secrets.PUBLIC_APP_URL }}
+          ADMIN_SECRET: ${{ inputs.entorno == 'staging' && secrets.STAGING_ADMIN_SECRET || secrets.ADMIN_SECRET }}
+        run: node scripts/prode-sync.mjs
+
+      # `trabajo` distinto de false: falló una corrida con trabajo, o no se pudo saber si lo había
+      - name: Avisar por issue si falló
+        if: ${{ !cancelled() && inputs.entorno != 'staging' && steps.pasada.outcome == 'failure' && steps.pasada.outputs.trabajo != 'false' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/scripts/incidente.sh abrir "Falla el sync del prode" \
+            "La pasada del prode falló (${PRODE_SYNC_ERROR:-sin dato}). Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Revisar GET /api/admin/status (runsProde) y docs/23-runbook-de-incidentes.md."
+
+      - name: Cerrar el aviso si volvió a andar
+        if: ${{ !cancelled() && inputs.entorno != 'staging' && steps.pasada.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/scripts/incidente.sh cerrar "Falla el sync del prode" "Las pasadas del prode volvieron a completarse: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Abrir o cerrar el aviso de resultados en espera
+        if: ${{ !cancelled() && inputs.entorno != 'staging' && steps.pasada.outputs.trabajo == 'true' }}
+        env:
+          APP_URL: ${{ secrets.PUBLIC_APP_URL }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/prode-espera.mjs
