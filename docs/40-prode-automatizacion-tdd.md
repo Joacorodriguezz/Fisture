@@ -397,11 +397,23 @@ Desvíos y precisiones respecto del diseño:
 
 - **`summary`**: D1 descartaba el endpoint de detalle, pero el paso 5 mostró que es la única fuente de parciales. El sync lo pide solo para un partido adoptado en `STATUS_FINAL_AET` o `STATUS_FINAL_PEN`, con un tope de 3 por invocación (`MAX_RESUMENES_PRODE`); si uno falla, no pide más en esa invocación. No lo repite si el dato completo ya está confirmado y el scoreboard no cambió. Sin summary el partido queda en espera (`parciales_incompletos`, también cuando se agotó el tope).
 - **`STATUS_FINAL_AGT`**: el adaptador no lo tiene en la lista blanca (un solo caso observado, con datos dudosos). Queda en espera (`estado_desconocido`) y no se pide su summary.
-- **Límite conocido del tope**: tres partidos cuyos parciales nunca cierren consumen el tope en cada sync (se recorren por fecha ascendente) hasta que se completen en ESPN. Con unos 15 partidos de playoffs es improbable; la corrección manual los puntúa igual.
+- **Tope y prioridad**: el tope se gasta en los partidos más recientes primero (P0b-B), así unos viejos que nunca cierran no dejan sin summary a los nuevos. El orden es por competencia; el prode usa una sola.
 - **KV**: un valor desconocido o un error de lectura equivalen a `off`. Con `off`, o con la otra regla en `solo-a`/`solo-b`, las columnas automáticas no se tocan (tampoco se vacían).
 - **`auto_pasa`** puede quedar guardado sin los 90' (alargue sin parciales). No puntúa solo (R4), pero si el administrador carga a mano un empate sin `pasa`, vale el automático confirmado (R3).
-- **Lectura**: la precedencia está en `puntos.ts` y la usan puntos, ranking y métricas. `resultado` y `pasa` de `partidos.ts` todavía muestran solo lo manual, tanto en el GET admin como en el listado de pronósticos que ve el participante: un partido puntuado automáticamente suma puntos pero no muestra el marcador hasta que se resuelva (pendiente, antes del release de P0b).
-- `pasada_at` y `excluded_at` quedan creadas sin quién las escriba (pasos 9 y P1).
+- **Lectura**: la precedencia está en `puntos.ts` y la usan puntos, ranking, listados de partidos y métricas (resuelto en P0b-B).
+- `pasada_at` queda creada sin quién la escriba (P1); `excluded_at` la escribe el PATCH desde P0b-B.
+
+### P0b-B: lectura efectiva, exclusión, métricas y alerta (pasos 9 y 10)
+
+- **Participante**: `resultado` y `pasa` llegan solo cuando el partido puntúa (R4), también en un cruce manual. Se quitó el texto "Falta confirmar quién pasó". Un partido terminado sin resultado, o excluido, no muestra mensaje propio.
+- **GET admin**: `resultado` y `pasa` son los efectivos aunque el partido no esté terminado. `automatico` muestra el dato guardado aunque no esté confirmado o la variable esté en `off`. Estos campos no se mandan al participante.
+- **PATCH `{id, pasa}`**: la coherencia se valida contra el marcador efectivo (manual o automático confirmado), también en un excluido.
+- **`null, null`**: hoy respondía 400 `marcador_invalido`; ahora retira la corrección. Con un `pasa` no nulo responde 400 `cambios_mezclados`. `excluir` no booleano: 400 `excluir_invalido`.
+- **Métricas**: `manuales` incluye cualquier corrección (marcador o solo `pasa`), puntúe o no. `corregidos` compara contra lo guardado de ESPN, confirmado o no. Un excluido solo cuenta en `excluidos`. `automaticos` cuenta solo los que puntúan.
+- **En espera**: solo adoptados (D5). Un cruce manual terminado y empatado sin `pasa` no dispara el aviso.
+- **Alerta**: `scripts/prode-espera.mjs` en el job `prode-espera` de `sync-cron.yml`, aparte del job de ligas y aunque este falle. Si no puede leer el dato, el job falla sin tocar el issue.
+- **Operación** (decisión del usuario): sin verificación manual de resultados ni titular y suplente obligatorios; se interviene solo ante el aviso o un reporte (`docs/38` §3.5). El criterio de apagado de §4.7 se aplica en esos casos.
+- Pendiente (P1): endpoint de pasadas, `prode-sync.yml` y `runsProde`.
 
 ### Resultado del paso 5
 
