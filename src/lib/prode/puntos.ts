@@ -3,7 +3,7 @@
 // resultado (PATCH /api/admin/prode/partidos) recalcula todo sin duplicar nada, y no hay datos
 // derivados que puedan quedar desfasados. Una consulta fija (dos con filtro de grupo), nunca una por
 // usuario ni por partido: cuida las lecturas de D1 y las subrequests de Workers Free.
-import { and, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import { matches, prodeGroupMembers, prodeMatches, prodePredictions } from "../../../drizzle/schema";
 import type { Database } from "../db";
 import { SOURCE_MANUAL } from "./partidos";
@@ -66,9 +66,9 @@ const autoConfirmado = sql`${prodeMatches.autoConfirmadoAt} IS NOT NULL`;
 // El marcador de ESPN (matches.home_score) no se usa en un adoptado: puede incluir alargue o penales.
 function golEfectivo(
   auto: boolean,
-  delManual: typeof matches.homeScore,
-  manualCompleta: typeof prodeMatches.homeGoals90,
-  delAutomatico: typeof prodeMatches.autoHomeGoals90
+  delManual: AnyColumn,
+  manualCompleta: AnyColumn,
+  delAutomatico: AnyColumn
 ) {
   const manualDelVinculo = sql`WHEN ${prodeMatches.homeGoals90} IS NOT NULL AND ${prodeMatches.awayGoals90} IS NOT NULL THEN ${manualCompleta}`;
   const automatico = auto

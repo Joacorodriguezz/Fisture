@@ -1,9 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import scoreboard from "../fixtures/espn-scoreboard.json";
+import prodeFin90 from "../fixtures/espn-prode-fin-90.json";
+import prodeAlargue from "../fixtures/espn-prode-alargue.json";
+import prodePenales from "../fixtures/espn-prode-penales.json";
+import prodeSumAlargue from "../fixtures/espn-prode-summary-alargue.json";
+import prodeSumPenales from "../fixtures/espn-prode-summary-penales.json";
 import { useTestDb } from "../helpers/use-test-db";
 import { AHORA, DIA_MS, relojFijo } from "../helpers/clock";
 import { d1ConCambioAntesDelBatch } from "../helpers/d1-intercalado";
+import { kvEnMemoria, silenciarConsola } from "../helpers/ctx";
 import { MAX_REEMPLAZOS_PRODE, syncLote, syncSingleLeague } from "../../src/lib/data-providers/sync";
 import { LEAGUES_CONFIG, lotesDeSync } from "../../src/lib/data-providers";
 import { markOutdatedEvents } from "../../src/lib/calendar/sync-service";
@@ -576,6 +582,288 @@ describe("ingesta ESPN a D1", () => {
       await t.DB.prepare("UPDATE matches SET home_team_id = away_team_id, away_team_id = home_team_id WHERE id = 'manual-1'").run();
       await sync();
       expect(await t.db.select().from(matches)).toHaveLength(2);
+    });
+  });
+  // docs/40 D1, D2 y §4.3: el sync lee el resultado de un partido adoptado del prode, lo confirma y no toca lo manual
+  describe("resultado automático del prode (docs/40)", () => {
+    const H = 3_600_000;
+    const MIN = 60_000;
+    type Fx = { id: string; status: { type: Record<string, unknown> }; competitors: { homeAway: string; score: string; winner?: boolean; shootoutScore?: number }[] };
+    let resumen: unknown = null;
+    let pedidosResumen: string[] = [];
+    let kv: ReturnType<typeof kvEnMemoria>;
+
+    // Lleva un caso de ESPN real (fixtures espn-prode-*) a la forma del scoreboard de este test: equipos 16 (local) y 5
+    const aplicar = (fx: Fx, inicio: number) => {
+      const e = data.events[0] as any;
+      e.date = new Date(inicio).toISOString();
+      e.status = { type: { name: fx.status.type.name, state: fx.status.type.state } };
+      e.competitions[0].competitors = fx.competitors.map((c) => ({
+        homeAway: c.homeAway, score: c.score, winner: c.winner, shootoutScore: c.shootoutScore,
+        team: c.homeAway === "home" ? { id: "16", displayName: "River Plate", abbreviation: "RIV" } : { id: "5", displayName: "Boca Juniors", abbreviation: "BOC" },
+      }));
+    };
+    const resumenDe = (fx: { header: { status: unknown; competitors: any[] } }) => ({
+      header: { competitions: [{ status: fx.header.status, competitors: fx.header.competitors.map((c) => ({
+        homeAway: c.homeAway, score: c.score, winner: c.winner, shootoutScore: c.shootoutScore, linescores: c.linescores,
+        team: { id: c.homeAway === "home" ? "16" : "5" },
+      })) }] },
+    });
+    const FULL_TIME = (prodeFin90 as any[])[0] as Fx;
+    const AET = (prodeAlargue as any[]).find((x) => x.id === "761364") as Fx; // 0-0 a los 90', 0-1 a los 120'; pasa el visitante
+    const PEN = (prodePenales as any[]).find((x) => x.id === "735663") as Fx; // 0-0, tanda 4-2; pasa el local
+    const SUM_AET = (prodeSumAlargue as any[]).find((x) => x.id === "761364");
+    const SUM_PEN = (prodeSumPenales as any[]).find((x) => x.id === "735663");
+
+    const vinculo = async () => (await t.db.select().from(prodeMatches))[0];
+    const adoptar = async () => {
+      const [m] = await t.db.select().from(matches);
+      await t.db.insert(prodeMatches).values({ matchId: m.id, fase: "cuartos", createdAt: AHORA });
+      return m;
+    };
+    const syncConKv = () => syncSingleLeague({ DB: t.DB, KV: kv }, "arg.1");
+    const enEspera = () => (console.log as any).mock.calls.map((c: string[]) => JSON.parse(c[0])).filter((l: any) => l.msg === "prode_resultado_en_espera");
+
+    beforeEach(() => {
+      silenciarConsola(vi);
+      kv = kvEnMemoria();
+      resumen = null;
+      pedidosResumen = [];
+      vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+        if (String(url).includes("/summary?event=")) {
+          pedidosResumen.push(String(url));
+          return resumen ? Response.json(resumen) : new Response("{}", { status: 500 });
+        }
+        return Response.json(data);
+      }));
+    });
+
+    // Un partido de ESPN ya sincronizado y adoptado, terminado hace `hace` ms
+    const preparar = async (fx: Fx, hace = 5 * H) => {
+      aplicar(fx, AHORA.getTime() + 2 * H);
+      await sync();
+      await adoptar();
+      aplicar(fx, AHORA.getTime() - hace);
+    };
+
+    it("fin en 90' (regla A): una lectura 4 horas o más después del inicio confirma de entrada, sin pedir el summary", async () => {
+      await preparar(FULL_TIME);
+      await sync();
+      const [a, b] = FULL_TIME.competitors.map((c) => Number(c.score));
+      expect(await vinculo()).toMatchObject({ autoHomeGoals90: a, autoAwayGoals90: b, autoRegla: "A", autoVistoAt: AHORA.getTime(), autoConfirmadoAt: AHORA.getTime() });
+      expect(pedidosResumen).toEqual([]);
+    });
+
+    it("lectura reciente: queda visto sin confirmar; una segunda lectura 10 minutos después lo confirma", async () => {
+      await preparar(FULL_TIME, 2 * H);
+      await sync();
+      expect(await vinculo()).toMatchObject({ autoRegla: "A", autoVistoAt: AHORA.getTime(), autoConfirmadoAt: null });
+
+      vi.setSystemTime(AHORA.getTime() + 9 * MIN);
+      await sync();
+      expect(await vinculo()).toMatchObject({ autoVistoAt: AHORA.getTime(), autoConfirmadoAt: null });
+
+      vi.setSystemTime(AHORA.getTime() + 10 * MIN);
+      await sync();
+      expect(await vinculo()).toMatchObject({ autoVistoAt: AHORA.getTime(), autoConfirmadoAt: AHORA.getTime() + 10 * MIN });
+    });
+
+    it("un valor nuevo reinicia la confirmación", async () => {
+      await preparar(FULL_TIME, 2 * H);
+      await sync();
+      vi.setSystemTime(AHORA.getTime() + 15 * MIN);
+      await sync();
+      expect((await vinculo()).autoConfirmadoAt).not.toBeNull();
+
+      (data.events[0] as any).competitions[0].competitors[0].score = "7";
+      vi.setSystemTime(AHORA.getTime() + 20 * MIN);
+      await sync();
+      expect(await vinculo()).toMatchObject({ autoHomeGoals90: 7, autoVistoAt: AHORA.getTime() + 20 * MIN, autoConfirmadoAt: null });
+    });
+
+    it("una lectura sin resultado (ESPN vuelve a en vivo) vacía las columnas automáticas", async () => {
+      await preparar(FULL_TIME);
+      await sync();
+      expect((await vinculo()).autoConfirmadoAt).not.toBeNull();
+
+      (data.events[0] as any).status.type = { name: "STATUS_IN_PROGRESS", state: "in" };
+      await sync();
+      expect(await vinculo()).toMatchObject({ autoHomeGoals90: null, autoAwayGoals90: null, autoPasa: null, autoRegla: null, autoVistoAt: null, autoConfirmadoAt: null });
+    });
+
+    it("alargue (regla B): pide el summary de ese partido, toma los 90' de los parciales y quién pasa del ganador", async () => {
+      await preparar(AET);
+      resumen = resumenDe(SUM_AET);
+      await sync();
+      expect(pedidosResumen).toHaveLength(1);
+      expect(pedidosResumen[0]).toMatch(/\/arg\.1\/summary\?event=1$/);
+      expect(await vinculo()).toMatchObject({ autoHomeGoals90: 0, autoAwayGoals90: 0, autoPasa: "away", autoRegla: "B", autoConfirmadoAt: AHORA.getTime() });
+    });
+
+    it("penales (regla B): 90' de los parciales y pasa el de la tanda", async () => {
+      await preparar(PEN);
+      resumen = resumenDe(SUM_PEN);
+      await sync();
+      expect(await vinculo()).toMatchObject({ autoHomeGoals90: 0, autoAwayGoals90: 0, autoPasa: "home", autoRegla: "B" });
+    });
+
+    it("una vez confirmado y sin cambios, el siguiente sync no vuelve a pedir el summary", async () => {
+      await preparar(AET);
+      resumen = resumenDe(SUM_AET);
+      await sync();
+      pedidosResumen = [];
+      await sync();
+      expect(pedidosResumen).toEqual([]);
+      expect(await vinculo()).toMatchObject({ autoHomeGoals90: 0, autoPasa: "away", autoConfirmadoAt: AHORA.getTime() });
+    });
+
+    it("sin summary (ESPN falla): en espera con motivo, el sync no falla y solo guarda lo que asegura", async () => {
+      await preparar(AET);
+      resumen = null;
+      expect(await sync()).toMatchObject({ errors: [] });
+      expect(await vinculo()).toMatchObject({ autoHomeGoals90: null, autoAwayGoals90: null, autoPasa: "away" });
+      expect(enEspera()).toEqual([expect.objectContaining({ estadoProveedor: "STATUS_FINAL_AET", motivo: "parciales_incompletos" })]);
+    });
+
+    it("parciales que no cierran con el marcador: en espera con motivo parciales_no_cierran", async () => {
+      await preparar(AET);
+      const roto = structuredClone(resumenDe(SUM_AET)) as any;
+      roto.header.competitions[0].competitors[1].linescores[3].displayValue = "3";
+      resumen = roto;
+      await sync();
+      expect((await vinculo()).autoHomeGoals90).toBeNull();
+      expect(enEspera()).toEqual([expect.objectContaining({ motivo: "parciales_no_cierran" })]);
+    });
+
+    it("estado fuera de la lista blanca (sintético: resultado administrativo): nada automático y motivo estado_desconocido", async () => {
+      await preparar(FULL_TIME);
+      (data.events[0] as any).status.type = { name: "STATUS_FORFEIT", state: "post" };
+      await sync();
+      expect(await vinculo()).toMatchObject({ autoHomeGoals90: null, autoPasa: null, autoRegla: null, autoConfirmadoAt: null });
+      expect(enEspera()).toEqual([expect.objectContaining({ estadoProveedor: "STATUS_FORFEIT", motivo: "estado_desconocido" })]);
+    });
+
+    it("un dato visto pero sin confirmar se loguea en espera con motivo sin_confirmar (sintético: lectura reciente)", async () => {
+      await preparar(FULL_TIME, 2 * H);
+      await sync();
+      expect(enEspera()).toEqual([expect.objectContaining({ estadoProveedor: "STATUS_FULL_TIME", motivo: "sin_confirmar" })]);
+    });
+
+    it("nunca escribe las columnas manuales", async () => {
+      await preparar(FULL_TIME);
+      await t.DB.prepare("UPDATE prode_matches SET home_goals_90 = 4, away_goals_90 = 4, pasa = 'away'").run();
+      await sync();
+      expect(await vinculo()).toMatchObject({ homeGoals90: 4, awayGoals90: 4, pasa: "away", autoRegla: "A" });
+    });
+
+    it("un partido sin vínculo del prode no escribe nada del prode ni lee el KV", async () => {
+      const get = vi.spyOn(kv, "get");
+      aplicar(FULL_TIME, AHORA.getTime() + 2 * H);
+      await sync();
+      aplicar(FULL_TIME, AHORA.getTime() - 5 * H);
+      await syncConKv();
+      expect(get).not.toHaveBeenCalled();
+      expect(await t.db.select().from(prodeMatches)).toEqual([]);
+    });
+
+    it("escribe en el mismo batch: con un partido del prode no suma viajes a D1", async () => {
+      const contar = () => {
+        let viajes = 0;
+        const DB = new Proxy(t.DB, {
+          get(target, prop) {
+            if (prop === "batch") return (...a: unknown[]) => (viajes++, (target.batch as any)(...a));
+            const v = Reflect.get(target, prop);
+            return typeof v === "function" ? v.bind(target) : v;
+          },
+        });
+        return { DB, viajes: () => viajes };
+      };
+      aplicar(FULL_TIME, AHORA.getTime() + 2 * H);
+      await sync();
+      aplicar(FULL_TIME, AHORA.getTime() - 5 * H);
+      const sin = contar();
+      await syncSingleLeague({ DB: sin.DB }, "arg.1");
+
+      // Mismo cambio de ESPN, pero con el partido adoptado
+      await t.DB.prepare("UPDATE matches SET status = 'scheduled', home_score = NULL, away_score = NULL, date_time = ?").bind(Math.floor((AHORA.getTime() + 2 * H) / 1000)).run();
+      await adoptar();
+      const con = contar();
+      await syncSingleLeague({ DB: con.DB }, "arg.1");
+      expect((await vinculo()).autoRegla).toBe("A");
+      expect(con.viajes()).toBe(sin.viajes());
+    });
+
+    describe("interruptor KV prode:resultado_auto (docs/40 D3)", () => {
+      it("sin clave equivale a on", async () => {
+        await preparar(FULL_TIME);
+        await syncConKv();
+        expect((await vinculo()).autoRegla).toBe("A");
+      });
+
+      it("off: no escribe ni confirma datos automáticos (tampoco vacía los que ya había)", async () => {
+        await preparar(FULL_TIME);
+        await syncConKv();
+        const antes = await vinculo();
+        await kv.put("prode:resultado_auto", "off");
+        (data.events[0] as any).competitions[0].competitors[0].score = "9";
+        await syncConKv();
+        expect(await vinculo()).toEqual(antes);
+        (data.events[0] as any).status.type = { name: "STATUS_IN_PROGRESS", state: "in" };
+        await syncConKv();
+        expect(await vinculo()).toEqual(antes);
+      });
+
+      it("off desde el principio: no escribe nada automático", async () => {
+        await preparar(FULL_TIME);
+        await kv.put("prode:resultado_auto", "off");
+        await syncConKv();
+        expect(await vinculo()).toMatchObject({ autoHomeGoals90: null, autoRegla: null, autoVistoAt: null });
+      });
+
+      it("solo-b: no escribe la regla A", async () => {
+        await preparar(FULL_TIME);
+        await kv.put("prode:resultado_auto", "solo-b");
+        await syncConKv();
+        expect(await vinculo()).toMatchObject({ autoRegla: null, autoHomeGoals90: null });
+      });
+
+      it("solo-a: escribe la regla A y no pide el summary de la regla B", async () => {
+        await kv.put("prode:resultado_auto", "solo-a");
+        await preparar(FULL_TIME);
+        await syncConKv();
+        expect((await vinculo()).autoRegla).toBe("A");
+        await t.DB.prepare("UPDATE prode_matches SET auto_home_goals_90 = NULL, auto_away_goals_90 = NULL, auto_pasa = NULL, auto_regla = NULL, auto_visto_at = NULL, auto_confirmado_at = NULL").run();
+        aplicar(AET, AHORA.getTime() - 5 * H);
+        resumen = resumenDe(SUM_AET);
+        await syncConKv();
+        expect(pedidosResumen).toEqual([]);
+        expect((await vinculo()).autoRegla).toBeNull();
+      });
+
+      it("solo-b: escribe la regla B", async () => {
+        await kv.put("prode:resultado_auto", "solo-b");
+        await preparar(AET);
+        resumen = resumenDe(SUM_AET);
+        await syncConKv();
+        expect(await vinculo()).toMatchObject({ autoRegla: "B", autoPasa: "away" });
+      });
+
+      it("un valor desconocido o un KV caído se trata como off (lo conservador)", async () => {
+        await preparar(FULL_TIME);
+        await kv.put("prode:resultado_auto", "quizas");
+        await syncConKv();
+        expect((await vinculo()).autoRegla).toBeNull();
+        kv.get = async () => { throw new Error("KV caído"); };
+        expect(await syncConKv()).toMatchObject({ errors: [] });
+        expect((await vinculo()).autoRegla).toBeNull();
+      });
+
+      it("se lee una sola vez por invocación", async () => {
+        await preparar(FULL_TIME);
+        const get = vi.spyOn(kv, "get");
+        await syncConKv();
+        expect(get).toHaveBeenCalledTimes(1);
+      });
     });
   });
 });

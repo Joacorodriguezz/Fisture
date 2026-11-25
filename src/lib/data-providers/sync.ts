@@ -14,6 +14,18 @@ import { guardarSlugs, resolverSlugsNuevos } from "../db/slugs";
 import type { FilaSinSlug } from "../slug";
 import { calendarSyncs, teams, matches, leagues, leagueTeams, prodeMatches, prodePredictions } from "../../../drizzle/schema";
 import { esMismoCruce, SOURCE_MANUAL } from "../prode/partidos";
+import { resultadoProde } from "./espn-resultado-prode";
+import {
+  cambioAuto,
+  leerModoAuto,
+  motivoEnEspera,
+  permiteRegla,
+  reglaDeEstado,
+  resultadoAutoDe,
+  type ColumnasAuto,
+  type ModoAuto,
+  type ResultadoAuto,
+} from "./prode-resultado";
 import { ESTADOS_EMPEZADO } from "../prode/horario";
 import { logoDeCompetencia } from "../logos-competencias";
 import {
@@ -43,6 +55,8 @@ export interface SyncResult {
 export interface SyncEnv {
   DB: D1Database;
   FOOTBALL_DATA_API_KEY?: string;
+  // Solo se lee el interruptor del resultado automático del prode (docs/40 D3)
+  KV?: { get?(key: string): Promise<string | null> };
 }
 
 // Providers que no entregan la temporada completa: se piden los partidos desde unos días atrás
@@ -50,6 +64,20 @@ const DIAS_ATRAS = 30;
 
 // Sentencias por db.batch
 const TAMANO_LOTE = 50;
+
+// Pedidos de summary de ESPN (parciales por período) por invocación, uno por partido del prode con alargue o
+// penales. Presupuesto de subrequests de Workers Free (docs/22, docs/40 D1): el resto queda en espera.
+export const MAX_RESUMENES_PRODE = 3;
+
+// Estado del resultado automático del prode durante una invocación del sync
+interface ContextoProde {
+  kv: SyncEnv["KV"];
+  // Se lee una sola vez y solo si hay un partido del prode que mirar
+  modo?: Promise<ModoAuto>;
+  resumenesRestantes: number;
+  // Un summary que falló corta los siguientes de la invocación (cada intento es una subrequest)
+  resumenCaido: boolean;
+}
 // Filas por INSERT multi-fila: 100 parámetros máx. / 12 columnas de matches
 const FILAS_PARTIDOS = 7;
 // 100 parámetros máx. / 9 columnas de teams (con slug)
@@ -141,6 +169,7 @@ async function syncLeagues(env: SyncEnv, configs: LeagueConfig[]): Promise<SyncR
   const providers = new Map<string, DataProvider | null>();
   const conocidos: CacheConocidos = new Map();
   const results: SyncResult[] = [];
+  const prode: ContextoProde = { kv: env.KV, resumenesRestantes: MAX_RESUMENES_PRODE, resumenCaido: false };
   // Competencias sin slug (nuevas, o anteriores al backfill): se les asigna al final, todas juntas
   const ligasSinSlug: FilaSinSlug[] = [];
 
@@ -153,7 +182,7 @@ async function syncLeagues(env: SyncEnv, configs: LeagueConfig[]): Promise<SyncR
       continue;
     }
 
-    results.push(await syncLeague(db, provider, config, conocidos, ligasSinSlug));
+    results.push(await syncLeague(db, provider, config, conocidos, ligasSinSlug, prode));
     // Una competencia destacada puede sumar equipos conocidos: la próxima copa los recalcula
     if (config.destacada) conocidos.delete(config.source);
   }
@@ -221,7 +250,8 @@ async function syncLeague(
   provider: DataProvider,
   config: LeagueConfig,
   conocidos: CacheConocidos,
-  ligasSinSlug: FilaSinSlug[]
+  ligasSinSlug: FilaSinSlug[],
+  prode: ContextoProde
 ): Promise<SyncResult> {
   const result = resultadoVacio(config);
 
@@ -297,7 +327,7 @@ async function syncLeague(
     );
 
     // 5. Partidos
-    await syncPartidos(db, config, ligaId, fixture.matches, equipoIds, result);
+    await syncPartidos(db, provider, config, ligaId, fixture.matches, equipoIds, result, prode);
   } catch (error) {
     result.errors.push(mensajeDeError(error, "Error desconocido"));
   }
@@ -468,13 +498,77 @@ function resultado90DelManual(manualId: string) {
   };
 }
 
+// Resultado automático de un partido adoptado del prode (docs/40 D1, D2 y §4.3). Devuelve el UPDATE de las
+// columnas automáticas cuando cambian el dato o la confirmación; nunca toca las manuales. Todo lo dudoso
+// deja el partido en espera (sin puntos): un fallo del summary no hace fallar el sync.
+async function resultadoAutomatico(
+  db: Database,
+  provider: DataProvider,
+  config: LeagueConfig,
+  prode: ContextoProde,
+  m: ProviderMatch,
+  datos: { dateTime: Date; status: string; homeScore: number | null; awayScore: number | null },
+  actual: ColumnasAuto & { id: string; status: string | null; homeScore: number | null; awayScore: number | null }
+): Promise<[Sentencia] | null> {
+  // Solo ESPN trae el estado crudo del que sale el resultado
+  if (m.estadoProveedor === undefined) return null;
+  prode.modo ??= leerModoAuto(prode.kv, rootLogger);
+  const modo = await prode.modo;
+  if (modo === "off") return null;
+  // Con solo-a o solo-b, un partido de la otra regla no se toca (ni se vacía)
+  const regla = reglaDeEstado(m.estadoProveedor) ?? (actual.autoRegla === "A" || actual.autoRegla === "B" ? actual.autoRegla : null);
+  if (!permiteRegla(modo, regla)) return null;
+
+  const ahora = Date.now();
+  let nuevo: ResultadoAuto = resultadoAutoDe(m);
+  let resumen: "no_pedido" | "ok" | "fallo" = "no_pedido";
+
+  // Alargue o penales: el marcador a 90' sale del summary (parciales por período), una subrequest por partido
+  if (m.crudoProde && provider.getResumenProde) {
+    const sinCambios =
+      actual.autoConfirmadoAt !== null &&
+      actual.autoRegla === "B" &&
+      actual.status === datos.status &&
+      actual.homeScore === datos.homeScore &&
+      actual.awayScore === datos.awayScore &&
+      actual.autoPasa === (m.pasa ?? null);
+    // Ya confirmado y sin cambios en el scoreboard: no se pide de nuevo
+    if (sinCambios) return null;
+    if (prode.resumenesRestantes > 0 && !prode.resumenCaido) {
+      prode.resumenesRestantes--;
+      try {
+        const detalle = await provider.getResumenProde(config.externalId, m.externalId);
+        resumen = "ok";
+        nuevo = resultadoAutoDe(resultadoProde(m.crudoProde, detalle ?? undefined));
+      } catch (error) {
+        prode.resumenCaido = true;
+        resumen = "fallo";
+        rootLogger.warn("prode_resumen_fallo", { matchId: actual.id, error: mensajeDeError(error, "Error desconocido") });
+      }
+    } else {
+      resumen = "fallo";
+    }
+  }
+
+  const cambio = cambioAuto(actual, nuevo, ahora, datos.dateTime.getTime());
+  const confirmado = (cambio ?? actual).autoConfirmadoAt !== null;
+  if (datos.status === "finished") {
+    const motivo = motivoEnEspera(m.estadoProveedor, nuevo, confirmado, resumen);
+    if (motivo) rootLogger.info("prode_resultado_en_espera", { matchId: actual.id, estadoProveedor: m.estadoProveedor, motivo });
+  }
+  // En un arreglo: un builder de drizzle es thenable y una función async lo ejecutaría al devolverlo
+  return cambio ? [db.update(prodeMatches).set(cambio).where(eq(prodeMatches.matchId, actual.id))] : null;
+}
+
 async function syncPartidos(
   db: Database,
+  provider: DataProvider,
   config: LeagueConfig,
   ligaId: string,
   proveedor: ProviderMatch[],
   equipoIds: Map<string, string>,
-  result: SyncResult
+  result: SyncResult,
+  prode: ContextoProde
 ): Promise<void> {
   // La misma consulta indexada (league_id, source) trae también los cruces manuales del prode de la
   // liga: sin subrequests de más para reemplazarlos cuando ESPN publica el mismo partido.
@@ -491,8 +585,17 @@ async function syncPartidos(
       awayScore: matches.awayScore,
       round: matches.round,
       source: matches.source,
+      // Vínculo del prode (docs/40 D4): no nulo si el partido está adoptado
+      prodeId: prodeMatches.matchId,
+      autoHomeGoals90: prodeMatches.autoHomeGoals90,
+      autoAwayGoals90: prodeMatches.autoAwayGoals90,
+      autoPasa: prodeMatches.autoPasa,
+      autoRegla: prodeMatches.autoRegla,
+      autoVistoAt: prodeMatches.autoVistoAt,
+      autoConfirmadoAt: prodeMatches.autoConfirmadoAt,
     })
     .from(matches)
+    .leftJoin(prodeMatches, eq(prodeMatches.matchId, matches.id))
     .where(and(eq(matches.leagueId, ligaId), inArray(matches.source, [config.source, SOURCE_MANUAL])));
   const existentes = filas.filter((m) => m.source === config.source);
   const manuales = filas.filter((m) => m.source === SOURCE_MANUAL);
@@ -500,6 +603,8 @@ async function syncPartidos(
 
   const nuevos: (typeof matches.$inferInsert)[] = [];
   const cambios: Sentencia[] = [];
+  // Resultado automático de los partidos adoptados del prode: va en el mismo batch, sin subrequests de más
+  const cambiosProde: Sentencia[] = [];
   // Cada reemplazo va en su propio batch atómico. El seguimiento del calendario pasa al partido de
   // ESPN antes de que el borrado del manual se lleve sus filas por cascada.
   const reemplazos: [Sentencia, ...Sentencia[]][] = [];
@@ -581,6 +686,11 @@ async function syncPartidos(
           .where(eq(matches.id, actual.id))
       );
     }
+
+    if (actual.prodeId !== null) {
+      const sentencia = await resultadoAutomatico(db, provider, config, prode, m, datos, actual);
+      if (sentencia) cambiosProde.push(...sentencia);
+    }
   }
 
   await ejecutarEnLotes(db, [
@@ -590,6 +700,7 @@ async function syncPartidos(
     ...(cambios.length ? [cerrarEmpezadosDelProde(db, ligaId)] : []),
     ...partir(nuevos, FILAS_PARTIDOS).map((filas) => db.insert(matches).values(filas).onConflictDoNothing()),
     ...cambios,
+    ...cambiosProde,
   ]);
   for (const lote of reemplazos) await db.batch(lote);
   if (reemplazos.length) rootLogger.info("prode_cruce_reemplazado_por_sync", { leagueId: ligaId, cantidad: reemplazos.length, pendientes: reemplazosPendientes });
