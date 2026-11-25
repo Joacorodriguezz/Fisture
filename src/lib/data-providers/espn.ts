@@ -334,6 +334,7 @@ export function createEspnClient(): DataProvider {
         dateTime: new Date(e.date),
         venue: comp?.venue?.fullName,
         status: estado,
+        estadoProveedor: e.status.type.name,
         homeScore: goles(local),
         awayScore: goles(visitante),
         round: partes.length ? partes.join(" · ") : undefined,

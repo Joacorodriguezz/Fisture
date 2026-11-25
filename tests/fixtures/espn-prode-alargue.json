@@ -1,0 +1,299 @@
+[
+  {
+    "liga": "arg.1/2025",
+    "id": "761364",
+    "fecha": "2025-11-24T20:00Z",
+    "nombre": "BAR @ RIE",
+    "temporada": {
+      "year": 2025,
+      "slug": "clausura---round-of-16",
+      "type": 13167
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FINAL_AET",
+        "state": "post",
+        "completed": true,
+        "description": "Final Score - After Extra Time",
+        "detail": "AET",
+        "shortDetail": "AET"
+      },
+      "period": 4,
+      "displayClock": "120'+3'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Deportivo Riestra",
+        "score": "0",
+        "winner": false,
+        "extra": {
+          "advance": false
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Barracas Central",
+        "score": "1",
+        "winner": true,
+        "extra": {
+          "advance": true
+        }
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.copa/2024",
+    "id": "693401",
+    "fecha": "2024-04-17T18:40Z",
+    "nombre": "CHA @ TIG",
+    "temporada": {
+      "year": 2024,
+      "slug": "round-of-64",
+      "type": 12339
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FINAL_AGT",
+        "state": "post",
+        "completed": true,
+        "description": "Final Score - After Golden Goal",
+        "detail": "AGT",
+        "shortDetail": "AGT"
+      },
+      "period": 3,
+      "displayClock": "105'+5'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Tigre",
+        "score": "1",
+        "winner": false,
+        "extra": {
+          "advance": false
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Chacarita Juniors",
+        "score": "1",
+        "winner": true,
+        "extra": {
+          "advance": true
+        }
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "conmebol.libertadores/2023",
+    "id": "688946",
+    "fecha": "2023-11-04T20:00Z",
+    "nombre": "FLU @ CABJ",
+    "temporada": {
+      "year": 2023,
+      "slug": "final",
+      "type": 11524
+    },
+    "competicion": {
+      "notes": [],
+      "headlines": [
+        {
+          "description": "John Kennedy, a 21-year-old striker with many ups and downs in his short career, scored the winning goal on Saturday to give Brazil's Fluminense their maiden Copa Libertadores title against Boca Juniors.",
+          "type": "Recap",
+          "shortLinkText": "John Kennedy wins Fluminense 1st Libertadores"
+        }
+      ]
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FINAL_AET",
+        "state": "post",
+        "completed": true,
+        "description": "Final Score - After Extra Time",
+        "detail": "AET",
+        "shortDetail": "AET"
+      },
+      "period": 4,
+      "displayClock": "120'+4'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Boca Juniors",
+        "score": "1",
+        "winner": false,
+        "extra": {}
+      },
+      {
+        "homeAway": "away",
+        "team": "Fluminense",
+        "score": "2",
+        "winner": true,
+        "extra": {}
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.1/2026",
+    "id": "401871437",
+    "fecha": "2026-05-09T22:00Z",
+    "nombre": "HUR @ CABJ",
+    "temporada": {
+      "year": 2026,
+      "slug": "apertura---round-of-16",
+      "type": 13904
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FINAL_AET",
+        "state": "post",
+        "completed": true,
+        "description": "Final Score - After Extra Time",
+        "detail": "AET",
+        "shortDetail": "AET"
+      },
+      "period": 4,
+      "displayClock": "120'+3'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Boca Juniors",
+        "score": "2",
+        "winner": false,
+        "extra": {
+          "advance": false
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Huracán",
+        "score": "3",
+        "winner": true,
+        "extra": {
+          "advance": true
+        }
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.1/2026",
+    "id": "401872291",
+    "fecha": "2026-05-13T00:30Z",
+    "nombre": "HUR @ ARGJ",
+    "temporada": {
+      "year": 2026,
+      "slug": "apertura---quarterfinals",
+      "type": 13903
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FINAL_AET",
+        "state": "post",
+        "completed": true,
+        "description": "Final Score - After Extra Time",
+        "detail": "AET",
+        "shortDetail": "AET"
+      },
+      "period": 4,
+      "displayClock": "120'+2'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Argentinos Juniors",
+        "score": "1",
+        "winner": true,
+        "extra": {
+          "advance": true
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Huracán",
+        "score": "0",
+        "winner": false,
+        "extra": {
+          "advance": false
+        }
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.1/2026",
+    "id": "401872179",
+    "fecha": "2026-05-13T21:45Z",
+    "nombre": "RAC @ ROS",
+    "temporada": {
+      "year": 2026,
+      "slug": "apertura---quarterfinals",
+      "type": 13903
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FINAL_AET",
+        "state": "post",
+        "completed": true,
+        "description": "Final Score - After Extra Time",
+        "detail": "AET",
+        "shortDetail": "AET"
+      },
+      "period": 4,
+      "displayClock": "120'+1'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Rosario Central",
+        "score": "2",
+        "winner": true,
+        "extra": {
+          "advance": true
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Racing Club",
+        "score": "1",
+        "winner": false,
+        "extra": {
+          "advance": false
+        }
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  }
+]
