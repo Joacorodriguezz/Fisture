@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enlaceInvitacion, formatearCierre, filaPropiaAparte, mensajeDeError, normalizarRanking, normalizarRespuestaRanking, parsearGol, nuevoGol, sumarGol, minutosHasta } from "../../../src/components/prode/logica";
+import { desglosePuntos, enlaceInvitacion, formatearCierre, filaPropiaAparte, ladoPorMarcador, mensajeDeError, normalizarRanking, normalizarRespuestaRanking, parsearGol, nuevoGol, sumarGol, minutosHasta } from "../../../src/components/prode/logica";
 
 describe("mensajeDeError", () => {
   it("muestra 'Cerró el pronóstico' ante pronostico_cerrado", () => {
@@ -64,6 +64,38 @@ describe("normalizarRespuestaRanking", () => {
     expect(normalizarRespuestaRanking(null)).toEqual({ filas: [], total: 0, yo: null });
     expect(normalizarRespuestaRanking({ filas: [ana], yo: { nombre: "x" } })).toEqual({ filas: [ana], total: 1, yo: null });
     expect(normalizarRespuestaRanking({ filas: [ana], total: "7" }).total).toBe(1);
+  });
+});
+
+describe("ladoPorMarcador (docs/40 R6)", () => {
+  it("con ganador devuelve el lado que pasa, sin pedir nada", () => {
+    expect(ladoPorMarcador(2, 1)).toBe("home");
+    expect(ladoPorMarcador(0, 3)).toBe("away");
+  });
+  it("con empate devuelve 'empate': ahí hay que elegir quién pasa", () => {
+    expect(ladoPorMarcador(1, 1)).toBe("empate");
+    expect(ladoPorMarcador(0, 0)).toBe("empate");
+  });
+  it("sin los dos goles cargados no hay nada que mostrar", () => {
+    expect(ladoPorMarcador(null, 1)).toBeNull();
+    expect(ladoPorMarcador(1, null)).toBeNull();
+  });
+});
+
+describe("desglosePuntos", () => {
+  it("muestra marcador + extra cuando hay extra", () => {
+    expect(desglosePuntos(3, 1)).toBe("3 + 1");
+    expect(desglosePuntos(0, 1)).toBe("0 + 1");
+  });
+  it("sin extra no hay desglose", () => {
+    expect(desglosePuntos(3, 0)).toBeNull();
+    expect(desglosePuntos(0, 0)).toBeNull();
+  });
+});
+
+describe("mensajeDeError de quién pasa", () => {
+  it("pide elegir el equipo ante falta_quien_pasa", () => {
+    expect(mensajeDeError(400, "falta_quien_pasa")).toMatch(/qué equipo pasa/);
   });
 });
 

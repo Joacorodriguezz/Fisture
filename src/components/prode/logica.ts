@@ -20,6 +20,7 @@ export function mensajeDeError(status: number, codigo?: unknown, contexto: "pron
   if (status === 429) return "Demasiados intentos. Esperá un minuto.";
   if (codigo === "pronostico_cerrado") return "Cerró el pronóstico";
   if (codigo === "marcador_invalido") return `Ingresá goles enteros entre 0 y ${GOLES_MAX}.`;
+  if (codigo === "falta_quien_pasa") return "Si empatan, elegí qué equipo pasa.";
   if (codigo === "partido_inexistente") return "Ese partido ya no está disponible.";
   if (codigo === "limite_de_grupos") return "Llegaste al máximo de grupos que podés crear.";
   if (contexto === "unirse") return "La invitación no es válida. Pedí un enlace nuevo a quien te invitó.";
@@ -42,6 +43,20 @@ export function parsearGol(texto: string): number | null {
   if (!/^\d{1,2}$/.test(t)) return null;
   const n = Number(t);
   return n <= GOLES_MAX ? n : null;
+}
+
+export type Lado = "home" | "away";
+
+// Qué pide el formulario según el marcador (docs/40 R6): con ganador pasa ese equipo (no se pide nada); con
+// empate hay que elegir quién pasa; sin los dos goles no hay nada que mostrar
+export function ladoPorMarcador(local: number | null, visitante: number | null): Lado | "empate" | null {
+  if (local === null || visitante === null) return null;
+  return local === visitante ? "empate" : local > visitante ? "home" : "away";
+}
+
+// "3 + 1" cuando el partido sumó el extra de quién pasa; sin extra, nada que desglosar
+export function desglosePuntos(marcador: number, extra: number): string | null {
+  return extra > 0 ? `${marcador} + ${extra}` : null;
 }
 
 export function enlaceInvitacion(origen: string, codigo: string): string {

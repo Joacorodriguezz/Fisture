@@ -1,6 +1,6 @@
 // Recorrido del prode con datos sembrados en el escenario `prode` de scripts/e2e-server.mjs (docs/38).
 // Cruces: prode-abierto (en 30 días), prode-cerrado (empezó hace 1 h) y prode-jugado (terminó 2-1, con el
-// pronóstico 2-1 del dueño: 3 puntos). Dueño: `<proyecto>-prode-<retry>`; invitado: `<proyecto>-prode-invitado-<retry>`.
+// pronóstico 2-1 del dueño: 3 + 1 puntos). Dueño: `<proyecto>-prode-<retry>`; invitado: `<proyecto>-prode-invitado-<retry>`.
 import { test, expect, type Page, type TestInfo } from "@playwright/test";
 
 const ORIGEN = "http://127.0.0.1:4322";
@@ -44,6 +44,47 @@ test("prode: guarda, edita y persiste el pronóstico de un partido abierto", asy
   await page.reload();
   await expect(local).toHaveValue("3");
   await expect(visitante).toHaveValue("0");
+  // Con un ganador no se pide quién pasa: se lee quién pasa
+  await expect(page.getByRole("group", { name: "¿Quién pasa?" })).toHaveCount(0);
+  await expect(page.getByText("Pasa: Prode Alfa", { exact: true })).toBeVisible();
+});
+
+test("prode: con un empate pide quién pasa y no deja guardar hasta elegirlo", async ({ page }, info) => {
+  await conSesion(page, idDueno(info));
+  await page.goto("/prode");
+  const local = page.locator("#prode-prode-abierto-l");
+  const visitante = page.locator("#prode-prode-abierto-v");
+  const pasa = page.getByRole("group", { name: "¿Quién pasa?" });
+  await expect(local).toBeEnabled();
+
+  await local.fill("1");
+  await visitante.fill("1");
+  await expect(pasa).toBeVisible();
+  const guardar = page.getByRole("button", { name: /^(Guardar|Cambiar)$/ });
+  await expect(guardar).toBeDisabled();
+  // Las opciones son objetivos táctiles grandes
+  const opcion = pasa.locator("label", { hasText: "Prode Beta" });
+  expect((await opcion.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+
+  await opcion.click();
+  await expect(guardar).toBeEnabled();
+  await guardar.click();
+  await expect(page.getByText("Pronóstico guardado.")).toBeVisible();
+
+  await page.reload();
+  await expect(local).toHaveValue("1");
+  await expect(visitante).toHaveValue("1");
+  await expect(pasa.getByRole("radio", { name: "Prode Beta" })).toBeChecked();
+  await sinScrollHorizontal(page);
+
+  // Pasar a un ganador oculta el campo y se guarda sin quién pasa
+  await local.fill("2");
+  await expect(pasa).toHaveCount(0);
+  await page.getByRole("button", { name: "Cambiar" }).click();
+  await expect(page.getByText("Pronóstico guardado.")).toBeVisible();
+  await page.reload();
+  await expect(pasa).toHaveCount(0);
+  await expect(page.getByText("Pasa: Prode Alfa", { exact: true })).toBeVisible();
 });
 
 test("prode: el partido cerrado no se edita y el servidor lo rechaza", async ({ page }, info) => {
@@ -56,15 +97,16 @@ test("prode: el partido cerrado no se edita y el servidor lo rechaza", async ({ 
 
   const res = await page.request.put("/api/prode/pronosticos", {
     headers: { Origin: ORIGEN },
-    data: { matchId: "prode-cerrado", homeGoals: 1, awayGoals: 1 },
+    data: { matchId: "prode-cerrado", homeGoals: 1, awayGoals: 1, pasa: "home" },
   });
   expect(res.status()).toBe(409);
   expect(await res.json()).toMatchObject({ error: "pronostico_cerrado" });
 
   // El partido terminado muestra el resultado y los puntos del pronóstico previo
   await expect(page.getByText("Resultado: 2 - 1.")).toBeVisible();
-  await expect(page.getByText("Sumaste 3 puntos (resultado exacto).")).toBeVisible();
-  await expect(page.getByText("Tus puntos: 3")).toBeVisible();
+  await expect(page.getByText("Sumaste 4 puntos (3 + 1, resultado exacto).")).toBeVisible();
+  await expect(page.getByText("Pasó: Prode Alfa.")).toBeVisible();
+  await expect(page.getByText("Tus puntos: 4")).toBeVisible();
 });
 
 test("prode: crea un grupo, muestra la invitación y otro usuario se une con el enlace", async ({ page, browser }, info) => {
@@ -105,16 +147,16 @@ test("prode: el ranking general y el del grupo muestran nombre, posición y punt
   await page.goto("/prode");
   const fila = page.getByRole("row", { name: new RegExp(`${nombre} \\(vos\\)`) });
   await expect(fila).toBeVisible();
-  // Todos los dueños sembrados empatan con un exacto (3 puntos): comparten la posición 1
+  // Todos los dueños sembrados empatan con un exacto y quién pasa (4 puntos): comparten la posición 1
   await expect(fila.getByRole("cell").nth(0)).toHaveText("1");
-  await expect(fila.getByRole("cell").nth(2)).toHaveText("3");
+  await expect(fila.getByRole("cell").nth(2)).toHaveText("4");
 
   await page.goto(`/prode/grupos/grupo-${idDueno(info)}`);
   await expect(page.getByRole("heading", { name: "Integrantes (1)" })).toBeVisible();
   const filaGrupo = page.getByRole("row", { name: new RegExp(`${nombre} \\(vos\\)`) });
   await expect(filaGrupo).toBeVisible();
   await expect(filaGrupo.getByRole("cell").nth(0)).toHaveText("1");
-  await expect(filaGrupo.getByRole("cell").nth(2)).toHaveText("3");
+  await expect(filaGrupo.getByRole("cell").nth(2)).toHaveText("4");
 });
 
 test("prode: sin scroll horizontal en /prode y /prode/grupos", async ({ page }, info) => {

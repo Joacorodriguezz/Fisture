@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
-import { aviso, boton, etiquetaTarjeta, filaEquipo, golBoton, golCampo, insignia, resultadoCerrado, siglaEquipo, soloLectores, suave, tarjeta, texto, tituloEquipo } from "../prode/estilos";
-import { ETIQUETA_ESTADO, formatearCierre, mensajeDeError, minutosHasta, parsearGol, sumarGol, type EstadoPartido } from "../prode/logica";
+import { aviso, boton, etiquetaTarjeta, filaEquipo, golBoton, golCampo, grupoPasa, insignia, leyendaPasa, opcionPasa, radioPasa, resultadoCerrado, siglaEquipo, soloLectores, suave, tarjeta, texto, tituloEquipo } from "../prode/estilos";
+import { desglosePuntos, ETIQUETA_ESTADO, formatearCierre, ladoPorMarcador, mensajeDeError, minutosHasta, parsearGol, sumarGol, type EstadoPartido, type Lado } from "../prode/logica";
+
+interface Pronostico {
+  homeGoals: number;
+  awayGoals: number;
+  pasa: Lado | null;
+}
 
 interface Partido {
   id: string;
@@ -11,12 +17,16 @@ interface Partido {
   cierre: string;
   estado: EstadoPartido;
   resultado: { local: number; visitante: number } | null;
-  pronostico: { homeGoals: number; awayGoals: number } | null;
+  // Equipo que pasó (docs/40 R3); null si todavía no se sabe
+  pasa: Lado | null;
+  pronostico: Pronostico | null;
 }
 
 interface PuntosPartido {
   matchId: string;
   puntos: number;
+  marcador: number;
+  extra: number;
   exacto: boolean;
   acierto: boolean;
 }
@@ -107,6 +117,7 @@ function TarjetaPartido({ partido, ahora, puntos }: { partido: Partido; ahora: n
   const [guardado, setGuardado] = useState(partido.pronostico);
   const [local, setLocal] = useState(partido.pronostico ? String(partido.pronostico.homeGoals) : "");
   const [visitante, setVisitante] = useState(partido.pronostico ? String(partido.pronostico.awayGoals) : "");
+  const [pasa, setPasa] = useState<Lado | null>(partido.pronostico?.pasa ?? null);
   const [cerradoServidor, setCerradoServidor] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [mensaje, setMensaje] = useState<Aviso | null>(null);
@@ -125,13 +136,19 @@ function TarjetaPartido({ partido, ahora, puntos }: { partido: Partido; ahora: n
       setMensaje({ tipo: "error", texto: mensajeDeError(400, "marcador_invalido") });
       return;
     }
+    // Con empate hay que elegir quién pasa; con un ganador se deriva y no se manda (docs/40 R2)
+    const pasaEnviado = homeGoals === awayGoals ? pasa : null;
+    if (homeGoals === awayGoals && pasaEnviado === null) {
+      setMensaje({ tipo: "error", texto: mensajeDeError(400, "falta_quien_pasa") });
+      return;
+    }
     setOcupado(true);
     setMensaje(null);
     try {
       const res = await fetch("/api/prode/pronosticos", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId: partido.id, homeGoals, awayGoals }),
+        body: JSON.stringify({ matchId: partido.id, homeGoals, awayGoals, ...(pasaEnviado ? { pasa: pasaEnviado } : {}) }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
@@ -139,7 +156,7 @@ function TarjetaPartido({ partido, ahora, puntos }: { partido: Partido; ahora: n
         setMensaje({ tipo: "error", texto: mensajeDeError(res.status, data.error) });
         return;
       }
-      setGuardado({ homeGoals, awayGoals });
+      setGuardado({ homeGoals, awayGoals, pasa: pasaEnviado });
       setMensaje({ tipo: "ok", texto: "Pronóstico guardado." });
     } catch {
       setMensaje({ tipo: "error", texto: "No se pudo guardar. Probá de nuevo." });
@@ -148,7 +165,17 @@ function TarjetaPartido({ partido, ahora, puntos }: { partido: Partido; ahora: n
     }
   }
 
-  const sinCambios = guardado !== null && String(guardado.homeGoals) === local.trim() && String(guardado.awayGoals) === visitante.trim();
+  // Lo que se está cargando: con empate pide elegir quién pasa; con un ganador, ese equipo pasa
+  const lado = ladoPorMarcador(parsearGol(local), parsearGol(visitante));
+  const pasaCargado = lado === "empate" ? pasa : null;
+  const sinElegir = lado === "empate" && pasa === null;
+  const sinCambios =
+    guardado !== null && String(guardado.homeGoals) === local.trim() && String(guardado.awayGoals) === visitante.trim() && guardado.pasa === pasaCargado;
+  const nombreDe = (l: Lado) => (l === "home" ? partido.local.nombre : partido.visitante.nombre);
+  // Lo guardado, para un partido que ya no se edita
+  const ladoGuardado = guardado ? ladoPorMarcador(guardado.homeGoals, guardado.awayGoals) : null;
+  const pasaGuardado = ladoGuardado === "empate" ? guardado!.pasa : ladoGuardado;
+  const desglose = puntos ? desglosePuntos(puntos.marcador, puntos.extra) : null;
 
   const cierraEn = estado === "abierto" ? minutosHasta(partido.cierre, ahora) : null;
   const urgente = cierraEn !== null && cierraEn <= 60;
@@ -199,22 +226,41 @@ function TarjetaPartido({ partido, ahora, puntos }: { partido: Partido; ahora: n
           </div>
         </div>
       ))}
+      {editable && lado === "empate" && (
+        <fieldset style={grupoPasa} disabled={ocupado}>
+          <legend style={leyendaPasa}>¿Quién pasa?</legend>
+          {(["home", "away"] as const).map((l) => (
+            <label key={l} style={opcionPasa(pasa === l)}>
+              <input type="radio" name={`${id}-pasa`} value={l} checked={pasa === l} onChange={() => { setPasa(l); setMensaje(null); }} style={radioPasa} />
+              <span>{nombreDe(l)}</span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+      {editable && (lado === "home" || lado === "away") && <span style={suave}>Pasa: {nombreDe(lado)}</span>}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, borderTop: "1px solid var(--linea)", paddingTop: 12 }}>
         <span style={suave}>
           {editable ? (sinCambios ? "Podés cambiarlo hasta que empiece" : guardado ? "Cambios sin guardar" : "Todavía no pronosticaste") : ""}
         </span>
         {editable && (
-          <button type="submit" className="tb-boton tb-boton--primario" disabled={ocupado || sinCambios} style={boton}>
+          <button type="submit" className="tb-boton tb-boton--primario" disabled={ocupado || sinCambios || sinElegir} style={boton}>
             {ocupado ? "Guardando…" : guardado ? "Cambiar" : "Guardar"}
           </button>
         )}
       </div>
       {estado === "cerrado" && <span style={suave}>{guardado ? "Cerró el pronóstico" : "Cerró el pronóstico. No cargaste uno."}</span>}
+      {!editable && guardado && (
+        <span style={suave}>{pasaGuardado ? `En tu pronóstico pasa: ${nombreDe(pasaGuardado)}.` : "No elegiste quién pasa."}</span>
+      )}
       {estado === "jugado" && (
         <span style={texto}>
           {partido.resultado ? `Resultado: ${partido.resultado.local} - ${partido.resultado.visitante}. ` : ""}
+          {partido.resultado && partido.pasa ? `Pasó: ${nombreDe(partido.pasa)}. ` : ""}
+          {partido.resultado && !partido.pasa ? "Falta confirmar quién pasó. " : ""}
           {guardado ? "" : "No cargaste pronóstico. "}
-          {puntos ? `Sumaste ${puntos.puntos} ${puntos.puntos === 1 ? "punto" : "puntos"}${puntos.exacto ? " (resultado exacto)" : ""}.` : ""}
+          {puntos
+            ? `Sumaste ${puntos.puntos} ${puntos.puntos === 1 ? "punto" : "puntos"}${desglose || puntos.exacto ? ` (${[desglose, puntos.exacto ? "resultado exacto" : null].filter(Boolean).join(", ")})` : ""}.`
+            : ""}
         </span>
       )}
       <span role="status" aria-live="polite" style={aviso(mensaje?.tipo ?? "ok")}>
