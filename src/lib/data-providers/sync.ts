@@ -5,7 +5,7 @@
 // - una sentencia admite como máximo 100 parámetros: los inserts multi-fila se parten en consecuencia
 // - solo se escribe lo que cambió, para no gastar escrituras en un sync diario
 
-import { and, eq, exists, inArray, isNull, lte, notExists, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, lte, notExists, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { alias } from "drizzle-orm/sqlite-core";
 import { createDb, type Database } from "../db";
@@ -22,7 +22,6 @@ import {
   permiteRegla,
   reglaDeEstado,
   resultadoAutoDe,
-  type ColumnasAuto,
   type ModoAuto,
   type ResultadoAuto,
 } from "./prode-resultado";
@@ -69,14 +68,18 @@ const TAMANO_LOTE = 50;
 // penales. Presupuesto de subrequests de Workers Free (docs/22, docs/40 D1): el resto queda en espera.
 export const MAX_RESUMENES_PRODE = 3;
 
-// Estado del resultado automático del prode durante una invocación del sync
-interface ContextoProde {
+// Estado del resultado automático del prode durante una invocación (sync diario o pasadas, docs/40 D4)
+export interface ContextoProde {
   kv: SyncEnv["KV"];
   // Se lee una sola vez y solo si hay un partido del prode que mirar
   modo?: Promise<ModoAuto>;
   resumenesRestantes: number;
   // Un summary que falló corta los siguientes de la invocación (cada intento es una subrequest)
   resumenCaido: boolean;
+}
+
+export function crearContextoProde(kv: SyncEnv["KV"]): ContextoProde {
+  return { kv, resumenesRestantes: MAX_RESUMENES_PRODE, resumenCaido: false };
 }
 // Filas por INSERT multi-fila: 100 parámetros máx. / 12 columnas de matches
 const FILAS_PARTIDOS = 7;
@@ -85,7 +88,7 @@ const FILAS_EQUIPOS = 11;
 // 100 parámetros máx. / 2 columnas de league_teams
 const FILAS_PARTICIPACION = 45;
 
-type Sentencia = BatchItem<"sqlite">;
+export type Sentencia = BatchItem<"sqlite">;
 
 function resultadoVacio(config: LeagueConfig, errores: string[] = []): SyncResult {
   return {
@@ -169,7 +172,7 @@ async function syncLeagues(env: SyncEnv, configs: LeagueConfig[]): Promise<SyncR
   const providers = new Map<string, DataProvider | null>();
   const conocidos: CacheConocidos = new Map();
   const results: SyncResult[] = [];
-  const prode: ContextoProde = { kv: env.KV, resumenesRestantes: MAX_RESUMENES_PRODE, resumenCaido: false };
+  const prode = crearContextoProde(env.KV);
   // Competencias sin slug (nuevas, o anteriores al backfill): se les asigna al final, todas juntas
   const ligasSinSlug: FilaSinSlug[] = [];
 
@@ -462,7 +465,7 @@ async function syncEquipos(
 // Tope por competencia y por invocación para no pasarse del presupuesto de Workers Free (docs/22).
 export const MAX_REEMPLAZOS_PRODE = 5;
 
-function cerrarEmpezadosDelProde(db: Database, ligaId: string): Sentencia {
+export function cerrarEmpezadosDelProde(db: Database, ligaId: string): Sentencia {
   const ahora = new Date();
   const empezados = db
     .select({ id: matches.id })
@@ -498,18 +501,96 @@ function resultado90DelManual(manualId: string) {
   };
 }
 
+// Partidos guardados con su vínculo del prode (docs/40 D4): `prodeId` no es nulo si está adoptado
+export function leerPartidos(db: Database, condicion: SQL | undefined) {
+  return db
+    .select({
+      id: matches.id,
+      externalId: matches.externalId,
+      homeTeamId: matches.homeTeamId,
+      awayTeamId: matches.awayTeamId,
+      dateTime: matches.dateTime,
+      venue: matches.venue,
+      status: matches.status,
+      homeScore: matches.homeScore,
+      awayScore: matches.awayScore,
+      round: matches.round,
+      source: matches.source,
+      prodeId: prodeMatches.matchId,
+      autoHomeGoals90: prodeMatches.autoHomeGoals90,
+      autoAwayGoals90: prodeMatches.autoAwayGoals90,
+      autoPasa: prodeMatches.autoPasa,
+      autoRegla: prodeMatches.autoRegla,
+      autoVistoAt: prodeMatches.autoVistoAt,
+      autoConfirmadoAt: prodeMatches.autoConfirmadoAt,
+    })
+    .from(matches)
+    .leftJoin(prodeMatches, eq(prodeMatches.matchId, matches.id))
+    .where(condicion);
+}
+
+export type PartidoGuardado = Awaited<ReturnType<typeof leerPartidos>>[number];
+
+// Lo que el proveedor dice de un partido, listo para guardar (los equipos los resuelve cada sync)
+export function datosDePartido(m: ProviderMatch) {
+  return {
+    // D1 almacena timestamps en segundos: comparar con esa precisión evita
+    // reescribir un partido sin cambios si el proveedor envía milisegundos.
+    dateTime: new Date(Math.floor(m.dateTime.getTime() / 1000) * 1000),
+    venue: m.venue ?? null,
+    status: m.status,
+    homeScore: m.homeScore ?? null,
+    awayScore: m.awayScore ?? null,
+    round: m.round ?? null,
+  };
+}
+
+export type DatosPartido = ReturnType<typeof datosDePartido> & { homeTeamId: string; awayTeamId: string };
+
+// El UPDATE del partido si cambió algo, o null: solo se escribe lo que cambió. En un arreglo porque un
+// builder de drizzle es thenable.
+export function cambioDePartido(db: Database, actual: PartidoGuardado, datos: DatosPartido): [Sentencia] | null {
+  const cambio =
+    actual.dateTime?.getTime() !== datos.dateTime.getTime() ||
+    actual.venue !== datos.venue ||
+    actual.status !== datos.status ||
+    actual.homeScore !== datos.homeScore ||
+    actual.awayScore !== datos.awayScore ||
+    actual.round !== datos.round;
+  return cambio ? [db.update(matches).set({ ...datos, updatedAt: new Date() }).where(eq(matches.id, actual.id))] : null;
+}
+
+// Un partido adoptado del prode que trajo el proveedor
+export interface Adoptado {
+  config: LeagueConfig;
+  m: ProviderMatch;
+  datos: DatosPartido;
+  actual: PartidoGuardado;
+}
+
+// Columnas automáticas de los adoptados. El tope de summaries (MAX_RESUMENES_PRODE) se gasta primero en los
+// partidos más recientes: unos pocos viejos que nunca cierran no dejan sin resultado a los recién terminados.
+export async function sentenciasDelProde(db: Database, provider: DataProvider, prode: ContextoProde, adoptados: Adoptado[]) {
+  const sentencias: Sentencia[] = [];
+  let confirmados = 0;
+  for (const adoptado of [...adoptados].sort((a, b) => b.datos.dateTime.getTime() - a.datos.dateTime.getTime())) {
+    const resultado = await resultadoAutomatico(db, provider, prode, adoptado);
+    if (!resultado) continue;
+    sentencias.push(...resultado.sentencia);
+    if (resultado.confirmado) confirmados++;
+  }
+  return { sentencias, confirmados };
+}
+
 // Resultado automático de un partido adoptado del prode (docs/40 D1, D2 y §4.3). Devuelve el UPDATE de las
 // columnas automáticas cuando cambian el dato o la confirmación; nunca toca las manuales. Todo lo dudoso
 // deja el partido en espera (sin puntos): un fallo del summary no hace fallar el sync.
 async function resultadoAutomatico(
   db: Database,
   provider: DataProvider,
-  config: LeagueConfig,
   prode: ContextoProde,
-  m: ProviderMatch,
-  datos: { dateTime: Date; status: string; homeScore: number | null; awayScore: number | null },
-  actual: ColumnasAuto & { id: string; status: string | null; homeScore: number | null; awayScore: number | null }
-): Promise<[Sentencia] | null> {
+  { config, m, datos, actual }: Adoptado
+): Promise<{ sentencia: [Sentencia]; confirmado: boolean } | null> {
   // Solo ESPN trae el estado crudo del que sale el resultado
   if (m.estadoProveedor === undefined) return null;
   prode.modo ??= leerModoAuto(prode.kv, rootLogger);
@@ -558,8 +639,12 @@ async function resultadoAutomatico(
     const motivo = motivoEnEspera(m.estadoProveedor, nuevo, confirmado, resumen);
     if (motivo) rootLogger.info("prode_resultado_en_espera", { matchId: actual.id, estadoProveedor: m.estadoProveedor, motivo });
   }
+  if (!cambio) return null;
   // En un arreglo: un builder de drizzle es thenable y una función async lo ejecutaría al devolverlo
-  return cambio ? [db.update(prodeMatches).set(cambio).where(eq(prodeMatches.matchId, actual.id))] : null;
+  return {
+    sentencia: [db.update(prodeMatches).set(cambio).where(eq(prodeMatches.matchId, actual.id))],
+    confirmado: cambio.autoConfirmadoAt !== null && cambio.autoConfirmadoAt !== actual.autoConfirmadoAt,
+  };
 }
 
 async function syncPartidos(
@@ -574,31 +659,7 @@ async function syncPartidos(
 ): Promise<void> {
   // La misma consulta indexada (league_id, source) trae también los cruces manuales del prode de la
   // liga: sin subrequests de más para reemplazarlos cuando ESPN publica el mismo partido.
-  const filas = await db
-    .select({
-      id: matches.id,
-      externalId: matches.externalId,
-      homeTeamId: matches.homeTeamId,
-      awayTeamId: matches.awayTeamId,
-      dateTime: matches.dateTime,
-      venue: matches.venue,
-      status: matches.status,
-      homeScore: matches.homeScore,
-      awayScore: matches.awayScore,
-      round: matches.round,
-      source: matches.source,
-      // Vínculo del prode (docs/40 D4): no nulo si el partido está adoptado
-      prodeId: prodeMatches.matchId,
-      autoHomeGoals90: prodeMatches.autoHomeGoals90,
-      autoAwayGoals90: prodeMatches.autoAwayGoals90,
-      autoPasa: prodeMatches.autoPasa,
-      autoRegla: prodeMatches.autoRegla,
-      autoVistoAt: prodeMatches.autoVistoAt,
-      autoConfirmadoAt: prodeMatches.autoConfirmadoAt,
-    })
-    .from(matches)
-    .leftJoin(prodeMatches, eq(prodeMatches.matchId, matches.id))
-    .where(and(eq(matches.leagueId, ligaId), inArray(matches.source, [config.source, SOURCE_MANUAL])));
+  const filas = await leerPartidos(db, and(eq(matches.leagueId, ligaId), inArray(matches.source, [config.source, SOURCE_MANUAL])));
   const existentes = filas.filter((m) => m.source === config.source);
   const manuales = filas.filter((m) => m.source === SOURCE_MANUAL);
   const porExterno = new Map(existentes.map((m) => [m.externalId, m]));
@@ -606,7 +667,7 @@ async function syncPartidos(
   const nuevos: (typeof matches.$inferInsert)[] = [];
   const cambios: Sentencia[] = [];
   // Partidos adoptados del prode que trae el proveedor: su resultado automático se resuelve después del recorrido
-  const adoptados: { m: ProviderMatch; datos: Parameters<typeof resultadoAutomatico>[5]; actual: (typeof existentes)[number] }[] = [];
+  const adoptados: Adoptado[] = [];
   // Cada reemplazo va en su propio batch atómico. El seguimiento del calendario pasa al partido de
   // ESPN antes de que el borrado del manual se lleve sus filas por cascada.
   const reemplazos: [Sentencia, ...Sentencia[]][] = [];
@@ -625,18 +686,7 @@ async function syncPartidos(
       continue;
     }
 
-    const datos = {
-      homeTeamId,
-      awayTeamId,
-      // D1 almacena timestamps en segundos: comparar con esa precisión evita
-      // reescribir un partido sin cambios si el proveedor envía milisegundos.
-      dateTime: new Date(Math.floor(m.dateTime.getTime() / 1000) * 1000),
-      venue: m.venue ?? null,
-      status: m.status,
-      homeScore: m.homeScore ?? null,
-      awayScore: m.awayScore ?? null,
-      round: m.round ?? null,
-    };
+    const datos = { homeTeamId, awayTeamId, ...datosDePartido(m) };
 
     const actual = porExterno.get(m.externalId);
 
@@ -672,35 +722,14 @@ async function syncPartidos(
       continue;
     }
 
-    const cambio =
-      actual.dateTime?.getTime() !== datos.dateTime.getTime() ||
-      actual.venue !== datos.venue ||
-      actual.status !== datos.status ||
-      actual.homeScore !== datos.homeScore ||
-      actual.awayScore !== datos.awayScore ||
-      actual.round !== datos.round;
+    const cambio = cambioDePartido(db, actual, datos);
+    if (cambio) cambios.push(...cambio);
 
-    if (cambio) {
-      cambios.push(
-        db
-          .update(matches)
-          .set({ ...datos, updatedAt: new Date() })
-          .where(eq(matches.id, actual.id))
-      );
-    }
-
-    if (actual.prodeId !== null) adoptados.push({ m, datos, actual });
+    if (actual.prodeId !== null) adoptados.push({ config, m, datos, actual });
   }
 
-  // El tope de summaries (MAX_RESUMENES_PRODE) se gasta primero en los partidos más recientes: unos pocos viejos
-  // que nunca cierren no dejan sin resultado a los recién terminados. Los cambios van en el mismo batch, sin
-  // subrequests de más.
-  adoptados.sort((a, b) => b.datos.dateTime.getTime() - a.datos.dateTime.getTime());
-  const cambiosProde: Sentencia[] = [];
-  for (const { m, datos, actual } of adoptados) {
-    const sentencia = await resultadoAutomatico(db, provider, config, prode, m, datos, actual);
-    if (sentencia) cambiosProde.push(...sentencia);
-  }
+  // Los cambios del prode van en el mismo batch, sin subrequests de más
+  const { sentencias: cambiosProde } = await sentenciasDelProde(db, provider, prode, adoptados);
 
   await ejecutarEnLotes(db, [
     // Antes de pisar horario y estado: cierre definitivo de los partidos del prode de la liga que ya
