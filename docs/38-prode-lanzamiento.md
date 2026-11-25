@@ -80,7 +80,7 @@ Se puede enviar `horario`, `fase` y `status` (`scheduled`, `live`, `finished`, `
 
 Cuenta el resultado a los 90 minutos más el adicionado, sin alargue ni penales (`docs/37` §3).
 
-- **Cruce manual**: `{"id":"<id>","status":"finished","homeScore":2,"awayScore":1}` (409 `partido_no_empezado` antes de la hora).
+- **Cruce manual**: `{"id":"<id>","status":"finished","homeScore":2,"awayScore":1}` (409 `partido_no_empezado` antes de la hora). Si terminó empatado a 90', cargar además quién pasó con `{"id":"<id>","pasa":"home"}` (`home` es el local, `away` el visitante).
 - **Partido adoptado de ESPN**: el marcador de ESPN puede incluir alargue o penales, así que no puntúa solo. Cargar el resultado confirmado con el PATCH:
 
 ```bash
@@ -88,7 +88,11 @@ curl -X PATCH "<URL>/api/admin/prode/partidos" -H "Authorization: Bearer $ADMIN_
   -d '{"id":"<id del partido>","homeGoals90":1,"awayGoals90":1}'
 ```
 
-Enteros 0-20, los dos juntos y sin otros campos (400 `cambios_mezclados`). Errores: 409 `partido_no_empezado`, 409 `partido_manual`, 404 `partido_inexistente`. El partido puntúa cuando además está en `finished`. Corregir el resultado reordena el ranking solo (los puntos se calculan al leer).
+**Quién pasó (`docs/40` R3).** Con ganador a 90' el equipo que pasó se deriva solo. Con un empate hay que cargar `pasa` (`home` | `away`), junto con el resultado (`"pasa":"away"` en el mismo PATCH) o después, solo (`{"id":"<id>","pasa":"away"}`, en manuales y adoptados); `"pasa": null` lo retira. Si el marcador a 90' tiene ganador y `pasa` lo contradice, 409 `pasa_inconsistente`. **Un empate terminado sin `pasa` no puntúa para nadie** (ni el marcador ni el extra) hasta que se cargue. Valor inválido: 400 `pasa_invalido`.
+
+Enteros 0-20, los dos juntos y sin otros campos que `pasa` (400 `cambios_mezclados`). Errores: 409 `partido_no_empezado`, 409 `pasa_inconsistente`, 409 `partido_manual`, 404 `partido_inexistente`. El partido puntúa cuando además está en `finished`. Corregir el resultado reordena el ranking solo (los puntos se calculan al leer).
+
+Adoptar (`{adoptar, fase}`) un partido de ida o vuelta (`leg`) da 409 `partido_con_vuelta`: el "quién pasa" se define por partido único.
 
 ### 3.5 Guardia de resultados durante el piloto
 
