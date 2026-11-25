@@ -1,5 +1,5 @@
 // Pasadas del prode tras el final (docs/40 D4): cada partido adoptado de ESPN se mira a las +2 h y +3 h del
-// inicio, con una corrida de confirmación (o de espera de un final atrasado) hasta las +6 h. Comparte con el
+// inicio, y se sigue hasta las +6 h mientras esté en vivo o sin un resultado confirmado. Comparte con el
 // sync diario el armado de datos, la comparación de cambios y las sentencias del prode (sync.ts), pero solo
 // toca los partidos pendientes: sin equipos, sin chequeos de consistencia y con un solo db.batch.
 import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
@@ -49,7 +49,11 @@ export function consultaPendientes(db: Database, ahora: number) {
     isNotNull(prodeMatches.pasadaAt),
     sql`${inicio} <= ${ahora - PASADAS_MS[0]}`,
     sql`${inicio} > ${ahora - LIMITE_SEGUIMIENTO_MS}`,
-    or(and(isNotNull(prodeMatches.autoVistoAt), isNull(prodeMatches.autoConfirmadoAt)), eq(matches.status, "live"))
+    // Terminado sin confirmar (le faltan goles o la segunda lectura), dato visto sin confirmar o todavía en vivo
+    or(
+      and(isNull(prodeMatches.autoConfirmadoAt), or(isNotNull(prodeMatches.autoVistoAt), eq(matches.status, "finished"))),
+      eq(matches.status, "live")
+    )
   );
   return db
     .select({

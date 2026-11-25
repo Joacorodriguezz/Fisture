@@ -871,6 +871,82 @@ describe("ingesta ESPN a D1", () => {
       });
     });
 
+    describe("resumen caído o incompleto", () => {
+      it("sin los dos goles nunca se confirma, aunque la lectura sea tardía (sintético)", async () => {
+        await preparar(AET);
+        await sync();
+        vi.setSystemTime(AHORA.getTime() + 15 * MIN);
+        await sync();
+        expect(await vinculo()).toMatchObject({ autoHomeGoals90: null, autoPasa: "away", autoVistoAt: AHORA.getTime(), autoConfirmadoAt: null });
+      });
+
+      it("no pisa goles ya vistos si el summary falla y el scoreboard no cambió; la lectura siguiente confirma", async () => {
+        await preparar(AET, 2 * H);
+        resumen = resumenDe(SUM_AET);
+        await sync();
+        const visto = await vinculo();
+        expect(visto).toMatchObject({ autoHomeGoals90: 0, autoConfirmadoAt: null });
+
+        resumen = null;
+        vi.setSystemTime(AHORA.getTime() + 15 * MIN);
+        await sync();
+        expect(await vinculo()).toEqual(visto);
+        // Un summary que responde pero no cierra tampoco los pisa ni los confirma
+        const roto = structuredClone(resumenDe(SUM_AET)) as any;
+        roto.header.competitions[0].competitors[1].linescores[3].displayValue = "3";
+        resumen = roto;
+        await sync();
+        expect(await vinculo()).toEqual(visto);
+
+        resumen = resumenDe(SUM_AET);
+        vi.setSystemTime(AHORA.getTime() + DIA_MS);
+        await sync();
+        expect(await vinculo()).toMatchObject({ autoHomeGoals90: 0, autoPasa: "away", autoConfirmadoAt: AHORA.getTime() + DIA_MS });
+      });
+
+      it("si el scoreboard cambió, los goles viejos no se conservan (sintético)", async () => {
+        await preparar(AET, 2 * H);
+        resumen = resumenDe(SUM_AET);
+        await sync();
+        resumen = null;
+        const competidores = (data.events[0] as any).competitions[0].competitors;
+        for (const c of competidores) c.winner = !c.winner;
+        await sync();
+        expect((await vinculo()).autoHomeGoals90).toBeNull();
+      });
+    });
+
+    describe("confirmación tardía (docs/40 §4.3 y §6)", () => {
+      const cambiarMarcador = () => {
+        (data.events[0] as any).competitions[0].competitors[0].score = "7";
+      };
+
+      it("un valor cambiado exige una segunda lectura, aunque pasen más de 4 horas; la trae el sync siguiente", async () => {
+        await preparar(FULL_TIME);
+        await sync();
+        expect((await vinculo()).autoConfirmadoAt).not.toBeNull();
+
+        cambiarMarcador();
+        vi.setSystemTime(AHORA.getTime() + DIA_MS);
+        await sync();
+        expect(await vinculo()).toMatchObject({ autoHomeGoals90: 7, autoVistoAt: AHORA.getTime() + DIA_MS, autoConfirmadoAt: null });
+
+        vi.setSystemTime(AHORA.getTime() + 2 * DIA_MS);
+        await sync();
+        expect((await vinculo()).autoConfirmadoAt).toBe(AHORA.getTime() + 2 * DIA_MS);
+      });
+
+      it("un partido que la lectura anterior vio en vivo exige dos lecturas", async () => {
+        await preparar(FULL_TIME);
+        await t.DB.prepare("UPDATE matches SET status = 'live'").run();
+        await sync();
+        expect(await vinculo()).toMatchObject({ autoVistoAt: AHORA.getTime(), autoConfirmadoAt: null });
+        vi.setSystemTime(AHORA.getTime() + 10 * MIN);
+        await sync();
+        expect((await vinculo()).autoConfirmadoAt).toBe(AHORA.getTime() + 10 * MIN);
+      });
+    });
+
     describe("interruptor KV prode:resultado_auto (docs/40 D3)", () => {
       it("sin clave equivale a on", async () => {
         await preparar(FULL_TIME);

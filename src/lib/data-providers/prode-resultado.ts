@@ -8,8 +8,8 @@ import type { ProviderMatch } from "./types";
 
 export const CLAVE_KV_RESULTADO_AUTO = "prode:resultado_auto";
 
-// Un dato automático se confirma cuando se vio igual en dos lecturas separadas por esto, o cuando la
-// primera lectura llega esto después del inicio del partido (el sync diario). docs/40 §4.3
+// Un dato automático (con los dos goles) se confirma cuando se vio igual en dos lecturas separadas por esto,
+// o cuando la primera lectura llega esto después del inicio del partido (el sync diario). docs/40 §4.3
 export const CONFIRMACION_MS = 10 * 60_000;
 export const PRIMERA_LECTURA_TARDIA_MS = 4 * 60 * 60_000;
 
@@ -94,14 +94,18 @@ export function resultadoAutoDe(m: Pick<ProviderMatch, "estadoProveedor" | "gole
 /**
  * Cambio de columnas para una lectura nueva, o null si no hay nada que escribir (docs/40 §4.3):
  * - sin dato nuevo: si había datos automáticos se vacían (la fuente ya no los respalda);
- * - dato nuevo o distinto: se reinicia la lectura (`visto`) y solo se confirma si el partido empezó hace 4 h o más;
- * - mismo dato: se confirma al repetirse 10 minutos o más después de verlo.
+ * - dato nuevo o distinto: se reinicia la lectura (`visto`);
+ * - sin los dos goles nunca se confirma;
+ * - se confirma al repetirse 10 minutos o más después de verlo. Alcanza con una sola lectura si es la primera
+ *   (sin datos vistos), el partido empezó hace 4 h o más y la lectura anterior no lo vio en vivo
+ *   (`vistoEnVivo`: un partido demorado puede haber terminado recién).
  */
-export function cambioAuto(actual: ColumnasAuto, nuevo: ResultadoAuto, ahora: number, inicio: number): ColumnasAuto | null {
+export function cambioAuto(actual: ColumnasAuto, nuevo: ResultadoAuto, ahora: number, inicio: number, vistoEnVivo = false): ColumnasAuto | null {
   const hayDato = nuevo.local !== null || nuevo.visitante !== null || nuevo.pasa !== null;
   const siguiente: ColumnasAuto = hayDato ? { ...AUTO_VACIO } : AUTO_VACIO;
   if (hayDato) {
-    const tardia = ahora - inicio >= PRIMERA_LECTURA_TARDIA_MS;
+    const completo = nuevo.local !== null && nuevo.visitante !== null;
+    const tardia = actual.autoVistoAt === null && !vistoEnVivo && ahora - inicio >= PRIMERA_LECTURA_TARDIA_MS;
     const igual =
       actual.autoVistoAt !== null &&
       actual.autoHomeGoals90 === nuevo.local &&
@@ -109,7 +113,8 @@ export function cambioAuto(actual: ColumnasAuto, nuevo: ResultadoAuto, ahora: nu
       actual.autoPasa === nuevo.pasa &&
       actual.autoRegla === nuevo.regla;
     const visto = igual ? actual.autoVistoAt! : ahora;
-    const confirmado = igual && actual.autoConfirmadoAt !== null ? actual.autoConfirmadoAt : tardia || (igual && ahora - visto >= CONFIRMACION_MS) ? ahora : null;
+    const repetido = igual && ahora - visto >= CONFIRMACION_MS;
+    const confirmado = !completo ? null : igual && actual.autoConfirmadoAt !== null ? actual.autoConfirmadoAt : tardia || repetido ? ahora : null;
     Object.assign(siguiente, {
       autoHomeGoals90: nuevo.local,
       autoAwayGoals90: nuevo.visitante,

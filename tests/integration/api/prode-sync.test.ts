@@ -226,6 +226,35 @@ describe("POST /api/admin/prode/sync", () => {
       expect(logs.find((l: any) => l.msg === "prode_resultado_en_espera")).toMatchObject({ motivo: "equipos_no_coinciden" });
     });
 
+    // Sin los dos goles el dato no está: se sigue mirando hasta las +6 h
+    it.each([["con ganador conocido", PENALES], ["sin ningún dato", { estado: "STATUS_FORFEIT" }]])(
+      "un terminado sin los 90' (%s) sigue pendiente en cada corrida hasta las +6 h",
+      async (_caso, opciones) => {
+        await sembrar({ id: 1, inicio });
+        publicar(1, opciones);
+        for (const despues of [2 * H, 2 * H + 15 * MIN, 3 * H + 15 * MIN, 6 * H - MIN]) {
+          en(inicio + despues);
+          expect((await llamar()).body.trabajo).toBe(true);
+        }
+        expect((await vinculo()).autoConfirmadoAt).toBeNull();
+        en(inicio + 6 * H);
+        expect((await llamar()).body.trabajo).toBe(false);
+      }
+    );
+
+    it("el summary que vuelve en una corrida posterior completa el dato y la siguiente lo confirma", async () => {
+      await sembrar({ id: 1, inicio });
+      publicar(1, PENALES);
+      en(inicio + 3 * H);
+      await llamar();
+      resumen = resumenPenales();
+      en(inicio + 3 * H + 15 * MIN);
+      await llamar();
+      expect(await vinculo()).toMatchObject({ autoHomeGoals90: 0, autoPasa: "home", autoConfirmadoAt: null });
+      en(inicio + 3 * H + 30 * MIN);
+      expect((await llamar()).body.confirmados).toBe(1);
+    });
+
     it("ESPN caído: run failed, nada escrito y la pasada sigue pendiente", async () => {
       await sembrar({ id: 1, inicio: inicio - 2 * H });
       publicar(1);

@@ -629,19 +629,20 @@ async function resultadoAutomatico(
   let nuevo: ResultadoAuto = resultadoAutoDe(m);
   let resumen: "no_pedido" | "ok" | "fallo" = "no_pedido";
 
+  // Los goles de alargue o penales ya guardados salieron de este mismo scoreboard
+  const mismoScoreboard =
+    actual.autoRegla === "B" &&
+    // Un dato parcial (solo quién pasa, sin los 90') no alcanza
+    actual.autoHomeGoals90 !== null &&
+    actual.status === datos.status &&
+    actual.homeScore === datos.homeScore &&
+    actual.awayScore === datos.awayScore &&
+    actual.autoPasa === (m.pasa ?? null);
+
   // Alargue o penales: el marcador a 90' sale del summary (parciales por período), una subrequest por partido
   if (m.crudoProde && provider.getResumenProde) {
-    const sinCambios =
-      actual.autoConfirmadoAt !== null &&
-      // Un dato parcial (solo quién pasa, sin los 90') no alcanza: se vuelve a pedir
-      actual.autoHomeGoals90 !== null &&
-      actual.autoRegla === "B" &&
-      actual.status === datos.status &&
-      actual.homeScore === datos.homeScore &&
-      actual.awayScore === datos.awayScore &&
-      actual.autoPasa === (m.pasa ?? null);
     // Ya confirmado y sin cambios en el scoreboard: no se pide de nuevo
-    if (sinCambios) return null;
+    if (mismoScoreboard && actual.autoConfirmadoAt !== null) return null;
     if (prode.resumenesRestantes > 0 && !prode.resumenCaido) {
       prode.resumenesRestantes--;
       try {
@@ -658,7 +659,9 @@ async function resultadoAutomatico(
     }
   }
 
-  const cambio = cambioAuto(actual, nuevo, ahora, datos.dateTime.getTime());
+  // Un summary caído o incompleto no pisa los goles ya vistos si el scoreboard no cambió: siguen sin confirmar
+  const conservar = mismoScoreboard && resumen !== "no_pedido" && nuevo.local === null;
+  const cambio = conservar ? null : cambioAuto(actual, nuevo, ahora, datos.dateTime.getTime(), actual.status === "live");
   const confirmado = (cambio ?? actual).autoConfirmadoAt !== null;
   if (datos.status === "finished") {
     const motivo = motivoEnEspera(m.estadoProveedor, nuevo, confirmado, resumen);
