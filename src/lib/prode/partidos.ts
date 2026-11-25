@@ -9,7 +9,7 @@
 import { and, eq, exists, gt, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { leagues, matches, prodeMatches, teams } from "../../../drizzle/schema";
 import type { Database } from "../db";
-import { goles90Local, goles90Visitante, pasaEfectivo } from "./puntos";
+import { enEsperaSql, goles90Local, goles90Visitante, pasaEfectivo } from "./puntos";
 import { ladoQuePasa, SOURCE_MANUAL, type Lado } from "./reglas";
 import { cierraPronostico, ESTADOS_EMPEZADO, esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
 
@@ -32,8 +32,19 @@ export interface PartidoProde {
   cerradoEn: number | null;
 }
 
+/** Lo que ve el administrador (docs/40 D5). Nada de esto llega al participante (pronosticos.ts). */
+export interface PartidoAdmin extends PartidoProde {
+  // Lo último que el sync leyó de ESPN, confirmado o no; null si no hay dato automático
+  automatico: { local: number | null; visitante: number | null; pasa: Lado | null; regla: string | null; confirmadoEn: number | null } | null;
+  excluido: boolean;
+  // Terminado hace rato y sin resultado que puntúe: requiere una corrección o una exclusión
+  enEspera: boolean;
+  // Última pasada del sync tras el final (ms)
+  pasadaEn: number | null;
+}
+
 export type Resultado =
-  | { ok: true; partido: PartidoProde }
+  | { ok: true; partido: PartidoAdmin }
   // existente: solo en cruce_duplicado, el partido que ya está cargado (id y origen, nada más)
   | { ok: false; status: 400 | 404 | 409; error: string; existente?: { id: string; source: string } };
 
@@ -48,7 +59,7 @@ const marcador90 = (local: number | null, visitante: number | null): Marcador90 
 const esLado = (v: unknown): v is Lado => v === "home" || v === "away";
 
 // Partidos del prode con su resultado efectivo, calculado por las mismas expresiones SQL que puntúan
-function consultaPartidos(db: Database, auto: boolean) {
+function consultaPartidos(db: Database, auto: boolean, ahora = Date.now()) {
   return db
     .select({
       m: matches,
@@ -56,19 +67,31 @@ function consultaPartidos(db: Database, auto: boolean) {
       local90: goles90Local(auto),
       visitante90: goles90Visitante(auto),
       pasaReal: pasaEfectivo(auto),
+      espera: enEsperaSql(auto, ahora),
     })
     .from(matches)
     .innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id));
 }
 type FilaProde = Awaited<ReturnType<typeof consultaPartidos>>[number];
 
+function automaticoDe(v: typeof prodeMatches.$inferSelect): PartidoAdmin["automatico"] {
+  if (v.autoVistoAt === null && v.autoHomeGoals90 === null && v.autoPasa === null) return null;
+  return {
+    local: v.autoHomeGoals90,
+    visitante: v.autoAwayGoals90,
+    pasa: esLado(v.autoPasa) ? v.autoPasa : null,
+    regla: v.autoRegla,
+    confirmadoEn: v.autoConfirmadoAt,
+  };
+}
+
 // Dos consultas en total (partidos y equipos), nunca una por partido: cuida las subrequests de Workers Free
-async function armar(db: Database, filas: FilaProde[]): Promise<PartidoProde[]> {
+async function armar(db: Database, filas: FilaProde[]): Promise<PartidoAdmin[]> {
   if (filas.length === 0) return [];
   const ids = [...new Set(filas.flatMap(({ m }) => [m.homeTeamId, m.awayTeamId]))];
   const equipos = await db.select({ id: teams.id, name: teams.name }).from(teams).where(inArray(teams.id, ids));
   const nombre = (tid: string) => equipos.find((e) => e.id === tid)?.name ?? "";
-  return filas.map(({ m, v, local90, visitante90, pasaReal }) => {
+  return filas.map(({ m, v, local90, visitante90, pasaReal, espera }) => {
     // La fase sale del vínculo (en un partido de ESPN, matches.round es la del proveedor)
     const fase = esFase(v.fase) ? v.fase : null;
     return {
@@ -82,11 +105,15 @@ async function armar(db: Database, filas: FilaProde[]): Promise<PartidoProde[]> 
       resultado: marcador90(local90, visitante90),
       pasa: pasaReal,
       cerradoEn: v.closedAt,
+      automatico: automaticoDe(v),
+      excluido: v.excludedAt !== null,
+      enEspera: Boolean(espera),
+      pasadaEn: v.pasadaAt,
     };
   });
 }
 
-async function leerPartido(db: Database, id: string, auto: boolean): Promise<PartidoProde> {
+async function leerPartido(db: Database, id: string, auto: boolean): Promise<PartidoAdmin> {
   const filas = await consultaPartidos(db, auto).where(eq(matches.id, id)).limit(1);
   return (await armar(db, filas))[0];
 }
@@ -394,7 +421,7 @@ async function fijarPasa(db: Database, datos: Record<string, unknown>, auto: boo
 }
 
 // Partidos del prode (manuales y adoptados), ordenados por horario
-export async function listarCruces(db: Database, auto = true): Promise<PartidoProde[]> {
+export async function listarCruces(db: Database, auto = true): Promise<PartidoAdmin[]> {
   const filas = await consultaPartidos(db, auto).orderBy(matches.dateTime);
   return armar(db, filas);
 }

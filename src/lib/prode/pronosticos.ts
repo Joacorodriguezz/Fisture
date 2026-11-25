@@ -108,7 +108,7 @@ export async function listarPronosticos(db: Database, userId: string, ahora: Dat
       .from(prodePredictions)
       .where(eq(prodePredictions.userId, userId)),
   ]);
-  return partidos.map((p) => {
+  return partidos.map(({ automatico: _automatico, excluido: _excluido, enEspera: _enEspera, pasadaEn: _pasadaEn, ...p }) => {
     // El instante exacto de matches.date_time (horario.iso está truncado al minuto: un adoptado de ESPN
     // puede empezar a las 21:00:45 y cerraría 45 s antes)
     const dateTime = new Date(p.horario.cierraEn);

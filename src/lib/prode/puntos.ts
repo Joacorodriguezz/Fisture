@@ -107,6 +107,18 @@ export const pasaEfectivo = (auto = true) => {
   ELSE NULL END`;
 };
 
+/** Pasadas estas horas desde el inicio, un partido terminado sin resultado efectivo está en espera (docs/40 D5). */
+export const ESPERA_MS = 6 * 60 * 60_000;
+
+// En espera (docs/40 D5): adoptado, finished, sin excluir, empezado hace más de 6 h y sin marcador a 90' efectivo
+// o sin equipo que pasó (pasaEfectivo es NULL en los dos casos)
+export const enEsperaSql = (auto: boolean, ahora: number) => sql<number>`(
+  ${matches.source} IS NOT ${SOURCE_MANUAL}
+  AND ${matches.status} = 'finished'
+  AND ${prodeMatches.excludedAt} IS NULL
+  AND ${matches.dateTime} * 1000 < ${ahora - ESPERA_MS}
+  AND ${pasaEfectivo(auto)} IS NULL)`;
+
 /**
  * Solo puntúa un partido del prode `finished` con ambos goles a 90' cargados y con equipo que pasó
  * (docs/40 R4: un partido puntúa completo o no puntúa; un empate sin `pasa` queda en espera). Cancelado,
