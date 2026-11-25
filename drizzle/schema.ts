@@ -259,6 +259,19 @@ export const prodeMatches = sqliteTable("prode_matches", {
   closedAt: integer("closed_at"),
   // Equipo que pasó ('home' | 'away'), cargado por el admin; vale solo si el marcador a 90' es empate (migración 0022; docs/40 R3)
   pasa: text("pasa"),
+  // Resultado automático de ESPN (migración 0023; docs/40 D2). Solo lo escribe el sync; puntúa solo confirmado.
+  autoHomeGoals90: integer("auto_home_goals_90"),
+  autoAwayGoals90: integer("auto_away_goals_90"),
+  autoPasa: text("auto_pasa"),
+  // Regla con que salió ('A' | 'B'): evidencia
+  autoRegla: text("auto_regla"),
+  // Primera lectura de los valores actuales y momento de la confirmación (ms epoch)
+  autoVistoAt: integer("auto_visto_at"),
+  autoConfirmadoAt: integer("auto_confirmado_at"),
+  // El admin excluyó el partido: no puntúa (ms epoch)
+  excludedAt: integer("excluded_at"),
+  // Última pasada del sync tras el final (ms epoch; docs/40 D4)
+  pasadaAt: integer("pasada_at"),
 });
 
 // ============================================

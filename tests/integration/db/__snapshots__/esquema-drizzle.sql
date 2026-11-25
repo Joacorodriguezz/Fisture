@@ -113,6 +113,14 @@ CREATE TABLE `prode_matches` (
 	`away_goals_90` integer,
 	`closed_at` integer,
 	`pasa` text,
+	`auto_home_goals_90` integer,
+	`auto_away_goals_90` integer,
+	`auto_pasa` text,
+	`auto_regla` text,
+	`auto_visto_at` integer,
+	`auto_confirmado_at` integer,
+	`excluded_at` integer,
+	`pasada_at` integer,
 	FOREIGN KEY (`match_id`) REFERENCES `matches`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
