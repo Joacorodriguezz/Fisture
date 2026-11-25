@@ -82,9 +82,11 @@ describe("planes de las consultas calientes", () => {
   it("el sync busca los partidos existentes de la competencia por índice", async () => {
     const consultas = await capturar(
       (DB) => syncSingleLeague({ DB }, "arg.1"),
-      (sql) => sql.startsWith("select") && sql.includes('from "matches" where ("matches"."league_id" = ?')
+      (sql) => sql.startsWith("select") && sql.includes('from "matches" left join "prode_matches"') && sql.includes('where ("matches"."league_id" = ?')
     );
     await sinRecorrerMatches(consultas);
+    // El vínculo del prode entra por su clave primaria, sin recorrer prode_matches (docs/40 D4)
+    for (const c of consultas) expect((await plan(c)).filter((p) => p.startsWith("SCAN prode_matches"))).toEqual([]);
   });
 
   it("el chequeo de competencias vacías busca por índice", async () => {

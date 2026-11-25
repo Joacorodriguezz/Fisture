@@ -10,7 +10,7 @@ import { useTestDb } from "../helpers/use-test-db";
 import { AHORA, DIA_MS, relojFijo } from "../helpers/clock";
 import { d1ConCambioAntesDelBatch } from "../helpers/d1-intercalado";
 import { kvEnMemoria, silenciarConsola } from "../helpers/ctx";
-import { MAX_REEMPLAZOS_PRODE, syncLote, syncSingleLeague } from "../../src/lib/data-providers/sync";
+import { MAX_REEMPLAZOS_PRODE, MAX_RESUMENES_PRODE, syncLote, syncSingleLeague } from "../../src/lib/data-providers/sync";
 import { LEAGUES_CONFIG, lotesDeSync } from "../../src/lib/data-providers";
 import { markOutdatedEvents } from "../../src/lib/calendar/sync-service";
 import { guardarPronostico, listarPronosticos } from "../../src/lib/prode/pronosticos";
@@ -733,6 +733,39 @@ describe("ingesta ESPN a D1", () => {
       await sync();
       expect((await vinculo()).autoHomeGoals90).toBeNull();
       expect(enEspera()).toEqual([expect.objectContaining({ motivo: "parciales_no_cierran" })]);
+    });
+
+    // Sintético: cuatro cruces con alargue en la misma liga, para ejercitar el presupuesto de subrequests (docs/22)
+    const cuatroConAlargue = async () => {
+      aplicar(AET, AHORA.getTime() + 2 * H);
+      const base = data.events[0];
+      data.events = [1, 2, 3, 4].map((n) => ({ ...structuredClone(base), id: String(n), date: new Date(AHORA.getTime() + n * DIA_MS).toISOString() }));
+      await sync();
+      const filas = await t.db.select().from(matches);
+      await t.db.insert(prodeMatches).values(filas.map((m) => ({ matchId: m.id, fase: "cuartos", createdAt: AHORA })));
+      data.events.forEach((e, n) => (e.date = new Date(AHORA.getTime() - (n + 1) * DIA_MS).toISOString()));
+    };
+
+    it("pide como mucho MAX_RESUMENES_PRODE summaries por invocación; el resto queda en espera (sintético)", async () => {
+      await cuatroConAlargue();
+      resumen = resumenDe(SUM_AET);
+      expect(await sync()).toMatchObject({ errors: [] });
+      expect(pedidosResumen).toHaveLength(MAX_RESUMENES_PRODE);
+      const vinculos = await t.db.select().from(prodeMatches);
+      expect(vinculos.filter((v) => v.autoHomeGoals90 !== null)).toHaveLength(MAX_RESUMENES_PRODE);
+      expect(enEspera()).toEqual([expect.objectContaining({ motivo: "parciales_incompletos" })]);
+
+      // La corrida siguiente atiende el que quedó
+      pedidosResumen = [];
+      await sync();
+      expect(pedidosResumen).toHaveLength(1);
+    });
+
+    it("si un summary falla no pide los siguientes en esa invocación (sintético)", async () => {
+      await cuatroConAlargue();
+      resumen = null;
+      expect(await sync()).toMatchObject({ errors: [] });
+      expect(new Set(pedidosResumen).size).toBe(1);
     });
 
     it("estado fuera de la lista blanca (sintético: resultado administrativo): nada automático y motivo estado_desconocido", async () => {

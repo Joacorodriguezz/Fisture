@@ -527,6 +527,8 @@ async function resultadoAutomatico(
   if (m.crudoProde && provider.getResumenProde) {
     const sinCambios =
       actual.autoConfirmadoAt !== null &&
+      // Un dato parcial (solo quién pasa, sin los 90') no alcanza: se vuelve a pedir
+      actual.autoHomeGoals90 !== null &&
       actual.autoRegla === "B" &&
       actual.status === datos.status &&
       actual.homeScore === datos.homeScore &&
