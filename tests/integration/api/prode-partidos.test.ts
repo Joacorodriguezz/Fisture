@@ -417,6 +417,15 @@ describe("/api/admin/prode/partidos", () => {
         expect(await vinculo("espn-1")).toMatchObject({ pasa: null });
       });
 
+      it("con un ganador a 90', pasa coherente no se guarda: no reaparece si luego el resultado pasa a empate", async () => {
+        await adoptado();
+        await llamar("PATCH", { id: "espn-1", homeGoals90: 2, awayGoals90: 1 });
+        expect(await llamar("PATCH", { id: "espn-1", pasa: "home" })).toMatchObject({ status: 200 });
+        expect(await vinculo("espn-1")).toMatchObject({ pasa: null });
+        await llamar("PATCH", { id: "espn-1", homeGoals90: 2, awayGoals90: 2 });
+        expect(await vinculo("espn-1")).toMatchObject({ pasa: null });
+      });
+
       it("con un ganador a 90', pasa que lo contradice responde 409 pasa_inconsistente y no escribe", async () => {
         await adoptado();
         expect(await llamar("PATCH", { id: "espn-1", homeGoals90: 2, awayGoals90: 1, pasa: "away" })).toMatchObject({ status: 409, body: { error: "pasa_inconsistente" } });
