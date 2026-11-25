@@ -341,14 +341,17 @@ async function fijarPasa(db: Database, datos: Record<string, unknown>): Promise<
 
   const [f] = await db.select().from(matches).innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id)).where(eq(matches.id, id)).limit(1);
   if (!f) return error(404, "partido_inexistente");
-  if (contradiceGanador(resultado90(f.matches, f.prode_matches), pasa)) return error(409, "pasa_inconsistente");
+  const r90 = resultado90(f.matches, f.prode_matches);
+  if (contradiceGanador(r90, pasa)) return error(409, "pasa_inconsistente");
+  // Con un ganador a 90' el equipo que pasó se deriva: no se guarda, para que no reaparezca si el resultado se corrige a empate
+  const pasaAGuardar = r90 !== null && r90.local !== r90.visitante ? null : pasa;
   if (pasa === null) {
     await db.update(prodeMatches).set({ pasa: null }).where(eq(prodeMatches.matchId, id));
     return { ok: true, partido: await leerPartido(db, id) };
   }
   const ahora = new Date();
   if (f.matches.dateTime.getTime() > ahora.getTime()) return error(409, "partido_no_empezado");
-  await db.batch([db.update(prodeMatches).set({ pasa }).where(eq(prodeMatches.matchId, id)), cerrar(db, id, ahora)]);
+  await db.batch([db.update(prodeMatches).set({ pasa: pasaAGuardar }).where(eq(prodeMatches.matchId, id)), cerrar(db, id, ahora)]);
   return { ok: true, partido: await leerPartido(db, id) };
 }
 
