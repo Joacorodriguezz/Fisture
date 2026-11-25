@@ -1,5 +1,7 @@
 // Tipos comunes para todos los providers de datos
 
+import type { EventoEspnProde, ResumenEspn } from "./espn-resultado-prode";
+
 export interface ProviderTeam {
   externalId: string;
   name: string;
@@ -24,6 +26,9 @@ export interface ProviderMatch {
   goles90?: { local: number; visitante: number; regla: "A" | "B" } | null;
   // Equipo que pasó; null si no se puede asegurar
   pasa?: "home" | "away" | null;
+  // Evento crudo de ESPN, solo con alargue o penales (STATUS_FINAL_AET / STATUS_FINAL_PEN): el marcador a 90'
+  // sale del summary, que el sync pide solo para un partido del prode (docs/40 D1)
+  crudoProde?: EventoEspnProde;
 }
 
 export interface ProviderLeague {
@@ -59,6 +64,8 @@ export interface DataProvider {
   getMatches(leagueExternalId: string, options?: { from?: Date; to?: Date }): Promise<ProviderMatch[]>;
   // Opcional: providers que entregan equipos y partidos juntos (evita pedir dos veces lo mismo)
   getFixture?(leagueExternalId: string, options?: FixtureOptions): Promise<ProviderFixture>;
+  // Opcional: detalle de un partido con los parciales por período (ESPN summary; una subrequest por partido)
+  getResumenProde?(leagueExternalId: string, matchExternalId: string): Promise<ResumenEspn | null>;
 }
 
 // Configuración de competencias por provider

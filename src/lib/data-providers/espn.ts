@@ -9,6 +9,7 @@
 // - Las llaves sin definir traen equipos placeholder ("TBD Home"): se descartan.
 
 import { LEAGUES_CONFIG } from "./types";
+import { resultadoProde, type ResumenEspn } from "./espn-resultado-prode";
 import type {
   DataProvider,
   FixtureOptions,
@@ -63,6 +64,9 @@ const NOMBRES_SELECCION: Record<string, string> = {
 interface EspnCompetitor {
   homeAway?: "home" | "away";
   score?: string;
+  winner?: boolean;
+  shootoutScore?: number;
+  linescores?: { displayValue?: string; value?: number }[];
   team?: EspnTeam;
 }
 
@@ -335,6 +339,7 @@ export function createEspnClient(): DataProvider {
         venue: comp?.venue?.fullName,
         status: estado,
         estadoProveedor: e.status.type.name,
+        ...datosProde(e),
         homeScore: goles(local),
         awayScore: goles(visitante),
         round: partes.length ? partes.join(" · ") : undefined,
@@ -386,6 +391,24 @@ export function createEspnClient(): DataProvider {
     },
 
     getFixture,
+
+    // Detalle de un partido (docs/40 D1): trae los parciales por período, que el scoreboard no trae
+    async getResumenProde(slug: string, externalId: string): Promise<ResumenEspn | null> {
+      const id = externalId.startsWith(PREFIJO) ? externalId.slice(PREFIJO.length) : externalId;
+      return pedirJson<ResumenEspn>(`${BASE_URL}/${slug}/summary?event=${encodeURIComponent(id)}`, `${slug} resumen ${id}`, false);
+    },
+  };
+}
+
+// Resultado para el prode que sale solo del scoreboard (docs/40 D1). Solo se agregan los campos con dato:
+// un partido sin resultado asegurable queda igual que antes. Con alargue o penales hace falta el summary.
+function datosProde(e: EspnEvent): Pick<ProviderMatch, "goles90" | "pasa" | "crudoProde"> {
+  const { goles90, pasa } = resultadoProde(e);
+  const nombre = e.status.type.name;
+  return {
+    ...(goles90 ? { goles90 } : {}),
+    ...(pasa ? { pasa } : {}),
+    ...(e.status.type.state === "post" && (nombre === "STATUS_FINAL_AET" || nombre === "STATUS_FINAL_PEN") ? { crudoProde: e } : {}),
   };
 }
 
