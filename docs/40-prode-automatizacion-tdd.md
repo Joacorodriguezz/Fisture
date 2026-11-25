@@ -389,7 +389,19 @@ Ninguna pendiente. Decisiones ya tomadas por el usuario: carga automática desde
 
 ## 12. Notas de implementación
 
-_(Se completa al implementar, con los desvíos respecto de este diseño. Falta lo que no sea el paso 5.)_
+_(Se completa al implementar, con los desvíos respecto de este diseño.)_
+
+### P0b-A: migración, lectura y sync diario (pasos 6 a 8)
+
+Desvíos y precisiones respecto del diseño:
+
+- **`summary`**: D1 descartaba el endpoint de detalle, pero el paso 5 mostró que es la única fuente de parciales. El sync lo pide solo para un partido adoptado en `STATUS_FINAL_AET` o `STATUS_FINAL_PEN`, con un tope de 3 por invocación (`MAX_RESUMENES_PRODE`); si uno falla, no pide más en esa invocación. No lo repite si el dato completo ya está confirmado y el scoreboard no cambió. Sin summary el partido queda en espera (`parciales_incompletos`, también cuando se agotó el tope).
+- **`STATUS_FINAL_AGT`**: el adaptador no lo tiene en la lista blanca (un solo caso observado, con datos dudosos). Queda en espera (`estado_desconocido`) y no se pide su summary.
+- **Límite conocido del tope**: tres partidos cuyos parciales nunca cierren consumen el tope en cada sync (se recorren por fecha ascendente) hasta que se completen en ESPN. Con unos 15 partidos de playoffs es improbable; la corrección manual los puntúa igual.
+- **KV**: un valor desconocido o un error de lectura equivalen a `off`. Con `off`, o con la otra regla en `solo-a`/`solo-b`, las columnas automáticas no se tocan (tampoco se vacían).
+- **`auto_pasa`** puede quedar guardado sin los 90' (alargue sin parciales). No puntúa solo (R4), pero si el administrador carga a mano un empate sin `pasa`, vale el automático confirmado (R3).
+- **Lectura**: la precedencia está en `puntos.ts` y la usan puntos, ranking y métricas. `resultado` y `pasa` de `partidos.ts` todavía muestran solo lo manual, tanto en el GET admin como en el listado de pronósticos que ve el participante: un partido puntuado automáticamente suma puntos pero no muestra el marcador hasta que se resuelva (pendiente, antes del release de P0b).
+- `pasada_at` y `excluded_at` quedan creadas sin quién las escriba (pasos 9 y P1).
 
 ### Resultado del paso 5
 

@@ -316,6 +316,17 @@ Cualquier commit, PR o deploy reinicia el plazo de 60 días. El respaldo que no 
 externo gratuito (por ejemplo UptimeRobot) sobre `https://fisture.com/api/health` con una palabra clave
 (`"status":"ok"`) o alerta ante 503: es una decisión del dueño (docs/17 §12).
 
+### Prode: apagar el resultado automático (docs/40 D3)
+
+- **Cortar lo que viene, sin deploy** (solo lo lee el sync):
+  `npx wrangler kv key put "prode:resultado_auto" "off" --namespace-id 8a9fc92ed9774806833736d1bec711bb --remote`
+  (staging: `--namespace-id eb9880ef072042d8b93e46a6ca9e49d7`). Valores: `on` (o sin clave), `off`, `solo-a`
+  (solo partidos definidos en los 90') y `solo-b` (solo alargue o penales). Un valor desconocido o un KV caído
+  equivalen a `off`. Con `off` no se escriben, confirman ni vacían datos automáticos: lo ya confirmado sigue
+  puntuando.
+- **Corregir un partido mal puntuado**: la corrección manual (`docs/38` §3.4) gana siempre.
+- **Apagado total** (también lo ya confirmado): variable `PRODE_RESULTADO_AUTO=off` en Pages y un deploy.
+
 ## 7. A quién avisar
 
 Hoy el proyecto tiene un solo administrador (ver la tarjeta de 2FA y dueño de respaldo). Si el incidente afecta
