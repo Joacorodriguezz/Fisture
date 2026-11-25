@@ -3,9 +3,11 @@
 // mantiene la app. Las bajas no quedan en la base (el borrado es total): se cuentan desde el log
 // `account_deleted` (wrangler pages deployment tail o el dashboard de Workers Logs).
 import { sql } from "drizzle-orm";
+import { matches, prodeMatches } from "../../../drizzle/schema";
 import type { Database } from "../db";
 import { FASES, esFase, type Fase } from "../prode/horario";
-import { goles90Local, goles90Visitante } from "../prode/puntos";
+import { enEsperaSql, goles90Local, goles90Visitante, pasaEfectivo } from "../prode/puntos";
+import { SOURCE_MANUAL } from "../prode/reglas";
 
 const DIA_S = 24 * 60 * 60;
 
@@ -39,6 +41,20 @@ export interface MetricasProde {
   // abiertos: el pronóstico sigue abierto; cerrados: ya empezó; conResultado: finished con goles a 90' cargados
   partidos: { abiertos: number; cerrados: number; conResultado: number };
   pronosticos: number;
+  automatizacion: MetricasAutomatizacion;
+}
+
+/**
+ * Resultado automático (docs/40 D5), sobre los partidos adoptados en `finished`. `automaticos`: puntúan sin
+ * intervención, por regla. `manuales`: con alguna corrección manual. `corregidos`: de esos, los que difieren
+ * de lo leído de ESPN en el marcador o en quién pasó. Los excluidos solo cuentan en `excluidos`.
+ */
+export interface MetricasAutomatizacion {
+  automaticos: { A: number; B: number };
+  manuales: number;
+  corregidos: number;
+  enEspera: number;
+  excluidos: number;
 }
 
 const porFaseVacio = (): PorFase => ({ octavos: 0, cuartos: 0, semifinal: 0, final: 0 });
@@ -46,8 +62,39 @@ const porFaseVacio = (): PorFase => ({ octavos: 0, cuartos: 0, semifinal: 0, fin
 // Posición de la fase en FASES (1..n), para comparar "anterior" en SQL
 const ORDEN_FASE = sql.raw(`CASE fase ${FASES.map((f, i) => `WHEN '${f}' THEN ${i + 1}`).join(" ")} ELSE 0 END`);
 
-async function getMetricasProde(db: Database, auto: boolean): Promise<MetricasProde> {
-  // Dos consultas: los escalares y un GROUP BY por fase (sin N+1 ni filas por usuario hacia afuera)
+// Una sola consulta con las mismas expresiones de resultado efectivo que puntúan (puntos.ts). Con
+// `auto` en false esas expresiones dan solo lo manual.
+async function getMetricasAutomatizacion(db: Database, auto: boolean, ahora: number): Promise<MetricasAutomatizacion> {
+  const incluido = sql`${prodeMatches.excludedAt} IS NULL`;
+  const manual = sql`((${prodeMatches.homeGoals90} IS NOT NULL AND ${prodeMatches.awayGoals90} IS NOT NULL) OR ${prodeMatches.pasa} IS NOT NULL)`;
+  const automatico = (regla: "A" | "B") =>
+    sql`SUM(${incluido} AND NOT ${manual} AND ${prodeMatches.autoRegla} = ${regla} AND ${pasaEfectivo(auto)} IS NOT NULL)`;
+  // Sin automático (false), el marcador efectivo es el manual; quién pasa, el derivado de él o el cargado a mano
+  const golesDistintos = sql`(${prodeMatches.autoHomeGoals90} IS NOT NULL AND ${prodeMatches.autoAwayGoals90} IS NOT NULL
+    AND (${goles90Local(false)} <> ${prodeMatches.autoHomeGoals90} OR ${goles90Visitante(false)} <> ${prodeMatches.autoAwayGoals90}))`;
+  const pasaDistinto = sql`COALESCE(${pasaEfectivo(false)}, ${prodeMatches.pasa}) <> ${prodeMatches.autoPasa}`;
+  const [f] = await db.all<Record<string, number | null>>(sql`
+    SELECT
+      ${automatico("A")} AS reglaA,
+      ${automatico("B")} AS reglaB,
+      SUM(${incluido} AND ${manual}) AS manuales,
+      SUM(${incluido} AND (${golesDistintos} OR ${pasaDistinto})) AS corregidos,
+      SUM(${enEsperaSql(auto, ahora)}) AS enEspera,
+      SUM(${prodeMatches.excludedAt} IS NOT NULL) AS excluidos
+    FROM ${prodeMatches} JOIN ${matches} ON ${matches.id} = ${prodeMatches.matchId}
+    WHERE ${matches.source} IS NOT ${SOURCE_MANUAL} AND ${matches.status} = 'finished'
+  `);
+  return {
+    automaticos: { A: Number(f.reglaA ?? 0), B: Number(f.reglaB ?? 0) },
+    manuales: Number(f.manuales ?? 0),
+    corregidos: Number(f.corregidos ?? 0),
+    enEspera: Number(f.enEspera ?? 0),
+    excluidos: Number(f.excluidos ?? 0),
+  };
+}
+
+async function getMetricasProde(db: Database, auto: boolean, ahora: number): Promise<MetricasProde> {
+  // Dos consultas más la de automatización: los escalares y un GROUP BY por fase (sin N+1 ni filas por usuario hacia afuera)
   const [fila] = await db.all<Record<string, number | null>>(sql`
     SELECT
       (SELECT COUNT(*) FROM prode_groups) AS grupos,
@@ -86,13 +133,14 @@ async function getMetricasProde(db: Database, auto: boolean): Promise<MetricasPr
     integrantesPorGrupo: { promedio: Math.round(Number(fila.promedio ?? 0) * 100) / 100, maximo: Number(fila.maximo ?? 0) },
     partidos: { abiertos: Number(fila.abiertos), cerrados: Number(fila.cerrados), conResultado: Number(fila.conResultado) },
     pronosticos: Number(fila.pronosticos),
+    automatizacion: await getMetricasAutomatizacion(db, auto, ahora),
   };
 }
 
 export async function getMetricas(db: Database, ahora = Date.now(), resultadoAuto = true): Promise<Metricas> {
   // users.created_at está en segundos
   const hoy = Math.floor(ahora / 1000);
-  const prode = await getMetricasProde(db, resultadoAuto);
+  const prode = await getMetricasProde(db, resultadoAuto, ahora);
   const [fila] = await db.all<Record<Exclude<keyof Metricas, "prode">, number>>(sql`
     SELECT
       (SELECT COUNT(*) FROM users) AS usuarios,
