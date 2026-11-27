@@ -10,7 +10,7 @@ import { puntosPorUsuario } from "./puntos";
 import { compararParticipantes } from "./reglas";
 
 export interface FiltroRanking {
-  /** Fase (`matches.round`); sin fase, el acumulado. */
+  /** Fase (`prode_matches.fase`); sin fase, el acumulado. */
   fase?: string;
   /** Solo los integrantes del grupo (los que no puntuaron figuran en 0). */
   grupoId?: string;

@@ -8,6 +8,7 @@ import type { Database } from "../db";
 import { FASES, esFase, type Fase } from "../prode/horario";
 import { enEsperaSql, goles90Local, goles90Visitante, pasaEfectivo } from "../prode/puntos";
 import { SOURCE_MANUAL } from "../prode/reglas";
+import { pronosticoAbiertoSql } from "../prode/pronosticos";
 
 const DIA_S = 24 * 60 * 60;
 
@@ -38,7 +39,7 @@ export interface MetricasProde {
   // Pronosticaron en esa fase y en alguna anterior (orden de FASES): señal de retención
   regresanPorFase: PorFase;
   integrantesPorGrupo: { promedio: number; maximo: number };
-  // abiertos: el pronóstico sigue abierto; cerrados: ya empezó; conResultado: finished con goles a 90' cargados
+  // abiertos/cerrados: según se pueda pronosticar; conResultado: finished con goles a 90' cargados
   partidos: { abiertos: number; cerrados: number; conResultado: number };
   pronosticos: number;
   automatizacion: MetricasAutomatizacion;
@@ -102,8 +103,9 @@ async function getMetricasProde(db: Database, auto: boolean, ahora: number): Pro
       (SELECT COUNT(*) FROM prode_predictions) AS pronosticos,
       (SELECT AVG(n) FROM (SELECT COUNT(*) AS n FROM prode_group_members GROUP BY group_id)) AS promedio,
       (SELECT MAX(n) FROM (SELECT COUNT(*) AS n FROM prode_group_members GROUP BY group_id)) AS maximo,
-      (SELECT COUNT(*) FROM prode_matches WHERE closed_at IS NULL) AS abiertos,
-      (SELECT COUNT(*) FROM prode_matches WHERE closed_at IS NOT NULL) AS cerrados,
+      (SELECT COUNT(*) FROM prode_matches JOIN matches ON matches.id = prode_matches.match_id
+        WHERE ${pronosticoAbiertoSql(ahora)}) AS abiertos,
+      (SELECT COUNT(*) FROM prode_matches) AS totalPartidos,
       (SELECT COUNT(*) FROM prode_matches JOIN matches ON matches.id = prode_matches.match_id
         WHERE matches.status = 'finished'
           AND ${goles90Local(auto)} IS NOT NULL
@@ -131,7 +133,7 @@ async function getMetricasProde(db: Database, auto: boolean, ahora: number): Pro
     participantesPorFase,
     regresanPorFase,
     integrantesPorGrupo: { promedio: Math.round(Number(fila.promedio ?? 0) * 100) / 100, maximo: Number(fila.maximo ?? 0) },
-    partidos: { abiertos: Number(fila.abiertos), cerrados: Number(fila.cerrados), conResultado: Number(fila.conResultado) },
+    partidos: { abiertos: Number(fila.abiertos), cerrados: Number(fila.totalPartidos) - Number(fila.abiertos), conResultado: Number(fila.conResultado) },
     pronosticos: Number(fila.pronosticos),
     automatizacion: await getMetricasAutomatizacion(db, auto, ahora),
   };

@@ -6,6 +6,8 @@ import { relojFijo } from "../../helpers/clock";
 import { d1ConCambioAntesDelBatch } from "../../helpers/d1-intercalado";
 import { GET, PATCH, POST } from "../../../src/pages/api/admin/prode/partidos";
 
+import { puntosPorUsuario } from "../../../src/lib/prode/puntos";
+
 const ADMIN = "admin-de-prueba";
 // Después del inicio del cruce de prueba (22/11 21:00 ART = 23/11 00:00 UTC): ya se le puede cargar el resultado
 const DESPUES = new Date("2026-11-23T02:00:00Z");
