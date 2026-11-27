@@ -9,6 +9,7 @@
 import { and, eq, exists, gt, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { leagues, matches, prodeMatches, teams } from "../../../drizzle/schema";
 import type { Database } from "../db";
+import { ladoQuePasa, type Lado } from "./reglas";
 import { cierraPronostico, ESTADOS_EMPEZADO, esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
 
 export const SOURCE_MANUAL = "manual";
@@ -23,6 +24,8 @@ export interface PartidoProde {
   estado: string | null;
   // Goles a los 90 minutos más adicionado; null hasta que el partido termina
   resultado: { local: number; visitante: number } | null;
+  // Equipo que pasó (docs/40 R3): con ganador a 90', el ganador; con empate, el que cargó el admin. null si no se sabe
+  pasa: Lado | null;
   // Cierre definitivo del pronóstico (prode_matches.closed_at, ms): se vio empezar; no se reabre
   cerradoEn: number | null;
 }
@@ -45,6 +48,13 @@ function resultado90(m: Fila, v: Vinculo): { local: number; visitante: number } 
   return local !== null && visitante !== null ? { local, visitante } : null;
 }
 
+const esLado = (v: unknown): v is Lado => v === "home" || v === "away";
+
+// Equivalente en TS de la expresión SQL de puntos.ts: sin resultado a 90' no hay equipo que pasó
+function pasaEfectivo(resultado: { local: number; visitante: number } | null, pasa: string | null): Lado | null {
+  return resultado ? ladoQuePasa(resultado, esLado(pasa) ? pasa : null) : null;
+}
+
 // Dos consultas en total (partidos y equipos), nunca una por partido: cuida las subrequests de Workers Free
 async function armar(db: Database, filas: FilaProde[]): Promise<PartidoProde[]> {
   if (filas.length === 0) return [];
@@ -63,6 +73,7 @@ async function armar(db: Database, filas: FilaProde[]): Promise<PartidoProde[]> 
       visitante: { id: m.awayTeamId, nombre: nombre(m.awayTeamId) },
       estado: m.status,
       resultado: resultado90(m, v),
+      pasa: pasaEfectivo(resultado90(m, v), v.pasa),
       cerradoEn: v.closedAt,
     };
   });
@@ -162,14 +173,19 @@ export async function agregarCruce(db: Database, datos: Record<string, unknown>)
   return { ok: true, partido: await leerPartido(db, id) };
 }
 
+// El adaptador de ESPN suma "Ida" o "Vuelta" a matches.round cuando el evento trae `leg` (espn.ts)
+const RONDA_CON_VUELTA = /(?:^|\s)(Ida|Vuelta)$/;
+
 // Suma al prode un partido que ya existe: el de ESPN que agregarCruce informó como cruce_duplicado.
 // No toca la fila de matches: horario, estado y resultado los sigue gobernando el sync.
 async function adoptarPartido(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
   const { adoptar, fase } = datos;
   if (!textoNoVacio(adoptar)) return error(400, "faltan_datos");
   if (!esFase(fase)) return error(400, "fase_invalida");
-  const [m] = await db.select({ id: matches.id }).from(matches).where(eq(matches.id, adoptar)).limit(1);
+  const [m] = await db.select({ id: matches.id, round: matches.round }).from(matches).where(eq(matches.id, adoptar)).limit(1);
   if (!m) return error(404, "partido_inexistente");
+  // "Quién pasa" se define por partido único (docs/40 R6): ESPN marca la ida y la vuelta en la ronda
+  if (m.round && RONDA_CON_VUELTA.test(m.round)) return error(409, "partido_con_vuelta");
   const insertado = await db
     .insert(prodeMatches)
     .values({ matchId: adoptar, fase, createdAt: new Date() })
@@ -201,6 +217,7 @@ function validarEstado(datos: Record<string, unknown>): { cambios: Partial<Fila>
 // Corrige horario/fase y/o carga estado y resultado de un cruce manual.
 export async function corregirPartido(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
   if (datos.homeGoals90 !== undefined || datos.awayGoals90 !== undefined) return fijarResultado90(db, datos);
+  if (datos.pasa !== undefined) return fijarPasa(db, datos);
   const { id, fase, horario } = datos;
   if (!textoNoVacio(id)) return error(400, "faltan_datos");
   if ([fase, horario, datos.status, datos.homeScore, datos.awayScore].every((v) => v === undefined)) return error(400, "sin_cambios");
@@ -240,10 +257,14 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
     .set({ ...(dateTime ? { dateTime } : {}), ...(fase !== undefined ? { round: fase } : {}), ...estado.cambios, updatedAt: new Date() })
     .where(vigente);
   // La fase que vale es la del vínculo; round la repite en los manuales
-  const vinculo =
-    fase !== undefined
-      ? [db.update(prodeMatches).set({ fase }).where(and(eq(prodeMatches.matchId, id), exists(db.select({ id: matches.id }).from(matches).where(vigente))))]
-      : [];
+  // Un `pasa` solo vale con un empate a 90': si el estado cambia y el resultado deja de ser empate (o se
+  // borra), el que había queda huérfano y se retira
+  const sigueEmpate = estado.cambios.status === "finished" && estado.cambios.homeScore === estado.cambios.awayScore;
+  const retiraPasa = estado.cambios.status !== undefined && !sigueEmpate;
+  const vinculo = [
+    ...(fase !== undefined ? [{ fase }] : []),
+    ...(retiraPasa ? [{ pasa: null }] : []),
+  ].map((set) => db.update(prodeMatches).set(set).where(and(eq(prodeMatches.matchId, id), exists(db.select({ id: matches.id }).from(matches).where(vigente)))));
   // Cierre definitivo si la fila vigente muestra que empezó, antes o después del cambio: no se reabre
   // (docs/37 §5). Se decide en SQL, no con la lectura, para no perder un live que escribió el sync.
   const [, ...resultados] = await db.batch([cerrarSiEmpezo(db, id, ahora), ...vinculo, cambio, cerrarSiEmpezo(db, id, ahora)]);
@@ -272,16 +293,23 @@ function cerrar(db: Database, id: string, ahora: Date) {
     .where(and(eq(prodeMatches.matchId, id), isNull(prodeMatches.closedAt)));
 }
 
-// Resultado a los 90 minutos de un partido adoptado de ESPN ({id, homeGoals90, awayGoals90}). Se guarda
+// Con ganador a 90' el equipo que pasó es ese; un `pasa` que lo contradice es inconsistente (docs/40 R3)
+function contradiceGanador(resultado: { local: number; visitante: number } | null, pasa: Lado | null): boolean {
+  return pasa !== null && resultado !== null && resultado.local !== resultado.visitante && ladoQuePasa(resultado, null) !== pasa;
+}
+
+// Resultado a los 90 minutos de un partido adoptado de ESPN ({id, homeGoals90, awayGoals90, pasa?}). Se guarda
 // en el vínculo, sin tocar la fila de matches (la gobierna el sync). Puntúa cuando además el partido
-// está finished (puntos.ts). En un manual el resultado a 90' es el de matches: 409 partido_manual.
+// está finished y se sabe quién pasó (puntos.ts). En un manual el resultado a 90' es el de matches: 409
+// partido_manual. `pasa` (home | away | null) vale con empate; con ganador que lo contradice, 409 pasa_inconsistente.
 async function fijarResultado90(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
-  const { id, homeGoals90, awayGoals90 } = datos;
+  const { id, homeGoals90, awayGoals90, pasa } = datos;
   if (!textoNoVacio(id)) return error(400, "faltan_datos");
-  const otros = Object.keys(datos).filter((k) => !["id", "homeGoals90", "awayGoals90"].includes(k));
+  const otros = Object.keys(datos).filter((k) => !["id", "homeGoals90", "awayGoals90", "pasa"].includes(k));
   if (otros.length > 0) return error(400, "cambios_mezclados");
   if (homeGoals90 === undefined || awayGoals90 === undefined) return error(400, "faltan_goles");
   if (!esGoles(homeGoals90) || !esGoles(awayGoals90)) return error(400, "marcador_invalido");
+  if (pasa !== undefined && pasa !== null && !esLado(pasa)) return error(400, "pasa_invalido");
 
   const [m] = await db
     .select({ source: matches.source, dateTime: matches.dateTime })
@@ -291,11 +319,39 @@ async function fijarResultado90(db: Database, datos: Record<string, unknown>): P
     .limit(1);
   if (!m) return error(404, "partido_inexistente");
   if (m.source === SOURCE_MANUAL) return error(409, "partido_manual");
+  if (contradiceGanador({ local: homeGoals90 as number, visitante: awayGoals90 as number }, (pasa as Lado | null | undefined) ?? null)) return error(409, "pasa_inconsistente");
   const ahora = new Date();
   if (m.dateTime.getTime() > ahora.getTime()) return error(409, "partido_no_empezado");
 
   // Ya empezó (su hora pasó): de paso queda el cierre definitivo
-  await db.batch([db.update(prodeMatches).set({ homeGoals90, awayGoals90 }).where(eq(prodeMatches.matchId, id)), cerrar(db, id, ahora)]);
+  await db.batch([
+    db.update(prodeMatches).set({ homeGoals90: homeGoals90 as number, awayGoals90: awayGoals90 as number, ...(pasa !== undefined ? { pasa: pasa as Lado | null } : homeGoals90 !== awayGoals90 ? { pasa: null } : {}) }).where(eq(prodeMatches.matchId, id)),
+    cerrar(db, id, ahora),
+  ]);
+  return { ok: true, partido: await leerPartido(db, id) };
+}
+
+// Equipo que pasó de un partido empatado a 90' ({id, pasa}), manual o adoptado. `pasa: null` lo retira. Con un
+// ganador a 90' el equipo que pasó se deriva: un `pasa` que lo contradice responde 409 pasa_inconsistente.
+async function fijarPasa(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
+  const { id, pasa } = datos;
+  if (!textoNoVacio(id)) return error(400, "faltan_datos");
+  if (Object.keys(datos).some((k) => k !== "id" && k !== "pasa")) return error(400, "cambios_mezclados");
+  if (pasa !== null && !esLado(pasa)) return error(400, "pasa_invalido");
+
+  const [f] = await db.select().from(matches).innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id)).where(eq(matches.id, id)).limit(1);
+  if (!f) return error(404, "partido_inexistente");
+  const r90 = resultado90(f.matches, f.prode_matches);
+  if (contradiceGanador(r90, pasa)) return error(409, "pasa_inconsistente");
+  // Con un ganador a 90' el equipo que pasó se deriva: no se guarda, para que no reaparezca si el resultado se corrige a empate
+  const pasaAGuardar = r90 !== null && r90.local !== r90.visitante ? null : pasa;
+  if (pasa === null) {
+    await db.update(prodeMatches).set({ pasa: null }).where(eq(prodeMatches.matchId, id));
+    return { ok: true, partido: await leerPartido(db, id) };
+  }
+  const ahora = new Date();
+  if (f.matches.dateTime.getTime() > ahora.getTime()) return error(409, "partido_no_empezado");
+  await db.batch([db.update(prodeMatches).set({ pasa: pasaAGuardar }).where(eq(prodeMatches.matchId, id)), cerrar(db, id, ahora)]);
   return { ok: true, partido: await leerPartido(db, id) };
 }
 

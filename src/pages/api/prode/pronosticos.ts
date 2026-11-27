@@ -6,7 +6,8 @@ import { guardarPronostico, listarPronosticos } from "../../../lib/prode/pronost
 // Pronósticos del prode del usuario con sesión.
 // GET: partidos del prode con fase, horario, cierre, estado (abierto/cerrado/jugado) y el pronóstico propio.
 // PUT: guarda o modifica un pronóstico ({matchId, homeGoals, awayGoals}, enteros 0-20). Desde el inicio
-// del partido (hora del servidor) responde 409 pronostico_cerrado.
+// del partido (hora del servidor) responde 409 pronostico_cerrado. Con empate hay que sumar
+// pasa: "home" | "away" (400 falta_quien_pasa); con un ganador pasa se ignora y se guarda null (docs/40 R2).
 const headers = { "Cache-Control": "no-store" };
 
 export const GET: APIRoute = withApi(async ({ locals }) => {

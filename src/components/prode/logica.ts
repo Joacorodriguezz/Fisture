@@ -20,6 +20,7 @@ export function mensajeDeError(status: number, codigo?: unknown, contexto: "pron
   if (status === 429) return "Demasiados intentos. Esperá un minuto.";
   if (codigo === "pronostico_cerrado") return "Cerró el pronóstico";
   if (codigo === "marcador_invalido") return `Ingresá goles enteros entre 0 y ${GOLES_MAX}.`;
+  if (codigo === "falta_quien_pasa") return "Si empatan, elegí qué equipo pasa.";
   if (codigo === "partido_inexistente") return "Ese partido ya no está disponible.";
   if (codigo === "limite_de_grupos") return "Llegaste al máximo de grupos que podés crear.";
   if (contexto === "unirse") return "La invitación no es válida. Pedí un enlace nuevo a quien te invitó.";
@@ -42,6 +43,20 @@ export function parsearGol(texto: string): number | null {
   if (!/^\d{1,2}$/.test(t)) return null;
   const n = Number(t);
   return n <= GOLES_MAX ? n : null;
+}
+
+export type Lado = "home" | "away";
+
+// Qué pide el formulario según el marcador (docs/40 R6): con ganador pasa ese equipo (no se pide nada); con
+// empate hay que elegir quién pasa; sin los dos goles no hay nada que mostrar
+export function ladoPorMarcador(local: number | null, visitante: number | null): Lado | "empate" | null {
+  if (local === null || visitante === null) return null;
+  return local === visitante ? "empate" : local > visitante ? "home" : "away";
+}
+
+// "3 + 1" cuando el partido sumó el extra de quién pasa; sin extra, nada que desglosar
+export function desglosePuntos(marcador: number, extra: number): string | null {
+  return extra > 0 ? `${marcador} + ${extra}` : null;
 }
 
 export function enlaceInvitacion(origen: string, codigo: string): string {
@@ -109,4 +124,13 @@ export function nuevoGol(delta: 1 | -1, actual: string): string {
 export function sumarGol(delta: 1 | -1, actual: string, otro: string, poner: (v: string) => void, ponerOtro: (v: string) => void): void {
   poner(nuevoGol(delta, actual));
   if (otro.trim() === "") ponerOtro("0");
+}
+
+// Pie de una tarjeta sin mensaje del servidor. Un empate sin elegir quién pasa gana sobre lo demás (incluido
+// un empate guardado antes de la 0022, con pasa null): el botón queda deshabilitado y el pie dice por qué.
+export function textoPie({ editable, guardado, sinCambios, sinElegir }: { editable: boolean; guardado: boolean; sinCambios: boolean; sinElegir: boolean }): string {
+  if (!editable) return "";
+  if (sinElegir) return "Elegí qué equipo pasa.";
+  if (!guardado) return "Todavía no pronosticaste";
+  return sinCambios ? "Podés cambiarlo hasta que empiece" : "Cambios sin guardar";
 }

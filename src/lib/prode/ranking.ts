@@ -52,7 +52,7 @@ export async function rankingProde(db: Database, filtro: FiltroRanking = {}): Pr
   const nombrePor = new Map(nombres.map((n) => [n.id, n.nombre?.trim() || NOMBRE_GENERICO]));
   // Quien pronosticó pero no tiene partidos con resultado no está en `usuarios`: entra en 0
   const conPuntos = new Set(usuarios.map((u) => u.userId));
-  const en0 = nombres.filter((n) => !conPuntos.has(n.id)).map((n) => ({ userId: n.id, puntos: 0, exactos: 0, aciertos: 0 }));
+  const en0 = nombres.filter((n) => !conPuntos.has(n.id)).map((n) => ({ userId: n.id, puntos: 0, exactos: 0, aciertos: 0, pasa: 0 }));
   const ordenados = [...usuarios, ...en0]
     .map((u) => ({ ...u, nombre: nombrePor.get(u.userId) ?? NOMBRE_GENERICO }))
     .sort(compararParticipantes);
