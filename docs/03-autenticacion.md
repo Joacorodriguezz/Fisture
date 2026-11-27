@@ -421,7 +421,7 @@ El usuario elimina su cuenta desde Configuración ("Zona de peligro", isla `Elim
 `DELETE /api/cuenta` (con sesión, envuelto en `withApi`) con cuerpo `{ "confirmar": "<email>" }`:
 
 1. Valida sesión (401), `Origin` contra `PUBLIC_APP_URL` (403, `esMismoOrigen` en `lib/auth/guards.ts`), `Content-Type: application/json` (415) y que `confirmar` coincida con el email, sin distinguir mayúsculas (400).
-2. `deleteAccount` (`lib/db/account.ts`): un `DB.batch` cuenta las filas dependientes y ejecuta `DELETE FROM users`; el `ON DELETE CASCADE` se lleva `user_teams`, `user_preferences` y `calendar_syncs`. Es atómico.
+2. `deleteAccount` (`lib/db/account.ts`): un `DB.batch` cuenta las filas dependientes y ejecuta `DELETE FROM users`; el `ON DELETE CASCADE` se lleva `user_teams`, `user_preferences`, `calendar_syncs` y `prode_group_members`. Antes del `DELETE`, en el mismo batch, los grupos del prode de los que es dueño pasan al integrante más antiguo o se borran si quedan vacíos (`prode_groups.owner_id` es `RESTRICT`, docs/14 §9). Es atómico.
 3. Borra la cookie. Todas las sesiones del usuario caen por `ON DELETE CASCADE` dentro del mismo `DELETE FROM users` (ya no hay paso de KV ni `session_cleanup_failed`).
 4. `revocarAcceso` (`lib/auth/revoke.ts`), best-effort y después de D1: Google revoca el grant con el refresh token (`google.revokeToken`); Microsoft no tiene endpoint público, así que el diálogo le indica revocar en `account.live.com/consent/Manage`. Un error se loguea como `account_revoke_failed` (provider y status) y no falla la request.
 

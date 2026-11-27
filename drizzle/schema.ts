@@ -35,6 +35,9 @@ export const users = sqliteTable(
     calendarAuthStatus: text("calendar_auth_status").notNull().default("ok"),
     // Cuándo terminó (o salteó) el onboarding de /bienvenida. NULL = todavía no lo vio (docs/31 D13).
     onboardedAt: integer("onboarded_at", { mode: "timestamp" }),
+    // Nombre visible del prode (posiciones y grupos). NULL = no lo eligió. Validado por
+    // lib/prode/nombre-visible.ts; nunca se loguea.
+    displayName: text("display_name"),
   },
   (table) => ({
     calendarReconciledIdx: index("idx_users_calendar_reconciled").on(table.calendarReconciledAt),
@@ -216,6 +219,62 @@ export const matches = sqliteTable(
 );
 
 // ============================================
+// PRODE: PRONÓSTICOS
+// ============================================
+
+// Un pronóstico por usuario y partido (migración 0019). El cierre sale de matches.date_time.
+export const prodePredictions = sqliteTable(
+  "prode_predictions",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    matchId: text("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+    homeGoals: integer("home_goals").notNull(),
+    awayGoals: integer("away_goals").notNull(),
+    // Quién pasa ('home' | 'away'), solo con empate pronosticado (migración 0022; docs/40 R2)
+    pasa: text("pasa"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.userId, table.matchId] }),
+    matchIdx: index("idx_prode_predictions_match").on(table.matchId),
+  })
+);
+
+// Partidos del prode (migración 0020): un cruce manual o un partido de ESPN adoptado. La fase vive acá.
+export const prodeMatches = sqliteTable("prode_matches", {
+  matchId: text("match_id")
+    .primaryKey()
+    .references(() => matches.id, { onDelete: "cascade" }),
+  fase: text("fase").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  // Resultado a los 90' más adicionado confirmado por el admin (solo adoptados de ESPN; migración 0021)
+  homeGoals90: integer("home_goals_90"),
+  awayGoals90: integer("away_goals_90"),
+  // Cierre irreversible del pronóstico: se fija al observar que el partido empezó (ms epoch)
+  closedAt: integer("closed_at"),
+  // Equipo que pasó ('home' | 'away'), cargado por el admin; vale solo si el marcador a 90' es empate (migración 0022; docs/40 R3)
+  pasa: text("pasa"),
+  // Resultado automático de ESPN (migración 0023; docs/40 D2). Solo lo escribe el sync; puntúa solo confirmado.
+  autoHomeGoals90: integer("auto_home_goals_90"),
+  autoAwayGoals90: integer("auto_away_goals_90"),
+  autoPasa: text("auto_pasa"),
+  // Regla con que salió ('A' | 'B'): evidencia
+  autoRegla: text("auto_regla"),
+  // Primera lectura de los valores actuales y momento de la confirmación (ms epoch)
+  autoVistoAt: integer("auto_visto_at"),
+  autoConfirmadoAt: integer("auto_confirmado_at"),
+  // El admin excluyó el partido: no puntúa (ms epoch)
+  excludedAt: integer("excluded_at"),
+  // Última pasada del sync tras el final (ms epoch; docs/40 D4)
+  pasadaAt: integer("pasada_at"),
+});
+
+// ============================================
 // SINCRONIZACIÓN DE CALENDARIO
 // ============================================
 
@@ -303,7 +362,7 @@ export const syncRuns = sqliteTable(
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
     trigger: text("trigger").notNull(), // 'cron' | 'admin'
-    // Qué sincronizó: 'leagues' (ESPN) o 'calendars' (reconciliación de calendarios)
+    // Qué sincronizó: 'leagues' (ESPN), 'calendars' (reconciliación de calendarios) o 'prode' (pasadas, docs/40)
     kind: text("kind").notNull().default("leagues"),
     startedAt: integer("started_at").notNull(), // epoch ms
     finishedAt: integer("finished_at"),
@@ -342,3 +401,40 @@ export const sessions = sqliteTable(
 );
 
 export type Session = typeof sessions.$inferSelect;
+
+// ============================================
+// PRODE: GRUPOS PRIVADOS
+// ============================================
+
+// Grupo privado del prode. Solo se entra con el código de invitación (aleatorio, no adivinable)
+export const prodeGroups = sqliteTable("prode_groups", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  inviteCode: text("invite_code").notNull().unique(),
+  // RESTRICT: al borrar la cuenta del dueño, deleteAccount transfiere el grupo (o lo borra si queda vacío)
+  ownerId: text("owner_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+  createdAt: integer("created_at").notNull(), // epoch ms
+});
+
+export const prodeGroupMembers = sqliteTable(
+  "prode_group_members",
+  {
+    groupId: text("group_id")
+      .notNull()
+      .references(() => prodeGroups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    joinedAt: integer("joined_at").notNull(), // epoch ms
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.groupId, table.userId] }),
+    userIdx: index("prode_group_members_user_idx").on(table.userId),
+  })
+);
+
+export type ProdeGroup = typeof prodeGroups.$inferSelect;

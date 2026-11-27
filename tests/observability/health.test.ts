@@ -4,7 +4,7 @@ import { TOKEN_ENCRYPTION_KEY } from "../helpers/token-key";
 import { apiCtx } from "../helpers/ctx";
 import { seedApp } from "../helpers/fixtures";
 import { createSession } from "../../src/lib/auth/session";
-import { failSyncRun, finishSyncRun, startSyncRun } from "../../src/lib/observability/sync-runs";
+import { failSyncRun, finishSyncRun, registrarRunProde, startSyncRun } from "../../src/lib/observability/sync-runs";
 import {
   evaluateSyncHealth,
   getHealth,
@@ -110,6 +110,30 @@ describe("getHealth y endpoints (D1)", () => {
     const h = await getHealth({ DB: t.DB, KV: kvRoto });
     expect(h.checks.kv).toBe("fail");
     expect(h.status).toBe("fail");
+  });
+
+  // docs/40 D6: las pasadas del prode no tapan un sync diario caído
+  const pasadaDelProde = (cuando: number, status: "success" | "failed" = "success") =>
+    registrarRunProde(t.db, { trigger: "admin", startedAt: cuando, finishedAt: cuando + 500, status, results: [] });
+
+  it("un run del prode no cuenta para checks.sync", async () => {
+    await pasadaDelProde(Date.now() - H);
+    const sinLigas = await getHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY });
+    expect(sinLigas).toMatchObject({ checks: { sync: "fail" }, lastSyncAt: null });
+
+    await syncExitoso(Date.now() - 2 * H);
+    await pasadaDelProde(Date.now() - H, "failed");
+    const conLigas = await getHealth({ DB: t.DB, KV: kvOk, OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY });
+    expect(conLigas.checks).toMatchObject({ sync: "ok", calendars: "ok" });
+  });
+
+  it("GET /api/admin/status separa runsProde de los runs de ligas", async () => {
+    await syncExitoso(Date.now() - 2 * H);
+    const id = await pasadaDelProde(Date.now() - H);
+    const env = { DB: t.DB, KV: kvOk, ADMIN_SECRET: "s3", OAUTH_STATE_SECRET: "secret", TOKEN_ENCRYPTION_KEY };
+    const body = (await (await statusGET(ctxStatus(env, "Bearer s3"))).json()) as any;
+    expect(body.runsProde).toEqual([expect.objectContaining({ id, kind: "prode", status: "success", durationMs: 500 })]);
+    expect(body.runs.map((r: any) => r.kind)).toEqual(["leagues"]);
   });
 
   const dbRota = {

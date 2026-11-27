@@ -146,7 +146,9 @@ export function withApi(handler: APIRoute, options: WithApiOptions = {}): APIRou
     const base =
       options.logger ?? createLogger({ level: defaultLevel(env.ENVIRONMENT), env: env.ENVIRONMENT });
     const route = (context as { routePattern?: string }).routePattern ?? url.pathname;
-    const logger = base.child({ requestId, method: request.method, route, path: url.pathname });
+    // En el prode el id del grupo viaja en la ruta: se loguea el patrón, no el path con parámetros.
+    const path = route.startsWith("/api/prode/") ? route : url.pathname;
+    const logger = base.child({ requestId, method: request.method, route, path });
 
     (locals as { requestId?: string; logger?: Logger }).requestId = requestId;
     (locals as { requestId?: string; logger?: Logger }).logger = logger;
@@ -162,7 +164,8 @@ export function withApi(handler: APIRoute, options: WithApiOptions = {}): APIRou
 
     const status = response.status;
     const { user, omitirUserIdEnLog } = locals as { user?: { id: string }; omitirUserIdEnLog?: boolean };
-    const userId = omitirUserIdEnLog ? undefined : user?.id;
+    // El prode no registra quién juega: ni el id de usuario ni el de grupo van a los logs.
+    const userId = omitirUserIdEnLog || route.startsWith("/api/prode/") ? undefined : user?.id;
     const fields = { status, durationMs: Date.now() - inicio, ...(userId ? { userId } : {}), ...(error ? { err: error } : {}) };
 
     if (status >= 500) logger.error("request", fields);

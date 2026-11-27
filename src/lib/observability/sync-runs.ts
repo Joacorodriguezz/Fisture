@@ -60,11 +60,32 @@ export async function startSyncRun(db: Database, trigger: SyncTrigger, now = Dat
   return id;
 }
 
-// Cada lote de calendarios cuenta contra las 50 subrequests de la invocación: se registra de una vez,
-// ya terminado (un INSERT y la purga), en lugar de iniciar y cerrar el run (4 consultas).
+// Run registrado de una vez, ya terminado (un INSERT y la purga), en lugar de iniciarlo y cerrarlo (4
+// consultas): cada consulta cuenta contra las 50 subrequests de la invocación.
+async function registrarRunTerminado(
+  db: Database,
+  data: { trigger: SyncTrigger; kind: SyncKind; startedAt: number; finishedAt: number; status: Exclude<SyncRunStatus, "running">; results: unknown[]; error?: unknown }
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await db.insert(syncRuns).values({
+    id,
+    trigger: data.trigger,
+    kind: data.kind,
+    startedAt: data.startedAt,
+    finishedAt: data.finishedAt,
+    durationMs: data.finishedAt - data.startedAt,
+    status: data.status,
+    results: JSON.stringify(data.results),
+    error: data.error === undefined ? null : truncar(mensajeDeError(data.error)),
+  });
+  await purgarViejos(db, data.startedAt);
+  return id;
+}
+
+// Un lote de la reconciliación de calendarios
 export async function registrarRunCalendarios(
   db: Database,
-  data: {
+  { resumen, ...data }: {
     trigger: SyncTrigger;
     startedAt: number;
     finishedAt: number;
@@ -73,21 +94,26 @@ export async function registrarRunCalendarios(
     error?: unknown;
   }
 ): Promise<string> {
-  const id = crypto.randomUUID();
-  await db.insert(syncRuns).values({
-    id,
-    trigger: data.trigger,
-    kind: "calendars",
-    startedAt: data.startedAt,
-    finishedAt: data.finishedAt,
-    durationMs: data.finishedAt - data.startedAt,
-    status: data.status,
-    results: JSON.stringify([data.resumen]),
-    error: data.error === undefined ? null : truncar(mensajeDeError(data.error)),
-  });
-  await purgarViejos(db, data.startedAt);
-  return id;
+  return registrarRunTerminado(db, { ...data, kind: "calendars", results: [resumen] });
 }
+
+// Una pasada del prode con trabajo (docs/40 D4 y D6): un resultado por competencia
+export async function registrarRunProde(
+  db: Database,
+  data: {
+    trigger: SyncTrigger;
+    startedAt: number;
+    finishedAt: number;
+    status: Exclude<SyncRunStatus, "running">;
+    results: SyncResult[];
+    error?: unknown;
+  }
+): Promise<string> {
+  return registrarRunTerminado(db, { ...data, kind: "prode", results: acotar(data.results) });
+}
+
+const acotar = (results: SyncResult[]) =>
+  results.map((r) => ({ ...r, errors: r.errors.slice(0, MAX_ERRORES_POR_COMPETENCIA).map(truncar) }));
 
 export async function finishSyncRun(
   db: Database,
@@ -96,10 +122,6 @@ export async function finishSyncRun(
   now = Date.now()
 ): Promise<Exclude<SyncRunStatus, "running">> {
   const status = computeRunStatus(data.results, data.issues);
-  const acotados = data.results.map((r) => ({
-    ...r,
-    errors: r.errors.slice(0, MAX_ERRORES_POR_COMPETENCIA).map(truncar),
-  }));
   const [run] = await db.select({ startedAt: syncRuns.startedAt }).from(syncRuns).where(eq(syncRuns.id, id));
   await db
     .update(syncRuns)
@@ -107,7 +129,7 @@ export async function finishSyncRun(
       status,
       finishedAt: now,
       durationMs: run ? now - run.startedAt : null,
-      results: JSON.stringify(acotados),
+      results: JSON.stringify(acotar(data.results)),
       issues: JSON.stringify(data.issues),
     })
     .where(eq(syncRuns.id, id));

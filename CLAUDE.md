@@ -60,6 +60,7 @@ drizzle/
 - Calendarios en producción: el job `calendarios` de `sync-cron.yml` corre `scripts/sync-calendarios.mjs` después de las ligas. Encadena `POST /api/admin/sync` con `{"calendarios": true, "corte": ms}` hasta que `siguiente` sea `false` (un barrido). Cada lote atiende a unos pocos usuarios (hasta `PARTIDOS_POR_TURNO` = 4 partidos cada uno) dentro de 45 subrequests (D1 y calendario instrumentados, `calendar/presupuesto.ts`); el primer lote (sin `corte`) detecta los eventos desactualizados de todos. Detalle en `docs/17`.
 - `/api/health` mide por separado ligas (`checks.sync`) y calendarios (`checks.calendars`: sin runs de calendarios queda en `ok` y como máximo llega a `degraded`, nunca a 503); `/api/admin/status` trae `runs` (ligas), `runsCalendarios` y `metricas.calendariosSinAcceso`.
 - Alertas: `sync-cron.yml` (sync de ligas o de calendarios fallido), `monitor.yml` (`/api/health` cada 30 min) y `keepalive.yml` (semanal: reactiva los workflows programados que GitHub desactiva tras 60 días sin actividad y avisa si el sync diario lleva más de 72 h sin terminar bien) abren un issue con la etiqueta `incidente` (GitHub avisa por email) y lo cierran al recuperarse. Pasos a seguir: `docs/23-runbook-de-incidentes.md`.
+- Prode (`docs/40`): el resultado se carga solo desde ESPN y el PATCH admin queda como excepción (gana siempre). `prode-sync.yml` llama cada 15 min a `POST /api/admin/prode/sync` (+2 h y +3 h de cada partido adoptado, hasta +6 h); sus runs son `kind = 'prode'` (`runsProde`), fuera de `checks.sync`. Abre los issues `incidente` "Falla el sync del prode" y "Prode: resultados en espera" (`docs/23`). Corte sin deploy: clave KV `prode:resultado_auto` (`on`, `off`, `solo-a`, `solo-b`); total: `PRODE_RESULTADO_AUTO=off` tras un deploy.
 - Ver logs en vivo: `npx wrangler pages deployment tail`. Diseño completo: `docs/10-observabilidad-tdd.md`.
 
 ## Commits y Pull Requests
@@ -126,6 +127,17 @@ La sesión principal orquesta: entiende el pedido, diseña (TDD), decide y revis
 - **`Explore`**: búsquedas amplias en el código.
 
 No delegar lo trivial: un cambio de uno o dos archivos ya identificados, o una búsqueda puntual, se hace directo (un agente arranca en frío y sale más caro). Pedir a los agentes informes breves y no releer lo que ya informaron.
+
+## Errores de agentes: una regla automática, no una línea en el prompt
+
+Cuando un agente (o una persona) comete un error que puede repetirse, la corrección no es agregar otra instrucción a este archivo: es convertir el error en una verificación automática que falle en `npm run check` y en el CI.
+
+- **Primero el test que falla.** Escribir el caso que reproduce el error y verlo en rojo; recién después corregir el código. El mismo test queda como regla para el próximo agente.
+- **Dónde vive la regla.** Un test que lea el código fuente en `tests/unit/` (modelo: `tests/unit/rate-limit/descubrimiento.test.ts`, que falla si un handler de `pages/api` no está envuelto en `withApi` o si `esMismoOrigen` se define más de una vez), o un script en `scripts/` enganchado a `npm run check` (modelo: `scripts/check-test-discovery.mjs`). Si el repo suma un linter, ahí van las reglas que sean sintácticas.
+- **El mensaje de falla enseña.** Dice qué regla se rompió, en qué archivo y cómo se arregla, para que un agente lo corrija solo sin leer este archivo.
+- **Cuándo sí va una línea en este archivo.** Solo si la regla no se puede verificar con código (una decisión de producto, una convención de nombres sin patrón claro). Si ya existe una verificación, no se repite acá: se referencia el test.
+- **Al cerrar un bug**, el PR dice qué regla automática nueva lo cubre en "Resumen" o declara en "Despliegue y riesgos" por qué no se pudo automatizar.
+- El `revisor` no es la red de seguridad de las reglas de este archivo: lo que ya tiene verificación automática lo cubre `npm run check`, y el revisor se concentra en lo que un test no ve.
 
 ## Convenciones
 

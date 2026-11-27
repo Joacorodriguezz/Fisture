@@ -269,21 +269,21 @@ const soloMovil = () => test.skip(({ isMobile }) => !isMobile, "solo en el proye
 const soloEscritorio = () => test.skip(({ isMobile }) => isMobile, "solo en el proyecto de escritorio");
 const navegacionPrincipal = (page: Page) => page.getByRole("navigation", { name: "Secciones", exact: true });
 const enlaceCuenta = (page: Page) => page.getByRole("link", { name: /Tu cuenta$/ });
-const SECCIONES = ["Hoy", "Partidos", "Ligas", "Calendario"];
+const SECCIONES = ["Hoy", "Partidos", "Prode", "Ligas", "Calendario"];
 
-// docs/31 D1 y D2: cabecera compacta y fija; en mobile, barra inferior con Buscar al centro
+// docs/31 D1 y D2: cabecera compacta y fija; en mobile, barra inferior de cinco destinos y Buscar en la cabecera
 test.describe("navegación responsive: móvil", () => {
   soloMovil();
 
-  test("la barra inferior tiene las cuatro secciones y Buscar, y marca la actual", async ({ page }) => {
+  test("la barra inferior tiene las cinco secciones, marca la actual y Buscar está en la cabecera", async ({ page }) => {
     await page.goto("/ligas");
     const barra = navegacionPrincipal(page);
     await expect(barra).toBeVisible();
     for (const label of SECCIONES) await expect(barra.getByRole("link", { name: label, exact: true })).toBeVisible();
     await expect(barra.getByRole("link", { name: "Ligas", exact: true })).toHaveAttribute("aria-current", "page");
-    await barra.getByRole("link", { name: "Buscar equipo", exact: true }).click();
+    await expect(barra.getByRole("link", { name: "Buscar equipo" })).toHaveCount(0);
+    await page.getByRole("banner").getByRole("link", { name: "Buscar equipo", exact: true }).click();
     await expect(page).toHaveURL(/\/equipos\/buscar$/);
-    await expect(navegacionPrincipal(page).getByRole("link", { name: "Buscar equipo", exact: true })).toHaveAttribute("aria-current", "page");
     await navegacionPrincipal(page).getByRole("link", { name: "Calendario", exact: true }).click();
     await expect(page).toHaveURL(/\/calendario$/);
   });

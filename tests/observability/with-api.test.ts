@@ -66,6 +66,25 @@ describe("withApi", () => {
     expect(lineas[0].data.route).toBe("/api/equipos/[id]");
   });
 
+  it("en rutas del prode el log lleva el patrón y no el id del grupo", async () => {
+    const { logger, lineas } = capturar();
+    const c = apiCtx({
+      url: "https://fisture.test/api/prode/grupos/abc123/ranking?fase=cuartos",
+      over: { routePattern: "/api/prode/grupos/[id]/ranking" },
+    });
+    await withApi(async () => new Response("x"), { logger })(c);
+    expect(lineas[0].data.route).toBe("/api/prode/grupos/[id]/ranking");
+    expect(lineas[0].data.path).toBe("/api/prode/grupos/[id]/ranking");
+    expect(JSON.stringify(lineas[0].data)).not.toContain("abc123");
+  });
+
+  it("fuera del prode el path conserva la ruta real", async () => {
+    const { logger, lineas } = capturar();
+    const c = apiCtx({ url: "https://fisture.test/api/equipos/river", over: { routePattern: "/api/equipos/[id]" } });
+    await withApi(async () => new Response("x"), { logger })(c);
+    expect(lineas[0].data.path).toBe("/api/equipos/river");
+  });
+
   it("4xx se loguea como warn y 5xx como error", async () => {
     const { logger, lineas } = capturar();
     await withApi(async () => new Response("no", { status: 401 }), { logger })(ctx());
@@ -114,6 +133,16 @@ describe("withApi", () => {
     )(ctx());
     const dentro = lineas.find((l) => l.data.msg === "dentro del handler");
     expect(dentro?.data.requestId).toBeTruthy();
+  });
+
+  it("las rutas del prode no registran el userId, y las demás sí", async () => {
+    const { logger, lineas } = capturar();
+    const conUsuario = (url: string, routePattern: string) =>
+      apiCtx({ url, user: { id: "user-1" }, over: { routePattern } });
+    await withApi(async () => new Response("x"), { logger })(conUsuario("https://fisture.test/api/prode/ranking", "/api/prode/ranking"));
+    await withApi(async () => new Response("x"), { logger })(conUsuario("https://fisture.test/api/partidos", "/api/partidos"));
+    expect(lineas[0].data).not.toHaveProperty("userId");
+    expect(lineas[1].data.userId).toBe("user-1");
   });
 
   it("omitirUserIdEnLog evita el userId en el log de request y en el de excepción", async () => {

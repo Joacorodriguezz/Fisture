@@ -1,6 +1,6 @@
 ---
 // Cabecera.astro: franja roja compacta y fija (docs/31 D1). Desktop: nombre, secciones, buscador y
-// cuenta. Mobile: nombre y cuenta; las secciones y Buscar viven en la barra inferior (BarraInferior.astro).
+// cuenta. Mobile: nombre, lupa de Buscar y cuenta; las secciones viven en la barra inferior (BarraInferior.astro).
 interface Seccion {
   label: string;
   href: string;
@@ -35,6 +35,11 @@ const { volanta, secciones = [], usuario, loginHref } = Astro.props;
       <a class="tb-cabecera__buscar" href="/equipos/buscar">
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5L21 21"></path></svg>
         Buscar equipo
+      </a>
+    )}
+    {secciones.length > 0 && (
+      <a class="tb-cabecera__lupa" href="/equipos/buscar" aria-label="Buscar equipo">
+        <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5L21 21"></path></svg>
       </a>
     )}
     {usuario ? (

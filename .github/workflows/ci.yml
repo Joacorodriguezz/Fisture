@@ -2,7 +2,8 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, development]
+    types: [opened, synchronize, reopened, edited]
+    branches: [main, development, feat/prode-cuentas-grupos, feat/prode-partidos-pronosticos]
   push:
     branches: [development]
 
@@ -15,6 +16,8 @@ permissions:
 
 jobs:
   suite:
+    # "edited" solo importa si cambió la base del PR; editar la descripción no relanza el E2E
+    if: github.event.action != 'edited' || github.event.changes.base != null
     uses: ./.github/workflows/test-suite.yml
 
   build:
@@ -28,4 +31,5 @@ jobs:
       - name: Exigir toda la suite
         env:
           SUITE_RESULT: ${{ needs.suite.result }}
-        run: test "$SUITE_RESULT" = "success"
+        # skipped: solo al editar la descripción de un PR (ver el if de suite)
+        run: test "$SUITE_RESULT" = "success" || test "$SUITE_RESULT" = "skipped"

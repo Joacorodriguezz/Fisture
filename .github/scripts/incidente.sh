@@ -2,7 +2,9 @@
 # Abre (o comenta) un issue de incidente para que GitHub avise por email al dueño del repo.
 # Uso: incidente.sh abrir  "<título>" "<detalle>"
 #      incidente.sh cerrar "<título>" "<detalle>"
-# Un solo issue abierto por título: las fallas repetidas se suman como comentarios.
+#      incidente.sh abrir-una-vez "<título>" "<detalle>"
+# Un solo issue abierto por título: con `abrir` las fallas repetidas se suman como comentarios; con
+# `abrir-una-vez` (workflows que corren seguido) solo se avisa al abrirlo.
 set -euo pipefail
 
 accion="$1"
@@ -20,6 +22,11 @@ case "$accion" in
     if [ -n "$numero" ]; then
       gh issue comment "$numero" --body "$detalle"
     else
+      gh issue create --title "$titulo" --label "$etiqueta" --body "$detalle"
+    fi
+    ;;
+  abrir-una-vez)
+    if [ -z "$numero" ]; then
       gh issue create --title "$titulo" --label "$etiqueta" --body "$detalle"
     fi
     ;;

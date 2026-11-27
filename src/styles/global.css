@@ -147,38 +147,6 @@ a:hover {
   .tb-barra-inferior__item[aria-current="page"] svg {
     color: var(--rojo);
   }
-  .tb-barra-inferior__centro {
-    position: relative;
-    height: 64px;
-    display: flex;
-    justify-content: center;
-  }
-  .tb-barra-inferior__buscar {
-    position: absolute;
-    bottom: 14px;
-    width: 64px;
-    height: 64px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    border: 2px solid var(--tinta);
-    background: var(--amarillo);
-    color: var(--on-amarillo);
-    box-shadow: var(--sombra-registro);
-    font: 700 12px/14px var(--font-rotulo);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    text-decoration: none;
-  }
-  .tb-barra-inferior__buscar:hover {
-    color: var(--on-amarillo);
-  }
-  .tb-barra-inferior__buscar[aria-current="page"] {
-    background: var(--rojo-fondo);
-    color: var(--on-rojo);
-  }
   .tb-barra-inferior a:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring, 0 0 0 2px var(--papel), 0 0 0 5px var(--tinta));

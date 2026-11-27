@@ -8,7 +8,7 @@ import { apiCtx } from "./ctx";
 export async function callApi(
   handler: APIRoute,
   DB: D1Database,
-  options: { user?: User; method?: string; path?: string; body?: unknown; rawBody?: string; params?: Record<string, string> } = {}
+  options: { user?: User; method?: string; path?: string; body?: unknown; rawBody?: string; params?: Record<string, string>; env?: Record<string, unknown> } = {}
 ) {
   return handler(
     apiCtx({
@@ -18,7 +18,7 @@ export async function callApi(
       body: options.rawBody ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
       params: options.params,
       user: options.user as { id: string } | undefined,
-      env: { DB, ENVIRONMENT: "test", TOKEN_ENCRYPTION_KEY },
+      env: { DB, ENVIRONMENT: "test", TOKEN_ENCRYPTION_KEY, ...options.env },
     })
   );
 }
