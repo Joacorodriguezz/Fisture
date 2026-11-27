@@ -225,3 +225,105 @@ describe("puntosPorUsuario", () => {
     });
   });
 });
+
+// docs/40 D2 y D3: precedencia excluido > manual > automático confirmado, por par, y el apagado total
+describe("puntosPorUsuario con resultado automático (docs/40 D2)", () => {
+  const t = useTestDb();
+  relojFijo();
+  const CONFIRMADO = AYER.getTime();
+
+  type Vinculo = Partial<typeof prodeMatches.$inferInsert>;
+  const adoptado = async (id: string, vinculo: Vinculo, status = "finished") => {
+    await t.db.insert(matches).values({
+      id, externalId: `espn:${id}`, homeTeamId: "river", awayTeamId: "boca", leagueId: "test-league",
+      dateTime: AYER, status, round: "cuartos", source: "espn", homeScore: 2, awayScore: 2,
+    });
+    await t.db.insert(prodeMatches).values({ matchId: id, fase: "cuartos", createdAt: AYER, ...vinculo });
+  };
+  const auto = (local: number | null, visitante: number | null, pasa: "home" | "away" | null, confirmado: number | null = CONFIRMADO): Vinculo => ({
+    autoHomeGoals90: local, autoAwayGoals90: visitante, autoPasa: pasa, autoRegla: "A", autoVistoAt: AYER.getTime(), autoConfirmadoAt: confirmado,
+  });
+  const pronostico = (matchId: string, homeGoals: number, awayGoals: number, pasa: "home" | "away" | null = null) =>
+    ({ userId: "user-1", matchId, homeGoals, awayGoals, pasa, createdAt: AYER, updatedAt: AYER });
+  const puntos = async (autoHabilitado?: boolean) => (await puntosPorUsuario(t.db, {}, autoHabilitado)).partidos;
+
+  beforeEach(async () => {
+    silenciarConsola(vi);
+    await seedApp(t.db);
+  });
+
+  it("un automático confirmado puntúa marcador y quién pasa (ganador derivado)", async () => {
+    await adoptado("a1", auto(2, 1, "home"));
+    await t.db.insert(prodePredictions).values(pronostico("a1", 2, 1));
+    expect(await puntos()).toEqual([expect.objectContaining({ matchId: "a1", marcador: 3, extra: 1, puntos: 4 })]);
+  });
+
+  it("un automático sin confirmar no puntúa", async () => {
+    await adoptado("a1", auto(2, 1, "home", null));
+    await t.db.insert(prodePredictions).values(pronostico("a1", 2, 1));
+    expect(await puntos()).toEqual([]);
+  });
+
+  it("empate automático confirmado: quién pasa sale de auto_pasa", async () => {
+    await adoptado("a1", auto(1, 1, "away"));
+    await t.db.insert(prodePredictions).values(pronostico("a1", 1, 1, "away"));
+    expect(await puntos()).toEqual([expect.objectContaining({ marcador: 3, extra: 1 })]);
+  });
+
+  it("empate automático sin quién pasa: espera completa", async () => {
+    await adoptado("a1", auto(1, 1, null));
+    await t.db.insert(prodePredictions).values(pronostico("a1", 1, 1, "home"));
+    expect(await puntos()).toEqual([]);
+  });
+
+  it("la corrección manual completa gana sobre el automático confirmado", async () => {
+    await adoptado("a1", { ...auto(2, 1, "home"), homeGoals90: 0, awayGoals90: 1 });
+    await t.db.insert(prodePredictions).values(pronostico("a1", 0, 1));
+    expect(await puntos()).toEqual([expect.objectContaining({ marcador: 3, extra: 1 })]);
+  });
+
+  it("nunca mezcla un gol manual con uno automático: un par manual incompleto no se usa y vale el automático", async () => {
+    await adoptado("a1", { ...auto(2, 1, "home"), homeGoals90: 5, awayGoals90: null });
+    await t.db.insert(prodePredictions).values(pronostico("a1", 2, 1));
+    expect(await puntos()).toEqual([expect.objectContaining({ marcador: 3 })]);
+    // y sin automático confirmado, un par manual incompleto no puntúa
+    await t.DB.prepare("UPDATE prode_matches SET auto_confirmado_at = NULL WHERE match_id = 'a1'").run();
+    expect(await puntos()).toEqual([]);
+  });
+
+  it("pasa manual gana sobre auto_pasa en un empate", async () => {
+    await adoptado("a1", { ...auto(1, 1, "away"), pasa: "home" });
+    await t.db.insert(prodePredictions).values(pronostico("a1", 1, 1, "home"));
+    expect(await puntos()).toEqual([expect.objectContaining({ extra: 1 })]);
+  });
+
+  it("un partido excluido no puntúa aunque tenga manual y automático", async () => {
+    await adoptado("a1", { ...auto(2, 1, "home"), homeGoals90: 2, awayGoals90: 1, excludedAt: CONFIRMADO });
+    await t.db.insert(prodePredictions).values(pronostico("a1", 2, 1));
+    expect(await puntos()).toEqual([]);
+  });
+
+  it("con el automático apagado (PRODE_RESULTADO_AUTO=off) ignora incluso lo confirmado, pero no lo manual", async () => {
+    await adoptado("a1", auto(2, 1, "home"));
+    await adoptado("a2", { ...auto(2, 1, "home"), homeGoals90: 2, awayGoals90: 1 });
+    await t.db.insert(prodePredictions).values([pronostico("a1", 2, 1), pronostico("a2", 2, 1)]);
+    expect((await puntos(false)).map((p) => p.matchId)).toEqual(["a2"]);
+    expect((await puntos(true)).map((p) => p.matchId).sort()).toEqual(["a1", "a2"]);
+  });
+
+  it("el automático no puntúa si el partido no está finished", async () => {
+    await adoptado("a1", auto(2, 1, "home"), "live");
+    await t.db.insert(prodePredictions).values(pronostico("a1", 2, 1));
+    expect(await puntos()).toEqual([]);
+  });
+
+  it("un cruce manual sigue usando matches.home_score aunque tenga columnas automáticas", async () => {
+    await t.db.insert(matches).values({
+      id: "m1", externalId: "prode:m1", homeTeamId: "river", awayTeamId: "boca", leagueId: "test-league",
+      dateTime: AYER, status: "finished", round: "cuartos", source: "manual", homeScore: 0, awayScore: 3,
+    });
+    await t.db.insert(prodeMatches).values({ matchId: "m1", fase: "cuartos", createdAt: AYER, ...auto(2, 1, "home") });
+    await t.db.insert(prodePredictions).values(pronostico("m1", 0, 3));
+    expect(await puntos()).toEqual([expect.objectContaining({ marcador: 3, extra: 1 })]);
+  });
+});

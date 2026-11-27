@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { aviso, boton, etiquetaTarjeta, filaEquipo, golBoton, golCampo, grupoPasa, insignia, leyendaPasa, opcionPasa, radioPasa, resultadoCerrado, siglaEquipo, soloLectores, suave, tarjeta, texto, tituloEquipo } from "../prode/estilos";
-import { desglosePuntos, ETIQUETA_ESTADO, formatearCierre, ladoPorMarcador, mensajeDeError, minutosHasta, parsearGol, sumarGol, textoPie, type EstadoPartido, type Lado } from "../prode/logica";
+import { desglosePuntos, ETIQUETA_ESTADO, formatearCierre, ladoPorMarcador, mensajeDeError, minutosHasta, parsearGol, sumarGol, textoPie, textoResultado, type EstadoPartido, type Lado } from "../prode/logica";
 
 interface Pronostico {
   homeGoals: number;
@@ -254,9 +254,7 @@ function TarjetaPartido({ partido, ahora, puntos }: { partido: Partido; ahora: n
       )}
       {estado === "jugado" && (
         <span style={texto}>
-          {partido.resultado ? `Resultado: ${partido.resultado.local} - ${partido.resultado.visitante}. ` : ""}
-          {partido.resultado && partido.pasa ? `Pasó: ${nombreDe(partido.pasa)}. ` : ""}
-          {partido.resultado && !partido.pasa ? "Falta confirmar quién pasó. " : ""}
+          {textoResultado(partido.resultado, partido.pasa ? nombreDe(partido.pasa) : null)}
           {guardado ? "" : "No cargaste pronóstico. "}
           {puntos
             ? `Sumaste ${puntos.puntos} ${puntos.puntos === 1 ? "punto" : "puntos"}${desglose || puntos.exacto ? ` (${[desglose, puntos.exacto ? "resultado exacto" : null].filter(Boolean).join(", ")})` : ""}.`

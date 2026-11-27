@@ -9,10 +9,11 @@
 import { and, eq, exists, gt, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { leagues, matches, prodeMatches, teams } from "../../../drizzle/schema";
 import type { Database } from "../db";
-import { ladoQuePasa, type Lado } from "./reglas";
+import { enEsperaSql, goles90Local, goles90Visitante, pasaEfectivo } from "./puntos";
+import { ladoQuePasa, SOURCE_MANUAL, type Lado } from "./reglas";
 import { cierraPronostico, ESTADOS_EMPEZADO, esFase, etiquetaFase, horarioArgentino, parsearHorarioArgentino, type Fase, type HorarioMostrado } from "./horario";
 
-export const SOURCE_MANUAL = "manual";
+export { SOURCE_MANUAL };
 
 export interface PartidoProde {
   id: string;
@@ -22,46 +23,75 @@ export interface PartidoProde {
   local: { id: string; nombre: string };
   visitante: { id: string; nombre: string };
   estado: string | null;
-  // Goles a los 90 minutos más adicionado; null hasta que el partido termina
+  // Marcador a 90' más adicionado efectivo (puntos.ts: excluido, manual, automático confirmado); null sin dato
   resultado: { local: number; visitante: number } | null;
-  // Equipo que pasó (docs/40 R3): con ganador a 90', el ganador; con empate, el que cargó el admin. null si no se sabe
+  // Equipo que pasó efectivo (docs/40 R3): con ganador a 90', el ganador; con empate, el manual o el automático
+  // confirmado. null si no se sabe
   pasa: Lado | null;
   // Cierre definitivo del pronóstico (prode_matches.closed_at, ms): se vio empezar; no se reabre
   cerradoEn: number | null;
 }
 
+/** Lo que ve el administrador (docs/40 D5). Nada de esto llega al participante (pronosticos.ts). */
+export interface PartidoAdmin extends PartidoProde {
+  // Lo último que el sync leyó de ESPN, confirmado o no; null si no hay dato automático
+  automatico: { local: number | null; visitante: number | null; pasa: Lado | null; regla: string | null; confirmadoEn: number | null } | null;
+  excluido: boolean;
+  // Terminado hace rato y sin resultado que puntúe: requiere una corrección o una exclusión
+  enEspera: boolean;
+  // Última pasada del sync tras el final (ms)
+  pasadaEn: number | null;
+}
+
 export type Resultado =
-  | { ok: true; partido: PartidoProde }
+  | { ok: true; partido: PartidoAdmin }
   // existente: solo en cruce_duplicado, el partido que ya está cargado (id y origen, nada más)
   | { ok: false; status: 400 | 404 | 409; error: string; existente?: { id: string; source: string } };
 
 const error = (status: 400 | 404 | 409, codigo: string): Resultado => ({ ok: false, status, error: codigo });
 
 type Fila = typeof matches.$inferSelect;
-type Vinculo = typeof prodeMatches.$inferSelect;
-type FilaProde = { matches: Fila; prode_matches: Vinculo };
 
-// Goles a los 90' más adicionado (docs/37 §2): en un manual, los de matches; en un adoptado de ESPN, los
-// confirmados por el admin en el vínculo (el marcador de ESPN puede incluir alargue o penales)
-function resultado90(m: Fila, v: Vinculo): { local: number; visitante: number } | null {
-  const [local, visitante] = m.source === SOURCE_MANUAL ? [m.homeScore, m.awayScore] : [v.homeGoals90, v.awayGoals90];
-  return local !== null && visitante !== null ? { local, visitante } : null;
-}
+type Marcador90 = { local: number; visitante: number };
+const marcador90 = (local: number | null, visitante: number | null): Marcador90 | null =>
+  local !== null && visitante !== null ? { local, visitante } : null;
 
 const esLado = (v: unknown): v is Lado => v === "home" || v === "away";
 
-// Equivalente en TS de la expresión SQL de puntos.ts: sin resultado a 90' no hay equipo que pasó
-function pasaEfectivo(resultado: { local: number; visitante: number } | null, pasa: string | null): Lado | null {
-  return resultado ? ladoQuePasa(resultado, esLado(pasa) ? pasa : null) : null;
+// Partidos del prode con su resultado efectivo, calculado por las mismas expresiones SQL que puntúan
+function consultaPartidos(db: Database, auto: boolean, ahora = Date.now()) {
+  return db
+    .select({
+      m: matches,
+      v: prodeMatches,
+      local90: goles90Local(auto),
+      visitante90: goles90Visitante(auto),
+      pasaReal: pasaEfectivo(auto),
+      espera: enEsperaSql(auto, ahora),
+    })
+    .from(matches)
+    .innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id));
+}
+type FilaProde = Awaited<ReturnType<typeof consultaPartidos>>[number];
+
+function automaticoDe(v: typeof prodeMatches.$inferSelect): PartidoAdmin["automatico"] {
+  if (v.autoVistoAt === null && v.autoHomeGoals90 === null && v.autoPasa === null) return null;
+  return {
+    local: v.autoHomeGoals90,
+    visitante: v.autoAwayGoals90,
+    pasa: esLado(v.autoPasa) ? v.autoPasa : null,
+    regla: v.autoRegla,
+    confirmadoEn: v.autoConfirmadoAt,
+  };
 }
 
 // Dos consultas en total (partidos y equipos), nunca una por partido: cuida las subrequests de Workers Free
-async function armar(db: Database, filas: FilaProde[]): Promise<PartidoProde[]> {
+async function armar(db: Database, filas: FilaProde[]): Promise<PartidoAdmin[]> {
   if (filas.length === 0) return [];
-  const ids = [...new Set(filas.flatMap(({ matches: m }) => [m.homeTeamId, m.awayTeamId]))];
+  const ids = [...new Set(filas.flatMap(({ m }) => [m.homeTeamId, m.awayTeamId]))];
   const equipos = await db.select({ id: teams.id, name: teams.name }).from(teams).where(inArray(teams.id, ids));
   const nombre = (tid: string) => equipos.find((e) => e.id === tid)?.name ?? "";
-  return filas.map(({ matches: m, prode_matches: v }) => {
+  return filas.map(({ m, v, local90, visitante90, pasaReal, espera }) => {
     // La fase sale del vínculo (en un partido de ESPN, matches.round es la del proveedor)
     const fase = esFase(v.fase) ? v.fase : null;
     return {
@@ -72,15 +102,19 @@ async function armar(db: Database, filas: FilaProde[]): Promise<PartidoProde[]> 
       local: { id: m.homeTeamId, nombre: nombre(m.homeTeamId) },
       visitante: { id: m.awayTeamId, nombre: nombre(m.awayTeamId) },
       estado: m.status,
-      resultado: resultado90(m, v),
-      pasa: pasaEfectivo(resultado90(m, v), v.pasa),
+      resultado: marcador90(local90, visitante90),
+      pasa: pasaReal,
       cerradoEn: v.closedAt,
+      automatico: automaticoDe(v),
+      excluido: v.excludedAt !== null,
+      enEspera: Boolean(espera),
+      pasadaEn: v.pasadaAt,
     };
   });
 }
 
-async function leerPartido(db: Database, id: string): Promise<PartidoProde> {
-  const filas = await db.select().from(matches).innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id)).where(eq(matches.id, id)).limit(1);
+async function leerPartido(db: Database, id: string, auto: boolean): Promise<PartidoAdmin> {
+  const filas = await consultaPartidos(db, auto).where(eq(matches.id, id)).limit(1);
   return (await armar(db, filas))[0];
 }
 
@@ -134,8 +168,8 @@ const duplicado = (existente: { id: string; source: string }): Resultado => ({ o
 const textoNoVacio =(v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 
 // POST: con {adoptar} suma al prode un partido existente (de ESPN); si no, carga un cruce manual
-export async function agregarCruce(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
-  if (datos.adoptar !== undefined) return adoptarPartido(db, datos);
+export async function agregarCruce(db: Database, datos: Record<string, unknown>, auto = true): Promise<Resultado> {
+  if (datos.adoptar !== undefined) return adoptarPartido(db, datos, auto);
   const { leagueId, homeTeamId, awayTeamId, fase, venue } = datos;
   if (!textoNoVacio(leagueId) || !textoNoVacio(homeTeamId) || !textoNoVacio(awayTeamId)) return error(400, "faltan_datos");
   if (homeTeamId === awayTeamId) return error(400, "equipos_iguales");
@@ -170,7 +204,7 @@ export async function agregarCruce(db: Database, datos: Record<string, unknown>)
     }),
     db.insert(prodeMatches).values({ matchId: id, fase, createdAt: ahora }),
   ]);
-  return { ok: true, partido: await leerPartido(db, id) };
+  return { ok: true, partido: await leerPartido(db, id, auto) };
 }
 
 // El adaptador de ESPN suma "Ida" o "Vuelta" a matches.round cuando el evento trae `leg` (espn.ts)
@@ -178,7 +212,7 @@ const RONDA_CON_VUELTA = /(?:^|\s)(Ida|Vuelta)$/;
 
 // Suma al prode un partido que ya existe: el de ESPN que agregarCruce informó como cruce_duplicado.
 // No toca la fila de matches: horario, estado y resultado los sigue gobernando el sync.
-async function adoptarPartido(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
+async function adoptarPartido(db: Database, datos: Record<string, unknown>, auto: boolean): Promise<Resultado> {
   const { adoptar, fase } = datos;
   if (!textoNoVacio(adoptar)) return error(400, "faltan_datos");
   if (!esFase(fase)) return error(400, "fase_invalida");
@@ -192,7 +226,7 @@ async function adoptarPartido(db: Database, datos: Record<string, unknown>): Pro
     .onConflictDoNothing()
     .returning({ id: prodeMatches.matchId });
   if (insertado.length === 0) return error(409, "ya_en_prode");
-  return { ok: true, partido: await leerPartido(db, adoptar) };
+  return { ok: true, partido: await leerPartido(db, adoptar, auto) };
 }
 
 // Valores reales de matches.status
@@ -215,9 +249,10 @@ function validarEstado(datos: Record<string, unknown>): { cambios: Partial<Fila>
 }
 
 // Corrige horario/fase y/o carga estado y resultado de un cruce manual.
-export async function corregirPartido(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
-  if (datos.homeGoals90 !== undefined || datos.awayGoals90 !== undefined) return fijarResultado90(db, datos);
-  if (datos.pasa !== undefined) return fijarPasa(db, datos);
+export async function corregirPartido(db: Database, datos: Record<string, unknown>, auto = true): Promise<Resultado> {
+  if (datos.excluir !== undefined) return fijarExclusion(db, datos, auto);
+  if (datos.homeGoals90 !== undefined || datos.awayGoals90 !== undefined) return fijarResultado90(db, datos, auto);
+  if (datos.pasa !== undefined) return fijarPasa(db, datos, auto);
   const { id, fase, horario } = datos;
   if (!textoNoVacio(id)) return error(400, "faltan_datos");
   if ([fase, horario, datos.status, datos.homeScore, datos.awayScore].every((v) => v === undefined)) return error(400, "sin_cambios");
@@ -270,7 +305,7 @@ export async function corregirPartido(db: Database, datos: Record<string, unknow
   const [, ...resultados] = await db.batch([cerrarSiEmpezo(db, id, ahora), ...vinculo, cambio, cerrarSiEmpezo(db, id, ahora)]);
   const escrito = resultados[vinculo.length] as D1Result;
   if (!escrito.meta.changes) return error(409, "partido_cambio");
-  return { ok: true, partido: await leerPartido(db, id) };
+  return { ok: true, partido: await leerPartido(db, id, auto) };
 }
 
 // Fija prode_matches.closed_at si el partido, tal como está en la fila vigente, ya empezó (idempotente)
@@ -298,18 +333,38 @@ function contradiceGanador(resultado: { local: number; visitante: number } | nul
   return pasa !== null && resultado !== null && resultado.local !== resultado.visitante && ladoQuePasa(resultado, null) !== pasa;
 }
 
+// {id, excluir}: un partido excluido no puntúa, tenga el resultado que tenga (resultado administrativo,
+// docs/40 D2); excluir: false lo deshace. Vale para manuales y adoptados, y va solo.
+async function fijarExclusion(db: Database, datos: Record<string, unknown>, auto: boolean): Promise<Resultado> {
+  const { id, excluir } = datos;
+  if (!textoNoVacio(id)) return error(400, "faltan_datos");
+  if (Object.keys(datos).some((k) => k !== "id" && k !== "excluir")) return error(400, "cambios_mezclados");
+  if (typeof excluir !== "boolean") return error(400, "excluir_invalido");
+  const escrito = await db
+    .update(prodeMatches)
+    // Idempotente: excluir de nuevo conserva la fecha de la primera exclusión
+    .set({ excludedAt: excluir ? sql`COALESCE(${prodeMatches.excludedAt}, ${Date.now()})` : null })
+    .where(eq(prodeMatches.matchId, id))
+    .returning({ id: prodeMatches.matchId });
+  if (escrito.length === 0) return error(404, "partido_inexistente");
+  return { ok: true, partido: await leerPartido(db, id, auto) };
+}
+
 // Resultado a los 90 minutos de un partido adoptado de ESPN ({id, homeGoals90, awayGoals90, pasa?}). Se guarda
 // en el vínculo, sin tocar la fila de matches (la gobierna el sync). Puntúa cuando además el partido
 // está finished y se sabe quién pasó (puntos.ts). En un manual el resultado a 90' es el de matches: 409
 // partido_manual. `pasa` (home | away | null) vale con empate; con ganador que lo contradice, 409 pasa_inconsistente.
-async function fijarResultado90(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
+async function fijarResultado90(db: Database, datos: Record<string, unknown>, auto: boolean): Promise<Resultado> {
   const { id, homeGoals90, awayGoals90, pasa } = datos;
   if (!textoNoVacio(id)) return error(400, "faltan_datos");
   const otros = Object.keys(datos).filter((k) => !["id", "homeGoals90", "awayGoals90", "pasa"].includes(k));
   if (otros.length > 0) return error(400, "cambios_mezclados");
   if (homeGoals90 === undefined || awayGoals90 === undefined) return error(400, "faltan_goles");
-  if (!esGoles(homeGoals90) || !esGoles(awayGoals90)) return error(400, "marcador_invalido");
+  // null, null retira la corrección manual (y su pasa): vuelve a valer el automático (docs/40 D2)
+  const retira = homeGoals90 === null && awayGoals90 === null;
+  if (!retira && (!esGoles(homeGoals90) || !esGoles(awayGoals90))) return error(400, "marcador_invalido");
   if (pasa !== undefined && pasa !== null && !esLado(pasa)) return error(400, "pasa_invalido");
+  if (retira && esLado(pasa)) return error(400, "cambios_mezclados");
 
   const [m] = await db
     .select({ source: matches.source, dateTime: matches.dateTime })
@@ -319,6 +374,10 @@ async function fijarResultado90(db: Database, datos: Record<string, unknown>): P
     .limit(1);
   if (!m) return error(404, "partido_inexistente");
   if (m.source === SOURCE_MANUAL) return error(409, "partido_manual");
+  if (retira) {
+    await db.update(prodeMatches).set({ homeGoals90: null, awayGoals90: null, pasa: null }).where(eq(prodeMatches.matchId, id));
+    return { ok: true, partido: await leerPartido(db, id, auto) };
+  }
   if (contradiceGanador({ local: homeGoals90 as number, visitante: awayGoals90 as number }, (pasa as Lado | null | undefined) ?? null)) return error(409, "pasa_inconsistente");
   const ahora = new Date();
   if (m.dateTime.getTime() > ahora.getTime()) return error(409, "partido_no_empezado");
@@ -328,35 +387,41 @@ async function fijarResultado90(db: Database, datos: Record<string, unknown>): P
     db.update(prodeMatches).set({ homeGoals90: homeGoals90 as number, awayGoals90: awayGoals90 as number, ...(pasa !== undefined ? { pasa: pasa as Lado | null } : homeGoals90 !== awayGoals90 ? { pasa: null } : {}) }).where(eq(prodeMatches.matchId, id)),
     cerrar(db, id, ahora),
   ]);
-  return { ok: true, partido: await leerPartido(db, id) };
+  return { ok: true, partido: await leerPartido(db, id, auto) };
 }
 
 // Equipo que pasó de un partido empatado a 90' ({id, pasa}), manual o adoptado. `pasa: null` lo retira. Con un
 // ganador a 90' el equipo que pasó se deriva: un `pasa` que lo contradice responde 409 pasa_inconsistente.
-async function fijarPasa(db: Database, datos: Record<string, unknown>): Promise<Resultado> {
+async function fijarPasa(db: Database, datos: Record<string, unknown>, auto: boolean): Promise<Resultado> {
   const { id, pasa } = datos;
   if (!textoNoVacio(id)) return error(400, "faltan_datos");
   if (Object.keys(datos).some((k) => k !== "id" && k !== "pasa")) return error(400, "cambios_mezclados");
   if (pasa !== null && !esLado(pasa)) return error(400, "pasa_invalido");
 
-  const [f] = await db.select().from(matches).innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id)).where(eq(matches.id, id)).limit(1);
+  // El marcador vigente, también el de un excluido: sobre un ganador no se guarda quién pasa
+  const [f] = await db
+    .select({ dateTime: matches.dateTime, local90: goles90Local(auto, false), visitante90: goles90Visitante(auto, false) })
+    .from(matches)
+    .innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id))
+    .where(eq(matches.id, id))
+    .limit(1);
   if (!f) return error(404, "partido_inexistente");
-  const r90 = resultado90(f.matches, f.prode_matches);
+  const r90 = marcador90(f.local90, f.visitante90);
   if (contradiceGanador(r90, pasa)) return error(409, "pasa_inconsistente");
   // Con un ganador a 90' el equipo que pasó se deriva: no se guarda, para que no reaparezca si el resultado se corrige a empate
   const pasaAGuardar = r90 !== null && r90.local !== r90.visitante ? null : pasa;
   if (pasa === null) {
     await db.update(prodeMatches).set({ pasa: null }).where(eq(prodeMatches.matchId, id));
-    return { ok: true, partido: await leerPartido(db, id) };
+    return { ok: true, partido: await leerPartido(db, id, auto) };
   }
   const ahora = new Date();
-  if (f.matches.dateTime.getTime() > ahora.getTime()) return error(409, "partido_no_empezado");
+  if (f.dateTime.getTime() > ahora.getTime()) return error(409, "partido_no_empezado");
   await db.batch([db.update(prodeMatches).set({ pasa: pasaAGuardar }).where(eq(prodeMatches.matchId, id)), cerrar(db, id, ahora)]);
-  return { ok: true, partido: await leerPartido(db, id) };
+  return { ok: true, partido: await leerPartido(db, id, auto) };
 }
 
 // Partidos del prode (manuales y adoptados), ordenados por horario
-export async function listarCruces(db: Database): Promise<PartidoProde[]> {
-  const filas = await db.select().from(matches).innerJoin(prodeMatches, eq(prodeMatches.matchId, matches.id)).orderBy(matches.dateTime);
+export async function listarCruces(db: Database, auto = true): Promise<PartidoAdmin[]> {
+  const filas = await consultaPartidos(db, auto).orderBy(matches.dateTime);
   return armar(db, filas);
 }

@@ -80,3 +80,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           bash .github/scripts/incidente.sh cerrar "Falla la reconciliación de calendarios" "La reconciliación volvió a completarse: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+  prode-espera:
+    name: Avisar resultados del prode en espera
+    needs: [sync]
+    # Un sync fallido es justamente cuando puede haber partidos sin resultado
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Abrir o cerrar el aviso según los partidos en espera
+        env:
+          APP_URL: ${{ secrets.PUBLIC_APP_URL }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/prode-espera.mjs

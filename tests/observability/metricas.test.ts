@@ -14,6 +14,7 @@ const PRODE_CERO = {
   integrantesPorGrupo: { promedio: 0, maximo: 0 },
   partidos: { abiertos: 0, cerrados: 0, conResultado: 0 },
   pronosticos: 0,
+  automatizacion: { automaticos: { A: 0, B: 0 }, manuales: 0, corregidos: 0, enEspera: 0, excluidos: 0 },
 };
 
 describe("getMetricas", () => {
@@ -101,8 +102,68 @@ describe("getMetricas", () => {
       integrantesPorGrupo: { promedio: 2, maximo: 3 },
       partidos: { abiertos: 1, cerrados: 2, conResultado: 2 },
       pronosticos: 6,
+      // El cruce manual y los que no terminaron no entran; pm-sem es adoptado, terminado y corregido a mano
+      automatizacion: { automaticos: { A: 0, B: 0 }, manuales: 1, corregidos: 0, enEspera: 1, excluidos: 0 },
     });
     const json = JSON.stringify(prode);
     for (const dato of [user.id, other.id, "user-3", "g1", "Los pibes", "AAAA", "Ana", "eva@example.test"]) expect(json).not.toContain(dato);
+  });
+
+  it("automatizacion: automáticos por regla, manuales, corregidos, en espera y excluidos, sin ids (docs/40 D5)", async () => {
+    await seedApp(t.db);
+    const H = DIA_MS / 24;
+    const base = { homeTeamId: "river", awayTeamId: "boca", leagueId: "test-league", dateTime: new Date(AHORA.getTime() - DIA_MS), status: "finished", source: "espn" };
+    const auto = (local: number, visitante: number, pasa: string, regla: string) =>
+      ({ autoHomeGoals90: local, autoAwayGoals90: visitante, autoPasa: pasa, autoRegla: regla, autoVistoAt: 1, autoConfirmadoAt: 2 });
+    const casos: Array<[string, Partial<typeof prodeMatches.$inferInsert>, Partial<typeof matches.$inferInsert>?]> = [
+      ["a1", auto(1, 0, "home", "A")],
+      ["a2", auto(0, 2, "away", "A")],
+      ["b1", auto(1, 1, "away", "B")],
+      // Manual igual al automático: manual, no corregido
+      ["man-igual", { ...auto(2, 0, "home", "A"), homeGoals90: 2, awayGoals90: 0 }],
+      // Corregidos: otro marcador, otro equipo que pasó (con y sin marcador manual) y ganador manual contra quién pasa
+      ["cor-goles", { ...auto(2, 0, "home", "A"), homeGoals90: 3, awayGoals90: 0 }],
+      ["cor-pasa", { ...auto(1, 1, "away", "B"), pasa: "home" }],
+      ["cor-pasa-goles", { ...auto(1, 1, "away", "B"), homeGoals90: 1, awayGoals90: 1, pasa: "home" }],
+      ["cor-ganador", { autoPasa: "away", autoRegla: "B", autoVistoAt: 1, homeGoals90: 2, awayGoals90: 0 }],
+      // Manual sin dato automático: manual, nada que corregir
+      ["man-solo", { homeGoals90: 0, awayGoals90: 1 }],
+      // En espera: sin nada, sin confirmar y empate sin quién pasó
+      ["esp-vacio", {}],
+      ["esp-sin-confirmar", { ...auto(1, 0, "home", "A"), autoConfirmadoAt: null }],
+      ["esp-empate", { homeGoals90: 0, awayGoals90: 0 }],
+      // Reciente (menos de 6 h): todavía no está en espera
+      ["reciente", {}, { dateTime: new Date(AHORA.getTime() - 5 * H) }],
+      ["x-excluido", { ...auto(1, 0, "home", "A"), homeGoals90: 4, awayGoals90: 0, excludedAt: 3 }],
+      // Fuera del universo: sin terminar o cruce manual
+      ["en-vivo", auto(1, 0, "home", "A"), { status: "live" }],
+      ["cruce", {}, { source: "manual", homeScore: 1, awayScore: 0 }],
+    ];
+    for (const [id, vinculo, partido] of casos) {
+      await t.db.insert(matches).values({ ...base, ...partido, id, externalId: `t:${id}` });
+      await t.db.insert(prodeMatches).values({ matchId: id, fase: "octavos", createdAt: AHORA, ...vinculo });
+    }
+    const { prode } = await getMetricas(t.db, AHORA.getTime());
+    expect(prode.automatizacion).toEqual({ automaticos: { A: 2, B: 1 }, manuales: 7, corregidos: 4, enEspera: 3, excluidos: 1 });
+    // Con el automático apagado nada es automático y lo que dependía de él pasa a espera
+    expect((await getMetricas(t.db, AHORA.getTime(), false)).prode.automatizacion).toMatchObject({ automaticos: { A: 0, B: 0 }, enEspera: 7, corregidos: 4 });
+    const json = JSON.stringify(prode.automatizacion);
+    for (const [id] of casos) expect(json).not.toContain(id);
+  });
+
+  it("conResultado cuenta un automático confirmado salvo que esté excluido o apagado (docs/40 D2 y D3)", async () => {
+    await seedApp(t.db);
+    const base = { homeTeamId: "river", awayTeamId: "boca", leagueId: "test-league", dateTime: new Date(AHORA.getTime() - DIA_MS), status: "finished", source: "espn" };
+    await t.db.insert(matches).values([
+      { ...base, id: "au-ok", externalId: "t:ok" }, { ...base, id: "au-sin", externalId: "t:sin" }, { ...base, id: "au-exc", externalId: "t:exc" },
+    ]);
+    const auto = { autoHomeGoals90: 1, autoAwayGoals90: 0, autoVistoAt: 1, createdAt: AHORA };
+    await t.db.insert(prodeMatches).values([
+      { matchId: "au-ok", fase: "octavos", ...auto, autoConfirmadoAt: 2 },
+      { matchId: "au-sin", fase: "octavos", ...auto },
+      { matchId: "au-exc", fase: "octavos", ...auto, autoConfirmadoAt: 2, excludedAt: 3 },
+    ]);
+    expect((await getMetricas(t.db, AHORA.getTime())).prode.partidos.conResultado).toBe(1);
+    expect((await getMetricas(t.db, AHORA.getTime(), false)).prode.partidos.conResultado).toBe(0);
   });
 });

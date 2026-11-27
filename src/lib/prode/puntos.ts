@@ -3,11 +3,10 @@
 // resultado (PATCH /api/admin/prode/partidos) recalcula todo sin duplicar nada, y no hay datos
 // derivados que puedan quedar desfasados. Una consulta fija (dos con filtro de grupo), nunca una por
 // usuario ni por partido: cuida las lecturas de D1 y las subrequests de Workers Free.
-import { and, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import { matches, prodeGroupMembers, prodeMatches, prodePredictions } from "../../../drizzle/schema";
 import type { Database } from "../db";
-import { SOURCE_MANUAL } from "./partidos";
-import { puntosDelPartido, PUNTOS_EXACTO, type Lado } from "./reglas";
+import { puntosDelPartido, PUNTOS_EXACTO, SOURCE_MANUAL, type Lado } from "./reglas";
 
 export interface FiltroPuntos {
   /** Fase (`matches.round`): octavos, cuartos, semifinal o final. */
@@ -51,34 +50,92 @@ export interface PuntosProde {
   usuarios: PuntosUsuario[];
 }
 
-// Resultado a los 90 minutos más adicionado (docs/37 §2). En un cruce manual es el de matches (lo carga
-// el admin); en un adoptado de ESPN, el confirmado a mano en el vínculo: el marcador de ESPN puede traer
-// alargue, penales o un resultado administrativo, así que sin confirmación el adoptado no puntúa.
-export const goles90Local = sql<number | null>`CASE WHEN ${matches.source} = ${SOURCE_MANUAL} THEN ${matches.homeScore} ELSE ${prodeMatches.homeGoals90} END`;
-export const goles90Visitante = sql<number | null>`CASE WHEN ${matches.source} = ${SOURCE_MANUAL} THEN ${matches.awayScore} ELSE ${prodeMatches.awayGoals90} END`;
+// Apagado total del resultado automático (docs/40 D3): con PRODE_RESULTADO_AUTO=off (rige tras un deploy) la
+// lectura ignora todo lo automático, incluso lo ya confirmado. Cada handler lo lee y pasa el booleano.
+export function resultadoAutoHabilitado(env: { PRODE_RESULTADO_AUTO?: string } | undefined): boolean {
+  return env?.PRODE_RESULTADO_AUTO?.trim().toLowerCase() !== "off";
+}
 
-// Equipo que pasó (docs/40 R3): con ganador a los 90' se deriva del marcador; con empate vale el que cargó
-// el admin (prode_matches.pasa); sin marcador o sin ese dato, NULL. Una sola expresión para toda lectura.
-export const pasaEfectivo = sql<Lado | null>`CASE
-  WHEN ${goles90Local} IS NULL OR ${goles90Visitante} IS NULL THEN NULL
-  WHEN ${goles90Local} > ${goles90Visitante} THEN 'home'
-  WHEN ${goles90Local} < ${goles90Visitante} THEN 'away'
-  WHEN ${prodeMatches.pasa} IN ('home', 'away') THEN ${prodeMatches.pasa}
+// Un automático puntúa solo si está confirmado (docs/40 §4.3)
+const autoConfirmado = sql`${prodeMatches.autoConfirmadoAt} IS NOT NULL`;
+
+// Marcador a 90' más adicionado efectivo (docs/37 §2, docs/40 D2): una sola expresión SQL para toda lectura
+// (puntos, ranking, listados de partidos y métricas). Precedencia, siempre por par (nunca un gol manual con uno automático):
+// excluido > cruce manual (matches) > corrección manual completa > automático confirmado > ninguno.
+// El marcador de ESPN (matches.home_score) no se usa en un adoptado: puede incluir alargue o penales.
+function golEfectivo(
+  auto: boolean,
+  delManual: AnyColumn,
+  manualCompleta: AnyColumn,
+  delAutomatico: AnyColumn,
+  conExclusion: boolean
+) {
+  const manualDelVinculo = sql`WHEN ${prodeMatches.homeGoals90} IS NOT NULL AND ${prodeMatches.awayGoals90} IS NOT NULL THEN ${manualCompleta}`;
+  const automatico = auto
+    ? sql`WHEN ${prodeMatches.autoHomeGoals90} IS NOT NULL AND ${prodeMatches.autoAwayGoals90} IS NOT NULL AND ${autoConfirmado} THEN ${delAutomatico}`
+    : sql``;
+  const excluido = conExclusion ? sql`WHEN ${prodeMatches.excludedAt} IS NOT NULL THEN NULL` : sql``;
+  return sql<number | null>`CASE
+  ${excluido}
+  WHEN ${matches.source} = ${SOURCE_MANUAL} THEN ${delManual}
+  ${manualDelVinculo}
+  ${automatico}
   ELSE NULL END`;
+}
+
+// `conExclusion` en false da el marcador que tendría el partido sin excluir (para validar una corrección).
+export const goles90Local = (auto = true, conExclusion = true) =>
+  golEfectivo(auto, matches.homeScore, prodeMatches.homeGoals90, prodeMatches.autoHomeGoals90, conExclusion);
+export const goles90Visitante = (auto = true, conExclusion = true) =>
+  golEfectivo(auto, matches.awayScore, prodeMatches.awayGoals90, prodeMatches.autoAwayGoals90, conExclusion);
+
+// Equipo que pasó efectivo (docs/40 R3), con el mismo orden: excluido; derivado del marcador efectivo si hay
+// ganador; `pasa` manual; `auto_pasa` confirmado; si no, NULL. Sin marcador efectivo no hay equipo que pasó.
+export const pasaEfectivo = (auto = true) => {
+  const local = goles90Local(auto);
+  const visitante = goles90Visitante(auto);
+  const delAutomatico = auto
+    ? sql`WHEN ${prodeMatches.autoPasa} IN ('home', 'away') AND ${autoConfirmado} THEN ${prodeMatches.autoPasa}`
+    : sql``;
+  return sql<Lado | null>`CASE
+  WHEN ${prodeMatches.excludedAt} IS NOT NULL THEN NULL
+  WHEN ${local} IS NULL OR ${visitante} IS NULL THEN NULL
+  WHEN ${local} > ${visitante} THEN 'home'
+  WHEN ${local} < ${visitante} THEN 'away'
+  WHEN ${prodeMatches.pasa} IN ('home', 'away') THEN ${prodeMatches.pasa}
+  ${delAutomatico}
+  ELSE NULL END`;
+};
+
+/** Pasadas estas horas desde el inicio, un partido terminado sin resultado efectivo está en espera (docs/40 D5). */
+export const ESPERA_MS = 6 * 60 * 60_000;
+
+// En espera (docs/40 D5): adoptado, finished, sin excluir, empezado hace más de 6 h y sin marcador a 90' efectivo
+// o sin equipo que pasó (pasaEfectivo es NULL en los dos casos)
+export const enEsperaSql = (auto: boolean, ahora: number) => sql<number>`(
+  ${matches.source} IS NOT ${SOURCE_MANUAL}
+  AND ${matches.status} = 'finished'
+  AND ${prodeMatches.excludedAt} IS NULL
+  AND ${matches.dateTime} * 1000 < ${ahora - ESPERA_MS}
+  AND ${pasaEfectivo(auto)} IS NULL)`;
 
 /**
  * Solo puntúa un partido del prode `finished` con ambos goles a 90' cargados y con equipo que pasó
  * (docs/40 R4: un partido puntúa completo o no puntúa; un empate sin `pasa` queda en espera). Cancelado,
  * postergado, suspendido, sin jugar o con resultado incompleto no puntúa (aunque tenga un resultado
- * administrativo cargado, docs/37 §5). Sin pronóstico no hay fila: suma 0.
+ * administrativo cargado, docs/37 §5). Sin pronóstico no hay fila: suma 0. `auto` en false
+ * (PRODE_RESULTADO_AUTO=off, docs/40 D3) ignora todo lo automático.
  */
-export async function puntosPorUsuario(db: Database, filtro: FiltroPuntos = {}): Promise<PuntosProde> {
+export async function puntosPorUsuario(db: Database, filtro: FiltroPuntos = {}, auto = true): Promise<PuntosProde> {
+  const local = goles90Local(auto);
+  const visitante = goles90Visitante(auto);
+  const pasaReal = pasaEfectivo(auto);
   // Del prode es lo vinculado en prode_matches (innerJoin abajo): manual o adoptado de ESPN
   const condiciones: SQL[] = [
     eq(matches.status, "finished"),
-    isNotNull(goles90Local),
-    isNotNull(goles90Visitante),
-    isNotNull(pasaEfectivo),
+    isNotNull(local),
+    isNotNull(visitante),
+    isNotNull(pasaReal),
   ];
   if (filtro.fase !== undefined) condiciones.push(eq(prodeMatches.fase, filtro.fase));
   if (filtro.userId !== undefined) condiciones.push(eq(prodePredictions.userId, filtro.userId));
@@ -97,9 +154,9 @@ export async function puntosPorUsuario(db: Database, filtro: FiltroPuntos = {}):
         awayGoals: prodePredictions.awayGoals,
         pasaPronostico: prodePredictions.pasa,
         fase: prodeMatches.fase,
-        homeScore: goles90Local,
-        awayScore: goles90Visitante,
-        pasaReal: pasaEfectivo,
+        homeScore: local,
+        awayScore: visitante,
+        pasaReal,
       })
       .from(prodePredictions)
       .innerJoin(matches, eq(matches.id, prodePredictions.matchId))

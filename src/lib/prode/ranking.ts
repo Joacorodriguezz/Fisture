@@ -33,7 +33,7 @@ export interface FilaRanking {
  * El general incluye a quien tiene al menos un pronóstico sobre un partido del prode (de la fase, si se filtra),
  * tenga o no resultado confirmado: quien aún no puntuó figura en 0. El de grupo, a todos los integrantes.
  */
-export async function rankingProde(db: Database, filtro: FiltroRanking = {}): Promise<FilaRanking[]> {
+export async function rankingProde(db: Database, filtro: FiltroRanking = {}, auto = true): Promise<FilaRanking[]> {
   const { fase, grupoId, vos } = filtro;
   const ids =
     grupoId !== undefined
@@ -45,7 +45,7 @@ export async function rankingProde(db: Database, filtro: FiltroRanking = {}): Pr
           .where(fase !== undefined ? eq(prodeMatches.fase, fase) : undefined);
 
   const [{ usuarios }, nombres] = await Promise.all([
-    puntosPorUsuario(db, { fase, grupoId }),
+    puntosPorUsuario(db, { fase, grupoId }, auto),
     db.select({ id: users.id, nombre: users.displayName }).from(users).where(inArray(users.id, ids)),
   ]);
 

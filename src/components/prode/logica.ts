@@ -54,6 +54,11 @@ export function ladoPorMarcador(local: number | null, visitante: number | null):
   return local === visitante ? "empate" : local > visitante ? "home" : "away";
 }
 
+// Texto de un partido terminado. La API manda resultado y quién pasó solo cuando el partido puntúa
+export function textoResultado(resultado: { local: number; visitante: number } | null, pasaNombre: string | null): string {
+  return resultado && pasaNombre ? `Resultado: ${resultado.local} - ${resultado.visitante}. Pasó: ${pasaNombre}. ` : "";
+}
+
 // "3 + 1" cuando el partido sumó el extra de quién pasa; sin extra, nada que desglosar
 export function desglosePuntos(marcador: number, extra: number): string | null {
   return extra > 0 ? `${marcador} + ${extra}` : null;

@@ -450,8 +450,156 @@ describe("/api/admin/prode/partidos", () => {
         expect(await vinculo("espn-1")).toMatchObject({ pasa: null });
       });
 
+      it("sobre un ganador automático confirmado, un pasa que lo contradice responde 409", async () => {
+        await adoptado();
+        await t.DB.prepare("UPDATE prode_matches SET auto_home_goals_90 = 2, auto_away_goals_90 = 0, auto_pasa = 'home', auto_confirmado_at = 1").run();
+        expect(await llamar("PATCH", { id: "espn-1", pasa: "away" })).toMatchObject({ status: 409, body: { error: "pasa_inconsistente" } });
+        const coherente = await llamar("PATCH", { id: "espn-1", pasa: "home" });
+        expect(coherente.body.partido).toMatchObject({ resultado: { local: 2, visitante: 0 }, pasa: "home" });
+        expect(await vinculo("espn-1")).toMatchObject({ pasa: null });
+      });
+
       it("404 fuera del prode", async () => {
         expect(await llamar("PATCH", { id: "no-existe", pasa: "home" })).toMatchObject({ status: 404, body: { error: "partido_inexistente" } });
+      });
+    });
+
+    describe("PATCH {id, excluir} y retiro de la corrección manual (docs/40 D2)", () => {
+      const adoptado = async () => {
+        await espn();
+        await llamar("POST", { adoptar: "espn-1", fase: "cuartos" });
+        await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 3, away_score = 2 WHERE id = 'espn-1'").run();
+        await t.DB.prepare("UPDATE prode_matches SET auto_home_goals_90 = 1, auto_away_goals_90 = 1, auto_pasa = 'away', auto_regla = 'B', auto_visto_at = 1, auto_confirmado_at = 2 WHERE match_id = 'espn-1'").run();
+        vi.setSystemTime(DESPUES);
+      };
+      const AUTOMATICO = { resultado: { local: 1, visitante: 1 }, pasa: "away" };
+
+      it("excluir: true deja el partido sin resultado y excluir: false lo devuelve", async () => {
+        await adoptado();
+        const excluido = await llamar("PATCH", { id: "espn-1", excluir: true });
+        expect(excluido).toMatchObject({ status: 200, body: { partido: { resultado: null, pasa: null } } });
+        expect(await vinculo("espn-1")).toMatchObject({ excluded_at: DESPUES.getTime() });
+        // Repetirlo no mueve la fecha de la exclusión
+        vi.setSystemTime(DESPUES.getTime() + 60_000);
+        await llamar("PATCH", { id: "espn-1", excluir: true });
+        expect(await vinculo("espn-1")).toMatchObject({ excluded_at: DESPUES.getTime() });
+        const vuelve = await llamar("PATCH", { id: "espn-1", excluir: false });
+        expect(vuelve.body.partido).toMatchObject(AUTOMATICO);
+        expect(await vinculo("espn-1")).toMatchObject({ excluded_at: null });
+      });
+
+      it("vale para un cruce manual y no toca su fila de matches", async () => {
+        const { body } = await llamar("POST", cruce);
+        const id = body.partido.id;
+        vi.setSystemTime(DESPUES);
+        await llamar("PATCH", { id, status: "finished", homeScore: 2, awayScore: 0 });
+        const antes = await fila(id);
+        expect((await llamar("PATCH", { id, excluir: true })).body.partido).toMatchObject({ resultado: null, pasa: null });
+        expect(await fila(id)).toEqual(antes);
+      });
+
+      it("va solo: con otros campos responde 400 cambios_mezclados y no escribe", async () => {
+        await adoptado();
+        for (const otro of [{ pasa: "home" }, { homeGoals90: 1, awayGoals90: 0 }, { fase: "final" }, { status: "finished" }, { horario: "2026-11-25T21:00" }]) {
+          expect(await llamar("PATCH", { id: "espn-1", excluir: true, ...otro })).toMatchObject({ status: 400, body: { error: "cambios_mezclados" } });
+        }
+        expect(await vinculo("espn-1")).toMatchObject({ excluded_at: null, home_goals_90: null, pasa: null });
+      });
+
+      it("valida el valor, el id y que el partido sea del prode", async () => {
+        await adoptado();
+        for (const excluir of ["si", 1, null]) {
+          expect(await llamar("PATCH", { id: "espn-1", excluir })).toMatchObject({ status: 400, body: { error: "excluir_invalido" } });
+        }
+        expect(await llamar("PATCH", { excluir: true })).toMatchObject({ status: 400, body: { error: "faltan_datos" } });
+        expect(await llamar("PATCH", { id: "no-existe", excluir: true })).toMatchObject({ status: 404, body: { error: "partido_inexistente" } });
+      });
+
+      it("null, null retira la corrección y su pasa: vuelve a valer el automático", async () => {
+        await adoptado();
+        await llamar("PATCH", { id: "espn-1", homeGoals90: 0, awayGoals90: 0, pasa: "home" });
+        const res = await llamar("PATCH", { id: "espn-1", homeGoals90: null, awayGoals90: null });
+        expect(res).toMatchObject({ status: 200, body: { partido: AUTOMATICO } });
+        expect(await vinculo("espn-1")).toMatchObject({ home_goals_90: null, away_goals_90: null, pasa: null, auto_home_goals_90: 1, auto_pasa: "away" });
+      });
+
+      it("null, null también retira un pasa manual cargado solo", async () => {
+        await adoptado();
+        await llamar("PATCH", { id: "espn-1", pasa: "home" });
+        expect((await llamar("PATCH", { id: "espn-1", homeGoals90: null, awayGoals90: null, pasa: null })).body.partido).toMatchObject(AUTOMATICO);
+        expect(await vinculo("espn-1")).toMatchObject({ pasa: null });
+      });
+
+      it("un solo null no vale, tampoco null, null con un pasa, ni en un cruce manual", async () => {
+        await adoptado();
+        await llamar("PATCH", { id: "espn-1", homeGoals90: 2, awayGoals90: 0 });
+        expect(await llamar("PATCH", { id: "espn-1", homeGoals90: null, awayGoals90: 0 })).toMatchObject({ status: 400, body: { error: "marcador_invalido" } });
+        expect(await llamar("PATCH", { id: "espn-1", homeGoals90: null, awayGoals90: null, pasa: "home" })).toMatchObject({ status: 400, body: { error: "cambios_mezclados" } });
+        expect(await vinculo("espn-1")).toMatchObject({ home_goals_90: 2, away_goals_90: 0 });
+        expect(await llamar("PATCH", { id: "no-existe", homeGoals90: null, awayGoals90: null })).toMatchObject({ status: 404 });
+        const { body } = await llamar("POST", { ...cruce, horario: "2026-11-29T21:00" });
+        expect(await llamar("PATCH", { id: body.partido.id, homeGoals90: null, awayGoals90: null })).toMatchObject({ status: 409, body: { error: "partido_manual" } });
+      });
+    });
+
+    // docs/40 D5: lo que ve el administrador de cada partido
+    describe("GET: resultado automático, exclusión y espera", () => {
+      const INICIO = Date.parse("2026-11-23T00:30:00Z");
+      const H = 3_600_000;
+      const adoptado = async (set = "") => {
+        await espn();
+        await llamar("POST", { adoptar: "espn-1", fase: "cuartos" });
+        await t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 3, away_score = 2 WHERE id = 'espn-1'").run();
+        if (set) await t.DB.prepare(`UPDATE prode_matches SET ${set} WHERE match_id = 'espn-1'`).run();
+        vi.setSystemTime(INICIO + 7 * H);
+      };
+      const ver = async (env: Record<string, unknown> = {}) => {
+        const res = await GET(apiCtx({ url: "https://fisture.test/api/admin/prode/partidos", headers: { Authorization: `Bearer ${ADMIN}` }, env: { ENVIRONMENT: "test", DB: t.DB, KV: kvEnMemoria(), ADMIN_SECRET: ADMIN, ...env } }));
+        return ((await res.json()) as any).partidos[0];
+      };
+      const AUTO = "auto_home_goals_90 = 1, auto_away_goals_90 = 1, auto_pasa = 'away', auto_regla = 'B', auto_visto_at = 10";
+
+      it("sin dato automático: automatico null, sin excluir, sin pasada y en espera pasadas 6 h", async () => {
+        await adoptado();
+        expect(await ver()).toMatchObject({ automatico: null, resultado: null, pasa: null, excluido: false, enEspera: true, pasadaEn: null });
+      });
+
+      it("muestra el dato sin confirmar en automatico, sin tomarlo como resultado, y la última pasada", async () => {
+        await adoptado(`${AUTO}, pasada_at = 20`);
+        expect(await ver()).toMatchObject({
+          automatico: { local: 1, visitante: 1, pasa: "away", regla: "B", confirmadoEn: null },
+          resultado: null, pasa: null, enEspera: true, pasadaEn: 20,
+        });
+      });
+
+      it("confirmado: es el resultado efectivo y no está en espera", async () => {
+        await adoptado(`${AUTO}, auto_confirmado_at = 30`);
+        expect(await ver()).toMatchObject({ automatico: { confirmadoEn: 30 }, resultado: { local: 1, visitante: 1 }, pasa: "away", enEspera: false });
+      });
+
+      it("con PRODE_RESULTADO_AUTO=off conserva el dato en automatico y vuelve a la espera", async () => {
+        await adoptado(`${AUTO}, auto_confirmado_at = 30`);
+        expect(await ver({ PRODE_RESULTADO_AUTO: "off" })).toMatchObject({ automatico: { local: 1, confirmadoEn: 30 }, resultado: null, pasa: null, enEspera: true });
+      });
+
+      it("un empate sin quién pasó está en espera aunque tenga marcador", async () => {
+        await adoptado("home_goals_90 = 0, away_goals_90 = 0");
+        expect(await ver()).toMatchObject({ resultado: { local: 0, visitante: 0 }, pasa: null, enEspera: true });
+      });
+
+      it("un excluido no está en espera", async () => {
+        await adoptado("excluded_at = 40");
+        expect(await ver()).toMatchObject({ excluido: true, enEspera: false });
+      });
+
+      it("hasta las 6 h del inicio no hay espera; tampoco si no terminó", async () => {
+        await adoptado();
+        vi.setSystemTime(INICIO + 6 * H);
+        expect(await ver()).toMatchObject({ enEspera: false });
+        vi.setSystemTime(INICIO + 6 * H + 1);
+        expect(await ver()).toMatchObject({ enEspera: true });
+        await t.DB.prepare("UPDATE matches SET status = 'postponed' WHERE id = 'espn-1'").run();
+        expect(await ver()).toMatchObject({ enEspera: false });
       });
     });
 

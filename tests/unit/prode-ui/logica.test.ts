@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { desglosePuntos, enlaceInvitacion, formatearCierre, filaPropiaAparte, ladoPorMarcador, mensajeDeError, normalizarRanking, normalizarRespuestaRanking, parsearGol, nuevoGol, sumarGol, minutosHasta, textoPie } from "../../../src/components/prode/logica";
+import { desglosePuntos, enlaceInvitacion, formatearCierre, filaPropiaAparte, ladoPorMarcador, mensajeDeError, normalizarRanking, normalizarRespuestaRanking, parsearGol, nuevoGol, sumarGol, minutosHasta, textoPie, textoResultado } from "../../../src/components/prode/logica";
 
 describe("mensajeDeError", () => {
   it("muestra 'Cerró el pronóstico' ante pronostico_cerrado", () => {
@@ -90,6 +90,17 @@ describe("desglosePuntos", () => {
   it("sin extra no hay desglose", () => {
     expect(desglosePuntos(3, 0)).toBeNull();
     expect(desglosePuntos(0, 0)).toBeNull();
+  });
+});
+
+describe("textoResultado (partido terminado)", () => {
+  it("con resultado muestra el marcador a 90' y quién pasó", () => {
+    expect(textoResultado({ local: 1, visitante: 1 }, "Boca")).toBe("Resultado: 1 - 1. Pasó: Boca. ");
+  });
+  it("sin resultado que puntúe no muestra nada", () => {
+    expect(textoResultado(null, null)).toBe("");
+    expect(textoResultado({ local: 1, visitante: 1 }, null)).toBe("");
+    expect(textoResultado(null, "Boca")).toBe("");
   });
 });
 

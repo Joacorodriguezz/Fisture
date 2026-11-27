@@ -20,18 +20,22 @@ Leyenda: **AUTO** = lo cubre un test que corre en el CI; **MANUAL** = lo verific
 | 10 | Reprogramación antes de empezar mantiene abierto el partido hasta la nueva hora y mueve el cierre | AUTO (API) / MANUAL (ver el horario nuevo en pantalla) | `tests/integration/api/prode-partidos.test.ts` ("reprogramar un partido postergado antes de empezar"), `tests/unit/prode-horario.test.ts` |
 | 11 | Suspendido después de empezar queda cerrado y no se reabre con una fecha futura (`closed_at`) | AUTO (API) | `tests/integration/api/prode-partidos.test.ts` (cierre definitivo), `tests/integration/data-sync.test.ts` |
 | 12 | Cancelado o suspendido sin completar: no da puntos a nadie | AUTO (API) | `tests/integration/api/prode-puntos.test.ts` ("no puntúan los partidos sin resultado, cancelados, postergados...") |
-| 13 | Resultado a 90 minutos para partidos adoptados de ESPN (el marcador de ESPN no puntúa) | AUTO (API) | `prode-puntos.test.ts`, `prode-partidos.test.ts` (resultado a 90) |
+| 13 | Resultado a 90 minutos y quién pasó de un partido adoptado, cargados solos desde ESPN; el marcador total de ESPN no puntúa; corregir y excluir | AUTO (API) / MANUAL (staging, una vez antes del release) | `data-sync.test.ts` (resultado automático), `prode-puntos.test.ts`, `prode-partidos.test.ts` |
 | 14 | Participantes tardíos: quien se suma con el torneo empezado parte en 0 y solo pronostica partidos abiertos | AUTO (API) | `prode-puntos.test.ts` ("quien se suma sin pronósticos parte en 0"), `prode-ranking.test.ts`, `prode-pronosticos.test.ts` (cierre). Sin E2E propio |
 | 15 | Celular: sin scroll horizontal en `/prode` y `/prode/grupos` (viewport Pixel 7) | AUTO | `tests/e2e/prode-recorrido.spec.ts` (scroll horizontal), proyectos `desktop` y `mobile` |
 | 16 | Celular real: teclado numérico en los goles, botones alcanzables con el pulgar, copiar el enlace, abrir el enlace desde WhatsApp | MANUAL | Ver sección 2 |
 | 17 | Abrir el juego para partidos que no comenzaron: el partido del prode aparece y se puede pronosticar solo si no empezó | AUTO (lógica) / MANUAL (staging) | Ver sección 2, punto 8 |
+| 18 | Quién pasa: se pide solo con empate, se guarda y se ve en el partido terminado junto con el desglose "3 + 1" | AUTO / MANUAL (celular) | `tests/e2e/prode-recorrido.spec.ts`, `prode-pronosticos.test.ts`, `tests/unit/prode-ui/logica.test.ts` |
+| 19 | Aviso "Prode: resultados en espera" cuando un partido queda sin resultado | AUTO (lógica) | `tests/unit/prode-espera.test.ts`, `prode-partidos.test.ts`, `tests/observability/metricas.test.ts` |
 
 ## 2. Verificación MANUAL antes de abrir el piloto
 
-Una persona, con un celular real (Android e iOS si se puede) y dos cuentas distintas, contra staging (`https://development.fisture.pages.dev`) y luego contra producción tras el release.
+Una sola vez antes de abrir el piloto (no se repite por partido). Una persona, con un celular real (Android e iOS si se puede) y dos cuentas distintas, contra staging (`https://development.fisture.pages.dev`) y luego contra producción tras el release.
+
+Antes del release, además: correr el sync en staging con un partido de ESPN adoptado y ya terminado, y comprobar el resultado automático, quién pasó y el ranking (`docs/40` §10).
 
 1. Iniciar sesión por primera vez: aparece "Primero, tu nombre"; guardar un nombre y ver que el email nunca se muestra.
-2. Cargar un pronóstico: el teclado del celular es numérico, los botones se tocan sin hacer zoom y el mensaje "Pronóstico guardado." se ve.
+2. Cargar un pronóstico: el teclado del celular es numérico, los botones se tocan sin hacer zoom y el mensaje "Pronóstico guardado." se ve. Con un empate aparece "¿Quién pasa?", se elige con el pulgar y al recargar sigue elegido; con un ganador el campo desaparece.
 3. Crear un grupo, tocar "Copiar enlace" y pegarlo en WhatsApp.
 4. Abrir el enlace desde WhatsApp con otra cuenta: la persona queda en el grupo y ve las posiciones.
 5. Con el admin: cargar un cruce con horario a pocos minutos, esperar el inicio y comprobar que el campo se deshabilita (la interfaz se actualiza cada 30 s) y que recargar lo muestra cerrado.
@@ -76,40 +80,54 @@ curl -X PATCH "<URL>/api/admin/prode/partidos" -H "Authorization: Bearer $ADMIN_
 
 Se puede enviar `horario`, `fase` y `status` (`scheduled`, `live`, `finished`, `postponed`, `cancelled`). Un partido que ya empezó no cambia de horario ni de fase (409 `partido_ya_empezado`): hay que cargar un cruce nuevo. Un cruce que trae el sync no se corrige acá (cambiar su horario es cosa del sync).
 
-### 3.4 Cargar el resultado a 90 minutos
+### 3.4 Corregir un resultado
 
 Cuenta el resultado a los 90 minutos más el adicionado, sin alargue ni penales (`docs/37` §3).
 
-- **Cruce manual**: `{"id":"<id>","status":"finished","homeScore":2,"awayScore":1}` (409 `partido_no_empezado` antes de la hora). Si terminó empatado a 90', cargar además quién pasó con `{"id":"<id>","pasa":"home"}` (`home` es el local, `away` el visitante).
-- **Partido adoptado de ESPN**: el marcador de ESPN puede incluir alargue o penales, así que no puntúa solo. Cargar el resultado confirmado con el PATCH:
+**Partido adoptado de ESPN: es automático.** El sync (pasadas tras el final y sync diario) carga el marcador a 90' y quién pasó, y puntúa cuando el dato queda confirmado (`docs/40` D1, D2 y D4). No hay que cargar ni verificar nada. El PATCH queda para corregir por excepción y **gana siempre** sobre lo automático:
 
 ```bash
 curl -X PATCH "<URL>/api/admin/prode/partidos" -H "Authorization: Bearer $ADMIN_SECRET" -H "Content-Type: application/json" \
-  -d '{"id":"<id del partido>","homeGoals90":1,"awayGoals90":1}'
+  -d '{"id":"<id del partido>","homeGoals90":1,"awayGoals90":1,"pasa":"away"}'
 ```
 
-**Quién pasó (`docs/40` R3).** Con ganador a 90' el equipo que pasó se deriva solo. Con un empate hay que cargar `pasa` (`home` | `away`), junto con el resultado (`"pasa":"away"` en el mismo PATCH) o después, solo (`{"id":"<id>","pasa":"away"}`, en manuales y adoptados); `"pasa": null` lo retira. Si el marcador a 90' tiene ganador y `pasa` lo contradice, 409 `pasa_inconsistente`. **Un empate terminado sin `pasa` no puntúa para nadie** (ni el marcador ni el extra) hasta que se cargue. Valor inválido: 400 `pasa_invalido`.
+- **Retirar la corrección**: `{"id":"<id>","homeGoals90":null,"awayGoals90":null}` borra el marcador y el `pasa` manuales; vuelve a valer el automático.
+- **Que un partido no puntúe** (resultado administrativo): `{"id":"<id>","excluir":true}`. Se deshace con `"excluir":false`. Va solo (400 `cambios_mezclados` con otros campos) y vale también para un cruce manual.
 
-Enteros 0-20, los dos juntos y sin otros campos que `pasa` (400 `cambios_mezclados`). Errores: 409 `partido_no_empezado`, 409 `pasa_inconsistente`, 409 `partido_manual`, 404 `partido_inexistente`. El partido puntúa cuando además está en `finished`. Corregir el resultado reordena el ranking solo (los puntos se calculan al leer).
+**Cruce manual** (no lo trae ESPN, así que se carga a mano): `{"id":"<id>","status":"finished","homeScore":2,"awayScore":1}` (409 `partido_no_empezado` antes de la hora). Si terminó empatado a 90', cargar además quién pasó con `{"id":"<id>","pasa":"home"}` (`home` es el local, `away` el visitante).
+
+**Quién pasó (`docs/40` R3).** Con ganador a 90' el equipo que pasó se deriva solo. En un empate, `pasa` (`home` | `away`) puede ir junto con el marcador o solo (`{"id":"<id>","pasa":"away"}`, en manuales y adoptados); `"pasa": null` lo retira. Si el marcador a 90' tiene ganador y `pasa` lo contradice, 409 `pasa_inconsistente`. **Un empate terminado sin equipo que pasó no puntúa para nadie** (ni el marcador ni el extra). Valor inválido: 400 `pasa_invalido`.
+
+Goles enteros 0-20, los dos juntos (o los dos `null`) y sin otros campos que `pasa` (400 `cambios_mezclados`). Errores: 400 `marcador_invalido`, 400 `excluir_invalido`, 409 `partido_no_empezado`, 409 `pasa_inconsistente`, 409 `partido_manual`, 404 `partido_inexistente`. Un partido puntúa cuando además está en `finished`. Corregir o excluir reordena el ranking solo (los puntos se calculan al leer). El participante ve el resultado, quién pasó y sus puntos solo cuando el partido puntúa.
 
 Adoptar (`{adoptar, fase}`) un partido de ida o vuelta (`leg`) da 409 `partido_con_vuelta`: el "quién pasa" se define por partido único.
 
-### 3.5 Guardia de resultados durante el piloto
+### 3.5 Resultados durante el piloto: solo por excepción
 
-**Responsable titular y suplente** pendientes de asignación antes de abrir el piloto. El titular verifica, carga y comprueba la publicación. El suplente cubre ausencias y revisa resultados dudosos o corregidos.
+La operación es automática: las pasadas tras el final cargan el marcador a 90' y quién pasó el mismo día, y el sync de producción (06:00 de Argentina) queda como respaldo; el ranking se actualiza solo. **No hay controles rutinarios ni verificación de resultados a mano**, ni hace falta designar un responsable titular y un suplente para abrir el piloto. El administrador interviene únicamente ante un aviso.
 
-1. **Una hora antes de cada partido.** Revisar en `GET /api/admin/prode/partidos` el cruce, su ID y la hora publicada, y en `/api/admin/status` el último sync de ligas. Para un cruce manual, volver a comprobar el ID si el sync encuentra el mismo partido en ESPN y reemplaza el registro original.
-2. **Tras el final del partido.** Confirmar con el acta, la ficha oficial o la cronología del partido el marcador al cierre del tiempo reglamentario. Si hubo alargue, penales o discrepancias, cotejar el marcador parcial con una segunda fuente. Si falta confirmación o el partido quedó suspendido, registrar el caso como pendiente.
-3. **Dentro de los 30 minutos de la confirmación, como objetivo.** Cargar por PATCH según el origen (sección 3.4). Comprobar en el GET que el marcador coincide y que el estado es `finished`. Verificar que el resultado se refleja en `/prode` y que el ranking se actualiza cuando hay pronósticos que suman. Tras una corrección, repetir ambas comprobaciones.
-4. **A los 30 y 60 minutos del final.** Revisar los cruces que ya terminaron y siguen sin puntuar. El sync de producción corre a las 06:00 de Argentina. Un adoptado con marcador confirmado solo empieza a puntuar cuando el sync trae `finished`, aunque el PATCH ya haya guardado los goles. Si el estado sigue atrasado, usar el disparo manual del workflow **Sync diario** y comprobar el estado al concluir. Si el caso sigue pendiente una hora después del final, escalarlo al suplente y acordar el próximo control. Para una suspensión, revisar cuando la organización confirme si se reanuda.
+**Cadencia (`docs/40` D4).** `prode-sync.yml` corre cada 15 minutos y llama a `POST /api/admin/prode/sync`. Cada partido adoptado tiene una pasada a las +2 h y otra a las +3 h del inicio; si el partido sigue en vivo o terminó y todavía no tiene resultado confirmado (le faltan los goles o la segunda lectura), se repite en cada corrida hasta las +6 h. Un partido en 90' puntúa cerca de las +2 h 15 min y uno con alargue y penales cerca de las +3 h 15 min. GitHub puede atrasar o saltear un `schedule`: la pasada sigue pendiente. Para adelantarla: Actions → **Sync del prode** → *Run workflow* (sin pendientes responde `{"trabajo": false}` y no hace nada).
 
-Registrar en una bitácora la fecha y fase, el ID y el origen del cruce, el marcador confirmado, la fuente y hora de verificación, quién cargó y revisó, y la hora en que se comprobó el impacto en el ranking. Para pendientes o correcciones, anotar el motivo, los cambios y el seguimiento.
+**Cuándo hay aviso.** Después de cada pasada con trabajo (`prode-sync.yml`) y del sync diario (`sync-cron.yml`) se consulta `/api/admin/status`. Si un partido adoptado y terminado lleva más de 6 horas desde su inicio sin marcador o sin equipo que pasó, abre el issue `incidente` **"Prode: resultados en espera"** (GitHub avisa por email). Se cierra solo en la corrida en que ya no queda ninguno. Mientras tanto ese partido no puntúa para nadie.
+
+**Qué hacer con el aviso.**
+
+El motivo `equipos_no_coinciden` indica que ESPN trae el partido con otros equipos o con local y visitante invertidos: no se carga nada y el marcador queda vacío. Verificar el cruce real: corregir en la orientación que muestra el prode (3.4) o excluir.
+
+1. `GET /api/admin/prode/partidos` y buscar `"enEspera": true`. `automatico` muestra lo que se leyó de ESPN (`confirmadoEn: null` si todavía no se confirmó). El motivo queda en el log `prode_resultado_en_espera`.
+2. Si falta la confirmación o el summary, puede bastar con el sync siguiente (pasadas las +6 h ya no hay pasadas: disparar el workflow **Sync diario**).
+
+Si lo que falla son las pasadas (issue **"Falla el sync del prode"**), ver `docs/23` §6.
+3. Si el dato no llega, tomar el resultado de una fuente oficial y corregir o excluir (3.4). Dejar en el issue el partido, la fuente y lo que se hizo.
+
+**Si alguien reporta un resultado mal puntuado.** Corregirlo o excluirlo (3.4). `metricas.prode.automatizacion.corregidos` cuenta las correcciones que difieren de lo automático: con una en la regla A (fin en los 90') o dos en la regla B (alargue o penales), apagar esa regla con el interruptor KV hasta analizar la causa (`docs/40` §4.7; comandos en `docs/23` §6, "Prode: apagar el resultado automático").
 
 ### 3.6 Reprogramados, suspendidos y cancelados
 
-- **Reprogramado antes de empezar**: corregir el horario (3.3); el cierre se mueve con él.
-- **Suspendido después de empezar**: queda cerrado para siempre (`closed_at`). Si se completa otro día, cargar el resultado final (3.4). Si nunca se completa, no hay que hacer nada: no da puntos.
-- **Cancelado**: `status: "cancelled"` en un manual; en un adoptado lo trae el sync. Un resultado dado por decisión administrativa no cuenta (`docs/37` §5).
+- **Reprogramado antes de empezar**: en un partido adoptado lo trae el sync; en un cruce manual, corregir el horario (3.3). El cierre se mueve con él.
+- **Suspendido después de empezar**: queda cerrado para siempre (`closed_at`). Si se completa otro día, un adoptado se puntúa solo cuando ESPN lo trae terminado; un manual se carga a mano (3.4). Si nunca se completa, no hay que hacer nada: no da puntos.
+- **Cancelado**: `status: "cancelled"` en un manual; en un adoptado lo trae el sync.
+- **Resultado dado por decisión administrativa** (no cuenta, `docs/37` §5): si ESPN mantiene el partido como terminado, `{"id":"<id>","excluir":true}`, y dejar constancia del motivo en el issue o en la bitácora. ESPN puede mostrarlo como un final normal: en ese caso no hay aviso automático.
 
 ## 4. Despliegue de las migraciones 0017-0021 y rollback
 
@@ -132,15 +150,17 @@ Rollback: revertir el código basta, la base migrada sigue siendo compatible con
 - `health`: debe estar en `ok`; `checks.sync` degradado indica que el sync de ligas no corre y por lo tanto horarios y estados de los partidos adoptados pueden estar viejos.
 - `runs` (últimos 20 syncs de ligas): que el último haya terminado bien y reciente. Cada sync reemplaza horario y estado de los partidos de ESPN, también los adoptados del prode; si falla, un partido adoptado puede quedar sin el estado `finished` y no puntuar.
 - `sessions`: sesiones vigentes y vencidas; sirve para ver que el piloto está entrando gente y que no se acumulan sesiones vencidas.
+- `runsProde` (últimas 10 pasadas del prode con trabajo): `status` y el error por competencia. No cuentan para `health.checks.sync`. Que no haya runs nuevos entre partidos es normal.
 - `rateLimit`: bloqueos de límite de tasa; un pico durante el cierre de un partido indica presión sobre `PUT /api/prode/pronosticos`.
 - `metricas.usuarios`: crecimiento de cuentas.
 - `metricas.prode`: métricas agregadas del piloto, sin ids ni datos personales (`lib/observability/metricas.ts`):
   - `gruposCreados`, `participantes` (usuarios distintos con al menos un pronóstico) y `pronosticos`.
   - `participantesPorFase` y `regresanPorFase` (`octavos`, `cuartos`, `semifinal`, `final`). Regresan quienes pronosticaron en esa fase y en alguna anterior, así que en octavos siempre es 0.
   - `integrantesPorGrupo`: `promedio` y `maximo`.
-  - `partidos`: `abiertos` y `cerrados` se cuentan por `closed_at`. `conResultado` cuenta los partidos en `finished` con goles a 90 minutos. La brecha entre `cerrados` y `conResultado` puede incluir partidos en juego, suspendidos, cancelados o pendientes de sync o de carga.
+  - `partidos`: `abiertos` y `cerrados` se cuentan por `closed_at`. `conResultado` cuenta los partidos en `finished` con goles a 90 minutos. La brecha entre `cerrados` y `conResultado` puede incluir partidos en juego, suspendidos, cancelados, excluidos o en espera.
+  - `automatizacion`, sobre los adoptados en `finished`: `automaticos` (puntúan sin intervención, por regla `A` y `B`), `manuales` (con alguna corrección), `corregidos` (de esos, los que difieren de lo leído de ESPN en el marcador o en quién pasó), `enEspera` (el que dispara el aviso) y `excluidos`.
 
-Para detectar resultados pendientes de carga, buscar `estado: "finished"` con `resultado: null` en `GET /api/admin/prode/partidos`. Cruzar esa lista con los partidos cuyo final ya se confirmó en la bitácora para detectar también los atrasos de estado en ESPN. Los logs del PATCH quedan como `prode_cruce_corregido` y `prode_cruce_rechazado` (`npx wrangler pages deployment tail`).
+Los resultados pendientes llegan solos por el issue de la sección 3.5; no hace falta buscarlos. Los logs del PATCH quedan como `prode_cruce_corregido` y `prode_cruce_rechazado`, y los del sync como `prode_resultado_en_espera` (`npx wrangler pages deployment tail`). Las pasadas loguean `prode_sync`.
 
 ## 6. Evaluar el piloto (tarjeta 9)
 

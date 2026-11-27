@@ -124,12 +124,8 @@ export function resultadoProde(evento: EventoEspnProde, resumen?: ResumenEspn): 
   if (nombre === PENALES && sl !== sv) return NULO;
 
   const g = goles90Resumen(nombre, { local: sl, visitante: sv }, l.local, l.visitante, resumen);
+  // Partido único: solo hay alargue o penales si a los 90' empataban. Otra cosa es un dato dudoso.
+  if (g && g.local !== g.visitante) return NULO;
   const goles90 = g ? { ...g, regla: "B" as const } : null;
-
-  // Coherencia: si los 90' tienen ganador, pasa no puede ser el otro lado
-  if (goles90 && pasa) {
-    const gan = ladoGanador(goles90.local, goles90.visitante);
-    if (gan && gan !== pasa) return NULO;
-  }
   return { goles90, pasa };
 }
