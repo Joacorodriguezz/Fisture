@@ -30,10 +30,12 @@ function Lista() {
   const [grupos, setGrupos] = useState<GrupoResumen[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nombre, setNombre] = useState("");
+  const [hidratado, setHidratado] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
 
   useEffect(() => {
+    setHidratado(true);
     let vivo = true;
     fetch("/api/prode/grupos")
       .then(async (res) => {
@@ -82,6 +84,7 @@ function Lista() {
             id="grupo-nombre"
             type="text"
             value={nombre}
+            disabled={!hidratado}
             maxLength={80}
             autoComplete="off"
             aria-describedby="grupo-nombre-ayuda grupo-nombre-mensaje"
@@ -89,7 +92,7 @@ function Lista() {
             onChange={(e) => setNombre(e.target.value)}
             style={{ ...campo, flex: 1, minWidth: 200 }}
           />
-          <button type="submit" className="tb-boton tb-boton--primario" disabled={ocupado} style={boton}>
+          <button type="submit" className="tb-boton tb-boton--primario" disabled={!hidratado || ocupado} style={boton}>
             {ocupado ? "Creando…" : "Crear grupo"}
           </button>
         </div>

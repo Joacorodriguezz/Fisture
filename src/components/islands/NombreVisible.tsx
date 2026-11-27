@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MENSAJES_NOMBRE, NOMBRE_MAX, validarNombreVisible } from "../../lib/prode/nombre-visible";
 
 interface Props {
@@ -10,8 +10,11 @@ interface Props {
 export default function NombreVisible({ inicial }: Props) {
   const [guardado, setGuardado] = useState(inicial);
   const [valor, setValor] = useState(inicial ?? "");
+  const [hidratado, setHidratado] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+
+  useEffect(() => setHidratado(true), []);
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -61,6 +64,7 @@ export default function NombreVisible({ inicial }: Props) {
           id="nombre-visible"
           type="text"
           value={valor}
+          disabled={!hidratado}
           maxLength={NOMBRE_MAX * 2}
           autoComplete="nickname"
           aria-describedby="nombre-visible-ayuda nombre-visible-mensaje"
@@ -72,7 +76,7 @@ export default function NombreVisible({ inicial }: Props) {
           {mensaje?.texto ?? ""}
         </span>
       </div>
-      <button type="submit" className={guardado ? "tb-boton" : "tb-boton tb-boton--primario"} disabled={ocupado}>
+      <button type="submit" className={guardado ? "tb-boton" : "tb-boton tb-boton--primario"} disabled={!hidratado || ocupado}>
         {ocupado ? "Guardando…" : guardado ? "Cambiar nombre" : "Guardar nombre"}
       </button>
     </form>
