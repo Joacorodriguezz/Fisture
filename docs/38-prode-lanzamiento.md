@@ -157,11 +157,7 @@ Rollback: revertir el código basta, la base migrada sigue siendo compatible con
   - `gruposCreados`, `participantes` (usuarios distintos con al menos un pronóstico) y `pronosticos`.
   - `participantesPorFase` y `regresanPorFase` (`octavos`, `cuartos`, `semifinal`, `final`). Regresan quienes pronosticaron en esa fase y en alguna anterior, así que en octavos siempre es 0.
   - `integrantesPorGrupo`: `promedio` y `maximo`.
-<<<<<<< HEAD
   - `partidos`: `abiertos` y `cerrados` siguen el mismo criterio que la API de pronósticos según el horario, el estado y el cierre definitivo (`closed_at`). `conResultado` cuenta los partidos en `finished` con goles a 90 minutos. La brecha entre `cerrados` y `conResultado` puede incluir partidos en juego, suspendidos, cancelados, excluidos o en espera.
-=======
-  - `partidos`: `abiertos` y `cerrados` se cuentan por `closed_at`. `conResultado` cuenta los partidos en `finished` con goles a 90 minutos. La brecha entre `cerrados` y `conResultado` puede incluir partidos en juego, suspendidos, cancelados, excluidos o en espera.
->>>>>>> origin/development
   - `automatizacion`, sobre los adoptados en `finished`: `automaticos` (puntúan sin intervención, por regla `A` y `B`), `manuales` (con alguna corrección), `corregidos` (de esos, los que difieren de lo leído de ESPN en el marcador o en quién pasó), `enEspera` (el que dispara el aviso) y `excluidos`.
 
 Los resultados pendientes llegan solos por el issue de la sección 3.5; no hace falta buscarlos. Los logs del PATCH quedan como `prode_cruce_corregido` y `prode_cruce_rechazado`, y los del sync como `prode_resultado_en_espera` (`npx wrangler pages deployment tail`). Las pasadas loguean `prode_sync`.

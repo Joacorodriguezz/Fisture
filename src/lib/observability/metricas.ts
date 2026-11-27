@@ -8,10 +8,7 @@ import type { Database } from "../db";
 import { FASES, esFase, type Fase } from "../prode/horario";
 import { enEsperaSql, goles90Local, goles90Visitante, pasaEfectivo } from "../prode/puntos";
 import { SOURCE_MANUAL } from "../prode/reglas";
-<<<<<<< HEAD
 import { pronosticoAbiertoSql } from "../prode/pronosticos";
-=======
->>>>>>> origin/development
 
 const DIA_S = 24 * 60 * 60;
 
@@ -106,14 +103,9 @@ async function getMetricasProde(db: Database, auto: boolean, ahora: number): Pro
       (SELECT COUNT(*) FROM prode_predictions) AS pronosticos,
       (SELECT AVG(n) FROM (SELECT COUNT(*) AS n FROM prode_group_members GROUP BY group_id)) AS promedio,
       (SELECT MAX(n) FROM (SELECT COUNT(*) AS n FROM prode_group_members GROUP BY group_id)) AS maximo,
-<<<<<<< HEAD
       (SELECT COUNT(*) FROM prode_matches JOIN matches ON matches.id = prode_matches.match_id
         WHERE ${pronosticoAbiertoSql(ahora)}) AS abiertos,
       (SELECT COUNT(*) FROM prode_matches) AS totalPartidos,
-=======
-      (SELECT COUNT(*) FROM prode_matches WHERE closed_at IS NULL) AS abiertos,
-      (SELECT COUNT(*) FROM prode_matches WHERE closed_at IS NOT NULL) AS cerrados,
->>>>>>> origin/development
       (SELECT COUNT(*) FROM prode_matches JOIN matches ON matches.id = prode_matches.match_id
         WHERE matches.status = 'finished'
           AND ${goles90Local(auto)} IS NOT NULL
