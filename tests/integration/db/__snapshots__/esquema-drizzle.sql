@@ -112,6 +112,15 @@ CREATE TABLE `prode_matches` (
 	`home_goals_90` integer,
 	`away_goals_90` integer,
 	`closed_at` integer,
+	`pasa` text,
+	`auto_home_goals_90` integer,
+	`auto_away_goals_90` integer,
+	`auto_pasa` text,
+	`auto_regla` text,
+	`auto_visto_at` integer,
+	`auto_confirmado_at` integer,
+	`excluded_at` integer,
+	`pasada_at` integer,
 	FOREIGN KEY (`match_id`) REFERENCES `matches`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -120,6 +129,7 @@ CREATE TABLE `prode_predictions` (
 	`match_id` text NOT NULL,
 	`home_goals` integer NOT NULL,
 	`away_goals` integer NOT NULL,
+	`pasa` text,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	PRIMARY KEY(`user_id`, `match_id`),

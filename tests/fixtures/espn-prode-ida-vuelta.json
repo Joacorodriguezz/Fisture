@@ -1,0 +1,862 @@
+[
+  {
+    "liga": "conmebol.libertadores/2023",
+    "id": "680061",
+    "fecha": "2023-08-10T00:00Z",
+    "nombre": "PER @ IDV",
+    "temporada": {
+      "year": 2023,
+      "slug": "round-of-16",
+      "type": 11527
+    },
+    "competicion": {
+      "leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "series": {
+        "competitors": [
+          {
+            "id": "17086",
+            "uid": "s:600~t:17086",
+            "winner": false,
+            "aggregateScore": 1
+          },
+          {
+            "id": "5486",
+            "uid": "s:600~t:5486",
+            "winner": true,
+            "aggregateScore": 2
+          }
+        ],
+        "completed": true,
+        "title": "Round of 16",
+        "totalCompetitions": 2
+      },
+      "notes": [
+        {
+          "text": "2nd Leg - Deportivo Pereira advance 2-1 on aggregate",
+          "headline": "2nd Leg - Deportivo Pereira advance 2-1 on aggregate",
+          "type": "event"
+        }
+      ]
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+10'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Independiente del Valle",
+        "score": "1",
+        "winner": false,
+        "aggregateScore": 1,
+        "extra": {
+          "advance": false,
+          "aggregateScore": 1
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Deportivo Pereira",
+        "score": "1",
+        "winner": true,
+        "aggregateScore": 2,
+        "extra": {
+          "advance": true,
+          "aggregateScore": 2
+        }
+      }
+    ],
+    "extra": {
+      "competition.leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "conmebol.sudamericana/2023",
+    "id": "678962",
+    "fecha": "2023-07-19T22:00Z",
+    "nombre": "CAP @ BOT",
+    "temporada": {
+      "year": 2023,
+      "slug": "knockout-round-playoffs",
+      "type": 11520
+    },
+    "competicion": {
+      "leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "series": {
+        "competitors": [
+          {
+            "id": "6086",
+            "uid": "s:600~t:6086",
+            "winner": true,
+            "aggregateScore": 3
+          },
+          {
+            "id": "10374",
+            "uid": "s:600~t:10374",
+            "winner": false,
+            "aggregateScore": 1
+          }
+        ],
+        "completed": true,
+        "title": "Knockout Round Playoffs",
+        "totalCompetitions": 2
+      },
+      "notes": [
+        {
+          "text": "2nd Leg - Botafogo advance 3-1 on aggregate",
+          "headline": "2nd Leg - Botafogo advance 3-1 on aggregate",
+          "type": "event"
+        }
+      ]
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+6'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Botafogo",
+        "score": "1",
+        "winner": true,
+        "aggregateScore": 3,
+        "extra": {
+          "advance": true,
+          "aggregateScore": 3
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Patronato",
+        "score": "1",
+        "winner": false,
+        "aggregateScore": 1,
+        "extra": {
+          "advance": false,
+          "aggregateScore": 1
+        }
+      }
+    ],
+    "extra": {
+      "competition.leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "conmebol.libertadores/2023",
+    "id": "680064",
+    "fecha": "2023-08-10T00:30Z",
+    "nombre": "CAM @ PAL",
+    "temporada": {
+      "year": 2023,
+      "slug": "round-of-16",
+      "type": 11527
+    },
+    "competicion": {
+      "leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "series": {
+        "competitors": [
+          {
+            "id": "2029",
+            "uid": "s:600~t:2029",
+            "winner": true,
+            "aggregateScore": 1
+          },
+          {
+            "id": "7632",
+            "uid": "s:600~t:7632",
+            "winner": false,
+            "aggregateScore": 0
+          }
+        ],
+        "completed": true,
+        "title": "Round of 16",
+        "totalCompetitions": 2
+      },
+      "notes": [
+        {
+          "text": "2nd Leg - Palmeiras advance 1-0 on aggregate",
+          "headline": "2nd Leg - Palmeiras advance 1-0 on aggregate",
+          "type": "event"
+        }
+      ]
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+7'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Palmeiras",
+        "score": "0",
+        "winner": true,
+        "aggregateScore": 1,
+        "extra": {
+          "advance": true,
+          "aggregateScore": 1
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Atlético-MG",
+        "score": "0",
+        "winner": false,
+        "aggregateScore": 0,
+        "extra": {
+          "advance": false,
+          "aggregateScore": 0
+        }
+      }
+    ],
+    "extra": {
+      "competition.leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "conmebol.sudamericana/2023",
+    "id": "678957",
+    "fecha": "2023-07-20T00:00Z",
+    "nombre": "SCR @ EME",
+    "temporada": {
+      "year": 2023,
+      "slug": "knockout-round-playoffs",
+      "type": 11520
+    },
+    "competicion": {
+      "leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "series": {
+        "competitors": [
+          {
+            "id": "2668",
+            "uid": "s:600~t:2668",
+            "winner": true,
+            "aggregateScore": 1
+          },
+          {
+            "id": "2673",
+            "uid": "s:600~t:2673",
+            "winner": false,
+            "aggregateScore": 0
+          }
+        ],
+        "completed": true,
+        "title": "Knockout Round Playoffs",
+        "totalCompetitions": 2
+      },
+      "notes": [
+        {
+          "text": "2nd Leg - Emelec advance 1-0 on aggregate",
+          "headline": "2nd Leg - Emelec advance 1-0 on aggregate",
+          "type": "event"
+        }
+      ]
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+7'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Emelec",
+        "score": "0",
+        "winner": true,
+        "aggregateScore": 1,
+        "extra": {
+          "advance": true,
+          "aggregateScore": 1
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Sporting Cristal",
+        "score": "0",
+        "winner": false,
+        "aggregateScore": 0,
+        "extra": {
+          "advance": false,
+          "aggregateScore": 0
+        }
+      }
+    ],
+    "extra": {
+      "competition.leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "conmebol.libertadores/2023",
+    "id": "685755",
+    "fecha": "2023-08-31T00:30Z",
+    "nombre": "PER @ PAL",
+    "temporada": {
+      "year": 2023,
+      "slug": "quarterfinals",
+      "type": 11526
+    },
+    "competicion": {
+      "leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "series": {
+        "competitors": [
+          {
+            "id": "2029",
+            "uid": "s:600~t:2029",
+            "winner": true,
+            "aggregateScore": 4
+          },
+          {
+            "id": "5486",
+            "uid": "s:600~t:5486",
+            "winner": false,
+            "aggregateScore": 0
+          }
+        ],
+        "completed": true,
+        "title": "Quarterfinals",
+        "totalCompetitions": 2
+      },
+      "notes": [
+        {
+          "text": "2nd Leg - Palmeiras advance 4-0 on aggregate",
+          "headline": "2nd Leg - Palmeiras advance 4-0 on aggregate",
+          "type": "event"
+        }
+      ]
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+4'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Palmeiras",
+        "score": "0",
+        "winner": true,
+        "aggregateScore": 4,
+        "extra": {
+          "advance": true,
+          "aggregateScore": 4
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Deportivo Pereira",
+        "score": "0",
+        "winner": false,
+        "aggregateScore": 0,
+        "extra": {
+          "advance": false,
+          "aggregateScore": 0
+        }
+      }
+    ],
+    "extra": {
+      "competition.leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "conmebol.sudamericana/2023",
+    "id": "684031",
+    "fecha": "2023-08-08T22:00Z",
+    "nombre": "LIB @ FOR",
+    "temporada": {
+      "year": 2023,
+      "slug": "round-of-16",
+      "type": 11519
+    },
+    "competicion": {
+      "leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "series": {
+        "competitors": [
+          {
+            "id": "6272",
+            "uid": "s:600~t:6272",
+            "winner": true,
+            "aggregateScore": 2
+          },
+          {
+            "id": "2670",
+            "uid": "s:600~t:2670",
+            "winner": false,
+            "aggregateScore": 1
+          }
+        ],
+        "completed": true,
+        "title": "Round of 16",
+        "totalCompetitions": 2
+      },
+      "notes": [
+        {
+          "text": "2nd Leg - Fortaleza advance 2-1 on aggregate",
+          "headline": "2nd Leg - Fortaleza advance 2-1 on aggregate",
+          "type": "event"
+        }
+      ]
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+13'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Fortaleza",
+        "score": "1",
+        "winner": true,
+        "aggregateScore": 2,
+        "extra": {
+          "advance": true,
+          "aggregateScore": 2
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Libertad",
+        "score": "1",
+        "winner": false,
+        "aggregateScore": 1,
+        "extra": {
+          "advance": false,
+          "aggregateScore": 1
+        }
+      }
+    ],
+    "extra": {
+      "competition.leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "conmebol.libertadores/2024",
+    "id": "692227",
+    "fecha": "2024-02-15T00:30Z",
+    "nombre": "AUR @ MGR",
+    "temporada": {
+      "year": 2024,
+      "slug": "first-stage",
+      "type": 12311
+    },
+    "competicion": {
+      "leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "series": {
+        "competitors": [
+          {
+            "id": "7312",
+            "uid": "s:600~t:7312",
+            "winner": false,
+            "aggregateScore": 1
+          },
+          {
+            "id": "6046",
+            "uid": "s:600~t:6046",
+            "winner": true,
+            "aggregateScore": 2
+          }
+        ],
+        "completed": true,
+        "title": "First Stage",
+        "totalCompetitions": 2
+      },
+      "notes": [
+        {
+          "text": "2nd Leg - Aurora advance 2-1 on aggregate",
+          "headline": "2nd Leg - Aurora advance 2-1 on aggregate",
+          "type": "event"
+        }
+      ]
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+16'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Melgar",
+        "score": "1",
+        "winner": false,
+        "aggregateScore": 1,
+        "extra": {
+          "advance": false,
+          "aggregateScore": 1
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Aurora",
+        "score": "1",
+        "winner": true,
+        "aggregateScore": 2,
+        "extra": {
+          "advance": true,
+          "aggregateScore": 2
+        }
+      }
+    ],
+    "extra": {
+      "competition.leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "conmebol.sudamericana/2023",
+    "id": "683832",
+    "fecha": "2023-08-09T00:30Z",
+    "nombre": "COR @ NOB",
+    "temporada": {
+      "year": 2023,
+      "slug": "round-of-16",
+      "type": 11519
+    },
+    "competicion": {
+      "leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "series": {
+        "competitors": [
+          {
+            "id": "14",
+            "uid": "s:600~t:14",
+            "winner": false,
+            "aggregateScore": 1
+          },
+          {
+            "id": "874",
+            "uid": "s:600~t:874",
+            "winner": true,
+            "aggregateScore": 2
+          }
+        ],
+        "completed": true,
+        "title": "Round of 16",
+        "totalCompetitions": 2
+      },
+      "notes": [
+        {
+          "text": "2nd Leg - Corinthians advance 2-1 on aggregate",
+          "headline": "2nd Leg - Corinthians advance 2-1 on aggregate",
+          "type": "event"
+        }
+      ]
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+6'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Newell's Old Boys",
+        "score": "0",
+        "winner": false,
+        "aggregateScore": 1,
+        "extra": {
+          "advance": false,
+          "aggregateScore": 1
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Corinthians",
+        "score": "0",
+        "winner": true,
+        "aggregateScore": 2,
+        "extra": {
+          "advance": true,
+          "aggregateScore": 2
+        }
+      }
+    ],
+    "extra": {
+      "competition.leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "conmebol.libertadores/2024",
+    "id": "692239",
+    "fecha": "2024-03-01T00:30Z",
+    "nombre": "GCM @ COL",
+    "temporada": {
+      "year": 2024,
+      "slug": "second-stage",
+      "type": 12310
+    },
+    "competicion": {
+      "leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "series": {
+        "competitors": [
+          {
+            "id": "2688",
+            "uid": "s:600~t:2688",
+            "winner": true,
+            "aggregateScore": 1
+          },
+          {
+            "id": "6756",
+            "uid": "s:600~t:6756",
+            "winner": false,
+            "aggregateScore": 0
+          }
+        ],
+        "completed": true,
+        "title": "Second Stage",
+        "totalCompetitions": 2
+      },
+      "notes": [
+        {
+          "text": "2nd Leg - Colo Colo advance 1-0 on aggregate",
+          "headline": "2nd Leg - Colo Colo advance 1-0 on aggregate",
+          "type": "event"
+        }
+      ]
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+7'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Colo Colo",
+        "score": "0",
+        "winner": true,
+        "aggregateScore": 1,
+        "extra": {
+          "advance": true,
+          "aggregateScore": 1
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Godoy Cruz Antonio Tomba",
+        "score": "0",
+        "winner": false,
+        "aggregateScore": 0,
+        "extra": {
+          "advance": false,
+          "aggregateScore": 0
+        }
+      }
+    ],
+    "extra": {
+      "competition.leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "conmebol.sudamericana/2023",
+    "id": "683830",
+    "fecha": "2023-08-09T22:00Z",
+    "nombre": "BOT @ GUA",
+    "temporada": {
+      "year": 2023,
+      "slug": "round-of-16",
+      "type": 11519
+    },
+    "competicion": {
+      "leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "series": {
+        "competitors": [
+          {
+            "id": "7385",
+            "uid": "s:600~t:7385",
+            "winner": false,
+            "aggregateScore": 1
+          },
+          {
+            "id": "6086",
+            "uid": "s:600~t:6086",
+            "winner": true,
+            "aggregateScore": 2
+          }
+        ],
+        "completed": true,
+        "title": "Round of 16",
+        "totalCompetitions": 2
+      },
+      "notes": [
+        {
+          "text": "2nd Leg - Botafogo advance 2-1 on aggregate",
+          "headline": "2nd Leg - Botafogo advance 2-1 on aggregate",
+          "type": "event"
+        }
+      ]
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+6'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Guaraní",
+        "score": "0",
+        "winner": false,
+        "aggregateScore": 1,
+        "extra": {
+          "advance": false,
+          "aggregateScore": 1
+        }
+      },
+      {
+        "homeAway": "away",
+        "team": "Botafogo",
+        "score": "0",
+        "winner": true,
+        "aggregateScore": 2,
+        "extra": {
+          "advance": true,
+          "aggregateScore": 2
+        }
+      }
+    ],
+    "extra": {
+      "competition.leg": {
+        "value": 2,
+        "displayValue": "2nd Leg"
+      },
+      "competition.wasSuspended": false
+    }
+  }
+]

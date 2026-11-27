@@ -12,7 +12,7 @@ import type { ConsistencyIssue, SyncRunStatus, SyncTrigger } from "./types";
 export const MATCHES_CACHE_KEY = "cache:matches:all";
 
 export interface RunSyncEnv extends SyncEnv {
-  KV?: { delete(key: string): Promise<void> };
+  KV?: { delete(key: string): Promise<void>; get?(key: string): Promise<string | null> };
 }
 
 // Dependencias inyectables (los tests reemplazan los proveedores reales)

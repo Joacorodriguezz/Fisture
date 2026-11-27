@@ -64,6 +64,7 @@ describe("contrato ESPN con fixture sin red", () => {
     const { matches } = await createEspnClient().getFixture!("arg.1", { years: [2026] });
     expect(matches[0].status).toBe(status);
     expect(matches[0].homeScore).toBe(["live", "finished"].includes(status) ? 2 : null);
+    expect(matches[0].estadoProveedor).toBe(name);
   });
   it("descarta equipos placeholder y competencias incompletas", async () => {
     const data = payload();
@@ -228,5 +229,45 @@ describe("selecciones de CONMEBOL (docs/32 Fase B)", () => {
     await expect(
       createEspnClient().getFixture!("fifa.worldq.conmebol", { years: [2026], participantes: "plantel-fijo", idioma: "es" })
     ).rejects.toThrow("plantel vacío");
+  });
+});
+
+describe("resultado para el prode en el adaptador (docs/40 D1)", () => {
+  const con = (nombre: string, local: string, visitante: string, extra: Record<string, unknown> = {}) => {
+    const data = payload();
+    const e = data.events[0] as any;
+    e.status.type = { name: nombre, state: "post" };
+    e.competitions[0].competitors[0].score = visitante; // en el fixture el primero es el visitante
+    e.competitions[0].competitors[1].score = local;
+    Object.assign(e.competitions[0].competitors[0], extra);
+    return data;
+  };
+
+  it("fin en 90': trae goles90 (regla A) y quién pasa", async () => {
+    mockResponse(con("STATUS_FULL_TIME", "2", "1"));
+    const { matches } = await createEspnClient().getFixture!("arg.1", { years: [2026] });
+    expect(matches[0]).toMatchObject({ goles90: { local: 2, visitante: 1, regla: "A" }, pasa: "home" });
+    expect(matches[0].crudoProde).toBeUndefined();
+  });
+
+  it("un estado desconocido o sin terminar no agrega campos del prode", async () => {
+    mockResponse(con("STATUS_FORFEIT", "2", "1"));
+    const { matches } = await createEspnClient().getFixture!("arg.1", { years: [2026] });
+    expect(matches[0].goles90).toBeUndefined();
+    expect(matches[0].pasa).toBeUndefined();
+    expect(matches[0].crudoProde).toBeUndefined();
+  });
+
+  it("alargue o penales: conserva el evento para pedir el summary", async () => {
+    mockResponse(con("STATUS_FINAL_AET", "1", "1"));
+    const { matches } = await createEspnClient().getFixture!("arg.1", { years: [2026] });
+    expect(matches[0].crudoProde?.status.type.name).toBe("STATUS_FINAL_AET");
+    expect(matches[0].goles90).toBeUndefined();
+  });
+
+  it("getResumenProde pide el summary del evento con el mismo cliente", async () => {
+    const fetch = mockResponse({ header: { competitions: [] } });
+    expect(await createEspnClient().getResumenProde!("arg.1", "espn:761364")).toEqual({ header: { competitions: [] } });
+    expect(fetch.mock.calls[0][0]).toBe("https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/summary?event=761364");
   });
 });

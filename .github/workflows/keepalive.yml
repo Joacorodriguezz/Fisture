@@ -2,7 +2,7 @@ name: Keepalive de workflows
 
 # GitHub desactiva los workflows con `schedule` tras 60 días sin actividad en el repo, sin avisar
 # (docs/17 B1). Una vez por semana este workflow:
-#  - vuelve a habilitar con la API los workflows programados (sync-cron, monitor y este mismo) que GitHub
+#  - vuelve a habilitar con la API los workflows programados (sync-cron, monitor, prode-sync y este) que GitHub
 #    desactivó por inactividad; uno desactivado a mano por el dueño no se toca;
 #  - abre un issue "incidente" si reactivó alguno o si el sync diario lleva más de 72 h sin terminar
 #    bien, una señal independiente de la app (el monitor mira /api/health).

@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   PUNTOS_ACIERTO,
   PUNTOS_EXACTO,
+  calcularExtraPasa,
   calcularPuntos,
   compararParticipantes,
+  ladoQuePasa,
+  puntosDelPartido,
   type Participante,
 } from "../../../src/lib/prode/reglas";
 
@@ -40,6 +43,61 @@ describe("calcularPuntos", () => {
   });
 });
 
+describe("calcularExtraPasa", () => {
+  it("da +1 si el equipo pronosticado es el que pasó", () => {
+    expect(calcularExtraPasa("home", "home")).toBe(1);
+    expect(calcularExtraPasa("away", "away")).toBe(1);
+  });
+
+  it("da 0 si falla, o si falta el pronóstico o el equipo que pasó", () => {
+    expect(calcularExtraPasa("home", "away")).toBe(0);
+    expect(calcularExtraPasa(null, "home")).toBe(0);
+    expect(calcularExtraPasa("home", null)).toBe(0);
+  });
+});
+
+describe("ladoQuePasa", () => {
+  it("con ganador se deriva del marcador, ignorando pasa", () => {
+    expect(ladoQuePasa({ local: 2, visitante: 1 }, "away")).toBe("home");
+    expect(ladoQuePasa({ local: 0, visitante: 3 }, null)).toBe("away");
+  });
+
+  it("con empate vale pasa; sin pasa, ninguno", () => {
+    expect(ladoQuePasa({ local: 1, visitante: 1 }, "away")).toBe("away");
+    expect(ladoQuePasa({ local: 1, visitante: 1 }, null)).toBeNull();
+  });
+});
+
+describe("puntosDelPartido (docs/40 R1)", () => {
+  it("1-1 pasa local; termina 1-1 y pasa el local por penales: 3 + 1 = 4", () => {
+    expect(puntosDelPartido({ local: 1, visitante: 1, pasa: "home" }, { local: 1, visitante: 1 }, "home")).toEqual({ marcador: 3, extra: 1, total: 4 });
+  });
+
+  it("2-1 contra 1-1 con pasa el local: 0 + 1 = 1", () => {
+    expect(puntosDelPartido({ local: 2, visitante: 1 }, { local: 1, visitante: 1 }, "home")).toEqual({ marcador: 0, extra: 1, total: 1 });
+  });
+
+  it("1-0 contra 0-2 del visitante: 0 + 0 = 0", () => {
+    expect(puntosDelPartido({ local: 1, visitante: 0 }, { local: 0, visitante: 2 }, "away")).toEqual({ marcador: 0, extra: 0, total: 0 });
+  });
+
+  it("el máximo es 4 y el extra se suma al marcador no exacto", () => {
+    expect(puntosDelPartido({ local: 2, visitante: 0 }, { local: 2, visitante: 0 }, "home").total).toBe(4);
+    expect(puntosDelPartido({ local: 1, visitante: 0 }, { local: 3, visitante: 1 }, "home")).toEqual({ marcador: 1, extra: 1, total: 2 });
+  });
+
+  it("un empate pronosticado sin pasa no suma el extra", () => {
+    expect(puntosDelPartido({ local: 1, visitante: 1 }, { local: 1, visitante: 1 }, "home")).toEqual({ marcador: 3, extra: 0, total: 3 });
+    expect(puntosDelPartido({ local: 1, visitante: 1, pasa: null }, { local: 0, visitante: 0 }, "away")).toEqual({ marcador: 1, extra: 0, total: 1 });
+  });
+
+  it("sin pronóstico, sin resultado o sin equipo que pasó no suma el extra", () => {
+    expect(puntosDelPartido(null, { local: 1, visitante: 0 }, "home")).toEqual({ marcador: 0, extra: 0, total: 0 });
+    expect(puntosDelPartido({ local: 1, visitante: 0 }, null, null)).toEqual({ marcador: 0, extra: 0, total: 0 });
+    expect(puntosDelPartido({ local: 1, visitante: 0 }, { local: 1, visitante: 0 }, null)).toEqual({ marcador: 3, extra: 0, total: 3 });
+  });
+});
+
 const p = (nombre: string, puntos: number, exactos: number, aciertos: number): Participante => ({ nombre, puntos, exactos, aciertos });
 const ordenar = (lista: Participante[]) => [...lista].sort(compararParticipantes).map((x) => x.nombre);
 
@@ -58,6 +116,13 @@ describe("compararParticipantes", () => {
 
   it("con todo igualado, ordena por nombre visible sin distinguir mayúsculas ni tildes", () => {
     expect(ordenar([p("zoe", 3, 1, 1), p("Álvaro", 3, 1, 1), p("Bruno", 3, 1, 1)])).toEqual(["Álvaro", "Bruno", "zoe"]);
+  });
+
+  // Los totales de puntos.ts traen además `pasa` (aciertos de quién pasa): informativo, nunca desempata (docs/40 R5)
+  it("el contador de aciertos de quién pasa no desempata: con lo demás igual, decide el nombre", () => {
+    const con = (nombre: string, pasa: number) => ({ ...p(nombre, 6, 1, 3), pasa }) as Participante;
+    expect(ordenar([con("Beto", 9), con("Ana", 0)])).toEqual(["Ana", "Beto"]);
+    expect(compararParticipantes(con("Ana", 0), con("ana", 9))).toBe(0);
   });
 
   it("devuelve 0 cuando todo coincide, incluido el nombre", () => {

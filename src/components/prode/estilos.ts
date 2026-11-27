@@ -44,3 +44,22 @@ export const insignia = (tipo: "alerta" | "oscuro" | "borde"): CSSProperties =>
     : tipo === "oscuro"
       ? { background: "var(--tinta)", color: "var(--papel)", padding: "2px 8px" }
       : { border: "1px solid var(--tinta)", padding: "1px 8px", color: "var(--tinta)" };
+
+// ¿Quién pasa?: dos opciones grandes (radio con el nombre del equipo), alcanzables con el pulgar (docs/40 R6)
+export const grupoPasa: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8, margin: 0, padding: 0, border: 0, minWidth: 0 };
+export const leyendaPasa: CSSProperties = { padding: 0, marginBottom: 6, font: "400 15px/1.2 var(--font-rotulo)", textTransform: "uppercase", letterSpacing: ".06em" };
+export const opcionPasa = (elegida: boolean): CSSProperties => ({
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  minHeight: 52,
+  padding: "8px 12px",
+  border: `2px solid ${elegida ? "var(--rojo)" : "var(--tinta)"}`,
+  background: elegida ? "var(--papel-2)" : "var(--papel)",
+  color: "var(--tinta)",
+  font: "700 16px/1.1 var(--font-rotulo)",
+  textTransform: "uppercase",
+  overflowWrap: "anywhere",
+  cursor: "pointer",
+});
+export const radioPasa: CSSProperties = { flex: "none", width: 22, height: 22, margin: 0, accentColor: "var(--rojo)" };

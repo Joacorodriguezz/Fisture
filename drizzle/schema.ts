@@ -234,6 +234,8 @@ export const prodePredictions = sqliteTable(
       .references(() => matches.id, { onDelete: "cascade" }),
     homeGoals: integer("home_goals").notNull(),
     awayGoals: integer("away_goals").notNull(),
+    // Quién pasa ('home' | 'away'), solo con empate pronosticado (migración 0022; docs/40 R2)
+    pasa: text("pasa"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
@@ -255,6 +257,21 @@ export const prodeMatches = sqliteTable("prode_matches", {
   awayGoals90: integer("away_goals_90"),
   // Cierre irreversible del pronóstico: se fija al observar que el partido empezó (ms epoch)
   closedAt: integer("closed_at"),
+  // Equipo que pasó ('home' | 'away'), cargado por el admin; vale solo si el marcador a 90' es empate (migración 0022; docs/40 R3)
+  pasa: text("pasa"),
+  // Resultado automático de ESPN (migración 0023; docs/40 D2). Solo lo escribe el sync; puntúa solo confirmado.
+  autoHomeGoals90: integer("auto_home_goals_90"),
+  autoAwayGoals90: integer("auto_away_goals_90"),
+  autoPasa: text("auto_pasa"),
+  // Regla con que salió ('A' | 'B'): evidencia
+  autoRegla: text("auto_regla"),
+  // Primera lectura de los valores actuales y momento de la confirmación (ms epoch)
+  autoVistoAt: integer("auto_visto_at"),
+  autoConfirmadoAt: integer("auto_confirmado_at"),
+  // El admin excluyó el partido: no puntúa (ms epoch)
+  excludedAt: integer("excluded_at"),
+  // Última pasada del sync tras el final (ms epoch; docs/40 D4)
+  pasadaAt: integer("pasada_at"),
 });
 
 // ============================================
@@ -345,7 +362,7 @@ export const syncRuns = sqliteTable(
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
     trigger: text("trigger").notNull(), // 'cron' | 'admin'
-    // Qué sincronizó: 'leagues' (ESPN) o 'calendars' (reconciliación de calendarios)
+    // Qué sincronizó: 'leagues' (ESPN), 'calendars' (reconciliación de calendarios) o 'prode' (pasadas, docs/40)
     kind: text("kind").notNull().default("leagues"),
     startedAt: integer("started_at").notNull(), // epoch ms
     finishedAt: integer("finished_at"),
