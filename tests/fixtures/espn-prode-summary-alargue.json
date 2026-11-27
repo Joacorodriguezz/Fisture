@@ -1,0 +1,1178 @@
+[
+  {
+    "liga": "arg.1/2025",
+    "id": "761364",
+    "nombre": "BAR @ RIE",
+    "header": {
+      "status": {
+        "type": {
+          "id": "45",
+          "name": "STATUS_FINAL_AET",
+          "state": "post",
+          "completed": true,
+          "description": "Final Score - After Extra Time",
+          "detail": "AET",
+          "shortDetail": "AET"
+        }
+      },
+      "competitors": [
+        {
+          "homeAway": "home",
+          "team": "Deportivo Riestra",
+          "score": "0",
+          "winner": false,
+          "linescores": [
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            }
+          ]
+        },
+        {
+          "homeAway": "away",
+          "team": "Barracas Central",
+          "score": "1",
+          "winner": true,
+          "linescores": [
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "1"
+            }
+          ]
+        }
+      ]
+    },
+    "keyEvents": [
+      {
+        "type": {
+          "id": "81",
+          "text": "Halftime",
+          "type": "halftime"
+        },
+        "text": "First Half ends, Deportivo Riestra 0, Barracas Central 0.",
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'+2'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "82",
+          "text": "Start 2nd Half",
+          "type": "start-2nd-half"
+        },
+        "text": "Second Half begins Deportivo Riestra 0, Barracas Central 0.",
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "83",
+          "text": "End Regular Time",
+          "type": "end-regular-time"
+        },
+        "text": "Second Half ends, Deportivo Riestra 0, Barracas Central 0.",
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 5400,
+          "displayValue": "90'+5'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "84",
+          "text": "Start Extra Time",
+          "type": "start-extra-time"
+        },
+        "text": "First Half Extra Time begins Deportivo Riestra 0, Barracas Central 0.",
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 5400,
+          "displayValue": "90'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "85",
+          "text": "Halftime Extra Time",
+          "type": "halftime-extra-time"
+        },
+        "text": "First Half Extra Time ends, Deportivo Riestra 0, Barracas Central 0.",
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 6300,
+          "displayValue": "105'+6'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "86",
+          "text": "Start 2nd Half Extra Time",
+          "type": "start-2nd-half-extra-time"
+        },
+        "text": "Second Half Extra Time begins Deportivo Riestra 0, Barracas Central 0.",
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 6300,
+          "displayValue": "105'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "70",
+          "text": "Goal",
+          "type": "goal"
+        },
+        "text": "Nicolás Blandi Goal",
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 6899,
+          "displayValue": "115'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Barracas Central"
+      },
+      {
+        "type": {
+          "id": "87",
+          "text": "End Extra Time",
+          "type": "end-extra-time"
+        },
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 7200,
+          "displayValue": "120'+3'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      }
+    ]
+  },
+  {
+    "liga": "arg.copa/2024",
+    "id": "693401",
+    "nombre": "CHA @ TIG",
+    "header": {
+      "status": {
+        "type": {
+          "id": "46",
+          "name": "STATUS_FINAL_AGT",
+          "state": "post",
+          "completed": true,
+          "description": "Final Score - After Golden Goal",
+          "detail": "AGT",
+          "shortDetail": "AGT"
+        }
+      },
+      "competitors": [
+        {
+          "homeAway": "home",
+          "team": "Tigre",
+          "score": "1",
+          "winner": false,
+          "linescores": [
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "1"
+            },
+            {
+              "displayValue": "0"
+            }
+          ]
+        },
+        {
+          "homeAway": "away",
+          "team": "Chacarita Juniors",
+          "score": "1",
+          "winner": true,
+          "linescores": [
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "1"
+            },
+            {
+              "displayValue": "0"
+            }
+          ]
+        }
+      ]
+    },
+    "keyEvents": []
+  },
+  {
+    "liga": "conmebol.libertadores/2023",
+    "id": "688946",
+    "nombre": "FLU @ CABJ",
+    "header": {
+      "status": {
+        "type": {
+          "id": "45",
+          "name": "STATUS_FINAL_AET",
+          "state": "post",
+          "completed": true,
+          "description": "Final Score - After Extra Time",
+          "detail": "AET",
+          "shortDetail": "AET"
+        }
+      },
+      "competitors": [
+        {
+          "homeAway": "home",
+          "team": "Boca Juniors",
+          "score": "1",
+          "winner": false,
+          "linescores": [
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "1"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            }
+          ]
+        },
+        {
+          "homeAway": "away",
+          "team": "Fluminense",
+          "score": "2",
+          "winner": true,
+          "linescores": [
+            {
+              "displayValue": "1"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "1"
+            },
+            {
+              "displayValue": "0"
+            }
+          ]
+        }
+      ]
+    },
+    "keyEvents": [
+      {
+        "type": {
+          "id": "70",
+          "text": "Goal",
+          "type": "goal"
+        },
+        "text": "Germán Cano Goal",
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 2134,
+          "displayValue": "36'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Fluminense"
+      },
+      {
+        "type": {
+          "id": "81",
+          "text": "Halftime",
+          "type": "halftime"
+        },
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'+3'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "82",
+          "text": "Start 2nd Half",
+          "type": "start-2nd-half"
+        },
+        "text": "Second Half begins Boca Juniors 0, Fluminense 1.",
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "70",
+          "text": "Goal",
+          "type": "goal"
+        },
+        "text": "Luis Advíncula Goal",
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 4314,
+          "displayValue": "72'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Boca Juniors"
+      },
+      {
+        "type": {
+          "id": "83",
+          "text": "End Regular Time",
+          "type": "end-regular-time"
+        },
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 5400,
+          "displayValue": "90'+5'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "84",
+          "text": "Start Extra Time",
+          "type": "start-extra-time"
+        },
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 5400,
+          "displayValue": "90'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "173",
+          "text": "Goal - Volley",
+          "type": "goal---volley"
+        },
+        "text": "John Kennedy Goal - Volley",
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 5921,
+          "displayValue": "99'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Fluminense"
+      },
+      {
+        "type": {
+          "id": "85",
+          "text": "Halftime Extra Time",
+          "type": "halftime-extra-time"
+        },
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 6300,
+          "displayValue": "105'+7'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "86",
+          "text": "Start 2nd Half Extra Time",
+          "type": "start-2nd-half-extra-time"
+        },
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 6300,
+          "displayValue": "105'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "87",
+          "text": "End Extra Time",
+          "type": "end-extra-time"
+        },
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 7200,
+          "displayValue": "120'+4'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      }
+    ]
+  },
+  {
+    "liga": "arg.1/2026",
+    "id": "401871437",
+    "nombre": "HUR @ CABJ",
+    "header": {
+      "status": {
+        "type": {
+          "id": "45",
+          "name": "STATUS_FINAL_AET",
+          "state": "post",
+          "completed": true,
+          "description": "Final Score - After Extra Time",
+          "detail": "AET",
+          "shortDetail": "AET"
+        }
+      },
+      "competitors": [
+        {
+          "homeAway": "home",
+          "team": "Boca Juniors",
+          "score": "2",
+          "winner": false,
+          "linescores": [
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "1"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "1"
+            }
+          ]
+        },
+        {
+          "homeAway": "away",
+          "team": "Huracán",
+          "score": "3",
+          "winner": true,
+          "linescores": [
+            {
+              "displayValue": "1"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "2"
+            },
+            {
+              "displayValue": "0"
+            }
+          ]
+        }
+      ]
+    },
+    "keyEvents": [
+      {
+        "type": {
+          "id": "70",
+          "text": "Goal",
+          "type": "goal"
+        },
+        "text": "Leonardo Gil Goal",
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 274,
+          "displayValue": "5'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Huracán"
+      },
+      {
+        "type": {
+          "id": "81",
+          "text": "Halftime",
+          "type": "halftime"
+        },
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'+5'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "82",
+          "text": "Start 2nd Half",
+          "type": "start-2nd-half"
+        },
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "70",
+          "text": "Goal",
+          "type": "goal"
+        },
+        "text": "Milton Gimenez Goal",
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 5205,
+          "displayValue": "87'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Boca Juniors"
+      },
+      {
+        "type": {
+          "id": "83",
+          "text": "End Regular Time",
+          "type": "end-regular-time"
+        },
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 5400,
+          "displayValue": "90'+8'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "84",
+          "text": "Start Extra Time",
+          "type": "start-extra-time"
+        },
+        "text": "First Half Extra Time begins Boca Juniors 1, Huracán 1.",
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 5400,
+          "displayValue": "90'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "98",
+          "text": "Penalty - Scored",
+          "type": "penalty---scored"
+        },
+        "text": "Óscar Romero Penalty - Scored",
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 5608,
+          "displayValue": "94'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Huracán"
+      },
+      {
+        "type": {
+          "id": "98",
+          "text": "Penalty - Scored",
+          "type": "penalty---scored"
+        },
+        "text": "Óscar Romero Penalty - Scored",
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 6151,
+          "displayValue": "103'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Huracán"
+      },
+      {
+        "type": {
+          "id": "85",
+          "text": "Halftime Extra Time",
+          "type": "halftime-extra-time"
+        },
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 6300,
+          "displayValue": "105'+5'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "86",
+          "text": "Start 2nd Half Extra Time",
+          "type": "start-2nd-half-extra-time"
+        },
+        "text": "Second Half Extra Time begins Boca Juniors 1, Huracán 3.",
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 6300,
+          "displayValue": "105'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "137",
+          "text": "Goal - Header",
+          "type": "goal---header"
+        },
+        "text": "Ángel Romero Goal - Header",
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 6922,
+          "displayValue": "116'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Boca Juniors"
+      },
+      {
+        "type": {
+          "id": "87",
+          "text": "End Extra Time",
+          "type": "end-extra-time"
+        },
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 7200,
+          "displayValue": "120'+3'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      }
+    ]
+  },
+  {
+    "liga": "arg.1/2026",
+    "id": "401872291",
+    "nombre": "HUR @ ARGJ",
+    "header": {
+      "status": {
+        "type": {
+          "id": "45",
+          "name": "STATUS_FINAL_AET",
+          "state": "post",
+          "completed": true,
+          "description": "Final Score - After Extra Time",
+          "detail": "AET",
+          "shortDetail": "AET"
+        }
+      },
+      "competitors": [
+        {
+          "homeAway": "home",
+          "team": "Argentinos Juniors",
+          "score": "1",
+          "winner": true,
+          "linescores": [
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "1"
+            },
+            {
+              "displayValue": "0"
+            }
+          ]
+        },
+        {
+          "homeAway": "away",
+          "team": "Huracán",
+          "score": "0",
+          "winner": false,
+          "linescores": [
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            }
+          ]
+        }
+      ]
+    },
+    "keyEvents": [
+      {
+        "type": {
+          "id": "81",
+          "text": "Halftime",
+          "type": "halftime"
+        },
+        "text": "First Half ends, Argentinos Juniors 0, Huracán 0.",
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'+3'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "82",
+          "text": "Start 2nd Half",
+          "type": "start-2nd-half"
+        },
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "83",
+          "text": "End Regular Time",
+          "type": "end-regular-time"
+        },
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 5400,
+          "displayValue": "90'+5'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "84",
+          "text": "Start Extra Time",
+          "type": "start-extra-time"
+        },
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 5400,
+          "displayValue": "90'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "137",
+          "text": "Goal - Header",
+          "type": "goal---header"
+        },
+        "text": "Tomás Molina Goal - Header",
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 5648,
+          "displayValue": "95'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Argentinos Juniors"
+      },
+      {
+        "type": {
+          "id": "85",
+          "text": "Halftime Extra Time",
+          "type": "halftime-extra-time"
+        },
+        "text": "First Half Extra Time ends, Argentinos Juniors 1, Huracán 0.",
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 6300,
+          "displayValue": "105'+2'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "86",
+          "text": "Start 2nd Half Extra Time",
+          "type": "start-2nd-half-extra-time"
+        },
+        "text": "Second Half Extra Time begins Argentinos Juniors 1, Huracán 0.",
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 6300,
+          "displayValue": "105'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "87",
+          "text": "End Extra Time",
+          "type": "end-extra-time"
+        },
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 7200,
+          "displayValue": "120'+2'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      }
+    ]
+  },
+  {
+    "liga": "arg.1/2026",
+    "id": "401872179",
+    "nombre": "RAC @ ROS",
+    "header": {
+      "status": {
+        "type": {
+          "id": "45",
+          "name": "STATUS_FINAL_AET",
+          "state": "post",
+          "completed": true,
+          "description": "Final Score - After Extra Time",
+          "detail": "AET",
+          "shortDetail": "AET"
+        }
+      },
+      "competitors": [
+        {
+          "homeAway": "home",
+          "team": "Rosario Central",
+          "score": "2",
+          "winner": true,
+          "linescores": [
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "1"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "1"
+            }
+          ]
+        },
+        {
+          "homeAway": "away",
+          "team": "Racing Club",
+          "score": "1",
+          "winner": false,
+          "linescores": [
+            {
+              "displayValue": "1"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            },
+            {
+              "displayValue": "0"
+            }
+          ]
+        }
+      ]
+    },
+    "keyEvents": [
+      {
+        "type": {
+          "id": "70",
+          "text": "Goal",
+          "type": "goal"
+        },
+        "text": "Matías Zaracho Goal",
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 2423,
+          "displayValue": "41'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Racing Club"
+      },
+      {
+        "type": {
+          "id": "81",
+          "text": "Halftime",
+          "type": "halftime"
+        },
+        "text": "First Half ends, Rosario Central 0, Racing Club 1.",
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'+3'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "82",
+          "text": "Start 2nd Half",
+          "type": "start-2nd-half"
+        },
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 2700,
+          "displayValue": "45'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "137",
+          "text": "Goal - Header",
+          "type": "goal---header"
+        },
+        "text": "Gastón Ávila Goal - Header",
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 3884,
+          "displayValue": "65'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Rosario Central"
+      },
+      {
+        "type": {
+          "id": "83",
+          "text": "End Regular Time",
+          "type": "end-regular-time"
+        },
+        "period": {
+          "number": 2
+        },
+        "clock": {
+          "value": 5400,
+          "displayValue": "90'+9'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "84",
+          "text": "Start Extra Time",
+          "type": "start-extra-time"
+        },
+        "text": "First Half Extra Time begins Rosario Central 1, Racing Club 1.",
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 5400,
+          "displayValue": "90'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "85",
+          "text": "Halftime Extra Time",
+          "type": "halftime-extra-time"
+        },
+        "text": "First Half Extra Time ends, Rosario Central 1, Racing Club 1.",
+        "period": {
+          "number": 3
+        },
+        "clock": {
+          "value": 6300,
+          "displayValue": "105'+2'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "86",
+          "text": "Start 2nd Half Extra Time",
+          "type": "start-2nd-half-extra-time"
+        },
+        "text": "Second Half Extra Time begins Rosario Central 1, Racing Club 1.",
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 6300,
+          "displayValue": "105'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      },
+      {
+        "type": {
+          "id": "70",
+          "text": "Goal",
+          "type": "goal"
+        },
+        "text": "Enzo Copetti Goal",
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 6345,
+          "displayValue": "106'"
+        },
+        "scoringPlay": true,
+        "shootout": false,
+        "team": "Rosario Central"
+      },
+      {
+        "type": {
+          "id": "87",
+          "text": "End Extra Time",
+          "type": "end-extra-time"
+        },
+        "text": "Second Half Extra Time ends, Rosario Central 2, Racing Club 1.",
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "value": 7200,
+          "displayValue": "120'+1'"
+        },
+        "scoringPlay": false,
+        "shootout": false
+      }
+    ]
+  }
+]
