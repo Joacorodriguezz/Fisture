@@ -18,6 +18,12 @@ export interface ProviderMatch {
   homeScore?: number | null;
   awayScore?: number | null;
   round?: string;
+  // Prode (docs/40 D1): nombre crudo del estado del proveedor (status.type.name de ESPN)
+  estadoProveedor?: string;
+  // Marcador a 90' con la regla que lo produjo; null si no se puede asegurar
+  goles90?: { local: number; visitante: number; regla: "A" | "B" } | null;
+  // Equipo que pasó; null si no se puede asegurar
+  pasa?: "home" | "away" | null;
 }
 
 export interface ProviderLeague {

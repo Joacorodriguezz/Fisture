@@ -1,0 +1,452 @@
+[
+  {
+    "liga": "arg.1/2023",
+    "id": "656227",
+    "fecha": "2023-01-27T22:15Z",
+    "nombre": "ARGJ @ ROS",
+    "temporada": {
+      "year": 2023,
+      "slug": "2023-argentine-liga-profesional",
+      "type": 11424
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+8'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Rosario Central",
+        "score": "1",
+        "winner": true,
+        "extra": {}
+      },
+      {
+        "homeAway": "away",
+        "team": "Argentinos Juniors",
+        "score": "0",
+        "winner": false,
+        "extra": {}
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.1/2023",
+    "id": "656223",
+    "fecha": "2023-01-28T00:30Z",
+    "nombre": "HUR @ DYJ",
+    "temporada": {
+      "year": 2023,
+      "slug": "2023-argentine-liga-profesional",
+      "type": 11424
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+8'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Defensa y Justicia",
+        "score": "2",
+        "winner": false,
+        "extra": {}
+      },
+      {
+        "homeAway": "away",
+        "team": "Huracán",
+        "score": "4",
+        "winner": true,
+        "extra": {}
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.1/2023",
+    "id": "656228",
+    "fecha": "2023-01-28T20:00Z",
+    "nombre": "ARS @ SLO",
+    "temporada": {
+      "year": 2023,
+      "slug": "2023-argentine-liga-profesional",
+      "type": 11424
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+7'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "San Lorenzo",
+        "score": "1",
+        "winner": true,
+        "extra": {}
+      },
+      {
+        "homeAway": "away",
+        "team": "Arsenal Sarandi",
+        "score": "0",
+        "winner": false,
+        "extra": {}
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.1/2023",
+    "id": "656224",
+    "fecha": "2023-01-28T22:15Z",
+    "nombre": "TIG @ EST",
+    "temporada": {
+      "year": 2023,
+      "slug": "2023-argentine-liga-profesional",
+      "type": 11424
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+5'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Estudiantes de La Plata",
+        "score": "1",
+        "winner": false,
+        "extra": {}
+      },
+      {
+        "homeAway": "away",
+        "team": "Tigre",
+        "score": "2",
+        "winner": true,
+        "extra": {}
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.1/2023",
+    "id": "656229",
+    "fecha": "2023-01-28T22:15Z",
+    "nombre": "IND @ TALL",
+    "temporada": {
+      "year": 2023,
+      "slug": "2023-argentine-liga-profesional",
+      "type": 11424
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+10'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Talleres (Córdoba)",
+        "score": "0",
+        "winner": false,
+        "extra": {}
+      },
+      {
+        "homeAway": "away",
+        "team": "Independiente",
+        "score": "1",
+        "winner": true,
+        "extra": {}
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.1/2023",
+    "id": "656221",
+    "fecha": "2023-01-29T00:30Z",
+    "nombre": "RIV @ CTR",
+    "temporada": {
+      "year": 2023,
+      "slug": "2023-argentine-liga-profesional",
+      "type": 11424
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+5'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Central Córdoba (Santiago del Estero)",
+        "score": "0",
+        "winner": false,
+        "extra": {}
+      },
+      {
+        "homeAway": "away",
+        "team": "River Plate",
+        "score": "2",
+        "winner": true,
+        "extra": {}
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.1/2023",
+    "id": "656225",
+    "fecha": "2023-01-29T20:00Z",
+    "nombre": "NOB @ PLA",
+    "temporada": {
+      "year": 2023,
+      "slug": "2023-argentine-liga-profesional",
+      "type": 11424
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+6'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Platense",
+        "score": "2",
+        "winner": false,
+        "extra": {}
+      },
+      {
+        "homeAway": "away",
+        "team": "Newell's Old Boys",
+        "score": "2",
+        "winner": false,
+        "extra": {}
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.1/2023",
+    "id": "656222",
+    "fecha": "2023-01-29T22:15Z",
+    "nombre": "LAN @ COL",
+    "temporada": {
+      "year": 2023,
+      "slug": "2023-argentine-liga-profesional",
+      "type": 11424
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+5'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Colón (Santa Fe)",
+        "score": "1",
+        "winner": false,
+        "extra": {}
+      },
+      {
+        "homeAway": "away",
+        "team": "Lanús",
+        "score": "2",
+        "winner": true,
+        "extra": {}
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.1/2023",
+    "id": "657760",
+    "fecha": "2023-01-29T22:15Z",
+    "nombre": "SARM @ IACC",
+    "temporada": {
+      "year": 2023,
+      "slug": "2023-argentine-liga-profesional",
+      "type": 11424
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+9'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Instituto (Córdoba)",
+        "score": "0",
+        "winner": false,
+        "extra": {}
+      },
+      {
+        "homeAway": "away",
+        "team": "Sarmiento (Junín)",
+        "score": "0",
+        "winner": false,
+        "extra": {}
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  },
+  {
+    "liga": "arg.1/2023",
+    "id": "656226",
+    "fecha": "2023-01-29T22:15Z",
+    "nombre": "BEL @ RAC",
+    "temporada": {
+      "year": 2023,
+      "slug": "2023-argentine-liga-profesional",
+      "type": 11424
+    },
+    "competicion": {
+      "notes": []
+    },
+    "status": {
+      "type": {
+        "name": "STATUS_FULL_TIME",
+        "state": "post",
+        "completed": true,
+        "description": "Full Time",
+        "detail": "FT",
+        "shortDetail": "FT"
+      },
+      "period": 2,
+      "displayClock": "90'+7'"
+    },
+    "competitors": [
+      {
+        "homeAway": "home",
+        "team": "Racing Club",
+        "score": "0",
+        "winner": false,
+        "extra": {}
+      },
+      {
+        "homeAway": "away",
+        "team": "Belgrano (Córdoba)",
+        "score": "0",
+        "winner": false,
+        "extra": {}
+      }
+    ],
+    "extra": {
+      "competition.wasSuspended": false
+    }
+  }
+]

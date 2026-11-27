@@ -64,6 +64,7 @@ describe("contrato ESPN con fixture sin red", () => {
     const { matches } = await createEspnClient().getFixture!("arg.1", { years: [2026] });
     expect(matches[0].status).toBe(status);
     expect(matches[0].homeScore).toBe(["live", "finished"].includes(status) ? 2 : null);
+    expect(matches[0].estadoProveedor).toBe(name);
   });
   it("descarta equipos placeholder y competencias incompletas", async () => {
     const data = payload();
