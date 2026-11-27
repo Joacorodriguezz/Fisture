@@ -6,6 +6,8 @@ import { relojFijo } from "../../helpers/clock";
 import { d1ConCambioAntesDelBatch } from "../../helpers/d1-intercalado";
 import { GET, PATCH, POST } from "../../../src/pages/api/admin/prode/partidos";
 
+import { puntosPorUsuario } from "../../../src/lib/prode/puntos";
+
 const ADMIN = "admin-de-prueba";
 // Después del inicio del cruce de prueba (22/11 21:00 ART = 23/11 00:00 UTC): ya se le puede cargar el resultado
 const DESPUES = new Date("2026-11-23T02:00:00Z");
@@ -350,6 +352,27 @@ describe("/api/admin/prode/partidos", () => {
         expect(res.body.partido).toMatchObject({ id: "espn-1", resultado: { local: 2, visitante: 2 } });
         expect(await vinculo("espn-1")).toMatchObject({ home_goals_90: 2, away_goals_90: 2 });
         expect(await fila("espn-1")).toEqual(antes);
+      });
+
+      it("retira un resultado administrativo sin reabrir el pronóstico", async () => {
+        await adoptado();
+        await t.DB.batch([
+          t.DB.prepare("UPDATE matches SET status = 'finished', home_score = 3, away_score = 2 WHERE id = 'espn-1'"),
+          t.DB.prepare("INSERT INTO users (id, provider, provider_id, email) VALUES ('hincha', 'google', 'hincha', 'hincha@example.test')"),
+          t.DB.prepare("INSERT INTO prode_predictions (user_id, match_id, home_goals, away_goals, created_at, updated_at) VALUES ('hincha', 'espn-1', 2, 2, 0, 0)"),
+        ]);
+        vi.setSystemTime(DESPUES);
+        const antes = await fila("espn-1");
+        await llamar("PATCH", { id: "espn-1", homeGoals90: 2, awayGoals90: 2 });
+        expect((await puntosPorUsuario(t.db)).partidos).toMatchObject([{ puntos: 3 }]);
+        const retirar = { id: "espn-1", homeGoals90: null, awayGoals90: null };
+        expect(await llamar("PATCH", { ...retirar, awayGoals90: 0 })).toMatchObject({ status: 400, body: { error: "marcador_invalido" } });
+        for (let intento = 0; intento < 2; intento += 1) {
+          expect(await llamar("PATCH", retirar)).toMatchObject({ status: 200, body: { partido: { resultado: null } } });
+        }
+        expect(await fila("espn-1")).toEqual(antes);
+        expect(await vinculo("espn-1")).toMatchObject({ home_goals_90: null, away_goals_90: null, closed_at: DESPUES.getTime() });
+        expect((await puntosPorUsuario(t.db)).partidos).toEqual([]);
       });
 
       it("sin resultado a 90 confirmado, un adoptado no muestra resultado aunque ESPN tenga marcador", async () => {

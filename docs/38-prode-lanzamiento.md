@@ -88,7 +88,7 @@ curl -X PATCH "<URL>/api/admin/prode/partidos" -H "Authorization: Bearer $ADMIN_
   -d '{"id":"<id del partido>","homeGoals90":1,"awayGoals90":1}'
 ```
 
-Enteros 0-20, los dos juntos y sin otros campos (400 `cambios_mezclados`). Errores: 409 `partido_no_empezado`, 409 `partido_manual`, 404 `partido_inexistente`. El partido puntúa cuando además está en `finished`. Corregir el resultado reordena el ranking solo (los puntos se calculan al leer).
+Enteros 0-20, los dos juntos y sin otros campos (400 `cambios_mezclados`). Errores: 409 `partido_no_empezado`, 409 `partido_manual`, 404 `partido_inexistente`. El partido puntúa cuando además está en `finished`. Para retirar una confirmación de ESPN, enviá `{ "id": "<id>", "homeGoals90": null, "awayGoals90": null }` sin otros campos. Se retiran sus puntos, se conserva el cierre y el GET devuelve `resultado: null`. Corregir el resultado reordena el ranking solo (los puntos se calculan al leer).
 
 ### 3.5 Guardia de resultados durante el piloto
 
@@ -105,7 +105,7 @@ Registrar en una bitácora la fecha y fase, el ID y el origen del cruce, el marc
 
 - **Reprogramado antes de empezar**: corregir el horario (3.3); el cierre se mueve con él.
 - **Suspendido después de empezar**: queda cerrado para siempre (`closed_at`). Si se completa otro día, cargar el resultado final (3.4). Si nunca se completa, no hay que hacer nada: no da puntos.
-- **Cancelado**: `status: "cancelled"` en un manual; en un adoptado lo trae el sync. Un resultado dado por decisión administrativa no cuenta (`docs/37` §5).
+- **Cancelado**: `status: "cancelled"` en un manual; en un adoptado lo trae el sync. Un resultado dado por decisión administrativa no cuenta (`docs/37` §5). Si ESPN mantiene `finished` y el resultado ya se había confirmado, retiralo según la sección 3.4 y dejá constancia de la exclusión en la bitácora.
 
 ## 4. Despliegue de las migraciones 0017-0021 y rollback
 
@@ -134,7 +134,7 @@ Rollback: revertir el código basta, la base migrada sigue siendo compatible con
   - `gruposCreados`, `participantes` (usuarios distintos con al menos un pronóstico) y `pronosticos`.
   - `participantesPorFase` y `regresanPorFase` (`octavos`, `cuartos`, `semifinal`, `final`). Regresan quienes pronosticaron en esa fase y en alguna anterior, así que en octavos siempre es 0.
   - `integrantesPorGrupo`: `promedio` y `maximo`.
-  - `partidos`: `abiertos` y `cerrados` se cuentan por `closed_at`. `conResultado` cuenta los partidos en `finished` con goles a 90 minutos. La brecha entre `cerrados` y `conResultado` puede incluir partidos en juego, suspendidos, cancelados o pendientes de sync o de carga.
+  - `partidos`: `abiertos` y `cerrados` siguen el mismo criterio que la API de pronósticos según el horario, el estado y el cierre definitivo (`closed_at`). `conResultado` cuenta los partidos en `finished` con goles a 90 minutos. La brecha entre `cerrados` y `conResultado` puede incluir partidos en juego, suspendidos, cancelados o pendientes de sync o de carga.
 
 Para detectar resultados pendientes de carga, buscar `estado: "finished"` con `resultado: null` en `GET /api/admin/prode/partidos`. Cruzar esa lista con los partidos cuyo final ya se confirmó en la bitácora para detectar también los atrasos de estado en ESPN. Los logs del PATCH quedan como `prode_cruce_corregido` y `prode_cruce_rechazado` (`npx wrangler pages deployment tail`).
 

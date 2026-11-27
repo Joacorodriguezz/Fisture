@@ -54,7 +54,7 @@ export function horarioArgentino(instante: Date): HorarioMostrado {
 
 // Estados de matches.status en los que el partido sigue sin empezar. Un suspendido después de empezar
 // queda en postponed con su horario ya pasado, así que el criterio de hora lo mantiene cerrado.
-const ESTADOS_SIN_EMPEZAR: readonly string[] = ["scheduled", "postponed"];
+export const ESTADOS_SIN_EMPEZAR: readonly string[] = ["scheduled", "postponed"];
 
 export function estadoSinEmpezar(status: string | null | undefined): boolean {
   return status == null || ESTADOS_SIN_EMPEZAR.includes(status);

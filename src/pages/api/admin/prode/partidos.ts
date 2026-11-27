@@ -17,6 +17,7 @@ import { agregarCruce, corregirPartido, listarCruces, type Resultado } from "../
 // Resultado a los 90' de un adoptado: PATCH {id, homeGoals90, awayGoals90} (enteros 0-20, solos) lo guarda en el
 // vínculo sin tocar matches; 409 partido_no_empezado antes del horario, 409 partido_manual en un manual (ahí va
 // {status: "finished", homeScore, awayScore}), 404 partido_inexistente fuera del prode. Sin él, un adoptado no puntúa.
+// Ambos goles en null retiran la confirmación del adoptado y conservan su cierre.
 // GET lista los partidos del prode (vínculo prode_matches): manuales y adoptados.
 // Límite de tasa: como el resto de /api/admin, solo cuentan los fallos de Bearer (admin_fail en verificarAdmin).
 const headers = { "Cache-Control": "no-store" };

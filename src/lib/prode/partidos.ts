@@ -281,7 +281,8 @@ async function fijarResultado90(db: Database, datos: Record<string, unknown>): P
   const otros = Object.keys(datos).filter((k) => !["id", "homeGoals90", "awayGoals90"].includes(k));
   if (otros.length > 0) return error(400, "cambios_mezclados");
   if (homeGoals90 === undefined || awayGoals90 === undefined) return error(400, "faltan_goles");
-  if (!esGoles(homeGoals90) || !esGoles(awayGoals90)) return error(400, "marcador_invalido");
+  const retirar = homeGoals90 === null && awayGoals90 === null;
+  if (!retirar && (!esGoles(homeGoals90) || !esGoles(awayGoals90))) return error(400, "marcador_invalido");
 
   const [m] = await db
     .select({ source: matches.source, dateTime: matches.dateTime })
@@ -291,6 +292,10 @@ async function fijarResultado90(db: Database, datos: Record<string, unknown>): P
     .limit(1);
   if (!m) return error(404, "partido_inexistente");
   if (m.source === SOURCE_MANUAL) return error(409, "partido_manual");
+  if (retirar) {
+    await db.update(prodeMatches).set({ homeGoals90: null, awayGoals90: null }).where(eq(prodeMatches.matchId, id));
+    return { ok: true, partido: await leerPartido(db, id) };
+  }
   const ahora = new Date();
   if (m.dateTime.getTime() > ahora.getTime()) return error(409, "partido_no_empezado");
 

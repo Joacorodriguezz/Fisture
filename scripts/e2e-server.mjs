@@ -119,8 +119,9 @@ try {
           const nombre = scenario === "prode" ? `Dueño ${id}` : `Invitado ${id}`;
           sql.push(`UPDATE users SET display_name = '${nombre}' WHERE id = '${id}';`);
           if (scenario === "prode") {
+            const codigoInvitacion = randomBytes(16).toString("base64url");
             sql.push(`INSERT INTO prode_predictions (user_id, match_id, home_goals, away_goals, created_at, updated_at) VALUES ('${id}', 'prode-jugado', 2, 1, ${now}, ${now});`);
-            sql.push(`INSERT INTO prode_groups (id, name, invite_code, owner_id, created_at) VALUES ('grupo-${id}', 'Grupo sembrado ${id}', 'seed${id.replace(/[^A-Za-z0-9]/g, "")}', '${id}', ${now});`);
+            sql.push(`INSERT INTO prode_groups (id, name, invite_code, owner_id, created_at) VALUES ('grupo-${id}', 'Grupo sembrado ${id}', '${codigoInvitacion}', '${id}', ${now});`);
             sql.push(`INSERT INTO prode_group_members (group_id, user_id, joined_at) VALUES ('grupo-${id}', '${id}', ${now});`);
           }
         }
